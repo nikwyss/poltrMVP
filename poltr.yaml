@@ -1,0 +1,220 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: poltr
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pds-secrets
+  namespace: poltr
+type: Opaque
+stringData:
+  POSTGRES_DB: pds
+  POSTGRES_USER: pds_user
+  POSTGRES_PASSWORD: supersecret
+  PDS_ADMIN_PASSWORD: admin123
+  PDS_JWT_SECRET: replace-with-long-random-hex
+  PDS_SERVER_DID: did:web:pds.poltr.ch
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: poltr
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: poltr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          envFrom:
+            - secretRef:
+                name: pds-secrets
+          env:
+            - name: POSTGRES_DB
+              valueFrom: { secretKeyRef: { name: pds-secrets, key: POSTGRES_DB } }
+            - name: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: pds-secrets, key: POSTGRES_USER } }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: pds-secrets, key: POSTGRES_PASSWORD } }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: poltr
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pds-blobs
+  namespace: poltr
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pds
+  namespace: poltr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pds
+  template:
+    metadata:
+      labels:
+        app: pds
+    spec:
+      containers:
+        - name: pds
+          image: ghcr.io/bluesky-social/pds:0.4
+          env:
+            - name: PDS_HOSTNAME
+              value: "pds.poltr.ch"
+            - name: PDS_PORT
+              value: "2583"
+            - name: PDS_PGHOST
+              value: "postgres"
+            - name: PDS_PGDATABASE
+              valueFrom: { secretKeyRef: { name: pds-secrets, key: POSTGRES_DB } }
+            - name: PDS_PGUSER
+              valueFrom: { secretKeyRef: { name: pds-secrets, key: POSTGRES_USER } }
+            - name: PDS_PGPASSWORD
+              valueFrom: { secretKeyRef: { name: pds-secrets, key: POSTGRES_PASSWORD } }
+            - name: PDS_BLOBSTORE
+              value: "disk"
+            - name: PDS_BLOBSTORE_DISK_LOCATION
+              value: "/data/blobs"
+            - name: PDS_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: pds-secrets, key: PDS_ADMIN_PASSWORD } }
+            - name: PDS_JWT_SECRET
+              valueFrom: { secretKeyRef: { name: pds-secrets, key: PDS_JWT_SECRET } }
+            - name: PDS_SERVER_DID
+              valueFrom: { secretKeyRef: { name: pds-secrets, key: PDS_SERVER_DID } }
+            - name: PDS_DATA_DIR
+              value: "/data"
+          volumeMounts:
+            - name: blobs
+              mountPath: /data/blobs
+      volumes:
+        - name: blobs
+          persistentVolumeClaim:
+            claimName: pds-blobs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pds
+  namespace: poltr
+spec:
+  selector:
+    app: pds
+  ports:
+    - port: 80
+      targetPort: 2583
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: poltr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: nginx:stable-alpine
+          volumeMounts:
+            - name: web
+              mountPath: /usr/share/nginx/html
+      volumes:
+        - name: web
+          emptyDir: {}
+          # TODO: hier später dein gebautes Frontend rein (ConfigMap, PVC oder eigenes Image)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: poltr
+spec:
+  selector:
+    app: frontend
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: poltr-ingress
+  namespace: poltr
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    # TLS/Let’s Encrypt hängt davon ab, was Infomaniak im Cluster bereitstellt
+spec:
+  rules:
+    - host: poltr.ch
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+    - host: pds.poltr.ch
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pds
+                port:
+                  number: 80
