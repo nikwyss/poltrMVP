@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: poltr-postgres
+    environment:
+      POSTGRES_DB: pds
+      POSTGRES_USER: pds_user
+      POSTGRES_PASSWORD: supersecret
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pds_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - poltr-network
+
+  pds:
+    image: ghcr.io/bluesky-social/pds:0.4
+    container_name: poltr-pds
+    environment:
+      PDS_HOSTNAME: localhost
+      PDS_PORT: 2583
+      PDS_PGHOST: postgres
+      PDS_PGDATABASE: pds
+      PDS_PGUSER: pds_user
+      PDS_PGPASSWORD: supersecret
+      PDS_BLOBSTORE: disk
+      PDS_BLOBSTORE_DISK_LOCATION: /data/blobs
+      PDS_DATA_DIR: /data
+      PDS_ADMIN_PASSWORD: admin123
+      PDS_JWT_SECRET: replace-with-long-random-hex
+      PDS_SERVER_DID: did:web:localhost
+    volumes:
+      - pds-data:/data
+    ports:
+      - "2583:2583"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - poltr-network
+
+  frontend:
+    image: nginx:stable-alpine
+    container_name: poltr-frontend
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html
+    networks:
+      - poltr-network
+    # TODO: Später dein React/Next.js Frontend hier einbinden
+
+volumes:
+  postgres-data:
+  pds-data:
+
+networks:
+  poltr-network:
+    driver: bridge

@@ -15,6 +15,7 @@ stringData:
   POSTGRES_PASSWORD: supersecret
   PDS_ADMIN_PASSWORD: admin123
   PDS_JWT_SECRET: replace-with-long-random-hex
+  PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: "0000000000000000000000000000000000000000000000000000000000000001"
   PDS_SERVER_DID: did:web:pds.poltr.ch
 ---
 apiVersion: v1
@@ -23,7 +24,8 @@ metadata:
   name: postgres-data
   namespace: poltr
 spec:
-  accessModes: ["ReadWriteOnce"]
+  accessModes:
+    - ReadWriteOnce
   resources:
     requests:
       storage: 10Gi
@@ -46,19 +48,45 @@ spec:
       containers:
         - name: postgres
           image: postgres:16
-          envFrom:
-            - secretRef:
-                name: pds-secrets
           env:
             - name: POSTGRES_DB
-              valueFrom: { secretKeyRef: { name: pds-secrets, key: POSTGRES_DB } }
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: POSTGRES_DB
             - name: POSTGRES_USER
-              valueFrom: { secretKeyRef: { name: pds-secrets, key: POSTGRES_USER } }
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
-              valueFrom: { secretKeyRef: { name: pds-secrets, key: POSTGRES_PASSWORD } }
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: POSTGRES_PASSWORD
+          ports:
+            - containerPort: 5432
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 5
+            periodSeconds: 5
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -79,10 +107,11 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: pds-blobs
+  name: pds-data
   namespace: poltr
 spec:
-  accessModes: ["ReadWriteOnce"]
+  accessModes:
+    - ReadWriteOnce
   resources:
     requests:
       storage: 20Gi
@@ -113,30 +142,74 @@ spec:
             - name: PDS_PGHOST
               value: "postgres"
             - name: PDS_PGDATABASE
-              valueFrom: { secretKeyRef: { name: pds-secrets, key: POSTGRES_DB } }
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: POSTGRES_DB
             - name: PDS_PGUSER
-              valueFrom: { secretKeyRef: { name: pds-secrets, key: POSTGRES_USER } }
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: POSTGRES_USER
             - name: PDS_PGPASSWORD
-              valueFrom: { secretKeyRef: { name: pds-secrets, key: POSTGRES_PASSWORD } }
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: POSTGRES_PASSWORD
             - name: PDS_BLOBSTORE
               value: "disk"
             - name: PDS_BLOBSTORE_DISK_LOCATION
               value: "/data/blobs"
-            - name: PDS_ADMIN_PASSWORD
-              valueFrom: { secretKeyRef: { name: pds-secrets, key: PDS_ADMIN_PASSWORD } }
-            - name: PDS_JWT_SECRET
-              valueFrom: { secretKeyRef: { name: pds-secrets, key: PDS_JWT_SECRET } }
-            - name: PDS_SERVER_DID
-              valueFrom: { secretKeyRef: { name: pds-secrets, key: PDS_SERVER_DID } }
             - name: PDS_DATA_DIR
               value: "/data"
+            - name: PDS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_ADMIN_PASSWORD
+            - name: PDS_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_JWT_SECRET
+            - name: PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX
+            - name: PDS_SERVER_DID
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_SERVER_DID
+          ports:
+            - containerPort: 2583
           volumeMounts:
-            - name: blobs
-              mountPath: /data/blobs
+            - name: pds-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /xrpc/_health
+              port: 2583
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /xrpc/_health
+              port: 2583
+            initialDelaySeconds: 10
+            periodSeconds: 10
       volumes:
-        - name: blobs
+        - name: pds-data
           persistentVolumeClaim:
-            claimName: pds-blobs
+            claimName: pds-data
 ---
 apiVersion: v1
 kind: Service
@@ -167,14 +240,17 @@ spec:
     spec:
       containers:
         - name: frontend
+          # TODO: Build image from https://github.com/pilcrowonpaper/atproto-oauth-example
           image: nginx:stable-alpine
-          volumeMounts:
-            - name: web
-              mountPath: /usr/share/nginx/html
-      volumes:
-        - name: web
-          emptyDir: {}
-          # TODO: hier später dein gebautes Frontend rein (ConfigMap, PVC oder eigenes Image)
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
 ---
 apiVersion: v1
 kind: Service
@@ -195,7 +271,8 @@ metadata:
   namespace: poltr
   annotations:
     kubernetes.io/ingress.class: "nginx"
-    # TLS/Let’s Encrypt hängt davon ab, was Infomaniak im Cluster bereitstellt
+    # Falls du cert-manager verwendest:
+    # cert-manager.io/cluster-issuer: "letsencrypt-production"
 spec:
   rules:
     - host: poltr.ch
@@ -218,3 +295,9 @@ spec:
                 name: pds
                 port:
                   number: 80
+  # TLS-Konfiguration (anpassen oder auskommentiert lassen)
+  # tls:
+  #   - hosts:
+  #       - poltr.ch
+  #       - pds.poltr.ch
+  #     secretName: poltr-tls

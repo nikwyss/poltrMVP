@@ -1,1 +1,25 @@
 https://manager.infomaniak.com/v3/hosting/1558567/public-cloud/15667/project/36380/kaas/clusters/2369/dashboard
+
+
+
+# Ingres
+
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/cloud/deploy.yaml
+
+# lets encrypt
+
+cat <<'YAML' | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: admin@poltr.ch
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
