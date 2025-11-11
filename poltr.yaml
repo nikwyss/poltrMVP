@@ -3,7 +3,6 @@ kind: Namespace
 metadata:
   name: poltr
 ---
-apiVersion: v1
 # Secret 'pds-secrets' has been removed from this manifest for security.
 # Create it in-cluster with kubectl or use SealedSecrets/SOPS before applying this
 # manifest. Example (replace the placeholder values with secure values):
