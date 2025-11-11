@@ -4,19 +4,18 @@ metadata:
   name: poltr
 ---
 apiVersion: v1
-kind: Secret
-metadata:
-  name: pds-secrets
-  namespace: poltr
-type: Opaque
-stringData:
-  POSTGRES_DB: pds
-  POSTGRES_USER: pds_user
-  POSTGRES_PASSWORD: supersecret
-  PDS_ADMIN_PASSWORD: admin123
-  PDS_JWT_SECRET: replace-with-long-random-hex
-  PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX: "0000000000000000000000000000000000000000000000000000000000000001"
-  PDS_SERVER_DID: did:web:pds.poltr.ch
+# Secret 'pds-secrets' has been removed from this manifest for security.
+# Create it in-cluster with kubectl or use SealedSecrets/SOPS before applying this
+# manifest. Example (replace the placeholder values with secure values):
+#
+# kubectl create secret generic pds-secrets -n poltr \
+#   --from-literal=POSTGRES_DB=pds \
+#   --from-literal=POSTGRES_USER=pds_user \
+#   --from-literal=POSTGRES_PASSWORD='REPLACE_WITH_STRONG_PASSWORD' \
+#   --from-literal=PDS_ADMIN_PASSWORD='REPLACE_WITH_STRONG_PASSWORD' \
+#   --from-literal=PDS_JWT_SECRET='REPLACE_WITH_RANDOM_HEX' \
+#   --from-literal=PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX='REPLACE_WITH_RANDOM_HEX' \
+#   --from-literal=PDS_SERVER_DID='did:web:pds.poltr.ch'
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
