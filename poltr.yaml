@@ -3,19 +3,6 @@ kind: Namespace
 metadata:
   name: poltr
 ---
-# Secret 'pds-secrets' has been removed from this manifest for security.
-# Create it in-cluster with kubectl or use SealedSecrets/SOPS before applying this
-# manifest. Example (replace the placeholder values with secure values):
-#
-# kubectl create secret generic pds-secrets -n poltr \
-#   --from-literal=POSTGRES_DB=pds \
-#   --from-literal=POSTGRES_USER=pds_user \
-#   --from-literal=POSTGRES_PASSWORD='REPLACE_WITH_STRONG_PASSWORD' \
-#   --from-literal=PDS_ADMIN_PASSWORD='REPLACE_WITH_STRONG_PASSWORD' \
-#   --from-literal=PDS_JWT_SECRET='REPLACE_WITH_RANDOM_HEX' \
-#   --from-literal=PDS_PLC_ROTATION_KEY_K256_PRIVATE_KEY_HEX='REPLACE_WITH_RANDOM_HEX' \
-#   --from-literal=PDS_SERVER_DID='did:web:pds.poltr.ch'
----
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -238,10 +225,30 @@ spec:
     spec:
       containers:
         - name: frontend
-          # TODO: Build image from https://github.com/pilcrowonpaper/atproto-oauth-example
-          image: nginx:stable-alpine
+          image: nikwyss/poltr-front:latest
+          env:
+            - name: OAUTH_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: OAUTH_PRIVATE_KEY
+            - name: OAUTH_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: OAUTH_PUBLIC_KEY
+            - name: OAUTH_KEY_PAIR_ID
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: OAUTH_KEY_PAIR_ID
+            - name: PUBLIC_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PUBLIC_URL
           ports:
-            - containerPort: 80
+            - containerPort: 4321
           resources:
             requests:
               cpu: "100m"
@@ -260,7 +267,7 @@ spec:
     app: frontend
   ports:
     - port: 80
-      targetPort: 80
+      targetPort: 4321
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -269,8 +276,6 @@ metadata:
   namespace: poltr
   annotations:
     kubernetes.io/ingress.class: "nginx"
-    # Falls du cert-manager verwendest:
-    # cert-manager.io/cluster-issuer: "letsencrypt-production"
 spec:
   rules:
     - host: poltr.ch
@@ -293,9 +298,3 @@ spec:
                 name: pds
                 port:
                   number: 80
-  # TLS-Konfiguration (anpassen oder auskommentiert lassen)
-  # tls:
-  #   - hosts:
-  #       - poltr.ch
-  #       - pds.poltr.ch
-  #     secretName: poltr-tls
