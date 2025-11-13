@@ -174,3 +174,25 @@ Kubernetes Dashboard: https://manager.infomaniak.com/v3/hosting/1558567/public-c
   - `poltr.ch` → Frontend
   - `pds.poltr.ch` → PDS (Personal Data Server)
 - **Storage**: Persistent volume for PDS data (SQLite databases and blobs)
+
+
+
+
+
+# IMPORT NEWEST PROPOSALS
+
+- update echtzeitdaten-am-abstimmungstag-zu-eidgenoessischen-abstimmungsvorlagen.json
+from https://ckan.opendata.swiss/api/3/action/package_show?id=echtzeitdaten-am-abstimmungstag-zu-eidgenoessischen-abstimmungsvorlagen
+
+-  update .env with actually existing handle
+
+- port forwaring
+> kubectl port-forward -n poltr deployment/pds 2583:2583
+- import env variables
+> source .env
+- end port forwarding
+> pkill -f "kubectl port-forward -n poltr deployment/pds"
+
+- run script:
+> python3 scripts/import_proposals.py
+
