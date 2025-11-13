@@ -1,6 +1,6 @@
 # Poltr AT Protocol Environment
 
-This project sets up a complete AT Protocol (ATProto) environment for poltr.ch, including:
+This project sets up a complete AT Protocol (ATProto) environment for poltr.info, including:
 
 - **PDS (Personal Data Server)**: Hosts user data and identity on the AT Protocol network (uses embedded SQLite)
 - **Frontend**: Web application for user interaction
@@ -77,8 +77,8 @@ kubectl get pods -n poltr
 
 Key environment variables in the PDS deployment:
 
-- `PDS_HOSTNAME`: Your PDS domain (e.g., `pds.poltr.ch`)
-- `PDS_SERVICE_HANDLE_DOMAINS`: Allowed handle domains (e.g., `.poltr.ch`)
+- `PDS_HOSTNAME`: Your PDS domain (e.g., `poltr.info`)
+- `PDS_SERVICE_HANDLE_DOMAINS`: Allowed handle domains (e.g., `.poltr.info`)
 - `PDS_INVITE_REQUIRED`: Set to `"false"` to allow open registration
 
 ## Deployment to Remote Kubernetes Cluster
@@ -172,7 +172,7 @@ Kubernetes Dashboard: https://manager.infomaniak.com/v3/hosting/1558567/public-c
 - **Namespace**: `poltr`
 - **Domains**: 
   - `poltr.ch` → Frontend
-  - `pds.poltr.ch` → PDS (Personal Data Server)
+  - `poltr.info` → PDS (Personal Data Server)
 - **Storage**: Persistent volume for PDS data (SQLite databases and blobs)
 
 

@@ -33,9 +33,11 @@ spec:
       containers:
         - name: pds
           image: ghcr.io/bluesky-social/pds:latest
+          command: ["/bin/sh"]
+          args: ["-c", "cd /data && exec node /app/index.js"]
           env:
             - name: PDS_HOSTNAME
-              value: "pds.poltr.ch"
+              value: "poltr.info"
             - name: PDS_PORT
               value: "2583"
             - name: PDS_BLOBSTORE
@@ -67,7 +69,7 @@ spec:
             - name: PDS_INVITE_REQUIRED
               value: "false"
             - name: PDS_SERVICE_HANDLE_DOMAINS
-              value: ".poltr.ch"
+              value: ".poltr.info"
           ports:
             - containerPort: 2583
           volumeMounts:
@@ -190,7 +192,7 @@ spec:
                 name: frontend
                 port:
                   number: 80
-    - host: pds.poltr.ch
+    - host: poltr.info
       http:
         paths:
           - path: /

@@ -6,7 +6,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: admin@poltr.ch
+    email: admin@poltr.info
     privateKeySecretRef:
       name: letsencrypt-prod-account-key
     solvers:
