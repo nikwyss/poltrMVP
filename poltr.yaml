@@ -202,3 +202,8 @@ spec:
                 name: pds
                 port:
                   number: 80
+  tls:
+    - hosts:
+        - poltr.ch
+        - poltr.info
+      secretName: poltr-shared-tls
