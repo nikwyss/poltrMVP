@@ -2,8 +2,7 @@
 
 This project sets up a complete AT Protocol (ATProto) environment for poltr.ch, including:
 
-- **PDS (Personal Data Server)**: Hosts user data and identity on the AT Protocol network
-- **PostgreSQL**: Database backend for the PDS
+- **PDS (Personal Data Server)**: Hosts user data and identity on the AT Protocol network (uses embedded SQLite)
 - **Frontend**: Web application for user interaction
 - **Ingress**: NGINX ingress controller with Let's Encrypt TLS certificates
 
@@ -140,9 +139,6 @@ kubectl logs -n poltr deployment/pds --tail=50
 
 # Frontend logs
 kubectl logs -n poltr deployment/frontend --tail=50
-
-# PostgreSQL logs
-kubectl logs -n poltr deployment/postgres --tail=50
 ```
 
 Check pod status:
@@ -150,6 +146,21 @@ Check pod status:
 ```bash
 kubectl get pods -n poltr
 kubectl describe pod -n poltr <pod-name>
+```
+
+### Accessing SQLite Database
+
+The PDS uses SQLite for data storage. To access the database:
+
+```bash
+# Get the current pod name
+kubectl get pods -n poltr -l app=pds
+
+# Copy database file locally
+kubectl cp poltr/<pod-name>:/data/account.sqlite ./account.sqlite
+
+# View with DBeaver or sqlite3
+sqlite3 account.sqlite
 ```
 
 ## Cluster Management
@@ -162,4 +173,4 @@ Kubernetes Dashboard: https://manager.infomaniak.com/v3/hosting/1558567/public-c
 - **Domains**: 
   - `poltr.ch` → Frontend
   - `pds.poltr.ch` → PDS (Personal Data Server)
-- **Storage**: Persistent volumes for PostgreSQL and PDS data
+- **Storage**: Persistent volume for PDS data (SQLite databases and blobs)
