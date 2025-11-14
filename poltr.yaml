@@ -36,6 +36,18 @@ spec:
           command: ["/bin/sh"]
           args: ["-c", "cd /data && exec node /app/index.js"]
           env:
+            # BLUESKY CONFIGURATION
+            - name: PDS_BSKY_APP_VIEW_URL
+              value: "https://api.bsky.app"
+            - name: PDS_BSKY_APP_VIEW_DID
+              value: "did:web:api.bsky.app"
+            - name: PDS_REPORT_SERVICE_URL
+              value: "https://mod.bsky.app"
+            - name: PDS_REPORT_SERVICE_DID
+              value: "did:plc:ar7c4by46qjdydhdevvrndac"
+            - name: PDS_CRAWLERS
+              value: "https://bsky.network"
+            # DEFAULT CONFIGURATION - MODIFY AS NEEDED
             - name: PDS_HOSTNAME
               value: "poltr.info"
             - name: PDS_PORT
@@ -180,7 +192,15 @@ metadata:
   namespace: poltr
   annotations:
     kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
 spec:
+  tls:
+    - hosts:
+        - poltr.ch
+        - poltr.info
+        # REQUIRES WILDCARD CERTIFICATE
+        - wyss.poltr.info
+      secretName: poltr-shared-tls
   rules:
     - host: poltr.ch
       http:
@@ -202,8 +222,14 @@ spec:
                 name: pds
                 port:
                   number: 80
-  tls:
-    - hosts:
-        - poltr.ch
-        - poltr.info
-      secretName: poltr-shared-tls
+    - host: wyss.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pds
+                port:
+                  number: 80
+
