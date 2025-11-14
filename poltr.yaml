@@ -198,8 +198,8 @@ spec:
     - hosts:
         - poltr.ch
         - poltr.info
-        # REQUIRES WILDCARD CERTIFICATE
-        - wyss.poltr.info
+        # Add wildcard for all handle subdomains (requires DNS-01 wildcard cert issuance; current HTTP-01 issuer cannot issue this)
+        - '*.poltr.info'
       secretName: poltr-shared-tls
   rules:
     - host: poltr.ch
@@ -222,7 +222,8 @@ spec:
                 name: pds
                 port:
                   number: 80
-    - host: wyss.poltr.info
+    # Wildcard host rule so any <handle>.poltr.info routes to the PDS
+    - host: '*.poltr.info'
       http:
         paths:
           - path: /
