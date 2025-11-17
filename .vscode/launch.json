@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Docker: Build and Push AppView",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "echo Docker build completed",
+      "preLaunchTask": "Docker: Build and Push"
+    }
+  ]
+}

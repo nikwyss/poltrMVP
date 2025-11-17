@@ -189,10 +189,17 @@ from https://ckan.opendata.swiss/api/3/action/package_show?id=echtzeitdaten-am-a
 - port forwaring
 > kubectl port-forward -n poltr deployment/pds 2583:2583
 - import env variables
-> source .env
+> source scripts/.env
+
 - end port forwarding
 > pkill -f "kubectl port-forward -n poltr deployment/pds"
 
 - run script:
 > python3 scripts/import_proposals.py
 
+
+
+# UPDATE VENDOR Folder
+
+mkdir -p ./vendor
+git clone --depth 1 https://github.com/bluesky-social/atproto.git ./vendor/atproto

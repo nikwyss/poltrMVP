@@ -1,0 +1,702 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: poltr
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pds-data
+  namespace: poltr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: allforone-postgres-data
+  namespace: poltr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pds
+  namespace: poltr
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pds
+  template:
+    metadata:
+      labels:
+        app: pds
+    spec:
+      containers:
+        - name: pds
+          image: ghcr.io/bluesky-social/pds:latest
+          command: ["/bin/sh"]
+          args: ["-c", "cd /data && exec node /app/index.js"]
+          envFrom:
+            - secretRef:
+                name: pds-secrets
+          ports:
+            - containerPort: 2583
+          volumeMounts:
+            - name: pds-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "96Mi"
+            limits:
+              cpu: "100m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /xrpc/_health
+              port: 2583
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /xrpc/_health
+              port: 2583
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: pds-data
+          persistentVolumeClaim:
+            claimName: pds-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pds
+  namespace: poltr
+spec:
+  selector:
+    app: pds
+  ports:
+    - port: 80
+      targetPort: 2583
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: allforone-postgres
+  namespace: poltr
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: allforone-postgres
+  template:
+    metadata:
+      labels:
+        app: allforone-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          envFrom:
+            - secretRef:
+                name: allforone-postgres-secret
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "250m"
+              memory: "512Mi"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: allforone-postgres-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bgs-redis
+  namespace: poltr
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bgs-redis
+  template:
+    metadata:
+      labels:
+        app: bgs-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["--save", "", "--appendonly", "no"]
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bgs-redis
+  namespace: poltr
+spec:
+  selector:
+    app: bgs-redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bgs
+  namespace: poltr
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bgs
+  template:
+    metadata:
+      labels:
+        app: bgs
+    spec:
+      containers:
+        - name: bgs
+          # image: ghcr.io/bluesky-social/bgs:latest
+          image: itaru2622/bluesky-indigo-bgs
+          envFrom:
+            - secretRef:
+                name: bgs-secrets
+          ports:
+            - name: http
+              containerPort: 2470
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /xrpc/_health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /xrpc/_health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bgs
+  namespace: poltr
+spec:
+  selector:
+    app: bgs
+  ports:
+    - name: http
+      port: 2470
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appview-redis
+  namespace: poltr
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appview-redis
+  template:
+    metadata:
+      labels:
+        app: appview-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["--save", "", "--appendonly", "no"]
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: appview-redis
+  namespace: poltr
+spec:
+  selector:
+    app: appview-redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appview
+  namespace: poltr
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appview
+  template:
+    metadata:
+      labels:
+        app: appview
+    spec:
+      containers:
+        - name: appview
+          # image: ghcr.io/bluesky-social/appview:latest
+          image: nikwyss/poltr-appview:1.7
+          envFrom:
+            - secretRef:
+                name: appview-secrets
+          env:
+            - name: BSKY_PORT
+              value: "3000"
+          ports:
+            - name: http
+              containerPort: 3000
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"          
+            # requests:
+            #   cpu: "300m"
+            #   memory: "460Mi"
+            # limits:
+            #   cpu: "500m"
+            #   memory: "506Mi"
+          # startupProbe:
+          #   httpGet:
+          #     path: /xrpc/_health
+          #     port: 3000
+          #   initialDelaySeconds: 40
+          #   periodSeconds: 10
+          #   failureThreshold: 40
+          # livenessProbe:
+          #   httpGet:
+          #     path: /
+          #     port: 3000
+          #   initialDelaySeconds: 40
+          #   periodSeconds: 40
+          # readinessProbe:
+          #   httpGet:
+          #     path: /xrpc/_health
+          #     port: 3000
+          #   initialDelaySeconds: 50
+          #   periodSeconds: 40
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: appview
+  namespace: poltr
+spec:
+  selector:
+    app: appview
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: labeler-redis
+#   namespace: poltr
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: labeler-redis
+#   template:
+#     metadata:
+#       labels:
+#         app: labeler-redis
+#     spec:
+#       containers:
+#         - name: redis
+#           image: redis:7-alpine
+#           args: ["--save", "", "--appendonly", "no"]
+#           ports:
+#             - containerPort: 6379
+#           resources:
+#             requests:
+#               cpu: "50m"
+#               memory: "128Mi"
+#             limits:
+#               cpu: "250m"
+#               memory: "256Mi"
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: labeler-redis
+#   namespace: poltr
+# spec:
+#   selector:
+#     app: labeler-redis
+#   ports:
+#     - port: 6379
+#       targetPort: 6379
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: labeler
+#   namespace: poltr
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: labeler
+#   template:
+#     metadata:
+#       labels:
+#         app: labeler
+#     spec:
+#       containers:
+#         - name: labeler
+#           image: ghcr.io/bluesky-social/labeler:latest
+#           envFrom:
+#             - secretRef:
+#                 name: labeler-secrets
+#           ports:
+#             - name: http
+#               containerPort: 2587
+#           resources:
+#             requests:
+#               cpu: "200m"
+#               memory: "512Mi"
+#             limits:
+#               cpu: "1"
+#               memory: "1Gi"
+#           livenessProbe:
+#             httpGet:
+#               path: /xrpc/_health
+#               port: http
+#             initialDelaySeconds: 20
+#             periodSeconds: 10
+#           readinessProbe:
+#             httpGet:
+#               path: /xrpc/_health
+#               port: http
+#             initialDelaySeconds: 10
+#             periodSeconds: 10
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: labeler
+#   namespace: poltr
+# spec:
+#   selector:
+#     app: labeler
+#   ports:
+#     - name: http
+#       port: 80
+#       targetPort: http
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: ozone-redis
+#   namespace: poltr
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: ozone-redis
+#   template:
+#     metadata:
+#       labels:
+#         app: ozone-redis
+#     spec:
+#       containers:
+#         - name: redis
+#           image: redis:7-alpine
+#           args: ["--save", "", "--appendonly", "no"]
+#           ports:
+#             - containerPort: 6379
+#           resources:
+#             requests:
+#               cpu: "50m"
+#               memory: "128Mi"
+#             limits:
+#               cpu: "250m"
+#               memory: "256Mi"
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: ozone-redis
+#   namespace: poltr
+# spec:
+#   selector:
+#     app: ozone-redis
+#   ports:
+#     - port: 6379
+#       targetPort: 6379
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: ozone
+#   namespace: poltr
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: ozone
+#   template:
+#     metadata:
+#       labels:
+#         app: ozone
+#     spec:
+#       containers:
+#         - name: ozone
+#           image: ghcr.io/bluesky-social/ozone:latest
+#           envFrom:
+#             - secretRef:
+#                 name: ozone-secrets
+#           ports:
+#             - name: http
+#               containerPort: 3000
+#           resources:
+#             requests:
+#               cpu: "200m"
+#               memory: "512Mi"
+#             limits:
+#               cpu: "1"
+#               memory: "1Gi"
+#           livenessProbe:
+#             httpGet:
+#               path: /health
+#               port: http
+#             initialDelaySeconds: 30
+#             periodSeconds: 10
+#           readinessProbe:
+#             httpGet:
+#               path: /health
+#               port: http
+#             initialDelaySeconds: 15
+#             periodSeconds: 10
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: ozone
+#   namespace: poltr
+# spec:
+#   selector:
+#     app: ozone
+#   ports:
+#     - name: http
+#       port: 80
+#       targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: poltr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: nikwyss/poltr-front:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: poltr
+spec:
+  selector:
+    app: frontend
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: poltr-ingress
+  namespace: poltr
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+    - hosts:
+        - poltr.ch
+        - app.poltr.info
+        - pds.poltr.info
+        # - labeler.poltr.info
+        - bgs.poltr.info
+        # - ozon.poltr.info
+        # - mod.poltr.info
+        - wyss.poltr.info
+        # - '*.poltr.info'
+      secretName: poltr-shared-tls
+  rules:
+    - host: poltr.ch
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+    - host: pds.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pds
+                port:
+                  number: 80
+    - host: bgs.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bgs
+                port:
+                  number: 2582
+    - host: app.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: appview
+                port:
+                  number: 80
+    # - host: labeler.poltr.info
+    #   http:
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    #         backend:
+    #           service:
+    #             name: labeler
+    #             port:
+    #               number: 80
+    # - host: ozon.poltr.info
+    #   http:
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    #         backend:
+    #           service:
+    #             name: ozone
+    #             port:
+    #               number: 80
+    # - host: mod.poltr.info
+    #   http:
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    #         backend:
+    #           service:
+    #             name: ozone
+    #             port:
+    #               number: 80
+    # Wildcard host rule so any <handle>.poltr.info routes to the PDS
+    - host: '*.poltr.info'
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pds
+                port:
+                  number: 80
+

@@ -1,0 +1,47 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Docker: Build and Push",
+      "dependsOn": [
+        "Docker: Build Image",
+        "Docker: Push Image"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Docker: Build Image",
+      "type": "shell",
+      // "command": "docker build -t nikwyss/poltr-appview:${input:dockerTag} -f vendor/atproto/services/bsky/Dockerfile vendor/atproto",
+      "command": "docker build -t nikwyss/poltr-appview:${input:dockerTag} -f ./services/appview/Dockerfile .",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Docker: Push Image",
+      "type": "shell",
+      "command": "docker push nikwyss/poltr-appview:${input:dockerTag}",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "dockerTag",
+      "type": "promptString",
+      "description": "Docker tag for nikwyss/poltr-appview",
+      "default": "latest"
+    }
+  ]
+}
