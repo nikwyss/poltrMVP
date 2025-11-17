@@ -203,3 +203,6 @@ from https://ckan.opendata.swiss/api/3/action/package_show?id=echtzeitdaten-am-a
 
 mkdir -p ./vendor
 git clone --depth 1 https://github.com/bluesky-social/atproto.git ./vendor/atproto
+
+# POSTGRES PORT FOREWARD
+> kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432
