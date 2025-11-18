@@ -1,11 +1,14 @@
+import 'dotenv/config'
 import { Firehose } from '@bluesky-social/sync'
 import { IdResolver } from '@bluesky-social/identity'
 import { pool, closePool } from './db.js'
 import Fastify from 'fastify'
 import { runBackfill } from './backfill_runner.js'
 import { getCursor } from './backfill_cursor.js'
+import { processBatchExample } from './backfill_handler.js'
+import { upsertProposalDb, markDeleted } from './backfill_handler.js'
 
-const PDS_HOSTNAME = process.env.PDS_HOSTNAMENAME ?? 'pds.poltr.info'
+const PDS_HOSTNAME = process.env.PDS_HOSTNAME ?? 'pds.poltr.info'
 // Determine base websocket service host (no /xrpc/... appended).
 // If user supplied a full URL including /xrpc/com.atproto.sync.subscribeRepos, strip the path.
 const RAW_FIREHOSE = process.env.FIREHOSE_URL
@@ -28,42 +31,8 @@ if (RAW_FIREHOSE) {
 console.log('Using firehose service base:', FIREHOSE_SERVICE)
 const idResolver = new IdResolver()
 
-async function upsertProposal(params) {
-  const { uri, cid, did, rkey, record } = params
 
-  // map record fields -> DB columns
-  const title = record.title ?? null
-  const description = record.description ?? null
-  const voteDate = record.voteDate ? new Date(record.voteDate) : null
-  const createdAt = record.createdAt ? new Date(record.createdAt) : new Date()
 
-  await pool.query(
-    `
-    INSERT INTO poltr_vote_proposal
-      (uri, cid, did, rkey, title, description, vote_date, created_at, deleted)
-    VALUES
-      ($1,  $2,  $3,  $4,  $5,    $6,          $7,        $8,        false)
-    ON CONFLICT (uri) DO UPDATE SET
-      cid         = EXCLUDED.cid,
-      title       = EXCLUDED.title,
-      description = EXCLUDED.description,
-      vote_date   = EXCLUDED.vote_date,
-      created_at  = EXCLUDED.created_at,
-      deleted     = false,
-      indexed_at  = now()
-    `,
-    [uri, cid, did, rkey, title, description, voteDate, createdAt],
-  )
-}
-
-async function markDeleted(uri) {
-  await pool.query(
-    `UPDATE poltr_vote_proposal
-     SET deleted = true, indexed_at = now()
-     WHERE uri = $1`,
-    [uri],
-  )
-}
 
 async function main() {
   function extractStatusCode(err) {
@@ -97,7 +66,7 @@ async function main() {
           const record = op.record
           if (!record) continue
 
-          await upsertProposal({
+          await upsertProposalDb(pool, {
             uri,
             cid: op.cid,
             did,
@@ -147,14 +116,14 @@ async function main() {
   // graceful stop on signals
   const stop = async () => {
     console.log('Stopping firehose and closing DB pool')
-      try {
-        const stopper = (firehose)?.stop
-        if (typeof stopper === 'function') {
-          await stopper.call(firehose)
-        }
-      } catch (err) {
-        console.error('Error stopping firehose', err)
+    try {
+      const stopper = (firehose)?.stop
+      if (typeof stopper === 'function') {
+        await stopper.call(firehose)
       }
+    } catch (err) {
+      console.error('Error stopping firehose', err)
+    }
     try {
       await closePool()
     } catch (err) {
@@ -174,26 +143,12 @@ main().catch((err) => {
 
 
 
-
-// keep existing code...
-
-// Minimal processBatch implementation (replace with real backfill logic):
-// Should fetch missed records starting from `cursor`, insert/process them,
-// and return { nextCursor, processed }.
-async function processBatchExample(cursor, { client, metadata }) {
-  // TODO: replace with actual logic to fetch records from PDS between cursor and latest
-  // This example simply logs and returns processed=0 to indicate done.
-  console.log('processBatchExample called with cursor:', cursor)
-  // If there were records processed, return new cursor and processed count
-  return { nextCursor: null, processed: 0 }
-}
-
 // Add HTTP admin trigger and optional schedule
 async function startAdminServer() {
   const port = Number(process.env.BACKFILL_PORT ?? 3001)
   const app = Fastify({ logger: false })
 
-  app.post('/backfill', async (req, reply) => {
+  const backfillHandler = async (req, reply) => {
     const id = req.query.id || 'backfill:firehose-missed'
     const maxBatches = Number(req.query.maxBatches ?? 100)
     try {
@@ -208,50 +163,17 @@ async function startAdminServer() {
       console.error('Backfill error', err)
       return reply.code(500).send({ ok: false, error: String(err) })
     }
-  })
+  }
+
+  app.post('/backfill', backfillHandler)
+  app.get('/backfill', backfillHandler)
 
   await app.listen({ port, host: '0.0.0.0' })
   console.log('Admin HTTP server listening on port', port)
 }
 
-// Optional in-process nightly schedule (local time midnight)
-// If you prefer a K8s CronJob, skip setting SCHEDULE_NIGHTLY.
-// function scheduleNightlyTrigger() {
-//   if (!process.env.SCHEDULE_NIGHTLY || process.env.SCHEDULE_NIGHTLY === 'false') return
-
-//   const msPerDay = 24 * 60 * 60 * 1000
-//   function msUntilNextMidnight() {
-//     const now = new Date()
-//     const next = new Date(now)
-//     next.setDate(now.getDate() + 1)
-//     next.setHours(0, 0, 0, 0)
-//     return next - now
-//   }
-
-//   async function run() {
-//     try {
-//       console.log('Nightly backfill scheduled run starting...')
-//       await runBackfill({
-//         id: 'backfill:firehose-missed',
-//         processBatch: processBatchExample,
-//         maxBatches: Number(process.env.BACKFILL_NIGHTLY_MAX_BATCHES ?? 500),
-//       })
-//       console.log('Nightly backfill run completed')
-//     } catch (err) {
-//       console.error('Nightly backfill failed', err)
-//     } finally {
-//       // schedule next run in 24 hours
-//       setTimeout(run, msPerDay)
-//     }
-//   }
-
-//   // wait until next midnight then start
-//   setTimeout(run, msUntilNextMidnight())
-// }
 
 // In your main startup, after starting the firehose, call:
 startAdminServer().catch((err) => {
   console.error('Admin server failed to start', err)
 })
-
-// scheduleNightlyTrigger()

@@ -2,6 +2,7 @@
   "dependencies": {
     "@bluesky-social/identity": "^0.4.9",
     "@bluesky-social/sync": "^0.1.35",
+    "dotenv": "^17.2.3",
     "fastify": "^5.6.2",
     "pg": "^8.16.3"
   },
@@ -11,5 +12,9 @@
     "@types/pg": "^8.15.6",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "start": "node src/indexer.js",
+    "dev": "npx tsx src/indexer.js"
   }
 }

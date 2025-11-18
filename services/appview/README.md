@@ -60,12 +60,12 @@ Before returning the records to the user it hydrates them:
 
 Build the image:
 ```bash
-docker build -t poltr-appview .
+docker build -t poltr-indexer .
 ```
 
 Run the container (both indexer and main service start):
 ```bash
-docker run --rm -p 3000:3000 poltr-appview
+docker run --rm -p 3000:3000 poltr-indexer
 ```
 
 The container uses `start.sh` to launch `src/indexer.js` and `src/main.js` concurrently. If either exits, the other is terminated so the container lifecycle remains consistent.

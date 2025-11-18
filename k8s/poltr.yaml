@@ -565,6 +565,7 @@ spec:
         - poltr.ch
         - app.poltr.info
         - pds.poltr.info
+        # - indexer.poltr.info
         # - labeler.poltr.info
         # - ozon.poltr.info
         # - mod.poltr.info
@@ -592,6 +593,16 @@ spec:
                 name: pds
                 port:
                   number: 80
+    # - host: indexer.poltr.info
+    #   http:
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    #         backend:
+    #           service:
+    #             name: indexer
+    #             port:
+    #               number: 80
     - host: app.poltr.info
       http:
         paths:
