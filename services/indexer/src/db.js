@@ -1,4 +1,3 @@
-// Use runtime pg client; do not import from @types which is types-only.
 import { Pool } from 'pg'
 
 export const pool = new Pool({

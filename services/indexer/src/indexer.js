@@ -1,7 +1,9 @@
 import { Firehose } from '@bluesky-social/sync'
 import { IdResolver } from '@bluesky-social/identity'
 import { pool, closePool } from './db.js'
-
+import Fastify from 'fastify'
+import { runBackfill } from './backfill_runner.js'
+import { getCursor } from './backfill_cursor.js'
 
 const PDS_HOSTNAME = process.env.PDS_HOSTNAMENAME ?? 'pds.poltr.info'
 // Determine base websocket service host (no /xrpc/... appended).
@@ -169,3 +171,87 @@ main().catch((err) => {
   console.error(err)
   process.exit(1)
 })
+
+
+
+
+// keep existing code...
+
+// Minimal processBatch implementation (replace with real backfill logic):
+// Should fetch missed records starting from `cursor`, insert/process them,
+// and return { nextCursor, processed }.
+async function processBatchExample(cursor, { client, metadata }) {
+  // TODO: replace with actual logic to fetch records from PDS between cursor and latest
+  // This example simply logs and returns processed=0 to indicate done.
+  console.log('processBatchExample called with cursor:', cursor)
+  // If there were records processed, return new cursor and processed count
+  return { nextCursor: null, processed: 0 }
+}
+
+// Add HTTP admin trigger and optional schedule
+async function startAdminServer() {
+  const port = Number(process.env.BACKFILL_PORT ?? 3001)
+  const app = Fastify({ logger: false })
+
+  app.post('/backfill', async (req, reply) => {
+    const id = req.query.id || 'backfill:firehose-missed'
+    const maxBatches = Number(req.query.maxBatches ?? 100)
+    try {
+      const newCursor = await runBackfill({
+        id,
+        processBatch: processBatchExample,
+        maxBatches,
+      })
+      const current = await getCursor(id)
+      return reply.code(200).send({ ok: true, id, cursor: newCursor ?? (current && current.cursor) ?? null })
+    } catch (err) {
+      console.error('Backfill error', err)
+      return reply.code(500).send({ ok: false, error: String(err) })
+    }
+  })
+
+  await app.listen({ port, host: '0.0.0.0' })
+  console.log('Admin HTTP server listening on port', port)
+}
+
+// Optional in-process nightly schedule (local time midnight)
+// If you prefer a K8s CronJob, skip setting SCHEDULE_NIGHTLY.
+// function scheduleNightlyTrigger() {
+//   if (!process.env.SCHEDULE_NIGHTLY || process.env.SCHEDULE_NIGHTLY === 'false') return
+
+//   const msPerDay = 24 * 60 * 60 * 1000
+//   function msUntilNextMidnight() {
+//     const now = new Date()
+//     const next = new Date(now)
+//     next.setDate(now.getDate() + 1)
+//     next.setHours(0, 0, 0, 0)
+//     return next - now
+//   }
+
+//   async function run() {
+//     try {
+//       console.log('Nightly backfill scheduled run starting...')
+//       await runBackfill({
+//         id: 'backfill:firehose-missed',
+//         processBatch: processBatchExample,
+//         maxBatches: Number(process.env.BACKFILL_NIGHTLY_MAX_BATCHES ?? 500),
+//       })
+//       console.log('Nightly backfill run completed')
+//     } catch (err) {
+//       console.error('Nightly backfill failed', err)
+//     } finally {
+//       // schedule next run in 24 hours
+//       setTimeout(run, msPerDay)
+//     }
+//   }
+
+//   // wait until next midnight then start
+//   setTimeout(run, msUntilNextMidnight())
+// }
+
+// In your main startup, after starting the firehose, call:
+startAdminServer().catch((err) => {
+  console.error('Admin server failed to start', err)
+})
+
+// scheduleNightlyTrigger()
