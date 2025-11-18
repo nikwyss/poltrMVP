@@ -5,5 +5,8 @@
 *./node_modules/*
 */.env
 services/appview/node_modules
+services/indexer/node_modules
 services/appview/.env
+services/indexer/.env
 */.env
+

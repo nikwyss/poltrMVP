@@ -2,10 +2,10 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Docker: Build and Push",
+      "label": "AppView: Build and Push",
       "dependsOn": [
-        "Docker: Build Image",
-        "Docker: Push Image"
+        "AppView: Build Image",
+        "AppView: Push Image"
       ],
       "dependsOrder": "sequence",
       "problemMatcher": [],
@@ -15,10 +15,9 @@
       }
     },
     {
-      "label": "Docker: Build Image",
+      "label": "AppView: Build Image",
       "type": "shell",
-      // "command": "docker build -t nikwyss/poltr-appview:${input:dockerTag} -f vendor/atproto/services/bsky/Dockerfile vendor/atproto",
-      "command": "docker build -t nikwyss/poltr-appview:${input:dockerTag} -f ./services/appview/Dockerfile .",
+      "command": "docker build -t nikwyss/poltr-appview:${input:dockerTag} -f ./services/appview/Dockerfile ./services/appview",
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -26,9 +25,42 @@
       }
     },
     {
-      "label": "Docker: Push Image",
+      "label": "AppView: Push Image",
       "type": "shell",
       "command": "docker push nikwyss/poltr-appview:${input:dockerTag}",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Indexer: Build and Push",
+      "dependsOn": [
+        "Indexer: Build Image",
+        "Indexer: Push Image"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Indexer: Build Image",
+      "type": "shell",
+      "command": "docker build -t nikwyss/poltr-indexer:${input:dockerTag} -f ./services/indexer/Dockerfile ./services/indexer",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Indexer: Push Image",
+      "type": "shell",
+      "command": "docker push nikwyss/poltr-indexer:${input:dockerTag}",
       "problemMatcher": [],
       "presentation": {
         "reveal": "always",
@@ -40,7 +72,7 @@
     {
       "id": "dockerTag",
       "type": "promptString",
-      "description": "Docker tag for nikwyss/poltr-appview",
+      "description": "Docker tag for nikwyss/poltr-appview and indexer",
       "default": "latest"
     }
   ]

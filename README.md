@@ -178,7 +178,6 @@ Kubernetes Dashboard: https://manager.infomaniak.com/v3/hosting/1558567/public-c
 
 
 
-
 # IMPORT NEWEST PROPOSALS
 
 - update echtzeitdaten-am-abstimmungstag-zu-eidgenoessischen-abstimmungsvorlagen.json

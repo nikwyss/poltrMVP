@@ -2,11 +2,18 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Docker: Build and Push AppView",
+      "name": "AppView: Build and Push",
       "type": "node-terminal",
       "request": "launch",
-      "command": "echo Docker build completed",
-      "preLaunchTask": "Docker: Build and Push"
+      "command": "echo AppView build completed",
+      "preLaunchTask": "AppView: Build and Push"
+    },
+    {
+      "name": "Indexer: Build and Push",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "echo Indexer build completed",
+      "preLaunchTask": "Indexer: Build and Push"
     }
   ]
 }

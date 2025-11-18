@@ -3,7 +3,7 @@ import { IdResolver } from '@bluesky-social/identity'
 import { pool, closePool } from './db.js'
 
 
-const PDS_HOST = process.env.PDS_HOSTNAME ?? 'pds.poltr.info'
+const PDS_HOSTNAME = process.env.PDS_HOSTNAMENAME ?? 'pds.poltr.info'
 // Determine base websocket service host (no /xrpc/... appended).
 // If user supplied a full URL including /xrpc/com.atproto.sync.subscribeRepos, strip the path.
 const RAW_FIREHOSE = process.env.FIREHOSE_URL
@@ -20,7 +20,7 @@ if (RAW_FIREHOSE) {
     FIREHOSE_SERVICE = RAW_FIREHOSE
   }
 } else {
-  FIREHOSE_SERVICE = `wss://${PDS_HOST}`
+  FIREHOSE_SERVICE = `wss://${PDS_HOSTNAME}`
 }
 
 console.log('Using firehose service base:', FIREHOSE_SERVICE)
