@@ -2,3 +2,8 @@
 *.env
 *votings.csv
 ./vendor/*
+*./node_modules/*
+*/.env
+services/appview/node_modules
+services/appview/.env
+*/.env
