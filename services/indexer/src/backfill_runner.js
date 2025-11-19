@@ -1,4 +1,5 @@
-import { withCursorLock } from './backfill_cursor.js'
+import { getCursor, setCursor } from './backfill_cursor.js'
+
 
 /*
   runBackfill options:
@@ -8,24 +9,37 @@ import { withCursorLock } from './backfill_cursor.js'
 */
 export async function runBackfill({ id, processBatch, maxBatches = 100 }) {
   let totalProcessed = 0
-  // Use a lock per run to prevent concurrent runs
-  return withCursorLock(id, async (currentCursor, metadata, client) => {
-    let cursor = currentCursor
-    for (let i = 0; i < maxBatches; i++) {
-      const res = await processBatch(cursor, { client, metadata })
-      if (!res || typeof res.processed !== 'number') {
-        throw new Error('processBatch must return { nextCursor, processed }')
-      }
 
-      totalProcessed += res.processed
-      cursor = res.nextCursor
 
-      // if nothing processed or nextCursor is null/unchanged, stop
-      if (res.processed === 0 || !cursor) {
-        break
-      }
+  // Simple sequential run: read cursor, run batches, persist cursor after the run
+  const current = await getCursor(id)
+  let cursor = current && current.cursor
+  if (typeof cursor === 'string' && /^\d+$/.test(cursor)) cursor = Number(cursor)
+  const metadata = current && current.metadata
+  for (let i = 0; i < maxBatches; i++) {
+    const res = await processBatch(cursor, { metadata })
+    if (!res || typeof res.processed !== 'number') {
+      throw new Error('processBatch must return { nextCursor, processed }')
     }
 
-    return cursor
-  })
+    totalProcessed += res.processed
+    console.log(`DEBUG backfill Batch ${i}: processed=${res.processed}, nextCursor=${res.nextCursor}, prevCursor=${cursor}`)
+    const prevCursor = cursor
+    cursor = res.nextCursor
+
+    // if nothing processed or nextCursor is null/unchanged, stop
+    if (res.processed === 0 || !cursor || res.nextCursor === prevCursor) {
+      console.log("DEBUG backfill no more records to process, stopping")
+      break
+    }
+  }
+
+  // persist final cursor
+  try {
+    await setCursor(id, cursor, metadata || {})
+  } catch (e) {
+    console.error('Error persisting cursor after runBackfill:', e)
+  }
+
+  return cursor
 }

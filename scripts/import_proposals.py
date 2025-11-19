@@ -136,12 +136,15 @@ class ProposalImporter:
         vote_date = datetime.strptime(vote.datum, "%d.%m.%Y").date()
         
         # SKIP if voting date is in the past
-        if vote_date < datetime.now().date():
+        today = datetime.now().date()
+        today = today.replace(year=today.year - 1)
+        
+        if vote_date < today:
             # print(f"Skipping past vote date: {vote.datum}")
             return False
         
         # Generate rkey
-        rkey = self.generate_rkey(vote.anr)
+        rkey = self.generate_rkey(f"{vote.anr}")
         
         # Convert date to ISO format string for the record
         vote_date_iso = vote_date.strftime("%Y-%m-%d")
