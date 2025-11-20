@@ -1,4 +1,4 @@
-import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import Fastify, { FastifyInstance, FastifyReply } from 'fastify'
 import { pool } from './db'
 import { getProposalsHandler } from './proposals'
 

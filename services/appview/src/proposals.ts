@@ -1,4 +1,4 @@
-import Fastify, { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { FastifyReply, FastifyRequest } from 'fastify'
 import type { QueryResult } from 'pg'
 import { pool } from './db'
 
