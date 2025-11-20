@@ -1,7 +1,6 @@
 
 import 'dotenv/config'
 import { pool,  upsertProposalDb, markDeleted } from './db.js'
-import { setCursor } from './backfill_cursor.js'
 
 
 export const handleEvent = async (evt) => {
@@ -32,11 +31,4 @@ export const handleEvent = async (evt) => {
       record,
     });
   }
-
-  // persist cursor AFTER successful processing
-  // if (seq != null) {
-  //   await setCursor('firehose:proposals', seq).catch((err) => {
-  //     console.error('Error updating firehose cursor', err);
-  //   });
-  // }
 };

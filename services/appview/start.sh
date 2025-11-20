@@ -3,12 +3,20 @@ set -eu
 
 echo "[start] launching indexer and main services"
 
-node src/indexer.js &
+if [ -f ./dist/indexer.js ]; then
+  node ./dist/indexer.js &
+else
+  node src/indexer.js &
+fi
 INDEXER_PID=$!
 
 echo "[start] indexer pid: $INDEXER_PID"
 
-node src/main.js &
+if [ -f ./dist/main.js ]; then
+  node ./dist/main.js &
+else
+  node src/main.js &
+fi
 MAIN_PID=$!
 
 echo "[start] main pid: $MAIN_PID"

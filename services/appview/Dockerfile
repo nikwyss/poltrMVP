@@ -10,12 +10,16 @@ WORKDIR /app
 
 # Install dependencies separately for better caching
 COPY package*.json ./
-RUN npm ci --omit=dev || npm install --production
+RUN npm ci || npm install
 
 # Copy source
 COPY src ./src
 COPY doc ./doc
 COPY start.sh ./
+COPY tsconfig.json ./
+
+# Build TypeScript
+RUN npm run build
 
 # Ensure script is executable
 RUN chmod +x start.sh
