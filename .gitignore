@@ -19,3 +19,8 @@ services/appview/.env
 services/indexer/.env
 */.env
 
+
+node_modules
+.DS_Store
+.vscode
+.idea

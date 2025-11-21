@@ -1,6 +1,10 @@
 import Fastify from 'fastify';
 import { pool } from './db';
+import { getProposalsHandler } from './proposals';
+import cors from '@fastify/cors';
 const fastify = Fastify();
+// Enable CORS for development (allow all origins). In production, set specific origins.
+void fastify.register(cors, { origin: true });
 async function checkDbConnection() {
     try {
         await pool.query('SELECT 1');
@@ -20,35 +24,7 @@ fastify.get('/healthz', async (request, reply) => {
         return reply.status(503).send({ status: 'error', error: String(err) });
     }
 });
-fastify.get('/xrpc/app.ch.poltr.vote.listProposals', async (req, reply) => {
-    const { did, since, limit = 50 } = req.query;
-    const params = [];
-    const where = ['deleted = false'];
-    if (did) {
-        params.push(did);
-        where.push(`did = $${params.length}`);
-    }
-    if (since) {
-        params.push(new Date(since));
-        where.push(`vote_date >= $${params.length}`);
-    }
-    params.push(Number(limit));
-    const sql = `
-    SELECT *
-    FROM poltr_vote_proposal
-    WHERE ${where.join(' AND ')}
-    ORDER BY vote_date DESC NULLS LAST, created_at DESC
-    LIMIT $${params.length}
-  `;
-    try {
-        const result = await pool.query(sql, params);
-        return reply.status(200).send({ proposals: result.rows });
-    }
-    catch (err) {
-        req.log.error({ err }, 'DB query failed');
-        return reply.status(500).send({ error: 'internal_error', details: String(err) });
-    }
-});
+fastify.get('/xrpc/app.ch.poltr.vote.listProposals', getProposalsHandler);
 async function start() {
     await checkDbConnection();
     await fastify.listen({ port: 3000, host: '0.0.0.0' });
