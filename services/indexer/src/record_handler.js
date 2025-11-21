@@ -15,7 +15,7 @@ export const handleEvent = async (evt) => {
 // assuming your CID field is already a CID object:
   const cidString = CID.asCID(evt.cid)?.toString();
 
-  const seq = evt.seq;         // firehose cursor
+  // const seq = evt.seq;         // firehose cursor
   const did = evt.did;
   const uri = evt.uri.toString();   // already built
   const rkey = evt.rkey;

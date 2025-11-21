@@ -19,4 +19,4 @@ ENV NODE_ENV=production \
     APPVIEW_POSTGRES_URL=postgres://postgres:postgres@postgres:5432/postgres
 
 # Run the indexer
-CMD ["node", "src/indexer.js"]
+CMD ["node", "src/main.js"]

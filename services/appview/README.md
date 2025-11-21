@@ -75,3 +75,13 @@ The container uses `start.sh` to launch `src/indexer.js` and `src/main.js` concu
 - `tini` is used as PID 1 for correct signal handling.
 - Adjust exposed ports in `Dockerfile` if the main service or indexer listen on different ports.
 - For scaling, consider splitting the indexer and API into separate services.
+
+## VS Code workspace
+
+There is a local `.vscode/` config with recommended extensions, tasks and launch configs:
+
+- Run `Tasks: Run Task` → `npm: build` to build the TypeScript `dist/` directory.
+- Run `Tasks: Run Task` → `npm: dev` for a background dev server using `tsx`.
+- Use the `Run and Debug` panel to launch either the compiled `dist/main.js` or the TypeScript `src/main.ts` for debugging.
+
+Install the recommended extensions if prompted: ESLint, Prettier, Node tools.

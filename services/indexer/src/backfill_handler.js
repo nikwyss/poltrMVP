@@ -6,7 +6,7 @@ import { FIREHOSE_SERVICE } from './service.js'
 import { Firehose, MemoryRunner } from '@bluesky-social/sync'
 
 const idResolver = new IdResolver()
-
+const BACKFILL_TIMEOUT_SEC = 3
 
 
 
@@ -17,8 +17,6 @@ const idResolver = new IdResolver()
     - maxBatches?: number (default 100)
 */
 export async function runBackfill({ id, processBatch, maxBatches = 100 }) {
-  let totalProcessed = 0
-
 
   // Simple sequential run: read cursor, run batches, persist cursor after the run
   const current = await getCursor(id)
@@ -31,7 +29,6 @@ export async function runBackfill({ id, processBatch, maxBatches = 100 }) {
       throw new Error('processBatch must return { nextCursor, processed }')
     }
 
-    totalProcessed += res.processed
     console.log(`DEBUG backfill Batch ${i}: processed=${res.processed}, nextCursor=${res.nextCursor}, prevCursor=${cursor}`)
     const prevCursor = cursor
     cursor = res.nextCursor
@@ -54,7 +51,7 @@ export async function runBackfill({ id, processBatch, maxBatches = 100 }) {
 }
 
 
-export async function processBatchFirehose(arg1, arg2 = {}) {
+export async function processBatchFirehose(arg1) {
   let opts = {}
   if (arg1 && typeof arg1 === 'object' && (arg1.service || arg1.handleEvent || arg1.collection)) {
     opts = { ...arg1 }
@@ -162,7 +159,7 @@ export async function processBatchFirehose(arg1, arg2 = {}) {
     // start the firehose and catch startup errors
     firehose.start().catch((err) => { finish(err) })
 
-    const timeoutSec = process.env.BACKFILL_TIMEOUT_SEC ? Number(process.env.BACKFILL_TIMEOUT_SEC) : 3
+    const timeoutSec = BACKFILL_TIMEOUT_SEC
     const intervalId = setInterval(async () => {
       // DEFAULT FINISH CALL
       if (Date.now() - timeOfLastEvent > timeoutSec * 1000) {

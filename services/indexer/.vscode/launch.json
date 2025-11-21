@@ -5,7 +5,7 @@
             "type": "pwa-node",
             "request": "launch",
             "name": "Launch Indexer",
-            "program": "${workspaceFolder}/src/indexer.js",
+            "program": "${workspaceFolder}/src/main.js",
             "cwd": "${workspaceFolder}",
             "runtimeExecutable": "node",
             "console": "integratedTerminal",

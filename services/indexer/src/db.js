@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import { Pool } from 'pg'
+import process from 'node:process'
 
 export const pool = new Pool({
   connectionString: process.env.APPVIEW_POSTGRES_URL,

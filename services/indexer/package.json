@@ -18,7 +18,7 @@
     "typescript-eslint": "^8.47.0"
   },
   "scripts": {
-    "start": "node src/indexer.js",
-    "dev": "npx tsx src/indexer.js"
+    "start": "node src/main.js",
+    "dev": "npx tsx src/main.js"
   }
 }

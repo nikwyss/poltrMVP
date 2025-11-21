@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "pwa-node",
+      "request": "launch",
+      "name": "Launch Compiled (dist/main.js)",
+      "program": "${workspaceFolder}/dist/main.js",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    {
+      "type": "pwa-node",
+      "request": "launch",
+      "name": "Launch TS (src/main.ts)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["-r", "tsx/register", "-r", "ts-node/register"],
+      "program": "${workspaceFolder}/src/main.ts",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "NODE_ENV": "development"
+      }
+    }
+  ]
+}

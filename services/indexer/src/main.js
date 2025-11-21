@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import process from 'node:process'
 import { Firehose } from '@bluesky-social/sync'
 import { IdResolver } from '@bluesky-social/identity'
 import { closePool } from './db.js'
