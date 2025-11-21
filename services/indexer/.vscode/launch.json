@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "pwa-node",
+            "request": "launch",
+            "name": "Launch Indexer",
+            "program": "${workspaceFolder}/src/indexer.js",
+            "cwd": "${workspaceFolder}",
+            "runtimeExecutable": "node",
+            "console": "integratedTerminal",
+            "env": {
+                "NODE_ENV": "development"
+            }
+        }
+    ]
+}

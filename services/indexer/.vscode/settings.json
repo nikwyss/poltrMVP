@@ -1,0 +1,21 @@
+{
+    "files.exclude": {
+        "**/node_modules": true,
+        "**/.git": true,
+        "dist": true
+    },
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": true
+    },
+    "eslint.enable": true,
+    "eslint.packageManager": "npm",
+    "eslint.workingDirectories": [
+        {
+            "pattern": "./*",
+            "mode": "auto"
+        }
+    ],
+    "javascript.validate.enable": false,
+    "terminal.integrated.cwd": "${workspaceFolder}"
+}
