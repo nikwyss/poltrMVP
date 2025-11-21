@@ -1,8 +1,12 @@
 import Fastify, { FastifyInstance, FastifyReply } from 'fastify'
 import { pool } from './db'
 import { getProposalsHandler } from './proposals'
+import cors from '@fastify/cors'
 
 const fastify: FastifyInstance = Fastify()
+
+// Enable CORS for development (allow all origins). In production, set specific origins.
+void fastify.register(cors, { origin: true })
 
 async function checkDbConnection(): Promise<void> {
   try {

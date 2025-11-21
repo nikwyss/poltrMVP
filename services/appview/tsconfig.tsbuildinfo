@@ -1,1 +1,1 @@
-{"root":["./src/db.ts","./src/main.ts"],"version":"5.9.3"}
+{"root":["./src/cursor.ts","./src/db.ts","./src/lib.ts","./src/main.ts","./src/proposals.ts","./src/typing.ts"],"version":"5.9.3"}

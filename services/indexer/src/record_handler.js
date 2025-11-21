@@ -1,4 +1,5 @@
 
+import { CID } from 'multiformats/cid';
 import 'dotenv/config'
 import { pool,  upsertProposalDb, markDeleted } from './db.js'
 
@@ -8,6 +9,11 @@ export const handleEvent = async (evt) => {
 
   console.log('DEBUG -handleEvent => Received event for collection:', evt.collection);
   // if (evt.collection !== 'app.ch.poltr.vote.proposal') return;
+
+
+
+// assuming your CID field is already a CID object:
+  const cidString = CID.asCID(evt.cid)?.toString();
 
   const seq = evt.seq;         // firehose cursor
   const did = evt.did;
@@ -25,7 +31,7 @@ export const handleEvent = async (evt) => {
 
     await upsertProposalDb(pool, {
       uri,
-      cid: evt.commit, // or evt.cid if your helper exposes it
+      cid: cidString, // or evt.cid if your helper exposes it
       did,
       rkey,
       record,

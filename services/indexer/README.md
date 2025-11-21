@@ -3,8 +3,6 @@
 ## Indexing
 The indexer stores all records from the PDS in its own postgres Database.
 
-
-
 # TODO: 
 **backfill** write a nightly task to backfill all records , that haventbeen synced via firehose. (there are always downtimes). You can use a cursore in redis or similar to know, when last backfill had happended.
 

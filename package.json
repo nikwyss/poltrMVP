@@ -1,0 +1,19 @@
+{
+  "name": "poltr",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@8.0.0",
+  "workspaces": [
+    "services/*",
+    "web/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "bootstrap": "pnpm -w install",
+    "build": "pnpm -r run build",
+    "dev": "echo \"Run service dev scripts individually (see README)\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.0.0"
+  }
+}
