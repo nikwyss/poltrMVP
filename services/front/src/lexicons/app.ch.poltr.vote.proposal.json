@@ -1,0 +1,23 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.vote.proposal",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A Swiss referendum proposal with metadata and voting details",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "topic": { "type": "string" },
+          "text": { "type": "string" },
+          "officialRef": { "type": "string" },
+          "voteDate": { "type": "string", "format": "date" },
+          "language": { "type": "string", "enum": ["de-CH", "fr-CH", "it-CH", "rm-CH"] }
+        },
+        "required": ["title", "voteDate"]
+      }
+    }
+  }
+}
