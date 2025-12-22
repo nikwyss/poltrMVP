@@ -53,6 +53,11 @@ jobs:
       - name: Checkout (for kubectl config)
         uses: actions/checkout@v4
 
+      - name: Set up kubeconfig file
+        run: |
+          echo "${{ secrets.KUBECONFIG }}" | base64 --decode > ${{ github.workspace }}/kubeconfig
+        shell: bash
+
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
         with:
@@ -60,7 +65,7 @@ jobs:
 
       - name: Deploy to cluster
         env:
-          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+          KUBECONFIG: ${{ github.workspace }}/kubeconfig
           IMAGE_APP: ghcr.io/${{ github.repository_owner }}/poltr-appview:${{ github.sha }}
           IMAGE_INDEXER: ghcr.io/${{ github.repository_owner }}/poltr-indexer:${{ github.sha }}
         run: |
