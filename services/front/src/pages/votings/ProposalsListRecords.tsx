@@ -301,7 +301,7 @@ export default function ProposalsSearch() {
                     fontSize: '12px',
                     color: '#999'
                   }}>
-                    Ref: {proposal.record.officialRef}
+                    Ref: (1) {proposal.record.officialRef}
                   </div>
                 )}
               </div>
