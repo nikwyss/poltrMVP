@@ -141,7 +141,7 @@ export async function listRecords(
 }
 
 
-export async function listProposalsAppView(limit = 100): Promise<ProposalWithMetadata[]> {
+export async function listProposalsAppView(_limit = 100): Promise<ProposalWithMetadata[]> {
   const res = await callAppXrpc('http://localhost:3000/xrpc/app.ch.poltr.vote.listProposals')
   // , {
   //   method: 'GET',
