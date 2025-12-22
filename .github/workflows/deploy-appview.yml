@@ -1,8 +1,10 @@
 name: Build & Deploy appview
 on:
-  push:
-    paths:
-      - 'services/appview/**'
+  workflow_run:
+    workflows:
+      - 'Build and Push Services'
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -11,6 +13,7 @@ permissions:
 
 jobs:
   build-and-deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: production
 
