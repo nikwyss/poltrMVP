@@ -111,7 +111,7 @@ export default function ProposalsSearch() {
           alignItems: 'center',
           marginBottom: '30px'
         }}>
-          <h1 style={{ margin: 0 }}>Swiss Referendum Proposals</h1>
+          <h1 style={{ margin: 0 }}>Swiss Referendum Proposals.</h1>
           <button
             onClick={() => navigate('/home')}
             style={{
