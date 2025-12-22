@@ -1,0 +1,3 @@
+[submodule "services/front"]
+    path = services/front
+    url = https://github.com/nikwyss/poltr_front
