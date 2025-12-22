@@ -4,21 +4,19 @@ This file lists the next prioritized, actionable tasks to bring the project from
 
 ## Short-term (developer-facing)
 
-1. Commit appview build fix
-	- Add missing helpers: `services/appview/src/lib.ts` (done locally). Commit & push.
 
-2. Push branch and open PR
+1. Push branch and open PR
 	- Create a feature branch, push the `src/lib.ts` fix and open a PR for review.
 
-3. Add `KUBECONFIG` GitHub secret
+2. Add `KUBECONFIG` GitHub secret
 	- Create a `gha-deployer` ServiceAccount in the `poltr` namespace and generate a kubeconfig for it.
 	- Add kubeconfig to GitHub Actions secrets as `KUBECONFIG`.
 
-4. Trigger workflow and verify CI
+3. Trigger workflow and verify CI
 	- Push a test change under `services/appview/` to trigger `.github/workflows/deploy-appview.yml`.
 	- Inspect Actions logs, confirm image pushed to GHCR and `kubectl set image` succeeded.
 
-5. Address CI/build failures (if any)
+4. Address CI/build failures (if any)
 	- Fix TypeScript or dependency issues reported by CI. Iterate until the workflow completes successfully.
 
 ## Mid-term (local dev & ergonomics)
