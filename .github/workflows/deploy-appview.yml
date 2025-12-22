@@ -49,7 +49,15 @@ jobs:
 
       - name: Set up kubeconfig file
         run: |
-          echo "${{ secrets.KUBECONFIG }}" | base64 --decode > ${{ github.workspace }}/kubeconfig
+          set -euo pipefail
+          KFILE="${{ github.workspace }}/kubeconfig"
+          echo 'Preparing kubeconfig file'
+          if printf '%s' "${{ secrets.KUBECONFIG }}" | base64 --decode >/dev/null 2>&1; then
+            printf '%s' "${{ secrets.KUBECONFIG }}" | base64 --decode > "$KFILE"
+          else
+            printf '%s' "${{ secrets.KUBECONFIG }}" > "$KFILE"
+          fi
+          chmod 600 "$KFILE"
         shell: bash
 
       - name: Deploy to cluster
