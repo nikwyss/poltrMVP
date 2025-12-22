@@ -134,6 +134,9 @@ kubectl rollout restart deployment/frontend -n poltr
 View logs for any component:
 
 ```bash
+
+KUBECONFIG=/tmp/gha-deployer.kubeconfig kubectl get namespaces
+
 # PDS logs
 kubectl logs -n poltr deployment/pds --tail=50
 

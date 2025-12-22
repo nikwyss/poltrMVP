@@ -1,8 +1,10 @@
 name: Build & Deploy appview
 on:
-  push:
-    paths:
-      - 'services/appview/**'
+  workflow_run:
+    workflows:
+      - 'Build and Push Services'
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -11,6 +13,7 @@ permissions:
 
 jobs:
   build-and-deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     environment: production
 
@@ -42,11 +45,24 @@ jobs:
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
         with:
-          version: '1.30.0'
+          version: 'latest'
+
+      - name: Set up kubeconfig file
+        run: |
+          set -euo pipefail
+          KFILE="${{ github.workspace }}/kubeconfig"
+          echo 'Preparing kubeconfig file'
+          if printf '%s' "${{ secrets.KUBECONFIG }}" | base64 --decode >/dev/null 2>&1; then
+            printf '%s' "${{ secrets.KUBECONFIG }}" | base64 --decode > "$KFILE"
+          else
+            printf '%s' "${{ secrets.KUBECONFIG }}" > "$KFILE"
+          fi
+          chmod 600 "$KFILE"
+        shell: bash
 
       - name: Deploy to cluster
         env:
-          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+          KUBECONFIG: ${{ github.workspace }}/kubeconfig
           IMAGE: ghcr.io/${{ github.repository_owner }}/poltr-appview:${{ github.sha }}
         run: |
           set -e

@@ -1,9 +1,9 @@
 import { FastifyReply, FastifyRequest } from 'fastify'
 import type { QueryResult } from 'pg'
-import { pool } from './db'
-import { encodeCursor } from './cursor'
-import { DBRow, getArray, getDateISO, getNumber, getObject, getString } from './lib'
-import { Author, Proposal, ProposalRecord } from './typing'
+import { pool } from './db.js'
+import { encodeCursor } from './cursor.js'
+import { DBRow, getArray, getDateISO, getNumber, getObject, getString } from './lib.js'
+import { Author, Proposal, ProposalRecord } from './typing.js'
 
 type ListProposalsQuery = {
     did?: string

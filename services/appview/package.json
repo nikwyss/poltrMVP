@@ -14,6 +14,7 @@
     "start:prod": "node dist/start.js",
     "dev": "tsx src/main.ts",
     "lint": "eslint 'src/**/*.{ts,js}' --max-warnings=0"
+    
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
