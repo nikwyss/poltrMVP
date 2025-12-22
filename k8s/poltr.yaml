@@ -167,7 +167,7 @@ spec:
     spec:
       containers:
         - name: indexer
-          image: nikwyss/poltr-indexer:1.76
+          image: ghcr.io/nikwyss/poltr-indexer:latest
           envFrom:
             - secretRef:
                 name: indexer-secrets
@@ -212,7 +212,7 @@ spec:
   ports:
     - name: http
       port: 80
-      targetPort: 3001
+      targetPort: 3000
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -233,7 +233,7 @@ spec:
     spec:
       containers:
         - name: appview
-          image: nikwyss/poltr-appview:1.7
+          image: ghcr.io/nikwyss/poltr-appview:latest
           envFrom:
             - secretRef:
                 name: appview-secrets
@@ -496,7 +496,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: nikwyss/poltr-front:latest
+          image: ghcr.io/nikwyss/poltr-front:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80
@@ -507,6 +507,8 @@ spec:
             limits:
               cpu: "200m"
               memory: "256Mi"
+      imagePullSecrets:
+        - name: ghcr-registry
 ---
 apiVersion: v1
 kind: Service
