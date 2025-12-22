@@ -45,3 +45,32 @@ jobs:
 
       - name: Output image tag
         run: echo "Built ghcr.io/${{ github.repository_owner }}/poltr-${{ matrix.service }}:${{ github.sha }}"
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (for kubectl config)
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: '1.30.0'
+
+      - name: Deploy to cluster
+        env:
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+          IMAGE_APP: ghcr.io/${{ github.repository_owner }}/poltr-appview:${{ github.sha }}
+          IMAGE_INDEXER: ghcr.io/${{ github.repository_owner }}/poltr-indexer:${{ github.sha }}
+        run: |
+          set -e
+          echo "Updating appview deployment to $IMAGE_APP"
+          kubectl -n poltr set image deployment/appview appview=$IMAGE_APP --record
+          echo "Updating indexer deployment to $IMAGE_INDEXER"
+          kubectl -n poltr set image deployment/indexer indexer=$IMAGE_INDEXER --record || true
+          echo "Waiting for appview rollout..."
+          kubectl -n poltr rollout status deployment/appview --timeout=180s
+          echo "Waiting for indexer rollout..."
+          kubectl -n poltr rollout status deployment/indexer --timeout=180s || true
+          echo "Deploy job finished."

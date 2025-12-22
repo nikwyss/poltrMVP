@@ -165,9 +165,11 @@ spec:
       labels:
         app: indexer
     spec:
+      imagePullSecrets:
+        - name: ghcr-registry
       containers:
         - name: indexer
-          image: nikwyss/poltr-indexer:1.76
+          image: ghcr.io/nikwyss/poltr-indexer:1.76
           envFrom:
             - secretRef:
                 name: indexer-secrets
@@ -231,9 +233,11 @@ spec:
       labels:
         app: appview
     spec:
+      imagePullSecrets:
+        - name: ghcr-registry
       containers:
         - name: appview
-          image: nikwyss/poltr-appview:1.7
+          image: ghcr.io/nikwyss/poltr-appview:1.7
           envFrom:
             - secretRef:
                 name: appview-secrets
@@ -494,9 +498,11 @@ spec:
       labels:
         app: frontend
     spec:
+      imagePullSecrets:
+        - name: ghcr-registry
       containers:
         - name: frontend
-          image: nikwyss/poltr-front:latest
+          image: ghcr.io/nikwyss/poltr-front:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80
