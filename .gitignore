@@ -13,10 +13,13 @@ KUBECONFIG
 */.env
 services/appview/dist
 services/indexer/dist
+services/front/dist
 services/appview/node_modules
 services/indexer/node_modules
+services/front/node_modules
 services/appview/.env
 services/indexer/.env
+services/front/.env
 */.env
 
 
