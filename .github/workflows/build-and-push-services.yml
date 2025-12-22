@@ -53,10 +53,11 @@ jobs:
       - name: Checkout (for kubectl config)
         uses: actions/checkout@v4
 
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-            version: '1.29.4'
+      - name: Download kubectl manually
+        run: |
+            curl -LO "https://dl.k8s.io/release/v1.29.4/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            sudo mv kubectl /usr/local/bin/kubectl
 
       - name: Deploy to cluster
         env:
