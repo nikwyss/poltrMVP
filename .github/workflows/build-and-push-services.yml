@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [appview, indexer]
+        service: [appview, indexer, front]
 
     steps:
       - name: Checkout
@@ -76,13 +76,18 @@ jobs:
           set -euo pipefail
           export KUBECONFIG="${{ github.workspace }}/kubeconfig"
           echo "KUBECONFIG path: $KUBECONFIG"
+          IMAGE_FRONT: ghcr.io/${{ github.repository_owner }}/poltr-front:${{ github.sha }}
           # optionally show the server & context (no secrets)
           kubectl config view --kubeconfig "$KUBECONFIG" --minify -o yaml
           IMAGE_APP=ghcr.io/${{ github.repository_owner }}/poltr-appview:${{ github.sha }}
           IMAGE_INDEXER=ghcr.io/${{ github.repository_owner }}/poltr-indexer:${{ github.sha }}
           # run kubectl operations
           kubectl -n poltr set image deployment/appview appview="$IMAGE_APP"
+          echo "Updating frontend deployment to $IMAGE_FRONT"
+          kubectl -n poltr set image deployment/frontend frontend=$IMAGE_FRONT --record || true
           kubectl -n poltr set image deployment/indexer indexer="$IMAGE_INDEXER" || true
           kubectl -n poltr rollout status deployment/appview --timeout=180s
           kubectl -n poltr rollout status deployment/indexer --timeout=180s || true
         shell: bash
+          echo "Waiting for frontend rollout..."
+          kubectl -n poltr rollout status deployment/frontend --timeout=180s || true
