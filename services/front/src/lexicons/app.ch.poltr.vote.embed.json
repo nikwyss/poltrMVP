@@ -1,0 +1,52 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.vote.embed",
+  "defs": {
+    "main": {
+      "type": "object",
+      "description": "Embed a Swiss referendum proposal in a post or record",
+      "properties": {
+        "proposal": {
+          "type": "ref",
+          "ref": "#proposalView"
+        }
+      },
+      "required": ["proposal"]
+    },
+    "proposalView": {
+      "type": "object",
+      "description": "View of an embedded proposal record",
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "at-uri",
+          "description": "AT URI of the proposal record"
+        },
+        "cid": {
+          "type": "string",
+          "format": "cid",
+          "description": "CID of the proposal record"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the proposal"
+        },
+        "topic": {
+          "type": "string",
+          "description": "Topic/category of the proposal"
+        },
+        "voteDate": {
+          "type": "string",
+          "format": "date",
+          "description": "Date of the referendum vote"
+        },
+        "language": {
+          "type": "string",
+          "enum": ["de-CH", "fr-CH", "it-CH", "rm-CH"],
+          "description": "Language of the proposal"
+        }
+      },
+      "required": ["uri", "cid", "title", "voteDate"]
+    }
+  }
+}
