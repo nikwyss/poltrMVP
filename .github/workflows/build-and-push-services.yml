@@ -67,27 +67,9 @@ jobs:
         shell: bash
 
       - name: Try install kubectl via action (may fail)
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
           version: '1.30.0'
-        continue-on-error: true
-
-      - name: Ensure kubectl present, fallback to download
-        run: |
-          set -euo pipefail
-          if command -v kubectl >/dev/null 2>&1; then
-            echo "kubectl already installed: $(kubectl version --client --short)"
-            exit 0
-          fi
-          echo "kubectl not found — downloading fallback v1.29.14"
-          KUBECTL_VERSION=v1.29.14
-          mkdir -p $HOME/.local/bin
-          curl -fsSL -o /tmp/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-          chmod +x /tmp/kubectl
-          mv /tmp/kubectl $HOME/.local/bin/kubectl
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          kubectl version --client --short
-        shell: bash
 
       - name: Deploy to cluster
         run: |
