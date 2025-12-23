@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
-import { pool } from './db';
-import { getProposalsHandler } from './proposals';
+import { pool } from './db.js';
+import { getProposalsHandler } from './proposals.js';
 import cors from '@fastify/cors';
 const fastify = Fastify();
 // Enable CORS for development (allow all origins). In production, set specific origins.

@@ -1,6 +1,6 @@
 import Fastify, { FastifyInstance, FastifyReply } from 'fastify'
-import { pool } from './db'
-import { getProposalsHandler } from './proposals'
+import { pool } from './db.js'
+import { getProposalsHandler } from './proposals.js'
 import cors from '@fastify/cors'
 
 const fastify: FastifyInstance = Fastify()

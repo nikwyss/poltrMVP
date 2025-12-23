@@ -3,6 +3,10 @@ set -eu
 
 echo "[start] launching indexer and main services"
 
+# Allow Node to resolve extension-less ESM imports produced by some TypeScript configs
+export NODE_OPTIONS="--es-module-specifier-resolution=node"
+
+
 if [ -f ./dist/indexer.js ]; then
   node ./dist/indexer.js &
 else
