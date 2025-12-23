@@ -66,10 +66,11 @@ jobs:
           chmod 600 "$KFILE"
         shell: bash
 
-      - name: Try install kubectl via action (may fail)
-        uses: azure/setup-kubectl@v4
-        with:
-          version: '1.30.0'
+      - name: Install kubectl manually
+        run: |
+          set -euo pipefail
+          curl -LO "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl"
+          sudo install -m 755 kubectl /usr/local/bin/kubectl
 
       - name: Deploy to cluster
         run: |
