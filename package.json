@@ -11,7 +11,9 @@
   "scripts": {
     "bootstrap": "pnpm -w install",
     "build": "pnpm -r run build",
-    "dev": "echo \"Run service dev scripts individually (see README)\""
+    "dev": "echo \"Run service dev scripts individually (see README)\"",
+    "port-forward": "kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432"
+
   },
   "devDependencies": {
     "concurrently": "^8.0.0"

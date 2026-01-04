@@ -5,7 +5,8 @@
 This is a monorepo containing three custom services and orchestrated third-party images.
 
 ### Prerequisites
-- Node.js 20+
+- Node.js 20+ (for frontend and indexer)
+- Python 3.11+ (for appview)
 - Docker Desktop
 - kubectl (optional, for cluster access)
 - Git
@@ -16,7 +17,7 @@ This is a monorepo containing three custom services and orchestrated third-party
 poltr/
 ├── services/
 │   ├── front/      # React frontend (TypeScript + Vite)
-│   ├── appview/    # API service (Node.js)
+│   ├── appview/    # API service (Python + FastAPI)
 │   └── indexer/    # Firehose listener (Node.js)
 ├── k8s/            # Kubernetes manifests
 ├── doc/            # Project documentation
@@ -48,8 +49,8 @@ cd services/appview
 kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432
 
 # Run locally
-npm install
-npm run dev
+pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 3000
 ```
 
 See `services/appview/README.md` for details.

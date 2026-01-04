@@ -2,36 +2,30 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "npm: install",
+      "label": "Install Python dependencies",
       "type": "shell",
-      "command": "npm ci",
-      "group": "build"
-    },
-    {
-      "label": "npm: build",
-      "type": "shell",
-      "command": "npm run build",
+      "command": "pip install -r requirements.txt",
       "group": "build",
-      "problemMatcher": ["$tsc"]
+      "problemMatcher": []
     },
     {
-      "label": "npm: dev",
+      "label": "Run FastAPI dev server",
       "type": "shell",
-      "command": "npm run dev",
+      "command": "uvicorn main:app --reload --host 0.0.0.0 --port 3000",
       "isBackground": true,
-      "group": "test"
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
     },
     {
-      "label": "npm: lint",
+      "label": "Port-forward PostgreSQL",
       "type": "shell",
-      "command": "npm run lint",
-      "group": "test"
-    },
-    {
-      "label": "start: compiled",
-      "type": "shell",
-      "command": "node dist/main.js",
-      "group": "none"
+      "command": "kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432",
+      "isBackground": true,
+      "group": "none",
+      "problemMatcher": []
     }
   ]
 }

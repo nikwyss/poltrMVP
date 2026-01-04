@@ -1,0 +1,69 @@
+{
+  "folders": [
+    {
+      "name": "poltr (root)",
+      "path": "."
+    },
+    {
+      "name": "frontend",
+      "path": "services/front"
+    },
+    {
+      "name": "appview",
+      "path": "services/appview"
+    },
+    {
+      "name": "indexer",
+      "path": "services/indexer"
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/node_modules": true,
+      "**/__pycache__": true,
+      "**/*.pyc": true
+    }
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "AppView: FastAPI",
+        "type": "debugpy",
+        "request": "launch",
+        "module": "uvicorn",
+        "args": [
+          "main:app",
+          "--reload",
+          "--host",
+          "0.0.0.0",
+          "--port",
+          "3000"
+        ],
+        "cwd": "${workspaceFolder:appview}",
+        "env": {
+          "APPVIEW_POSTGRES_URL": "${env:APPVIEW_POSTGRES_URL}"
+        }
+      },
+      {
+        "name": "Indexer: Node.js",
+        "type": "pwa-node",
+        "request": "launch",
+        "program": "${workspaceFolder:indexer}/src/main.js",
+        "cwd": "${workspaceFolder:indexer}",
+        "console": "integratedTerminal",
+        "env": {
+          "NODE_ENV": "development"
+        }
+      },
+      {
+        "name": "Frontend: Dev Server",
+        "type": "node-terminal",
+        "request": "launch",
+        "command": "npm start",
+        "cwd": "${workspaceFolder:frontend}"
+      }
+    ],
+    "compounds": []
+  }
+}

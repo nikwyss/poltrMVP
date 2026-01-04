@@ -73,3 +73,8 @@ docker push ghcr.io/<OWNER>/poltr-appview:localtest
 kubectl -n poltr set image deployment/appview appview=ghcr.io/<OWNER>/poltr-appview:localtest
 kubectl -n poltr rollout status deployment/appview
 ```
+
+
+# open a terminal console on the single pod in the "pds"  without specify the exact pod "pds-56cb8595db-b4clg".
+```bash
+kubectl 

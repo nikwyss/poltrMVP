@@ -237,9 +237,9 @@ spec:
           envFrom:
             - secretRef:
                 name: appview-secrets
-          env:
-            - name: BSKY_PORT
-              value: "3000"
+          # env:
+          #   - name: BSKY_PORT
+          #     value: "3000"
           ports:
             - name: http
               containerPort: 3000
