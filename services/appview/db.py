@@ -31,14 +31,15 @@ async def check_db_connection():
             await init_pool()
             print(f"Database pool created successfully")
         async with pool.acquire() as conn:
-            await conn.fetchval("SELECT 1")
+            result = await conn.fetchval("SELECT 1")
+            print(f"DB connection test result: {result}")
         print("DB connection ok")
+        return True
     except Exception as err:
         print(f"DB connection failed: {err}")
         import traceback
-
         traceback.print_exc()
-        exit(1)
+        return False
 
 
 async def close_pool():

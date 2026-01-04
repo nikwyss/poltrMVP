@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getOAuthClient } from '../lib/oauthClient';
 
 export default function Login() {
   const navigate = useNavigate();
-  const [handle, setHandle] = useState('');
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -14,14 +13,25 @@ export default function Login() {
     setError('');
 
     try {
-      const client = await getOAuthClient();
-      
-      // Initiate login - this will redirect to Poltr
-      await client.signIn(handle, {
-        signal: new AbortController().signal,
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${apiUrl}/auth/send-magic-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
       });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send magic link');
+      }
+
+      // Navigate to confirmation page
+      navigate('/magic-link-sent', { state: { email } });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initiate login');
+      setError(err instanceof Error ? err.message : 'Failed to send magic link');
       setLoading(false);
     }
   };
@@ -35,18 +45,21 @@ export default function Login() {
       minHeight: '100vh',
       padding: '20px'
     }}>
-      <h1>atproto-Login</h1>
+      <h1>Login to POLTR</h1>
+      <p style={{ marginBottom: '30px', color: '#666' }}>
+        Enter your email to receive a magic link
+      </p>
       <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: '400px' }}>
         <div style={{ marginBottom: '20px' }}>
-          <label htmlFor="handle" style={{ display: 'block', marginBottom: '8px' }}>
-            Enter your Atproto handle:
+          <label htmlFor="email" style={{ display: 'block', marginBottom: '8px' }}>
+            Email address:
           </label>
           <input
-            id="handle"
-            type="text"
-            value={handle}
-            onChange={(e) => setHandle(e.target.value)}
-            placeholder={`username.${import.meta.env.VITE_PDS_URL_SHORT || 'poltr.info'}`}
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="your@email.com"
             required
             disabled={loading}
             style={{
@@ -84,7 +97,7 @@ export default function Login() {
             marginBottom: '16px'
           }}
         >
-          {loading ? 'Resolving...' : 'Login'}
+          {loading ? 'Sending...' : 'Send Magic Link'}
         </button>
         
         <div style={{ textAlign: 'center' }}>

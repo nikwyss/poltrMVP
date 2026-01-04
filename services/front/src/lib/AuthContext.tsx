@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { getOAuthClient } from './oauthClient';
 
 interface User {
   did: string;
@@ -13,7 +12,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (user: User) => void;
   logout: () => void;
-  loading: boolean; // true while attempting session restoration
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,39 +22,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Attempt to restore lightweight cached user info first (non-sensitive)
-    const cached = localStorage.getItem('poltr_user');
-    if (cached) {
+    // Restore user from localStorage on mount
+    const cachedUser = localStorage.getItem('poltr_user');
+    const sessionToken = localStorage.getItem('session_token');
+    
+    if (cachedUser && sessionToken) {
       try {
-        setUser(JSON.parse(cached));
-      } catch {}
-    }
-
-    // Attempt token/session restoration via OAuth client
-    (async () => {
-      try {
-        const client = await getOAuthClient();
-        // Let the library find any existing session for this origin.
-        // Passing origin ensures separation across domains.
-        const session = await client.restore(window.location.origin).catch(() => null);
-        if (session) {
-          // Derive a display handle if not available (library may not expose handle directly)
-          const sessAny = session as any;
-          let handle = sessAny.handle || session.did;
-          let displayName = handle;
-          // Store minimal, non-sensitive info (tokens remain managed by the library in IndexedDB)
-          const userInfo: User = {
-            did: session.did,
-            handle,
-            displayName,
-          };
-          setUser(userInfo);
-          localStorage.setItem('poltr_user', JSON.stringify(userInfo));
-        }
-      } finally {
-        setLoading(false);
+        setUser(JSON.parse(cachedUser));
+      } catch (err) {
+        console.error('Failed to parse cached user:', err);
+        localStorage.removeItem('poltr_user');
+        localStorage.removeItem('session_token');
       }
-    })();
+    }
+    
+    setLoading(false);
   }, []);
 
   const login = (user: User) => {
@@ -66,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('poltr_user');
+    localStorage.removeItem('session_token');
   };
 
   return (
@@ -85,5 +67,6 @@ export function useAuth() {
 
 export function isAuthenticated(): boolean {
   const storedUser = localStorage.getItem('poltr_user');
-  return !!storedUser;
+  const sessionToken = localStorage.getItem('session_token');
+  return !!(storedUser && sessionToken);
 }
