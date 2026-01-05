@@ -110,7 +110,16 @@ async def send_magic_link(request: Request, data: SendMagicLinkRequest):
 @app.post("/auth/verify-magic-link")
 @limiter.limit("10/minute")  # Max 10 verifications per minute per IP
 async def verify_magic_link(request: Request, data: VerifyMagicLinkRequest):
-    """Verify magic link token and create session"""
+    """Verify magic link token and create session (POST with JSON)"""
+    return await verify_magic_link_handler(data)
+
+
+# Also accept GET /verify?token=... for browser magic link clicks
+@app.get("/verify")
+@limiter.limit("10/minute")
+async def verify_magic_link_get(request: Request, token: str):
+    """Verify magic link token and create session (GET via email link) (NEW)"""
+    data = VerifyMagicLinkRequest(token=token)
     return await verify_magic_link_handler(data)
 
 
