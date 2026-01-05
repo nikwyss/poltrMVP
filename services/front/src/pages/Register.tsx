@@ -23,7 +23,7 @@ export default function Register() {
     setSuccess('');
 
     try {
-      // POST email to appview which creates account at PDS and returns credentials
+      // POST email to appview which will send a confirmation email
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -35,14 +35,9 @@ export default function Register() {
         throw new Error(errorData.message || `Registration failed: ${response.statusText}`);
       }
 
-      const data = await response.json();
-      setSuccess(`Account created! Handle: ${data.handle}. Save the password shown below.`);
-      // Display returned password in a modal-like textarea
-      setFormData(prev => ({ ...prev, generatedHandle: data.handle, generatedPassword: data.password }));
-
-      setTimeout(() => {
-        navigate('/');
-      }, 5000);
+      await response.json().catch(() => ({}));
+      setSuccess('Confirmation email sent — check your inbox and follow the link to complete registration.');
+      setTimeout(() => { navigate('/'); }, 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account');
     } finally {

@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from src.db import pool, check_db_connection, close_pool
+import src.db as db
 from src.proposals import get_proposals_handler
 from src.auth import (
     send_magic_link_handler,
@@ -36,13 +36,13 @@ limiter = Limiter(key_func=get_remote_address)
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("=== Application Starting ===")
-    success = await check_db_connection()
+    success = await db.check_db_connection()
     if not success:
         logger.warning("Database connection failed, but continuing...")
     logger.info("API listening on :3000")
     yield
     # Shutdown
-    await close_pool()
+    await db.close_pool()
     logger.info("=== Application Shutdown ===")
 
 
@@ -75,12 +75,12 @@ app.add_middleware(
 @app.get("/healthz")
 async def healthz():
     try:
-        if pool is None:
+        if db.pool is None:
             return JSONResponse(
                 status_code=503,
                 content={"status": "error", "error": "DB pool not initialized"},
             )
-        async with pool.acquire() as conn:
+        async with db.pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
         return JSONResponse(status_code=200, content={"status": "ok"})
     except Exception as err:
@@ -126,59 +126,147 @@ async def verify_magic_link_get(request: Request, token: str):
 @app.post("/register")
 @limiter.limit("10/minute")
 async def register(request: Request):
-    """Accept an email, generate a handle and superstrong password, create account on PDS and return credentials."""
+    """Accept an email and send confirmation link before creating account."""
     body = await request.json()
     email = body.get("email")
     if not email:
         return JSONResponse(status_code=400, content={"message": "email required"})
 
-    # generate handle
-    import random, string
+    # generate confirmation token
+    import secrets
+    from datetime import datetime, timedelta
 
-    def gen_handle():
-        name = "user" + "".join(
-            random.choices(string.ascii_lowercase + string.digits, k=6)
-        )
-        domain = os.getenv("PDS_DOMAIN_SHORT", "poltr.info")
-        return f"{name}.{domain}"
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(minutes=30)
 
-    def gen_password():
-        # superstrong random password
-        import secrets
-
-        alphabet = string.ascii_letters + string.digits + string.punctuation
-        return "".join(secrets.choice(alphabet) for _ in range(64))
-
-    handle = gen_handle()
-    password = gen_password()
-
-    # call PDS createAccount
-    import httpx
-
-    pds_url = os.getenv("PDS_URL", "https://pds.poltr.info")
+    # store pending registration
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                f"{pds_url}/xrpc/com.atproto.server.createAccount",
-                json={
-                    "handle": handle,
-                    "email": email,
-                    "password": password,
-                },
-            )
-        if resp.status_code != 200:
-            return JSONResponse(
-                status_code=resp.status_code,
-                content=resp.content.decode("utf-8"),
+        # ensure pool initialized
+        if db.pool is None:
+            ok = await db.check_db_connection()
+            if not ok:
+                return JSONResponse(status_code=500, content={"message": "DB connection failed"})
+        async with db.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO pending_registrations (email, token, expires_at)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (email) DO UPDATE SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at
+                """,
+                email,
+                token,
+                expires_at,
             )
     except Exception as e:
-        return JSONResponse(
-            status_code=502, content={"message": f"Failed to contact PDS: {e}"}
-        )
+        return JSONResponse(status_code=500, content={"message": f"Failed to store pending registration: {e}"})
 
-    return JSONResponse(
-        status_code=200, content={"handle": handle, "password": password}
-    )
+    # send confirmation email
+    try:
+        from src.email_service import email_service
+        success = email_service.send_confirmation_link(email, token, purpose='confirm')
+        if not success:
+            return JSONResponse(status_code=500, content={"message": "Failed to send confirmation email"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": f"Failed to send confirmation email: {e}"})
+
+    return JSONResponse(status_code=200, content={"message": "Confirmation email sent"})
+
+
+@app.get("/confirm")
+@limiter.limit("10/minute")
+async def confirm_registration(request: Request, token: str):
+    """Finalize registration when user clicks confirmation link."""
+    # validate token
+    from datetime import datetime
+
+    try:
+        # ensure pool initialized
+        if db.pool is None:
+            ok = await db.check_db_connection()
+            if not ok:
+                return JSONResponse(status_code=500, content={"message": "DB connection failed"})
+
+        async with db.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT id, email, expires_at
+                FROM pending_registrations
+                WHERE token = $1
+                """,
+                token,
+            )
+            if not row:
+                return JSONResponse(status_code=400, content={"message": "Invalid or expired token"})
+
+            if datetime.utcnow() > row["expires_at"]:
+                return JSONResponse(status_code=400, content={"message": "Token expired"})
+
+            email = row["email"]
+
+            # create account on PDS
+            import random, string, httpx, secrets
+
+            def gen_handle():
+                name = "user" + "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+                domain = os.getenv("PDS_DOMAIN_SHORT", "poltr.info")
+                return f"{name}.{domain}"
+
+            def gen_password():
+                alphabet = string.ascii_letters + string.digits + string.punctuation
+                return "".join(secrets.choice(alphabet) for _ in range(64))
+
+            handle = gen_handle()
+            password = gen_password()
+
+            pds_url = os.getenv("PDS_URL", "https://pds.poltr.info")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    f"{pds_url}/xrpc/com.atproto.server.createAccount",
+                    json={"handle": handle, "email": email, "password": password},
+                )
+            if resp.status_code != 200:
+                return JSONResponse(status_code=502, content={"message": f"PDS error: {resp.status_code}"})
+
+            # delete pending registration
+            await conn.execute("DELETE FROM pending_registrations WHERE id = $1", row["id"])
+
+            # create session like verify_magic_link_handler does
+            session_token = secrets.token_urlsafe(48)
+            session_expires = datetime.utcnow() + timedelta(days=7)
+            user_data = {"email": email, "handle": handle, "displayName": handle.split('@')[0]}
+            await conn.execute(
+                """
+                INSERT INTO sessions (session_token, email, user_data, expires_at)
+                VALUES ($1, $2, $3, $4)
+                """,
+                session_token,
+                email,
+                json.dumps(user_data),
+                session_expires,
+            )
+
+            # delete pending registration
+            await conn.execute("DELETE FROM pending_registrations WHERE id = $1", row["id"])
+
+            # Set cookie and redirect to frontend with fragment containing session token
+            is_production = os.getenv("ENVIRONMENT", "development") == "production"
+            frontend = os.getenv("APPVIEW_FRONTEND_URL", "http://localhost:5173")
+            redirect_url = f"{frontend}/#session={session_token}"
+            from fastapi.responses import RedirectResponse
+            response = RedirectResponse(url=redirect_url, status_code=302)
+            response.set_cookie(
+                key="session_token",
+                value=session_token,
+                httponly=True,
+                secure=is_production,
+                samesite="lax",
+                max_age=7 * 24 * 60 * 60,
+                path="/",
+            )
+            return response
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": f"Internal error: {e}"})
 
 
 if __name__ == "__main__":

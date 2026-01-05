@@ -77,4 +77,74 @@ class EmailService:
             return False
 
 
+    def send_confirmation_link(self, to_email: str, token: str, purpose: str = 'confirm') -> bool:
+        """Send a confirmation link for registration or other purposes"""
+        try:
+            if purpose == 'confirm':
+                link = f"{self.frontend_url}/confirm?token={token}"
+                subject = "Confirm your registration - POLTR"
+                action_text = "Confirm your account"
+                expiry_text = "30 minutes"
+            else:
+                link = f"{self.frontend_url}/verify?token={token}"
+                subject = "Your Magic Link - POLTR"
+                action_text = "Login to POLTR"
+                expiry_text = "15 minutes"
+
+            html_body = f"""
+            <html>
+                <body>
+                    <h2>{subject}</h2>
+                    <p>Click the button below to {action_text.lower()}:</p>
+                    <p><a href="{link}" style="background-color: #0085ff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">{action_text}</a></p>
+                    <p>Or copy and paste this link in your browser:</p>
+                    <p>{link}</p>
+                    <p>This link will expire in {expiry_text}.</p>
+                    <p>If you didn't request this, you can safely ignore this email.</p>
+                </body>
+            </html>
+            """
+
+            text_body = f"""
+            {subject}
+
+            Click the link below to {action_text.lower()}:
+            {link}
+
+            This link will expire in {expiry_text}.
+            If you didn't request this, you can safely ignore this email.
+            """
+
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = subject
+            msg['From'] = self.from_email
+            msg['To'] = to_email
+
+            part1 = MIMEText(text_body, 'plain')
+            part2 = MIMEText(html_body, 'html')
+
+            msg.attach(part1)
+            msg.attach(part2)
+
+            # Send email
+            if self.smtp_user and self.smtp_password:
+                with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+                    if self.use_tls:
+                        server.starttls()
+                    server.login(self.smtp_user, self.smtp_password)
+                    server.send_message(msg)
+            else:
+                # For development: just log the link
+                print(f"\n{'='*60}")
+                print(f"EMAIL LINK (dev mode - no SMTP configured):")
+                print(f"Email: {to_email}")
+                print(f"Link: {link}")
+                print(f"{'='*60}\n")
+
+            return True
+        except Exception as e:
+            print(f"Failed to send email: {e}")
+            return False
+
+
 email_service = EmailService()
