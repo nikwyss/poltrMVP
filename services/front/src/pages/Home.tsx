@@ -67,6 +67,21 @@ export default function Home() {
         >
           View Proposals
         </button>
+
+        <button
+          onClick={() => navigate('/link-eid')}
+          style={{
+            padding: '12px 24px',
+            fontSize: '16px',
+            backgroundColor: '#0085ff',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Link Profile with E-ID
+        </button>
         
         <button
           onClick={handleLogout}

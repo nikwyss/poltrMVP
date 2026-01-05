@@ -19,6 +19,7 @@ function App() {
           <Route path="/callback" element={<Callback />} />
           <Route path="/magic-link-sent" element={<MagicLinkSent />} />
           <Route path="/verify" element={<VerifyMagicLink />} />
+          <Route path="/confirm" element={<VerifyMagicLink />} />
           <Route path="/home" element={<Home />} />
           <Route path="/proposals" element={<ProposalsSearch />} />
           {/* <Route path="/feed" element={<ProposalsFeed />} /> */}
