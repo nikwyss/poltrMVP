@@ -2,9 +2,9 @@ import json
 from typing import Optional
 from datetime import datetime
 from fastapi.responses import JSONResponse
-from db import get_pool
-from cursor import encode_cursor
-from lib import get_string, get_date_iso, get_number, get_array, get_object
+from src.db import get_pool
+from src.cursor import encode_cursor
+from src.lib import get_string, get_date_iso, get_number, get_array, get_object
 
 
 async def get_proposals_handler(

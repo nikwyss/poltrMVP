@@ -11,7 +11,7 @@
     {
       "label": "Run FastAPI dev server",
       "type": "shell",
-      "command": "uvicorn main:app --reload --host 0.0.0.0 --port 3000",
+      "command": "uvicorn src.main:app --reload --host 0.0.0.0 --port 3000",
       "isBackground": true,
       "group": {
         "kind": "test",

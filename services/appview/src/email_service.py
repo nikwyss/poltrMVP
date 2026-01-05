@@ -7,14 +7,14 @@ from typing import Optional
 
 class EmailService:
     def __init__(self):
-        self.smtp_host = os.getenv("SMTP_HOST", "localhost")
-        self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
-        self.smtp_user = os.getenv("SMTP_USER", "")
-        self.smtp_password = os.getenv("SMTP_PASSWORD", "")
-        self.from_email = os.getenv("FROM_EMAIL", "noreply@poltr.info")
-        self.frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-        self.use_tls = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
-
+        self.smtp_host = os.getenv("APPVIEW_SMTP_HOST", "localhost")
+        self.smtp_port = int(os.getenv("APPVIEW_SMTP_PORT", "587"))
+        self.smtp_user = os.getenv("APPVIEW_SMTP_USER", "")
+        self.smtp_password = os.getenv("APPVIEW_SMTP_PASSWORD", "")
+        self.from_email = os.getenv("APPVIEW_FROM_EMAIL", "noreply@poltr.info")
+        self.frontend_url = os.getenv("APPVIEW_FRONTEND_URL", "http://localhost:5173")
+        self.use_tls = os.getenv("APPVIEW_SMTP_USE_TLS", "true").lower() == "true"
+        
     def send_magic_link(self, to_email: str, token: str) -> bool:
         """Send magic link email to user"""
         try:

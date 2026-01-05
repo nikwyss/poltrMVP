@@ -8,15 +8,15 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from db import pool, check_db_connection, close_pool
-from proposals import get_proposals_handler
-from auth import (
-    send_magic_link_handler, 
+from src.db import pool, check_db_connection, close_pool
+from src.proposals import get_proposals_handler
+from src.auth import (
+    send_magic_link_handler,
     verify_magic_link_handler,
     SendMagicLinkRequest,
-    VerifyMagicLinkRequest
+    VerifyMagicLinkRequest,
 )
-from middleware import verify_session_token
+from src.middleware import verify_session_token
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
@@ -46,7 +46,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Specific origins for credentials
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],  # Specific origins for credentials
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -58,7 +61,8 @@ async def healthz():
     try:
         if pool is None:
             return JSONResponse(
-                status_code=503, content={"status": "error", "error": "DB pool not initialized"}
+                status_code=503,
+                content={"status": "error", "error": "DB pool not initialized"},
             )
         async with pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
@@ -92,6 +96,64 @@ async def send_magic_link(request: Request, data: SendMagicLinkRequest):
 async def verify_magic_link(request: Request, data: VerifyMagicLinkRequest):
     """Verify magic link token and create session"""
     return await verify_magic_link_handler(data)
+
+
+@app.post("/register")
+@limiter.limit("10/minute")
+async def register(request: Request):
+    """Accept an email, generate a handle and superstrong password, create account on PDS and return credentials."""
+    body = await request.json()
+    email = body.get("email")
+    if not email:
+        return JSONResponse(status_code=400, content={"message": "email required"})
+
+    # generate handle
+    import random, string
+
+    def gen_handle():
+        name = "user" + "".join(
+            random.choices(string.ascii_lowercase + string.digits, k=6)
+        )
+        domain = os.getenv("PDS_DOMAIN_SHORT", "poltr.info")
+        return f"{name}.{domain}"
+
+    def gen_password():
+        # superstrong random password
+        import secrets
+
+        alphabet = string.ascii_letters + string.digits + string.punctuation
+        return "".join(secrets.choice(alphabet) for _ in range(64))
+
+    handle = gen_handle()
+    password = gen_password()
+
+    # call PDS createAccount
+    import httpx
+
+    pds_url = os.getenv("PDS_URL", "https://pds.poltr.info")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{pds_url}/xrpc/com.atproto.server.createAccount",
+                json={
+                    "handle": handle,
+                    "email": email,
+                    "password": password,
+                },
+            )
+        if resp.status_code != 200:
+            return JSONResponse(
+                status_code=resp.status_code,
+                content=resp.content.decode("utf-8"),
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=502, content={"message": f"Failed to contact PDS: {e}"}
+        )
+
+    return JSONResponse(
+        status_code=200, content={"handle": handle, "password": password}
+    )
 
 
 if __name__ == "__main__":

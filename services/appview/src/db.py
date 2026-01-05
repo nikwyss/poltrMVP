@@ -38,6 +38,7 @@ async def check_db_connection():
     except Exception as err:
         print(f"DB connection failed: {err}")
         import traceback
+
         traceback.print_exc()
         return False
 

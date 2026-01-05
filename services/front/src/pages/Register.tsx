@@ -1,18 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Register() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    handle: '',
     email: '',
-    password: '',
-    // inviteCode: '',
-    pdsUrl: import.meta.env.VITE_PDS_URL || 'https://bsky.social',
+    pdsUrl: import.meta.env.VITE_PDS_URL || 'https://pds.poltr.info',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // No pre-generated credentials: user only provides email
+  useEffect(() => {
+    setFormData(prev => ({ ...prev }));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,18 +23,11 @@ export default function Register() {
     setSuccess('');
 
     try {
-      // Call the PDS account creation endpoint
-      const response = await fetch(`${formData.pdsUrl}/xrpc/com.atproto.server.createAccount`, {
+      // POST email to appview which creates account at PDS and returns credentials
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/register`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          handle: formData.handle,
-          email: formData.email,
-          password: formData.password,
-        //   inviteCode: formData.inviteCode || undefined,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email }),
       });
 
       if (!response.ok) {
@@ -41,18 +36,20 @@ export default function Register() {
       }
 
       const data = await response.json();
-      setSuccess(`Account created successfully! DID: ${data.did}`);
-      
-      // Redirect to login after 2 seconds
+      setSuccess(`Account created! Handle: ${data.handle}. Save the password shown below.`);
+      // Display returned password in a modal-like textarea
+      setFormData(prev => ({ ...prev, generatedHandle: data.handle, generatedPassword: data.password }));
+
       setTimeout(() => {
         navigate('/');
-      }, 2000);
+      }, 5000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account');
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div style={{ 
@@ -72,83 +69,12 @@ export default function Register() {
         width: '100%',
         maxWidth: '500px'
       }}>
-        <h1 style={{ marginBottom: '10px' }}>Create ATProto Account</h1>
+        <h1 style={{ marginBottom: '10px' }}>Create POLTR Account</h1>
         <p style={{ color: '#666', marginBottom: '30px' }}>
-          Register a new account on an ATProto server
+          Your credentials are randomly generated for security
         </p>
 
         <form onSubmit={handleSubmit}>
-          {/* <div style={{ marginBottom: '20px' }}>
-            <label htmlFor="pdsUrl" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-              PDS Server:
-            </label>
-            <select
-              id="pdsUrl"
-              value={formData.pdsUrl}
-              onChange={(e) => setFormData({ ...formData, pdsUrl: e.target.value })}
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '10px',
-                fontSize: '16px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                backgroundColor: 'white'
-              }}
-            >
-              <option value="https://bsky.social">Bluesky (bsky.social)</option>
-              <option value="custom">Custom PDS...</option>
-            </select>
-          </div> */}
-
-          {/* {formData.pdsUrl === 'custom' && (
-            <div style={{ marginBottom: '20px' }}>
-              <label htmlFor="customPds" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-                Custom PDS URL:
-              </label>
-              <input
-                id="customPds"
-                type="url"
-                placeholder="https://your-pds.example.com"
-                onChange={(e) => setFormData({ ...formData, pdsUrl: e.target.value })}
-                required
-                disabled={loading}
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  fontSize: '16px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px'
-                }}
-              />
-            </div>
-          )} */}
-
-          <div style={{ marginBottom: '20px' }}>
-            <label htmlFor="handle" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-              Handle:
-            </label>
-            <input
-              id="handle"
-              type="text"
-              value={formData.handle}
-              onChange={(e) => setFormData({ ...formData, handle: e.target.value })}
-              placeholder={`username.${import.meta.env.VITE_PDS_URL_SHORT || 'poltr.info'}`}
-              required
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '10px',
-                fontSize: '16px',
-                border: '1px solid #ccc',
-                borderRadius: '4px'
-              }}
-            />
-            <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>
-              Your unique handle on the ATProto network
-            </small>
-          </div>
-
           <div style={{ marginBottom: '20px' }}>
             <label htmlFor="email" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
               Email:
@@ -169,57 +95,11 @@ export default function Register() {
                 borderRadius: '4px'
               }}
             />
-          </div>
-
-          <div style={{ marginBottom: '20px' }}>
-            <label htmlFor="password" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-              Password:
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              placeholder="••••••••"
-              required
-              minLength={8}
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '10px',
-                fontSize: '16px',
-                border: '1px solid #ccc',
-                borderRadius: '4px'
-              }}
-            />
             <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>
-              Minimum 8 characters
+              Used for account recovery
             </small>
           </div>
 
-          {/* <div style={{ marginBottom: '20px' }}>
-            <label htmlFor="inviteCode" style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
-              Invite Code (if required):
-            </label>
-            <input
-              id="inviteCode"
-              type="text"
-              value={formData.inviteCode}
-              onChange={(e) => setFormData({ ...formData, inviteCode: e.target.value })}
-              placeholder="bsky-social-xxxxx-xxxxx"
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '10px',
-                fontSize: '16px',
-                border: '1px solid #ccc',
-                borderRadius: '4px'
-              }}
-            />
-            <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>
-              Some servers require an invite code
-            </small>
-          </div> */}
 
           {error && (
             <div style={{ 
@@ -294,6 +174,8 @@ export default function Register() {
         maxWidth: '500px',
         border: '1px solid #ffc107'
       }}>
+        <strong>⚠️ Important:</strong> Copy and save your credentials before registering. 
+        You'll need the password to login via other apps.
       </div>
     </div>
   );
