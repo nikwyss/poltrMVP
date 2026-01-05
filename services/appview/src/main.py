@@ -52,12 +52,20 @@ app = FastAPI(lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# Configure allowed origins: include local dev and production fronts; allow override via APP_ALLOW_ORIGINS env (comma-separated)
+allowed = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://poltr.ch",
+    "https://app.poltr.info",
+]
+extra = os.getenv("APP_ALLOW_ORIGINS")
+if extra:
+    allowed.extend([o.strip() for o in extra.split(",") if o.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],  # Specific origins for credentials
+    allow_origins=allowed,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
