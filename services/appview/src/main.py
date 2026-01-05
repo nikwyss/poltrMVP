@@ -1,4 +1,5 @@
 import os
+import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Query, Request, Depends
@@ -20,6 +21,13 @@ from src.middleware import verify_session_token
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
+log_level = os.getenv("APPVIEW_LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, log_level, logging.INFO),
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+logger = logging.getLogger("appview")
+
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
 
@@ -27,15 +35,15 @@ limiter = Limiter(key_func=get_remote_address)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("=== Application Starting ===")
+    logger.info("=== Application Starting ===")
     success = await check_db_connection()
     if not success:
-        print("WARNING: Database connection failed, but continuing...")
-    print("API listening on :3000")
+        logger.warning("Database connection failed, but continuing...")
+    logger.info("API listening on :3000")
     yield
     # Shutdown
     await close_pool()
-    print("=== Application Shutdown ===")
+    logger.info("=== Application Shutdown ===")
 
 
 app = FastAPI(lifespan=lifespan)
