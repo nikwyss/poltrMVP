@@ -19,6 +19,8 @@ services/appview/.env
 services/indexer/.env
 */.env
 
+services/pds
+
 
 node_modules
 .DS_Store
