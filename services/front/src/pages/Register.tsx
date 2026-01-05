@@ -165,18 +165,6 @@ export default function Register() {
           </div>
         </form>
       </div>
-
-      <div style={{
-        marginTop: '20px',
-        padding: '16px',
-        backgroundColor: '#fff3cd',
-        borderRadius: '4px',
-        maxWidth: '500px',
-        border: '1px solid #ffc107'
-      }}>
-        <strong>⚠️ Important:</strong> Copy and save your credentials before registering. 
-        You'll need the password to login via other apps.
-      </div>
     </div>
   );
 }
