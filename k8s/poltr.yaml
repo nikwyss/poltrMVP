@@ -215,7 +215,7 @@ spec:
           #   periodSeconds: 10
           #   failureThreshold: 40
           # livenessProbe:
-          #   httpGet:
+          #   httpGet:   
           #     path: /
           #     port: 3000
           #   initialDelaySeconds: 40
