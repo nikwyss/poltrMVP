@@ -19,7 +19,7 @@ services/appview/.env
 services/indexer/.env
 */.env
 
-services/pds
+# services/pds
 
 
 node_modules
