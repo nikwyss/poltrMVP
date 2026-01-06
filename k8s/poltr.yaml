@@ -156,7 +156,7 @@ metadata:
 data:
   verifier_metadata.json: |
     {
-      "client_id": "did:web:verifier.poltr.info",
+      "client_id": "${VERIFIER_DID}",
       "client_name#en": "Development Demo Verifier",
       "client_name#fr": "Vérificateur de démonstration de développement",
       "client_name#de-DE": "Entwicklungs-Demo-Verifizierer",
