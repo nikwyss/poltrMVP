@@ -148,6 +148,32 @@ spec:
     - port: 5432
       targetPort: 5432
 ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: verifier-service-metadata
+  namespace: poltr
+data:
+  verifier_metadata.json: |
+    {
+      "client_id": "${VERIFIER_DID}",
+      "client_name#en": "Development Demo Verifier",
+      "client_name#fr": "Vérificateur de démonstration de développement",
+      "client_name#de-DE": "Entwicklungs-Demo-Verifizierer",
+      "client_name#de-CH": "Entwickligs-Demo-Verifizier",
+      "client_name#de": "Entwicklungs-Demo-Verifizierer (Fallback DE)",
+      "client_name": "DEV Demo Verifier (Base)",
+      "logo_uri": "www.example.com/logo.png",
+      "logo_uri#fr": "www.example.com/logo_fr.png",
+      "vp_formats": {
+        "jwt_vp": {
+          "alg": [
+            "ES256"
+          ]
+        }
+      }
+    }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -324,6 +350,79 @@ spec:
 #     - port: 6379
 #       targetPort: 6379
 # ---
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: verifier-service
+  namespace: poltr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: verifier-service
+  template:
+    metadata:
+      labels:
+        app: verifier-service
+    spec:
+      containers:
+        - name: verifier-service
+          image: ghcr.io/swiyu-admin-ch/swiyu-verifier:latest
+          envFrom:
+            - secretRef:
+                name: verifier-secrets
+          env:
+            - name: OPENID_CLIENT_METADATA_FILE
+              value: file:/verifier_metadata.json
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: allforone-postgres-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: allforone-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              value: verifier
+            - name: POSTGRES_JDBC
+              value: jdbc:postgresql://allforone-postgres:5432/verifier
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: verifier-metadata
+              mountPath: /verifier_metadata.json
+              subPath: verifier_metadata.json
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+      volumes:
+        - name: verifier-metadata
+          configMap:
+            name: verifier-service-metadata
+            items:
+              - key: verifier_metadata.json
+                path: verifier_metadata.json
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: verifier-service
+  namespace: poltr
+spec:
+  selector:
+    app: verifier-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
 # apiVersion: apps/v1
 # kind: Deployment
 # metadata:
@@ -536,6 +635,7 @@ spec:
         - poltr.ch
         - app.poltr.info
         - pds.poltr.info
+        - verifier.poltr.info
         # - labeler.poltr.info
         # - ozon.poltr.info
         - wyss.poltr.info
@@ -580,6 +680,16 @@ spec:
             backend:
               service:
                 name: appview
+                port:
+                  number: 80
+    - host: verifier.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: verifier-service
                 port:
                   number: 80
     # - host: labeler.poltr.info
