@@ -11,6 +11,7 @@ A modern React + TypeScript frontend client for [poltr.info](https://poltr.info)
 - 💾 **IndexedDB Storage** - Secure token management in the browser
 - 🎨 **TypeScript** - Full type safety
 
+
 ## OAuth Implementation
 
 This app uses a **public OAuth client** (browser-based) which:
