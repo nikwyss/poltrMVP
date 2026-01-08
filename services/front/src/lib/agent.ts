@@ -140,3 +140,40 @@ export async function listProposalsAppView(_limit = 100): Promise<ProposalWithMe
   }
   return content.proposals;
 }
+
+/**
+ * Initiate E-ID verification process
+ */
+export async function initiateVerification(): Promise<{
+  verification_id: string;
+  verification_url: string;
+  verification_deep_link: string;
+  expires_at: string;
+}> {
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const authenticatedFetch = getAuthenticatedFetch();
+  
+  const res = await authenticatedFetch(`${apiUrl}/xrpc/app.ch.poltr.user.verification.initiate`);
+  
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data;
+}
+
+/**
+ * Poll verification status
+ */
+export async function pollVerification(verificationId: string): Promise<{
+  status: 'pending' | 'completed' | 'failed';
+}> {
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const authenticatedFetch = getAuthenticatedFetch();
+  
+  const res = await authenticatedFetch(
+    `${apiUrl}/xrpc/app.ch.poltr.user.verification.polling?verification_id=${verificationId}`
+  );
+  
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data;
+}

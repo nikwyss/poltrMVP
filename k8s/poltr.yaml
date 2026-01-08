@@ -62,8 +62,9 @@ spec:
               cpu: "20m"
               memory: "96Mi"
             limits:
-              cpu: "100m"
-              memory: "256Mi"
+                cpu: "20m"
+                memory: "128Mi"
+
           livenessProbe:
             httpGet:
               path: /xrpc/_health
@@ -405,10 +406,10 @@ spec:
               subPath: verifier_metadata.json
           resources:
             requests:
-              cpu: "100m"
+              cpu: "150m"
               memory: "64Mi"
             limits:
-              cpu: "200m"
+              cpu: "500m"
               memory: "256Mi"
           # resources:
           #   requests:

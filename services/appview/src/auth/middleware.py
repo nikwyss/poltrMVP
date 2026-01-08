@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from fastapi import Header, HTTPException, Cookie
 from typing import Optional
-import src.db as db
+import src.lib.db as db
 
 
 async def verify_session_token(

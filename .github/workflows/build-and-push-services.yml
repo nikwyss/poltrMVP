@@ -40,7 +40,9 @@ jobs:
           context: ./services/${{ matrix.service }}
           file: ./services/${{ matrix.service }}/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/poltr-${{ matrix.service }}:${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/poltr-${{ matrix.service }}:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/poltr-${{ matrix.service }}:latest
           platforms: linux/amd64
 
       - name: Output image tag

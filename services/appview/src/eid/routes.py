@@ -1,0 +1,76 @@
+import os
+from typing import Literal
+from uuid import uuid4
+from fastapi import Query, Request
+from src.lib.fastapi import app
+import httpx
+
+
+@app.get("/xrpc/app.ch.poltr.user.verification.initiate")
+async def verification_initiate(request: Request):
+
+    presentation_random_id = uuid4().hex
+    input_id = uuid4().hex
+
+    # Make the verification request
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            os.getenv("VERIFIER_API", "UNKNOWN"),
+            headers={
+                "accept": "*/*",
+                "Content-Type": "application/json",
+            },
+            json={
+                "accepted_issuer_dids": ["did:example:verifier123"],
+                "jwt_secured_authorization_request": False,
+                "response_mode": "direct_post",
+                "presentation_definition": {
+                    "id": presentation_random_id,
+                    "input_descriptors": [
+                        {
+                            "id": input_id,
+                            "format": {
+                                "vc+sd-jwt": {
+                                    "sd-jwt_alg_values": ["ES256"],
+                                    "kb-jwt_alg_values": ["ES256"],
+                                }
+                            },
+                            "constraints": {
+                                "fields": [
+                                    {
+                                        "path": ["$.vct"],
+                                        "filter": {
+                                            "type": "string",
+                                            "const": "betaid-sdjwt",
+                                        },
+                                    },
+                                    {"path": ["$.age_over_18"]},
+                                ]
+                            },
+                        }
+                    ],
+                },
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        verification_id = data["id"]
+        verification_url = data["verification_url"]
+        verification_deep_link = data["verification_deeplink"]
+
+    return {
+        "verification_id": verification_id,
+        "verification_url": verification_url,
+        "verification_deep_link": verification_deep_link,
+        "expires_at": "2026-12-31T23:59:59Z",
+    }
+
+
+@app.get("/xrpc/app.ch.poltr.user.verification.polling")
+async def verification_polling(request: Request, verification_id: str = Query(...)):
+
+    status: Literal["pending", "completed", "failed"] = "completed"
+    return {
+        "status": status,
+    }

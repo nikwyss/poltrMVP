@@ -2,12 +2,10 @@ import secrets
 import json
 import os
 from datetime import datetime, timedelta
-from typing import Optional
-from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
-import src.db as db
-from src.email_service import email_service
+import src.lib.db as db
+from src.lib.email_service import email_service
 
 
 class SendMagicLinkRequest(BaseModel):

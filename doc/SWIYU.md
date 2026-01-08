@@ -55,15 +55,15 @@ source <(curl -s \
   -H 'Content-Type: application/json' \
   -d '{
   "accepted_issuer_dids": [
-    "${VERIFIER_DID}"
+    "did:web:verifier.poltr.info"
  ],
   "jwt_secured_authorization_request": false,
   "response_mode": "direct_post",
   "presentation_definition": {
-    "id": "00000000-0000-0000-0000-000000000003",
+    "id": "00000000-0000-0000-0000-000000000002",
     "input_descriptors": [
         {
-            "id": "11111111-1111-1111-1111-111111111113",
+            "id": "11111111-1111-1111-1111-111111111112",
             "format": {
                 "vc+sd-jwt": {
                     "sd-jwt_alg_values": [

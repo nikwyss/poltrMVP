@@ -6,6 +6,7 @@ import Callback from './pages/Callback';
 import MagicLinkSent from './pages/MagicLinkSent';
 import VerifyMagicLink from './pages/VerifyMagicLink';
 import Home from './pages/Home';
+import LinkEID from './pages/LinkEID';
 // import ProposalsFeed from './pages/votings/ProposalsListFeed';
 import ProposalsSearch from './pages/votings/ProposalsListRecords';
 
@@ -21,6 +22,7 @@ function App() {
           <Route path="/verify" element={<VerifyMagicLink />} />
           <Route path="/confirm" element={<VerifyMagicLink />} />
           <Route path="/home" element={<Home />} />
+          <Route path="/link-eid" element={<LinkEID />} />
           <Route path="/proposals" element={<ProposalsSearch />} />
           {/* <Route path="/feed" element={<ProposalsFeed />} /> */}
           <Route path="*" element={<Navigate to="/" replace />} />
