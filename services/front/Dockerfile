@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (without lockfile since workspace manages it)
+RUN npm install
 
 # Copy source code
 COPY . .

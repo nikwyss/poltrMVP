@@ -83,6 +83,7 @@ export default function LinkEID() {
     }
   }, [verificationId, status, expiresAt]);
 
+  
   const startVerification = async () => {
     setQrLoading(true);
     setError(null);
