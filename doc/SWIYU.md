@@ -36,3 +36,81 @@ https://swiyu-admin-ch.github.io/cookbooks/onboarding-base-and-trust-registry/#-
 https://eportal.admin.ch/manage-users/permissions
 
 user=78045C51-6348-49D3-54A6-B53AFF7D9B02
+
+
+##   <!-- "jwt_secured_authorization_request": false, -->
+  "accepted_issuer_dids": [
+    "${VERIFICATION_ID}"
+ ],
+
+
+
+
+
+
+# CURL REQUEST
+source <(curl -s \
+  -X 'POST' 'https://verifier.poltr.info/management/api/verifications' \
+  -H 'accept: */*' \
+  -H 'Content-Type: application/json' \
+  -d '{
+  "accepted_issuer_dids": [
+    "${VERIFIER_DID}"
+ ],
+  "jwt_secured_authorization_request": false,
+  "response_mode": "direct_post",
+  "presentation_definition": {
+    "id": "00000000-0000-0000-0000-000000000003",
+    "input_descriptors": [
+        {
+            "id": "11111111-1111-1111-1111-111111111113",
+            "format": {
+                "vc+sd-jwt": {
+                    "sd-jwt_alg_values": [
+                        "ES256"
+                    ],
+                    "kb-jwt_alg_values": [
+                        "ES256"
+                    ]
+                }
+            },
+            "constraints": {
+                "fields": [
+                    {
+                        "path": [
+                            "$.vct"
+                        ],
+                        "filter": {
+                            "type": "string",
+                            "const": "betaid-sdjwt"
+                        }
+                    },
+                    {
+                        "path": [
+                            "$.age_over_18"
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
+  }
+}' | jq -r '"LOCAL_VERIFICATION_ID="+.id+"\nVERIFICATION_URL="+.verification_url+"\nVERIFICATION_DEEPLINK=\""+.verification_deeplink+"\"\necho\necho $VERIFICATION_DEEPLINK | qrencode -t ansiutf8"')
+
+
+
+###}' | jq -r '"LOCAL_VERIFICATION_ID="+.id+"\nVERIFICATION_URL="+.verification_url+"\nVERIFICATION_DEEPLINK=\""+.verification_deeplink+"\"\necho\necho $VERIFICATION_DEEPLINK | ###qrencode -t ansiutf8"')
+
+## }' | jq -r '"LOCAL_VERIFICATION_ID="+.id+"\nVERIFICATION_URL="+.verification_url+"\nVERIFICATION_DEEPLINK=\""+.verification_deeplink+"\"\necho\necho $VERIFICATION_URL | ## qrencode -t ansiutf8"')
+
+
+# RESULT
+
+{"id":"0b50e410-cd00-45fa-b2a3-3f15ad86ce1e","request_nonce":"9/GROT8RVDUohHmXPRo1Ljwqz2F89PLh","state":"PENDING","presentation_definition":{"id":"00000000-0000-0000-0000-000000000000","format":{},"input_descriptors":[{"id":"11111111-1111-1111-1111-111111111111","format":{"vc+sd-jwt":{"sd-jwt_alg_values":["ES256"],"kb-jwt_alg_values":["ES256"]}},"constraints":{"format":{},"fields":[{"path":["$.vct"],"filter":{"type":"string","const":"betaid-sdjwt"}},{"path":["$.age_over_18"]}]}}]},"verification_url":"https://verifier.poltr.info/oid4vp/api/request-object/0b50e410-cd00-45fa-b2a3-3f15ad86ce1e","verification_deeplink":"swiyu-verify://?client_id=did%3Atdw%3AQmPGmyfWv9Qttzh393hQjS8LXu1TtNbRTBKG5VztVXHsfh%3Aidentifier-reg.trust-infra.swiyu-int.admin.ch%3Aapi%3Av1%3Adid%3A6e0b847a-ea8f-46c0-8d9e-2832a71e0eac&request_uri=https%3A%2F%2Fverifier.poltr.info%2Foid4vp%2Fapi%2Frequest-object%2F0b50e410-cd00-45fa-b2a3-3f15ad86ce1e"}
+
+
+# VERIFIY
+
+curl -X GET \
+  -H "Accept: application/json" \
+  https://verifier.poltr.info/management/api/verifications/${LOCAL_VERIFICATION_ID}

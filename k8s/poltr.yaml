@@ -154,17 +154,17 @@ metadata:
   name: verifier-service-metadata
   namespace: poltr
 data:
+  # "client_name#en": "Development Demo Verifier",
+  # "client_name#fr": "Vérificateur de démonstration de développement",
+  # "client_name#de-DE": "Entwicklungs-Demo-Verifizierer",
+  # "client_name#de-CH": "Entwickligs-Demo-Verifizier",
+  # "client_name#de": "Entwicklungs-Demo-Verifizierer (Fallback DE)",
+  # "logo_uri#fr": "www.example.com/logo_fr.png",
   verifier_metadata.json: |
     {
       "client_id": "${VERIFIER_DID}",
-      "client_name#en": "Development Demo Verifier",
-      "client_name#fr": "Vérificateur de démonstration de développement",
-      "client_name#de-DE": "Entwicklungs-Demo-Verifizierer",
-      "client_name#de-CH": "Entwickligs-Demo-Verifizier",
-      "client_name#de": "Entwicklungs-Demo-Verifizierer (Fallback DE)",
-      "client_name": "DEV Demo Verifier (Base)",
-      "logo_uri": "www.example.com/logo.png",
-      "logo_uri#fr": "www.example.com/logo_fr.png",
+      "client_name": "Dominik Wyss",
+      "logo_uri": "https://atproto.blue/en/latest/_static/logo.png",
       "vp_formats": {
         "jwt_vp": {
           "alg": [
@@ -357,6 +357,8 @@ metadata:
   name: verifier-service
   namespace: poltr
 spec:
+  strategy:
+    type: Recreate
   replicas: 1
   selector:
     matchLabels:
@@ -389,6 +391,26 @@ spec:
               value: verifier
             - name: POSTGRES_JDBC
               value: jdbc:postgresql://allforone-postgres:5432/verifier
+            - name: EXTERNAL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: verifier-secrets
+                  key: EXTERNAL_URL
+            - name: VERIFIER_DID
+              valueFrom:
+                secretKeyRef:
+                  name: verifier-secrets
+                  key: VERIFIER_DID
+            - name: DID_VERIFICATION_METHOD
+              valueFrom:
+                secretKeyRef:
+                  name: verifier-secrets
+                  key: DID_VERIFICATION_METHOD
+            - name: SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: verifier-secrets
+                  key: SIGNING_KEY   
           ports:
             - name: http
               containerPort: 8080
@@ -399,10 +421,10 @@ spec:
           resources:
             requests:
               cpu: "50m"
-              memory: "128Mi"
-            limits:
-              cpu: "200m"
               memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
       volumes:
         - name: verifier-metadata
           configMap:
