@@ -23,8 +23,6 @@ cp .env.dist .env
 # Edit .env with your APPVIEW_POSTGRES_URL
 ```
 
-
-
 ## Running
 
 ### 1. Port-Forward PostgreSQL
