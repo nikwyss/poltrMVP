@@ -18,7 +18,7 @@ async def pds_api_write_eid_proof_record_to_pds(session: TSession, eid_hash: str
     record = {
         "$type": "app.info.poltr.eid.verification",
         "eidIssuer": os.getenv("APPVIEW_EID_TRUSTED_ISSUER_DID"),
-        "eid_hash": eid_hash,
+        "eidHash": eid_hash,
         "verifiedBy": os.getenv("APPVIEW_SERVER_DID"),
         "verifiedAt": verified_at_iso,
     }
