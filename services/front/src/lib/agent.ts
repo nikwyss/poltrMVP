@@ -164,7 +164,7 @@ export async function initiateVerification(): Promise<{
  * Poll verification status
  */
 export async function pollVerification(verificationId: string): Promise<{
-  status: 'pending' | 'completed' | 'failed';
+  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'ERROR';
 }> {
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const authenticatedFetch = getAuthenticatedFetch();

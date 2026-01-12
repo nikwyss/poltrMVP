@@ -5,3 +5,5 @@ python-dotenv==1.0.1
 slowapi==0.1.9
 httpx==0.24.1
 email-validator==2.3.0
+pynacl  # for pds creds
+httpx[http2]

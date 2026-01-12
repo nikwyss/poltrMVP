@@ -2,6 +2,8 @@ from src.lib.fastapi import app
 from src.proposals.routes import *
 from src.auth.routes import *
 from src.eid.routes import *
+from src.lexicons import *
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -78,3 +78,11 @@ kubectl -n poltr rollout status deployment/appview
 # open a terminal console on the single pod in the "pds"  without specify the exact pod "pds-56cb8595db-b4clg".
 ```bash
 kubectl 
+
+
+#SQL-LITE: (PDS)
+#---------------------
+
+account.sqlite        actors                did_cache.sqlite-wal  sequencer.sqlite-shm
+account.sqlite-shm    did_cache.sqlite      lost+found            sequencer.sqlite-wal
+account.sqlite-wal    did_cache.sqlite-shm  sequencer.sqlite

@@ -80,7 +80,7 @@ export default function Home() {
             cursor: 'pointer'
           }}
         >
-          Link Profile with E-ID
+          swiyu-Verification
         </button>
         
         <button

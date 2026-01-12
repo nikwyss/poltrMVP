@@ -24,7 +24,7 @@ export default function Register() {
 
     try {
       // POST email to appview which will send a confirmation email
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/register`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email }),
@@ -90,9 +90,9 @@ export default function Register() {
                 borderRadius: '4px'
               }}
             />
-            <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>
+            {/* <small style={{ color: '#666', marginTop: '4px', display: 'block' }}>
               Used for account recovery
-            </small>
+            </small> */}
           </div>
 
 

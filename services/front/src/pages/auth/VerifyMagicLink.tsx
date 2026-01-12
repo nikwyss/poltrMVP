@@ -1,8 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../lib/AuthContext';
+import { useAuth } from '../../lib/AuthContext';
 
-export default function VerifyMagicLink() {
+interface VerifyMagicLinkProps {
+  type: 'registration' | 'login';
+}
+
+export default function VerifyMagicLink({ type }: VerifyMagicLinkProps) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -26,12 +30,18 @@ export default function VerifyMagicLink() {
 
       try {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-        const response = await fetch(`${apiUrl}/auth/verify-magic-link`, {
+
+        if (type !== 'registration' && type !== 'login') {
+          throw new Error('Invalid verification type');
+        }
+        const urlcompo = type === 'registration' ? 'verify_registration' : 'verify_login';
+
+        const response = await fetch(`${apiUrl}/auth/${urlcompo}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({ token, type }),
         });
 
         const data = await response.json();
@@ -66,7 +76,7 @@ export default function VerifyMagicLink() {
     };
 
     verifyToken();
-  }, [searchParams, navigate, login]);
+  }, [searchParams, navigate, login, type]);
 
   return (
     <div style={{ 

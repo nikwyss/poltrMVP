@@ -4,6 +4,7 @@ k8s/secrets.yaml
 setup/opendata_swiss/votings.csv
 vendor
 *./node_modules/*
+dump
 
 # Ignore local kubeconfigs and deployer creds
 gha-deployer.kubeconfig

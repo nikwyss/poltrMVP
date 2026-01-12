@@ -1,20 +1,25 @@
 import json
+import os
+from fastapi.responses import JSONResponse
 from typing import Optional
 from datetime import datetime
-from fastapi.responses import JSONResponse
+from src.auth.middleware import TSession
 from src.lib.db import get_pool
 from src.lib.cursor import encode_cursor
 from src.lib.lib import get_string, get_date_iso, get_number, get_array, get_object
 
 
 async def get_proposals_handler(
-    did: Optional[str] = None, since: Optional[str] = None, limit: int = 50
+    session: TSession, since: Optional[str] = None, limit: int = 50
 ):
+
     params = []
     where = ["deleted = false"]
 
-    if did:
-        params.append(did)
+    # did = session.did
+    governance_id = os.getenv("PDS_GOVERNANCE_ACCOUNT_DID")
+    if governance_id:
+        params.append(governance_id)
         where.append(f"did = ${len(params)}")
 
     if since:

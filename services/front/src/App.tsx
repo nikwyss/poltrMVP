@@ -1,12 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './lib/AuthContext';
-import Login from './pages/Login';
-import Register from './pages/Register';
+import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
 import Callback from './pages/Callback';
-import MagicLinkSent from './pages/MagicLinkSent';
-import VerifyMagicLink from './pages/VerifyMagicLink';
+import MagicLinkSent from './pages/auth/MagicLinkSent';
+import VerifyMagicLink from './pages/auth/VerifyMagicLink';
 import Home from './pages/Home';
-import LinkEID from './pages/LinkEID';
+import LinkEID from './pages/auth/swiyu/SwiyuVerification';
 // import ProposalsFeed from './pages/votings/ProposalsListFeed';
 import ProposalsSearch from './pages/votings/ProposalsListRecords';
 
@@ -19,8 +19,8 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/callback" element={<Callback />} />
           <Route path="/magic-link-sent" element={<MagicLinkSent />} />
-          <Route path="/verify" element={<VerifyMagicLink />} />
-          <Route path="/confirm" element={<VerifyMagicLink />} />
+          <Route path="/verify_login" element={<VerifyMagicLink type="login" />} />
+          <Route path="/verify_registration" element={<VerifyMagicLink type="registration" />} />
           <Route path="/home" element={<Home />} />
           <Route path="/link-eid" element={<LinkEID />} />
           <Route path="/proposals" element={<ProposalsSearch />} />

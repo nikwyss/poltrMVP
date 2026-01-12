@@ -1,8 +1,8 @@
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../lib/AuthContext';
+import { useAuth } from '../../../lib/AuthContext';
 import { useEffect, useState, useRef } from 'react';
 import QRCode from 'qrcode';
-import { initiateVerification, pollVerification } from '../lib/agent';
+import { initiateVerification, pollVerification } from '../../../lib/agent';
 
 export default function LinkEID() {
   const { user, isAuthenticated, loading } = useAuth();
@@ -11,7 +11,7 @@ export default function LinkEID() {
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<'pending' | 'completed' | 'failed' | null>(null);
+  const [status, setStatus] = useState<'PENDING' | 'SUCCESS' | 'FAILED' | 'ERROR' | null>(null);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const qrCodeRef = useRef<HTMLDivElement>(null);
   const pollingIntervalRef = useRef<number | null>(null);
@@ -46,12 +46,12 @@ export default function LinkEID() {
 
   // Polling effect
   useEffect(() => {
-    if (verificationId && status === 'pending') {
+    if (verificationId && status === 'PENDING') {
       const pollVerificationStatus = async () => {
         try {
           // Check if expired
           if (expiresAt && new Date(expiresAt) < new Date()) {
-            setStatus('failed');
+            setStatus('FAILED');
             setError('Verification expired');
             if (pollingIntervalRef.current) {
               clearInterval(pollingIntervalRef.current);
@@ -62,7 +62,7 @@ export default function LinkEID() {
           const data = await pollVerification(verificationId);
           setStatus(data.status);
 
-          if (data.status === 'completed' || data.status === 'failed') {
+          if (data.status === 'SUCCESS' || data.status === 'FAILED' || data.status === 'ERROR') {
             if (pollingIntervalRef.current) {
               clearInterval(pollingIntervalRef.current);
             }
@@ -83,7 +83,7 @@ export default function LinkEID() {
     }
   }, [verificationId, status, expiresAt]);
 
-  
+
   const startVerification = async () => {
     setQrLoading(true);
     setError(null);
@@ -92,7 +92,7 @@ export default function LinkEID() {
       setVerificationUrl(data.verification_url);
       setVerificationId(data.verification_id);
       setExpiresAt(data.expires_at);
-      setStatus('pending');
+      setStatus('PENDING');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -119,7 +119,7 @@ export default function LinkEID() {
       minHeight: '100vh',
       padding: '20px'
     }}>
-      <h1>Link Profile with E-ID</h1>
+      <h1>swiyu-Verification</h1>
       
       <div style={{ 
         marginTop: '30px', 
@@ -129,9 +129,18 @@ export default function LinkEID() {
         maxWidth: '600px',
         textAlign: 'center'
       }}>
-        <p style={{ marginBottom: '20px' }}>
-          Link your profile with your Swiss E-ID to verify your identity.
-        </p>
+
+        {status !== 'SUCCESS' && (
+          <p style={{ marginBottom: '20px' }}>
+            We verify that you are a Swiss citizen using Swiss E-ID.
+          </p>
+        )}
+
+        {status === 'SUCCESS' && (
+          <p style={{ marginBottom: '20px' }}>
+            <b>Heureka!</b>
+          </p>
+        )}
         
         {!verificationUrl && !qrLoading && (
           <button
@@ -157,7 +166,7 @@ export default function LinkEID() {
           <p style={{ color: 'red', marginTop: '20px' }}>{error}</p>
         )}
 
-        {status === 'completed' && (
+        {status === 'SUCCESS' && (
           <div style={{ marginTop: '20px', padding: '20px', background: '#d4edda', borderRadius: '8px' }}>
             <p style={{ color: '#155724', fontWeight: 'bold' }}>
               ✓ Verification completed successfully!
@@ -165,7 +174,7 @@ export default function LinkEID() {
           </div>
         )}
 
-        {status === 'failed' && (
+        {(status === 'FAILED' || status === 'ERROR') && (
           <div style={{ marginTop: '20px', padding: '20px', background: '#f8d7da', borderRadius: '8px' }}>
             <p style={{ color: '#721c24', fontWeight: 'bold' }}>
               ✗ Verification failed or expired
@@ -173,7 +182,7 @@ export default function LinkEID() {
           </div>
         )}
 
-        {verificationUrl && status === 'pending' && (
+        {verificationUrl && status === 'PENDING' && (
           <div style={{ marginTop: '20px' }}>
             <p style={{ marginBottom: '10px', fontWeight: 'bold' }}>
               Scan this QR code with your SWIYU app:

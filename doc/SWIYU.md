@@ -87,7 +87,7 @@ source <(curl -s \
                     },
                     {
                         "path": [
-                            "$.age_over_18"
+                            "$.personal_administrative_number"
                         ]
                     }
                 ]
@@ -109,8 +109,50 @@ source <(curl -s \
 {"id":"0b50e410-cd00-45fa-b2a3-3f15ad86ce1e","request_nonce":"9/GROT8RVDUohHmXPRo1Ljwqz2F89PLh","state":"PENDING","presentation_definition":{"id":"00000000-0000-0000-0000-000000000000","format":{},"input_descriptors":[{"id":"11111111-1111-1111-1111-111111111111","format":{"vc+sd-jwt":{"sd-jwt_alg_values":["ES256"],"kb-jwt_alg_values":["ES256"]}},"constraints":{"format":{},"fields":[{"path":["$.vct"],"filter":{"type":"string","const":"betaid-sdjwt"}},{"path":["$.age_over_18"]}]}}]},"verification_url":"https://verifier.poltr.info/oid4vp/api/request-object/0b50e410-cd00-45fa-b2a3-3f15ad86ce1e","verification_deeplink":"swiyu-verify://?client_id=did%3Atdw%3AQmPGmyfWv9Qttzh393hQjS8LXu1TtNbRTBKG5VztVXHsfh%3Aidentifier-reg.trust-infra.swiyu-int.admin.ch%3Aapi%3Av1%3Adid%3A6e0b847a-ea8f-46c0-8d9e-2832a71e0eac&request_uri=https%3A%2F%2Fverifier.poltr.info%2Foid4vp%2Fapi%2Frequest-object%2F0b50e410-cd00-45fa-b2a3-3f15ad86ce1e"}
 
 
+
+
+
+
+
+
 # VERIFIY
 
 curl -X GET \
   -H "Accept: application/json" \
   https://verifier.poltr.info/management/api/verifications/${LOCAL_VERIFICATION_ID}
+
+
+
+
+
+# SUCCESS DATA
+
+ "wallet_response": {
+    "error_code": null,
+    "error_description": null,
+    "credential_subject_data": {
+      "age_over_18": "true",
+      "vct_metadata_uri#integrity": "sha256-ph0HNtvXefqelHdIYyl/BXwzJ+bNTbbqUrkzYSb7KS8=",
+      "vct_metadata_uri": "https://bcs.admin.ch/bcs-web/metadata/betaid-sdjwt/vct/20251114145003",
+      "vct": "betaid-sdjwt",
+      "iss": "did:tdw:QmPEZPhDFR4nEYSFK5bMnvECqdpf1tPTPJuWs9QrMjCumw:identifier-reg.trust-infra.swiyu-int.admin.ch:api:v1:did:9a5559f0-b81c-4368-a170-e7b4ae424527",
+      "cnf": {
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "aCNMib1jeZ8vOVaNAUGSeRjZxMsL6Q5xFQ8_5kTZpko",
+        "y": "g09WEVHIuglalPvaqCY2rDx5VnZMm43tuiUy7nN7UUw",
+        "jwk": {
+          "kty": "EC",
+          "crv": "P-256",
+          "x": "aCNMib1jeZ8vOVaNAUGSeRjZxMsL6Q5xFQ8_5kTZpko",
+          "y": "g09WEVHIuglalPvaqCY2rDx5VnZMm43tuiUy7nN7UUw"
+        }
+      },
+      "iat": "2026-01-05T21:02:30.000+00:00",
+      "status": {
+        "status_list": {
+          "uri": "https://status-reg.trust-infra.swiyu-int.admin.ch/api/v1/statuslist/c004fdd3-1bcb-47c6-b27b-26fcbda608af.jwt",
+          "idx": 6660,
+          "type": "SwissTokenStatusList-1.0"
+        }
+      }

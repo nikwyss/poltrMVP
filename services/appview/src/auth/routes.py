@@ -1,42 +1,46 @@
-import os
-from datetime import datetime, timedelta
-import json
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from src.auth.login import check_email_availability, create_account, login_pds_account
 import src.lib.db as db
-from src.auth.auth import (
+from src.auth.magic_link_handler import (
+    VerifyLoginMagicLinkData,
+    VerifyRegistrationMagicLinkData,
     send_magic_link_handler,
-    verify_magic_link_handler,
-    SendMagicLinkRequest,
-    VerifyMagicLinkRequest,
+    verify_login_magic_link_handler,
+    SendMagicLinkData,
+    verify_registration_magic_link_handler,
 )
 from src.lib.fastapi import app, limiter
 
 
 @app.post("/auth/send-magic-link")
 @limiter.limit("5/minute")  # Max 5 requests per minute per IP
-async def send_magic_link(request: Request, data: SendMagicLinkRequest):
+async def send_magic_link(request: Request, data: SendMagicLinkData):
     """Send magic link to user's email"""
     return await send_magic_link_handler(data)
 
 
-@app.post("/auth/verify-magic-link")
-@limiter.limit("10/minute")  # Max 10 verifications per minute per IP
-async def verify_magic_link(request: Request, data: VerifyMagicLinkRequest):
-    """Verify magic link token and create session (POST with JSON)"""
-    return await verify_magic_link_handler(data)
-
-
 # Also accept GET /verify?token=... for browser magic link clicks
-@app.get("/verify")
+@app.post("/auth/verify_login")
 @limiter.limit("10/minute")
-async def verify_magic_link_get(request: Request, token: str):
+async def verify_magic_link_get(request: Request, data: VerifyLoginMagicLinkData):
     """Verify magic link token and create session (GET via email link) (NEW)"""
-    data = VerifyMagicLinkRequest(token=token)
-    return await verify_magic_link_handler(data)
+
+    response: str | JSONResponse | None = await verify_login_magic_link_handler(data)
+
+    if isinstance(response, JSONResponse):
+        return response
+
+    if response is None:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "invalid_token", "message": "Invalid token"},
+        )
+
+    return await login_pds_account(user_email=response)
 
 
-@app.post("/register")
+@app.post("/auth/register")
 @limiter.limit("10/minute")
 async def register(request: Request):
     """Accept an email and send confirmation link before creating account."""
@@ -51,6 +55,15 @@ async def register(request: Request):
 
     token = secrets.token_urlsafe(32)
     expires_at = datetime.utcnow() + timedelta(minutes=30)
+
+    if not check_email_availability(email=email):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "email_taken",
+                "message": "An account with this email already exists",
+            },
+        )
 
     # store pending registration
     try:
@@ -80,9 +93,11 @@ async def register(request: Request):
 
     # send confirmation email
     try:
-        from lib.email_service import email_service
+        from src.lib.email_service import email_service
 
-        success = email_service.send_confirmation_link(email, token, purpose="confirm")
+        success = email_service.send_confirmation_link(
+            email, token, purpose="registration"
+        )
         if not success:
             return JSONResponse(
                 status_code=500,
@@ -97,119 +112,33 @@ async def register(request: Request):
     return JSONResponse(status_code=200, content={"message": "Confirmation email sent"})
 
 
-@app.get("/confirm")
+@app.post("/auth/verify_registration")
 @limiter.limit("10/minute")
-async def confirm_registration(request: Request, token: str):
+async def confirm_registration(request: Request, data: VerifyRegistrationMagicLinkData):
     """Finalize registration when user clicks confirmation link."""
     # validate token
 
-    try:
-        # ensure pool initialized
-        if db.pool is None:
-            ok = await db.check_db_connection()
-            if not ok:
-                return JSONResponse(
-                    status_code=500, content={"message": "DB connection failed"}
-                )
+    response: str | JSONResponse | None = await verify_registration_magic_link_handler(
+        data
+    )
 
-        async with db.pool.acquire() as conn:
-            row = await conn.fetchrow(
-                """
-                SELECT id, email, expires_at
-                FROM pending_registrations
-                WHERE token = $1
-                """,
-                token,
-            )
-            if not row:
-                return JSONResponse(
-                    status_code=400, content={"message": "Invalid or expired token"}
-                )
+    if isinstance(response, JSONResponse):
+        return response
 
-            if datetime.utcnow() > row["expires_at"]:
-                return JSONResponse(
-                    status_code=400, content={"message": "Token expired"}
-                )
+    if response is None:
 
-            email = row["email"]
-
-            # create account on PDS
-            import random, string, httpx, secrets
-
-            def gen_handle():
-                name = "user" + "".join(
-                    random.choices(string.ascii_lowercase + string.digits, k=6)
-                )
-                domain = os.getenv("PDS_DOMAIN_SHORT", "poltr.info")
-                return f"{name}.{domain}"
-
-            def gen_password():
-                alphabet = string.ascii_letters + string.digits + string.punctuation
-                return "".join(secrets.choice(alphabet) for _ in range(64))
-
-            handle = gen_handle()
-            password = gen_password()
-
-            pds_url = os.getenv("PDS_URL", "https://pds.poltr.info")
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.post(
-                    f"{pds_url}/xrpc/com.atproto.server.createAccount",
-                    json={"handle": handle, "email": email, "password": password},
-                )
-            if resp.status_code != 200:
-                return JSONResponse(
-                    status_code=502,
-                    content={"message": f"PDS error: {resp.status_code}"},
-                )
-
-            # delete pending registration
-            await conn.execute(
-                "DELETE FROM pending_registrations WHERE id = $1", row["id"]
-            )
-
-            # create session like verify_magic_link_handler does
-            session_token = secrets.token_urlsafe(48)
-            session_expires = datetime.utcnow() + timedelta(days=7)
-            user_data = {
-                "email": email,
-                "handle": handle,
-                "displayName": handle.split("@")[0],
-            }
-            await conn.execute(
-                """
-                INSERT INTO sessions (session_token, email, user_data, expires_at)
-                VALUES ($1, $2, $3, $4)
-                """,
-                session_token,
-                email,
-                json.dumps(user_data),
-                session_expires,
-            )
-
-            # delete pending registration
-            await conn.execute(
-                "DELETE FROM pending_registrations WHERE id = $1", row["id"]
-            )
-
-            # Set cookie and redirect to frontend with fragment containing session token
-            is_production = os.getenv("ENVIRONMENT", "development") == "production"
-            frontend = os.getenv("APPVIEW_FRONTEND_URL", "http://localhost:5173")
-            redirect_url = f"{frontend}/#session={session_token}"
-            from fastapi.responses import RedirectResponse
-
-            response = RedirectResponse(url=redirect_url, status_code=302)
-            response.set_cookie(
-                key="session_token",
-                value=session_token,
-                httponly=True,
-                secure=is_production,
-                samesite="lax",
-                max_age=7 * 24 * 60 * 60,
-                path="/",
-            )
-            return response
-
-    except Exception as e:
         return JSONResponse(
-            status_code=500, content={"message": f"Internal error: {e}"}
+            status_code=400,
+            content={"error": "invalid_token", "message": "Invalid token"},
         )
+
+    if not check_email_availability(email=response):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "email_taken",
+                "message": "An account with this email already exists",
+            },
+        )
+
+    return await create_account(user_email=response)

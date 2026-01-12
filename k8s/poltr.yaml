@@ -62,8 +62,10 @@ spec:
               cpu: "20m"
               memory: "96Mi"
             limits:
-                cpu: "20m"
-                memory: "128Mi"
+                cpu: "100m"
+                memory: "200Mi"
+              # cpu: "100m"
+              # memory: "200Mi"
 
           livenessProbe:
             httpGet:
@@ -249,9 +251,17 @@ spec:
           envFrom:
             - secretRef:
                 name: appview-secrets
-          # env:
-          #   - name: BSKY_PORT
-          #     value: "3000"
+          env:
+            - name: PDS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_ADMIN_PASSWORD
+            - name: PDS_GOVERNANCE_ACCOUNT_DID
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_GOVERNANCE_ACCOUNT_DID
           ports:
             - name: http
               containerPort: 3000
@@ -407,17 +417,10 @@ spec:
           resources:
             requests:
               cpu: "150m"
-              memory: "64Mi"
+              memory: "256Mi"
             limits:
               cpu: "500m"
-              memory: "256Mi"
-          # resources:
-          #   requests:
-          #     cpu: "50m"
-          #     memory: "256Mi"
-          #   limits:
-          #     cpu: "500m"
-          #     memory: "512Mi"
+              memory: "512Mi"
       volumes:
         - name: verifier-metadata
           configMap:
