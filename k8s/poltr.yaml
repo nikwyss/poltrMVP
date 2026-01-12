@@ -257,6 +257,11 @@ spec:
                 secretKeyRef:
                   name: pds-secrets
                   key: PDS_ADMIN_PASSWORD
+            - name: PDS_HOSTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_HOSTNAME
             - name: PDS_GOVERNANCE_ACCOUNT_DID
               valueFrom:
                 secretKeyRef:

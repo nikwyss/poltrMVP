@@ -10,12 +10,14 @@ async def pds_api_write_eid_proof_record_to_pds(session: TSession, eid_hash: str
 
     assert session, "Session is required"
     pds_url = os.getenv("PDS_HOSTNAME")
-    assert os.getenv("TRUSTED_ISSUER_DID"), "TRUSTED_ISSUER_DID not set in environment"
+    assert os.getenv(
+        "APPVIEW_EID_TRUSTED_ISSUER_DID"
+    ), "APPVIEW_EID_TRUSTED_ISSUER_DID not set in environment"
     verified_at_iso = (datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),)
 
     record = {
         "$type": "app.info.poltr.eid.verification",
-        "eidIssuer": os.getenv("TRUSTED_ISSUER_DID"),
+        "eidIssuer": os.getenv("APPVIEW_EID_TRUSTED_ISSUER_DID"),
         "eid_hash": eid_hash,
         "verifiedBy": os.getenv("APPVIEW_SERVER_DID"),
         "verifiedAt": verified_at_iso,

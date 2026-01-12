@@ -23,15 +23,15 @@ async def verification_initiate(
     # Make the verification request
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            os.getenv("VERIFIER_API", "UNKNOWN"),
+            os.getenv("APPVIEW_EID_VERIFIER_API", "UNKNOWN"),
             headers={
                 "accept": "*/*",
                 "Content-Type": "application/json",
             },
             json={
                 "accepted_issuer_dids": (
-                    [os.getenv("TRUSTED_ISSUER_DID")]
-                    if os.getenv("TRUSTED_ISSUER_DID")
+                    [os.getenv("APPVIEW_EID_TRUSTED_ISSUER_DID")]
+                    if os.getenv("APPVIEW_EID_TRUSTED_ISSUER_DID")
                     else []
                 ),
                 # TODO: add oauth token and pass it throught the verification process
@@ -90,7 +90,7 @@ async def verification_polling(
     assert session, "Session is required"
     async with httpx.AsyncClient() as client:
         response = await client.get(
-            f"{os.getenv('VERIFIER_API', 'UNKNOWN')}/{verification_id}",
+            f"{os.getenv('APPVIEW_EID_VERIFIER_API', 'UNKNOWN')}/{verification_id}",
             headers={
                 "Accept": "application/json",
             },
@@ -120,7 +120,7 @@ async def verification_polling(
                 }
 
             unique_id = sha256(
-                f"{ahv}{os.getenv('HASH_SECRET', '')}".encode("utf-8")
+                f"{ahv}{os.getenv('APPVIEW_EID_HASH_SECRET', '')}".encode("utf-8")
             ).hexdigest()
 
             await pds_api_write_eid_proof_record_to_pds(session, eid_hash=unique_id)
