@@ -16,6 +16,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+
 ### Environment Configuration
 Copy `.env.dist` to `.env` and configure your database connection:
 ```bash
