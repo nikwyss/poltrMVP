@@ -91,7 +91,7 @@ class EmailService:
                 expiry_text = "30 minutes"
             elif purpose == "login":
                 link = f"{self.frontend_url}/verify_login?token={token}"
-                subject = "Your Magic Link - POLTR"
+                subject = "Your Magic Link! - POLTR"
                 action_text = "Login to POLTR"
                 expiry_text = "15 minutes"
             else:
