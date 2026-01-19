@@ -15,6 +15,14 @@ from src.lib.fastapi import app
 async def verification_initiate(
     request: Request, session: TSession = Depends(verify_session_token)
 ):
+    """
+    Docstring for verification_initiate
+    
+    :param request: Description
+    :type request: Request
+    :param session: Description
+    :type session: TSession
+    """
 
     assert session, "Session is required"
     presentation_random_id = uuid4().hex

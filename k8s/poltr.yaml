@@ -248,6 +248,7 @@ spec:
       containers:
         - name: appview
           image: ghcr.io/nikwyss/poltr-appview:latest
+          imagePullPolicy: Always
           envFrom:
             - secretRef:
                 name: appview-secrets
@@ -377,7 +378,7 @@ spec:
                 name: verifier-secrets
           env:
             - name: OPENID_CLIENT_METADATA_FILE
-              value: file:/verifier_metadata.json
+              value: file:///verifier_metadata.json
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
