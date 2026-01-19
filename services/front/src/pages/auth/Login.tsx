@@ -47,7 +47,7 @@ export default function Login() {
     }}>
       <h1>Login to POLTR</h1>
       <p style={{ marginBottom: '30px', color: '#666' }}>
-        Enter your email to receive a magic link
+        Enter your email to login to poltr.
       </p>
       <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: '400px' }}>
         <div style={{ marginBottom: '20px' }}>

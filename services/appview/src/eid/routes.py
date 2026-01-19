@@ -58,6 +58,8 @@ async def verification_initiate(
                                         },
                                     },
                                     {"path": ["$.personal_administrative_number"]},
+                                    # {"path": ["$.eid_number"]},
+                                    {"path": ["$.document_number"]},
                                 ]
                             },
                         }

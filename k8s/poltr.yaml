@@ -133,11 +133,11 @@ spec:
               mountPath: /var/lib/postgresql/data
           resources:
             requests:
-              cpu: "100m"
-              memory: "256Mi"
+              cpu: "50m"
+              memory: "128Mi"
             limits:
-              cpu: "250m"
-              memory: "512Mi"
+              cpu: "200m"
+              memory: "256Mi"
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -272,11 +272,11 @@ spec:
               containerPort: 3000
           resources:
             requests:
-              cpu: "200m"
-              memory: "128Mi"
+              cpu: "50m"
+              memory: "64Mi"
             limits:
-              cpu: "200m"
-              memory: "256Mi"   
+              cpu: "100m"
+              memory: "128Mi"
           # startupProbe:
           #   httpGet:
           #     path: /xrpc/_health
@@ -421,11 +421,11 @@ spec:
               subPath: verifier_metadata.json
           resources:
             requests:
-              cpu: "150m"
-              memory: "256Mi"
+              cpu: "100m"
+              memory: "128Mi"
             limits:
-              cpu: "500m"
-              memory: "512Mi"
+              cpu: "300m"
+              memory: "256Mi"
       volumes:
         - name: verifier-metadata
           configMap:
@@ -624,11 +624,11 @@ spec:
             - containerPort: 80
           resources:
             requests:
-              cpu: "50m"
-              memory: "128Mi"
+              cpu: "30m"
+              memory: "64Mi"
             limits:
-              cpu: "200m"
-              memory: "256Mi"
+              cpu: "100m"
+              memory: "128Mi"
       imagePullSecrets:
         - name: ghcr-registry
 ---
