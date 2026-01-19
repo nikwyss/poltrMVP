@@ -30,7 +30,7 @@ async def pds_api_write_eid_proof_record_to_pds(session: TSession, eid_hash: str
 
     # check session expiration
     res = httpx.get(
-        f"{pds_url}/xrpc/com.atproto.server.getSession",
+        f"https://{pds_url}/xrpc/com.atproto.server.getSession",
         headers=headers,
     )
     if (
@@ -43,7 +43,7 @@ async def pds_api_write_eid_proof_record_to_pds(session: TSession, eid_hash: str
             "Content-Type": "application/json",
         }
         res_refresh = httpx.post(
-            f"{pds_url}/xrpc/com.atproto.server.refreshSession",
+            f"https://{pds_url}/xrpc/com.atproto.server.refreshSession",
             headers=refresh_headers,
         )
         if res_refresh.status_code == 200:
@@ -111,14 +111,11 @@ async def pds_api_create_account(
     # if not pds_admin_password:
     #     raise Exception("PDS_ADMIN_PASSWORD not set in environment")
 
-    # Ensure pds_url has a scheme
-    if not pds_url.startswith("http://") and not pds_url.startswith("https://"):
-        pds_url = f"https://{pds_url}"  # https://pds.poltr.info'
 
     async with httpx.AsyncClient(http2=True, timeout=30.0) as client:
         try:
             resp = await client.post(
-                f"{pds_url}/xrpc/com.atproto.server.createAccount",
+                f"https://{pds_url}/xrpc/com.atproto.server.createAccount",
                 # headers={"Authorization": f"Basic {auth}"},
                 json={"handle": handle, "email": user_email, "password": password},
             )
@@ -146,7 +143,7 @@ async def pds_api_login(did: str, password: str) -> TLoginAccountResponse:
     async with httpx.AsyncClient(http2=True, timeout=30.0) as client:
         try:
             resp = await client.post(
-                f"{pds_url}/xrpc/com.atproto.server.createSession",
+                f"https://{pds_url}/xrpc/com.atproto.server.createSession",
                 json={"identifier": did, "password": password},
             )
         except httpx.RequestError as e:
