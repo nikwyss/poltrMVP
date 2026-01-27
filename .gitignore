@@ -27,3 +27,7 @@ node_modules
 .DS_Store
 .vscode
 .idea
+
+# OpenStack credentials
+infra/clouds.yaml
+infra/*-openrc.sh

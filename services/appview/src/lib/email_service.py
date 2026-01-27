@@ -15,66 +15,6 @@ class EmailService:
         self.frontend_url = os.getenv("APPVIEW_FRONTEND_URL", "http://localhost:5173")
         self.use_tls = os.getenv("APPVIEW_SMTP_USE_TLS", "true").lower() == "true"
 
-    # def send_magic_link(self, to_email: str, token: str) -> bool:
-    #     """Send magic link email to user"""
-    #     try:
-    #         magic_link = f"{self.frontend_url}/verify_login?token={token}"
-
-    #         subject = "Your Magic Link - POLTR"
-    #         html_body = f"""
-    #         <html>
-    #             <body>
-    #                 <h2>Login to POLTR</h2>
-    #                 <p>Click the link below to log in to your account:</p>
-    #                 <p><a href="{magic_link}" style="background-color: #0085ff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Login to POLTR</a></p>
-    #                 <p>Or copy and paste this link in your browser:</p>
-    #                 <p>{magic_link}</p>
-    #                 <p>This link will expire in 15 minutes.</p>
-    #                 <p>If you didn't request this, you can safely ignore this email.</p>
-    #             </body>
-    #         </html>
-    #         """
-
-    #         text_body = f"""
-    #         Login to POLTR
-
-    #         Click the link below to log in to your account:
-    #         {magic_link}
-
-    #         This link will expire in 15 minutes.
-    #         If you didn't request this, you can safely ignore this email.
-    #         """
-
-    #         msg = MIMEMultipart("alternative")
-    #         msg["Subject"] = subject
-    #         msg["From"] = self.from_email
-    #         msg["To"] = to_email
-
-    #         part1 = MIMEText(text_body, "plain")
-    #         part2 = MIMEText(html_body, "html")
-
-    #         msg.attach(part1)
-    #         msg.attach(part2)
-
-    #         # Send email
-    #         if self.smtp_user and self.smtp_password:
-    #             with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-    #                 if self.use_tls:
-    #                     server.starttls()
-    #                 server.login(self.smtp_user, self.smtp_password)
-    #                 server.send_message(msg)
-    #         else:
-    #             # For development: just log the magic link
-    #             print(f"\n{'='*60}")
-    #             print(f"MAGIC LINK (dev mode - no SMTP configured):")
-    #             print(f"Email: {to_email}")
-    #             print(f"Link: {magic_link}")
-    #             print(f"{'='*60}\n")
-
-    #         return True
-    #     except Exception as e:
-    #         print(f"Failed to send email: {e}")
-    #         return False
 
     def send_confirmation_link(
         self,
