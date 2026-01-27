@@ -68,7 +68,7 @@ async def pds_api_write_eid_proof_record_to_pds(session: TSession, eid_hash: str
                 )
 
     res = httpx.post(
-        f"{pds_url}/xrpc/com.atproto.repo.putRecord",
+        f"https://{pds_url}/xrpc/com.atproto.repo.putRecord",
         headers=headers,
         json={
             "repo": session.did,
@@ -110,7 +110,6 @@ async def pds_api_create_account(
         raise Exception("PDS_HOSTNAME not set in environment")
     # if not pds_admin_password:
     #     raise Exception("PDS_ADMIN_PASSWORD not set in environment")
-
 
     async with httpx.AsyncClient(http2=True, timeout=30.0) as client:
         try:
