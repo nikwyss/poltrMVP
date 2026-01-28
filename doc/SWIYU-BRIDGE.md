@@ -1,6 +1,8 @@
 
 https://swiyu-admin-ch.github.io/cookbooks/onboarding-base-and-trust-registry/
 
+# PUBLIC KEY: app.poltr.info
+Public Key (für DID Doc):BsMCw9i9j8HoNX32i3bNKAjhO4qEdbC+mEi9lwHfQtI=
 
 ## Generate log file
 

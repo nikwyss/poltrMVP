@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import os
 import httpx
 from pydantic import BaseModel
+from lib.pds_creds import sign_eid_verification
 from src.lib import db
 from src.auth.middleware import TSession
 
@@ -9,18 +10,23 @@ from src.auth.middleware import TSession
 async def pds_api_write_eid_proof_record_to_pds(session: TSession, eid_hash: str):
 
     assert session, "Session is required"
-    pds_url = os.getenv("PDS_HOSTNAME")
+    pds_url = os.getenv("PDS_HOSTNAME")  # without protocol
     assert os.getenv(
         "APPVIEW_EID_TRUSTED_ISSUER_DID"
     ), "APPVIEW_EID_TRUSTED_ISSUER_DID not set in environment"
     verified_at_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
+    eid_issuer = os.getenv("APPVIEW_EID_TRUSTED_ISSUER_DID")
+    verified_by = os.getenv("APPVIEW_SERVER_DID")
+    signature = sign_eid_verification(eid_hash, eid_issuer, verified_at_iso)
+
     record = {
         "$type": "app.info.poltr.eid.verification",
-        "eidIssuer": os.getenv("APPVIEW_EID_TRUSTED_ISSUER_DID"),
+        "eidIssuer": eid_issuer,
         "eidHash": eid_hash,
-        "verifiedBy": os.getenv("APPVIEW_SERVER_DID"),
+        "verifiedBy": verified_by,
         "verifiedAt": verified_at_iso,
+        "signature": signature,
     }
 
     headers = {

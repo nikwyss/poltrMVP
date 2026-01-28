@@ -6,4 +6,5 @@ slowapi==0.1.9
 httpx==0.24.1
 email-validator==2.3.0
 pynacl  # for pds creds
+base58  # for multibase encoding in DID document
 httpx[http2]
