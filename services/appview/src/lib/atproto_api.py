@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 import os
 import httpx
 from pydantic import BaseModel
-from lib.pds_creds import sign_eid_verification
+from src.lib.pds_creds import sign_eid_verification
 from src.lib import db
 from src.auth.middleware import TSession
 

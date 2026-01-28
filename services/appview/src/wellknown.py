@@ -1,6 +1,6 @@
 import os
 import base64
-from lib.pds_creds import get_public_key_multibase
+from src.lib.pds_creds import get_public_key_multibase
 from src.lib.fastapi import app
 
 
