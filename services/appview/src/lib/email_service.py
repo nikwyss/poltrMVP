@@ -15,7 +15,6 @@ class EmailService:
         self.frontend_url = os.getenv("APPVIEW_FRONTEND_URL", "http://localhost:5173")
         self.use_tls = os.getenv("APPVIEW_SMTP_USE_TLS", "true").lower() == "true"
 
-
     def send_confirmation_link(
         self,
         to_email: str,
@@ -73,7 +72,11 @@ class EmailService:
             msg.attach(part2)
 
             # Send email
-            if self.smtp_user and self.smtp_password:
+            is_dev_mode = self.smtp_host == "localhost" or not (
+                self.smtp_user and self.smtp_password
+            )
+
+            if not is_dev_mode:
                 with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
                     if self.use_tls:
                         server.starttls()
@@ -82,7 +85,7 @@ class EmailService:
             else:
                 # For development: just log the link
                 print(f"\n{'='*60}")
-                print(f"EMAIL LINK (dev mode - no SMTP configured):")
+                print(f"EMAIL LINK (dev mode - localhost or no SMTP configured):")
                 print(f"Email: {to_email}")
                 print(f"Link: {link}")
                 print(f"{'='*60}\n")
