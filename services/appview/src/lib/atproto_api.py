@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 import os
 import httpx
 from pydantic import BaseModel
@@ -6,18 +7,25 @@ from src.lib.pds_creds import sign_eid_verification
 from src.lib import db
 from src.auth.middleware import TSession
 
+logger = logging.getLogger(__name__)
 
-async def pds_api_write_eid_proof_record_to_pds(session: TSession, eid_hash: str):
 
-    assert session, "Session is required"
-    pds_url = os.getenv("PDS_HOSTNAME")  # without protocol
-    assert os.getenv(
-        "APPVIEW_EID_TRUSTED_ISSUER_DID"
-    ), "APPVIEW_EID_TRUSTED_ISSUER_DID not set in environment"
-    verified_at_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+async def pds_api_write_eid_proof_record_to_pds(session: TSession, eid_hash: str) -> bool:
+    """
+    Write EID verification record to user's PDS repo.
+    Returns True on success, False on failure.
+    """
+    if not session:
+        raise ValueError("Session is required")
 
+    pds_url = os.getenv("PDS_HOSTNAME")
     eid_issuer = os.getenv("APPVIEW_EID_TRUSTED_ISSUER_DID")
     verified_by = os.getenv("APPVIEW_SERVER_DID")
+
+    if not eid_issuer:
+        raise ValueError("APPVIEW_EID_TRUSTED_ISSUER_DID not set")
+
+    verified_at_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     signature = sign_eid_verification(eid_hash, eid_issuer, verified_at_iso)
 
     record = {
@@ -34,57 +42,68 @@ async def pds_api_write_eid_proof_record_to_pds(session: TSession, eid_hash: str
         "Content-Type": "application/json",
     }
 
-    # check session expiration
-    res = httpx.get(
-        f"https://{pds_url}/xrpc/com.atproto.server.getSession",
-        headers=headers,
-    )
-    if (
-        res.status_code != 200
-        and res.json()
-        and res.json().get("error", "UNKNOWN") == "ExpiredToken"
-    ):
-        refresh_headers = {
-            "Authorization": f"Bearer {session.refresh_token}",
-            "Content-Type": "application/json",
-        }
-        res_refresh = httpx.post(
-            f"https://{pds_url}/xrpc/com.atproto.server.refreshSession",
-            headers=refresh_headers,
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Check session expiration
+        res = await client.get(
+            f"https://{pds_url}/xrpc/com.atproto.server.getSession",
+            headers=headers,
         )
-        if res_refresh.status_code == 200:
-            refresh_data = res_refresh.json()
-            session.access_token = refresh_data.get("accessJwt")
-            session.refresh_token = refresh_data.get("refreshJwt")
-            headers["Authorization"] = f"Bearer {session.access_token}"
 
-            # store new tokens in session db
-            session.refresh_token
-
-            db_pool = await db.get_pool()
-            async with db_pool.acquire() as conn:
-
-                # Insert new entry in pds_creds table
-                await conn.execute(
-                    """
-                    UPDATE access_token, refresh_token FROM pds_creds WHERE session_token = $1 and did = $2 LIMIT 1
-                    """,
-                    session.token,
-                    session.did,
+        if res.status_code != 200:
+            error_data = res.json() if res.text else {}
+            if error_data.get("error") == "ExpiredToken":
+                # Refresh the session
+                refresh_headers = {
+                    "Authorization": f"Bearer {session.refresh_token}",
+                    "Content-Type": "application/json",
+                }
+                res_refresh = await client.post(
+                    f"https://{pds_url}/xrpc/com.atproto.server.refreshSession",
+                    headers=refresh_headers,
                 )
 
-    res = httpx.post(
-        f"https://{pds_url}/xrpc/com.atproto.repo.putRecord",
-        headers=headers,
-        json={
-            "repo": session.did,
-            "collection": "app.info.poltr.eid.verification",
-            "rkey": "self",
-            "record": record,
-        },
-    )
+                if res_refresh.status_code == 200:
+                    refresh_data = res_refresh.json()
+                    session.access_token = refresh_data.get("accessJwt")
+                    session.refresh_token = refresh_data.get("refreshJwt")
+                    headers["Authorization"] = f"Bearer {session.access_token}"
 
-    print(res.status_code, res.text)
+                    # Update tokens in database
+                    db_pool = await db.get_pool()
+                    async with db_pool.acquire() as conn:
+                        await conn.execute(
+                            """
+                            UPDATE pds_creds
+                            SET access_token = $1, refresh_token = $2
+                            WHERE session_token = $3 AND did = $4
+                            """,
+                            session.access_token,
+                            session.refresh_token,
+                            session.token,
+                            session.did,
+                        )
+                else:
+                    logger.error(f"Failed to refresh session: {res_refresh.status_code}")
+                    return False
+
+        # Write the record
+        res = await client.post(
+            f"https://{pds_url}/xrpc/com.atproto.repo.putRecord",
+            headers=headers,
+            json={
+                "repo": session.did,
+                "collection": "app.info.poltr.eid.verification",
+                "rkey": "self",
+                "record": record,
+            },
+        )
+
+        if res.status_code == 200:
+            logger.info(f"EID record written for {session.did}")
+            return True
+        else:
+            logger.error(f"Failed to write EID record: {res.status_code} {res.text}")
+            return False
 
 
 class TCreateAccountResponse(BaseModel):
@@ -107,43 +126,32 @@ class TLoginAccountResponse(BaseModel):
 async def pds_api_create_account(
     handle: str, password: str, user_email: str
 ) -> TCreateAccountResponse:
-    """Create account on PDS via its API"""
-
+    """Create account on PDS via its API."""
     pds_url = os.getenv("PDS_HOSTNAME")
-    # pds_admin_password = os.getenv("PDS_ADMIN_PASSWORD")
-
     if not pds_url:
-        raise Exception("PDS_HOSTNAME not set in environment")
-    # if not pds_admin_password:
-    #     raise Exception("PDS_ADMIN_PASSWORD not set in environment")
+        raise ValueError("PDS_HOSTNAME not set in environment")
 
     async with httpx.AsyncClient(http2=True, timeout=30.0) as client:
         try:
             resp = await client.post(
                 f"https://{pds_url}/xrpc/com.atproto.server.createAccount",
-                # headers={"Authorization": f"Basic {auth}"},
                 json={"handle": handle, "email": user_email, "password": password},
             )
         except httpx.RequestError as e:
-            raise Exception(f"PDS request error: {e}") from e
+            raise RuntimeError(f"PDS request error: {e}") from e
+
     if resp.status_code != 200:
-        errorjson = resp.json()
-        raise Exception(f"PDS error: {errorjson['error']} - {errorjson['message']}")
+        error_json = resp.json()
+        raise RuntimeError(f"PDS error: {error_json['error']} - {error_json['message']}")
 
     return TCreateAccountResponse(**resp.json())
 
 
 async def pds_api_login(did: str, password: str) -> TLoginAccountResponse:
-    """Login to PDS via its API"""
-
+    """Login to PDS via its API."""
     pds_url = os.getenv("PDS_HOSTNAME")
-
     if not pds_url:
-        raise Exception("PDS_HOSTNAME not set in environment")
-
-    # Ensure pds_url has a scheme
-    # if not pds_url.startswith("http://") and not pds_url.startswith("https://"):
-    #     pds_url = f"https://{pds_url}"  # https://pds.poltr.info'
+        raise ValueError("PDS_HOSTNAME not set in environment")
 
     async with httpx.AsyncClient(http2=True, timeout=30.0) as client:
         try:
@@ -152,9 +160,10 @@ async def pds_api_login(did: str, password: str) -> TLoginAccountResponse:
                 json={"identifier": did, "password": password},
             )
         except httpx.RequestError as e:
-            raise Exception(f"PDS request error: {e}") from e
+            raise RuntimeError(f"PDS request error: {e}") from e
+
     if resp.status_code != 200:
-        errorjson = resp.json()
-        raise Exception(f"PDS error: {errorjson['error']} - {errorjson['message']}")
+        error_json = resp.json()
+        raise RuntimeError(f"PDS error: {error_json['error']} - {error_json['message']}")
 
     return TLoginAccountResponse(**resp.json())
