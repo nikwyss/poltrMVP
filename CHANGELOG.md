@@ -12,7 +12,16 @@
 - **Implemented admin account creation flow**:
   - Added `_pds_admin_create_invite_code()` helper function
   - Updated `pds_api_admin_create_account()` to first generate a single-use invite code via admin auth, then create the account with that code
+  - Uses internal K8s URL (`http://pds.poltr.svc.cluster.local`) for admin operations
   - This works with `PDS_INVITE_REQUIRED=true` on the PDS
+- **Fixed birthDate preference for Bluesky compatibility**:
+  - Added `set_birthdate_on_bluesky()` function to set birthDate on Bluesky's AppView
+  - Called automatically when user creates an App Password (= wants to use Bluesky)
+  - Uses correct preference type: `app.bsky.actor.defs#personalDetailsPref` (not `#birthDate`)
+  - Format: `"1970-01-01T00:00:00.000Z"` (ISO with time)
+  - Checks if birthDate already exists before setting
+- **Fixed user session response**: Now returns full user object with `did`, `handle`, `displayName` instead of just DID string
+- **Fixed frontend VerifyMagicLink**: Changed from `data.user.email` to `data.user.did`
 
 ### k8s/secrets.yaml.dist
 - **Updated PDS AppView config**: Changed from custom AppView to Bluesky's official AppView for federation:
@@ -21,7 +30,11 @@
   PDS_BSKY_APP_VIEW_DID: "did:web:api.bsky.app"
   ```
 
+### Documentation
+- **Added `issues/bluesky-interoperability.md`**: Documents the birthDate/age verification problem with Bluesky, including hardcoded AppView DIDs, attempted solutions, and the final working approach
+
 ### Architecture Notes
 - **PDS config** points to Bluesky's AppView (`api.bsky.app`) so official Bluesky clients work
 - **Custom frontend** can call `app.poltr.info` directly for poltr-specific features (`app.ch.poltr.*`)
 - **AppView proxy** forwards standard Bluesky requests upstream while handling custom routes locally
+- **birthDate flow**: Account on own PDS → App Password creation → birthDate set on Bluesky → User can login to Bluesky without age prompt
