@@ -71,6 +71,7 @@ Poll verification status.
 
 Create a secure verification session. Tokens are POSTed, never appear in URLs.
 
+
 **Body:**
 ```json
 {
