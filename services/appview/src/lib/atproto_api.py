@@ -289,3 +289,75 @@ async def pds_api_create_app_password(session: TSession, name: str) -> TCreateAp
         else:
             logger.error(f"Failed to create app password: {res.status_code} {res.text}")
             raise RuntimeError(f"Failed to create app password: {res.text}")
+
+
+BLUESKY_APPVIEW_URL = os.getenv("BLUESKY_APPVIEW_URL", "https://api.bsky.app")
+DUMMY_BIRTHDATE = "1970-01-01"
+
+
+async def set_birthdate_on_bluesky(session: TSession) -> bool:
+    """
+    Set birthDate preference on Bluesky's AppView.
+    Called when user creates an app password (= wants to use Bluesky).
+    Returns True on success, False on failure.
+    """
+    if not session:
+        logger.error("Session required for setting birthDate")
+        return False
+
+    pds_url = os.getenv("PDS_HOSTNAME")
+    headers = {
+        "Authorization": f"Bearer {session.access_token}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Step 1: Get current preferences from Bluesky
+        try:
+            res = await client.get(
+                f"https://{pds_url}/xrpc/app.bsky.actor.getPreferences",
+                headers=headers,
+            )
+        except httpx.RequestError as e:
+            logger.error(f"Failed to get preferences: {e}")
+            return False
+
+        if res.status_code != 200:
+            logger.warning(f"Could not get preferences: {res.status_code} - continuing anyway")
+            preferences = []
+        else:
+            data = res.json()
+            preferences = data.get("preferences", [])
+
+        # Step 2: Check if birthDate already exists
+        has_birthdate = any(
+            p.get("$type") == "app.bsky.actor.defs#birthDate"
+            for p in preferences
+        )
+
+        if has_birthdate:
+            logger.info(f"birthDate already set for {session.did}")
+            return True
+
+        # Step 3: Add birthDate and save preferences
+        preferences.append({
+            "$type": "app.bsky.actor.defs#birthDate",
+            "birthDate": DUMMY_BIRTHDATE,
+        })
+
+        try:
+            res = await client.post(
+                f"https://{pds_url}/xrpc/app.bsky.actor.putPreferences",
+                headers=headers,
+                json={"preferences": preferences},
+            )
+        except httpx.RequestError as e:
+            logger.error(f"Failed to set preferences: {e}")
+            return False
+
+        if res.status_code == 200:
+            logger.info(f"birthDate set for {session.did} on Bluesky")
+            return True
+        else:
+            logger.error(f"Failed to set birthDate: {res.status_code} {res.text}")
+            return False

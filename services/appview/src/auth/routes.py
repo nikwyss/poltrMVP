@@ -12,7 +12,7 @@ from src.auth.magic_link_handler import (
     SendMagicLinkData,
     verify_registration_magic_link_handler,
 )
-from src.lib.atproto_api import pds_api_create_app_password
+from src.lib.atproto_api import pds_api_create_app_password, set_birthdate_on_bluesky
 from src.lib.fastapi import app, limiter
 
 
@@ -154,6 +154,9 @@ async def create_app_password(
 ):
     """Create an app password for use with Bluesky clients."""
     try:
+        # Set birthDate on Bluesky (for age verification compatibility)
+        await set_birthdate_on_bluesky(session)
+
         result = await pds_api_create_app_password(
             session, f"poltr-{int(time.time())}"
         )
