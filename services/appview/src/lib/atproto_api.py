@@ -135,7 +135,12 @@ async def pds_api_create_account(
         try:
             resp = await client.post(
                 f"https://{pds_url}/xrpc/com.atproto.server.createAccount",
-                json={"handle": handle, "email": user_email, "password": password},
+                json={
+                    "handle": handle,
+                    "email": user_email,
+                    "password": password,
+                    "birthDate": "1970-01-01",
+                },
             )
         except httpx.RequestError as e:
             raise RuntimeError(f"PDS request error: {e}") from e
