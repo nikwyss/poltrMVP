@@ -22,16 +22,13 @@
 
 ## Known Limitations
 
-### 1. OAuth Token Access (Low-Medium Risk)
+### 1. OAuth Token Handling (Resolved)
 
-The OAuth client's `getTokenSet()` is protected. We access it via TypeScript cast:
+The OAuth flow uses only public APIs from `@atproto/oauth-client-browser`:
+- `session.getTokenInfo()` - gets PDS URL without exposing tokens
+- `session.fetchHandler()` - makes authenticated requests with proper DPoP handling
 
-```typescript
-const tokenSet = await (session as any).getTokenSet('auto');
-```
-
-**Risk**: Could break with library updates.
-**Mitigation**: Pin `@atproto/oauth-client-browser` version, test on upgrades.
+**No protected method access required.** The library handles all token/DPoP complexity internally.
 
 ### 2. Client-Side PDS Writes (Low Risk)
 
