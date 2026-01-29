@@ -1,13 +1,16 @@
 """
 Proxy for Bluesky AppView requests.
 Forwards app.bsky.* XRPC calls to the upstream Bluesky AppView.
+Injects dummy birthDate for getPreferences to satisfy Bluesky age verification.
 """
+import json
 import os
 import httpx
 from fastapi import Request, Response
 from src.lib.fastapi import app, logger
 
 BLUESKY_APPVIEW_URL = os.getenv("BLUESKY_APPVIEW_URL", "https://api.bsky.app")
+DUMMY_BIRTHDATE = "1970-01-01"
 
 # Headers to forward from client to upstream
 FORWARD_REQUEST_HEADERS = [
@@ -23,6 +26,32 @@ FORWARD_RESPONSE_HEADERS = [
     "atproto-repo-rev",
     "atproto-content-labelers",
 ]
+
+
+def inject_birthdate_preference(response_content: bytes) -> bytes:
+    """Inject birthDate preference if not present in getPreferences response."""
+    try:
+        data = json.loads(response_content)
+        preferences = data.get("preferences", [])
+
+        # Check if birthDate already exists
+        has_birthdate = any(
+            p.get("$type") == "app.bsky.actor.defs#birthDate"
+            for p in preferences
+        )
+
+        if not has_birthdate:
+            preferences.append({
+                "$type": "app.bsky.actor.defs#birthDate",
+                "birthDate": DUMMY_BIRTHDATE
+            })
+            data["preferences"] = preferences
+            logger.debug("Injected dummy birthDate preference")
+
+        return json.dumps(data).encode()
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.warning(f"Failed to inject birthDate: {e}")
+        return response_content
 
 
 @app.api_route(
@@ -84,8 +113,13 @@ async def proxy_bsky_xrpc(method: str, request: Request):
         if header in upstream_response.headers:
             response_headers[header] = upstream_response.headers[header]
 
+    # Inject birthDate for getPreferences if successful
+    content = upstream_response.content
+    if method == "app.bsky.actor.getPreferences" and upstream_response.status_code == 200:
+        content = inject_birthdate_preference(content)
+
     return Response(
-        content=upstream_response.content,
+        content=content,
         status_code=upstream_response.status_code,
         headers=response_headers,
         media_type=upstream_response.headers.get("content-type", "application/json"),
