@@ -81,3 +81,16 @@ The project includes VS Code configurations for:
 - **asyncpg**: Async PostgreSQL driver
 - **uvicorn**: ASGI server
 - **python-dotenv**: Environment variable management
+
+## Changelog
+
+### 2025-01-29
+
+**E-ID Verification Outsourced to eidproto**
+- Removed `/xrpc/app.ch.poltr.user.verification.initiate` endpoint
+- Removed `/xrpc/app.ch.poltr.user.verification.polling` endpoint
+- Removed `pds_api_write_eid_proof_record_to_pds()` function
+- Removed EID signing functions (`sign_eid_verification`, `get_signing_key`, `get_public_key_multibase`)
+- Removed EID lexicon endpoint from `/.well-known/`
+- Added `POST /auth/initiate-eid-verification` - creates secure session with eidproto service
+- E-ID verification now handled entirely by `eidproto.poltr.info`

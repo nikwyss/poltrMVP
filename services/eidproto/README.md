@@ -396,6 +396,19 @@ src/
 
 ## Changelog
 
+### 2025-01-29 (2)
+
+**Poltr Integration**
+- Integrated with poltr.ch frontend using secure code-based flow
+- poltr backend calls `/api/verify/create-session` with user's PDS tokens
+- After verification, redirects back to `poltr.ch/home?verified=true`
+- Removed all eID verification code from appview (now handled by eidproto)
+
+**Configuration**
+- Build-time `NEXT_PUBLIC_*` variables set via Dockerfile ARGs
+- Runtime secrets set via Kubernetes secrets
+- Simplified configuration approach (no `/api/config` endpoint needed)
+
 ### 2025-01-29
 
 **OAuth Login Flow**
