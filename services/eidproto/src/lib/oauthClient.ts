@@ -9,6 +9,7 @@ export async function getOAuthClient(): Promise<BrowserOAuthClient> {
 
   const redirectUri = process.env.NEXT_PUBLIC_REDIRECT_URI || 'http://127.0.0.1:3001/callback';
   const clientIdBase = process.env.NEXT_PUBLIC_CLIENT_ID_BASE || 'http://localhost';
+  const handleResolver = process.env.NEXT_PUBLIC_HANDLE_RESOLVER || 'https://bsky.social';
   const scope = 'atproto transition:generic';
 
   // Loopback clients (localhost/127.0.0.1) use query params, production uses path to metadata
@@ -17,11 +18,9 @@ export async function getOAuthClient(): Promise<BrowserOAuthClient> {
     ? `${clientIdBase}?redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`
     : `${clientIdBase}/client-metadata.json`;
 
-  const handleResolver = process.env.NEXT_PUBLIC_HANDLE_RESOLVER;
-
   oauthClient = await BrowserOAuthClient.load({
     clientId: clientId,
-    handleResolver: handleResolver || 'https://bsky.social',
+    handleResolver: handleResolver,
   });
 
   return oauthClient;

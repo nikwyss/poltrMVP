@@ -6,6 +6,14 @@ WORKDIR /app
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@8 --activate
 
+# Build-time arguments for Next.js public env vars (can override at build time)
+ARG NEXT_PUBLIC_REDIRECT_URI=https://eidproto.poltr.info/callback
+ARG NEXT_PUBLIC_CLIENT_ID_BASE=https://eidproto.poltr.info
+ARG NEXT_PUBLIC_HANDLE_RESOLVER=https://bsky.social
+ENV NEXT_PUBLIC_REDIRECT_URI=$NEXT_PUBLIC_REDIRECT_URI
+ENV NEXT_PUBLIC_CLIENT_ID_BASE=$NEXT_PUBLIC_CLIENT_ID_BASE
+ENV NEXT_PUBLIC_HANDLE_RESOLVER=$NEXT_PUBLIC_HANDLE_RESOLVER
+
 # Copy package files
 COPY package.json pnpm-lock.yaml* ./
 
@@ -38,7 +46,16 @@ USER nextjs
 
 EXPOSE 3000
 
+ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+
+# Runtime environment variables are set via Kubernetes secrets:
+# - EIDPROTO_EID_VERIFIER_API
+# - EIDPROTO_EID_TRUSTED_ISSUER_DID
+# - EIDPROTO_EID_HASH_SECRET
+# - EIDPROTO_SIGNING_KEY_SEED
+# - EIDPROTO_JWT_SECRET
+# - EIDPROTO_SERVER_DID
 
 CMD ["node", "server.js"]
