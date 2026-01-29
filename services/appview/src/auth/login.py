@@ -139,7 +139,8 @@ async def create_session_cookie(
     # # create session like verify_magic_link_handler does
     user_data = {
         "did": user_session.did,
-        "displayName": user_session.did.split("@")[0],
+        "handle": user_session.handle,
+        "displayName": user_session.handle.split(".")[0],
     }
 
     # Store session in database
@@ -162,7 +163,7 @@ async def create_session_cookie(
         status_code=200,
         content={
             "success": True,
-            "user": user_session.did,
+            "user": user_data,  # Full user object with did, handle, displayName
             "session_token": session_token,  # Also return in body for localStorage fallback
             "expires_at": session_expires.isoformat(),
         },

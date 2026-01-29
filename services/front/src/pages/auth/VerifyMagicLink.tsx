@@ -57,7 +57,7 @@ export default function VerifyMagicLink({ type }: VerifyMagicLinkProps) {
 
         // Store user data
         login({
-          did: data.user.email,
+          did: data.user.did,
           handle: data.user.handle,
           displayName: data.user.displayName,
         });
