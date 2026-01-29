@@ -156,7 +156,7 @@ async def pds_api_admin_create_account(
     handle: str, password: str, user_email: str
 ) -> TCreateAccountResponse:
     """Create account on PDS: first generate invite code, then create account."""
-    # Use internal K8s URL for reliability
+    # Use internal K8s URL for reliability: admin account kann sich offenbar nicht remotely authenifizieren.
     pds_internal_url = os.getenv("PDS_INTERNAL_URL", "http://pds.poltr.svc.cluster.local")
 
     # Step 1: Generate a single-use invite code
