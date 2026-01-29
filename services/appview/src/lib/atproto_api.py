@@ -167,3 +167,86 @@ async def pds_api_login(did: str, password: str) -> TLoginAccountResponse:
         raise RuntimeError(f"PDS error: {error_json['error']} - {error_json['message']}")
 
     return TLoginAccountResponse(**resp.json())
+
+
+class TCreateAppPasswordResponse(BaseModel):
+    name: str
+    password: str
+    createdAt: str
+
+
+async def pds_api_create_app_password(session: TSession, name: str) -> TCreateAppPasswordResponse:
+    """
+    Create app password via com.atproto.server.createAppPassword.
+    Returns the app password details (name, password, createdAt).
+    """
+    if not session:
+        raise ValueError("Session is required")
+
+    pds_url = os.getenv("PDS_HOSTNAME")
+    if not pds_url:
+        raise ValueError("PDS_HOSTNAME not set in environment")
+
+    headers = {
+        "Authorization": f"Bearer {session.access_token}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Check session expiration
+        res = await client.get(
+            f"https://{pds_url}/xrpc/com.atproto.server.getSession",
+            headers=headers,
+        )
+
+        if res.status_code != 200:
+            error_data = res.json() if res.text else {}
+            if error_data.get("error") == "ExpiredToken":
+                # Refresh the session
+                refresh_headers = {
+                    "Authorization": f"Bearer {session.refresh_token}",
+                    "Content-Type": "application/json",
+                }
+                res_refresh = await client.post(
+                    f"https://{pds_url}/xrpc/com.atproto.server.refreshSession",
+                    headers=refresh_headers,
+                )
+
+                if res_refresh.status_code == 200:
+                    refresh_data = res_refresh.json()
+                    session.access_token = refresh_data.get("accessJwt")
+                    session.refresh_token = refresh_data.get("refreshJwt")
+                    headers["Authorization"] = f"Bearer {session.access_token}"
+
+                    # Update tokens in database
+                    db_pool = await db.get_pool()
+                    async with db_pool.acquire() as conn:
+                        await conn.execute(
+                            """
+                            UPDATE pds_creds
+                            SET access_token = $1, refresh_token = $2
+                            WHERE session_token = $3 AND did = $4
+                            """,
+                            session.access_token,
+                            session.refresh_token,
+                            session.token,
+                            session.did,
+                        )
+                else:
+                    logger.error(f"Failed to refresh session: {res_refresh.status_code}")
+                    raise RuntimeError("Failed to refresh session")
+
+        # Create app password
+        res = await client.post(
+            f"https://{pds_url}/xrpc/com.atproto.server.createAppPassword",
+            headers=headers,
+            json={"name": name},
+        )
+
+        if res.status_code == 200:
+            data = res.json()
+            logger.info(f"App password created for {session.did}")
+            return TCreateAppPasswordResponse(**data)
+        else:
+            logger.error(f"Failed to create app password: {res.status_code} {res.text}")
+            raise RuntimeError(f"Failed to create app password: {res.text}")

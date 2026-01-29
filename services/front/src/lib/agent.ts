@@ -168,12 +168,31 @@ export async function pollVerification(verificationId: string): Promise<{
 }> {
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
   const authenticatedFetch = getAuthenticatedFetch();
-  
+
   const res = await authenticatedFetch(
     `${apiUrl}/xrpc/app.ch.poltr.user.verification.polling?verification_id=${verificationId}`
   );
-  
+
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
   return data;
+}
+
+/**
+ * Create an app password for use with Bluesky clients
+ */
+export async function createAppPassword(): Promise<{
+  name: string;
+  password: string;
+  createdAt: string;
+}> {
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const authenticatedFetch = getAuthenticatedFetch();
+
+  const res = await authenticatedFetch(`${apiUrl}/auth/create-app-password`, {
+    method: 'POST',
+  });
+
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
 }

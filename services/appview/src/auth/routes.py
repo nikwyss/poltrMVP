@@ -1,6 +1,8 @@
-from fastapi import Request
+import time
+from fastapi import Depends, Request
 from fastapi.responses import JSONResponse
 from src.auth.login import check_email_availability, create_account, login_pds_account
+from src.auth.middleware import TSession, verify_session_token
 import src.lib.db as db
 from src.auth.magic_link_handler import (
     VerifyLoginMagicLinkData,
@@ -10,6 +12,7 @@ from src.auth.magic_link_handler import (
     SendMagicLinkData,
     verify_registration_magic_link_handler,
 )
+from src.lib.atproto_api import pds_api_create_app_password
 from src.lib.fastapi import app, limiter
 
 
@@ -142,3 +145,21 @@ async def confirm_registration(request: Request, data: VerifyRegistrationMagicLi
         )
 
     return await create_account(user_email=response)
+
+
+@app.post("/auth/create-app-password")
+@limiter.limit("5/minute")
+async def create_app_password(
+    request: Request, session: TSession = Depends(verify_session_token)
+):
+    """Create an app password for use with Bluesky clients."""
+    try:
+        result = await pds_api_create_app_password(
+            session, f"poltr-{int(time.time())}"
+        )
+        return JSONResponse(content=result.model_dump())
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": "app_password_failed", "message": str(e)},
+        )
