@@ -31,3 +31,6 @@ node_modules
 # OpenStack credentials
 infra/clouds.yaml
 infra/*-openrc.sh
+
+# Infomaniak API token
+infomaniak-api-token.txt

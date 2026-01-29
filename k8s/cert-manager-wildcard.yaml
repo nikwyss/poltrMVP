@@ -1,0 +1,84 @@
+# Wildcard Certificate Setup for *.poltr.info
+#
+# Prerequisites:
+# 1. Install Infomaniak webhook:
+#    helm repo add infomaniak https://infomaniak.github.io/cert-manager-webhook-infomaniak
+#    helm repo update
+#    helm install cert-manager-webhook-infomaniak infomaniak/cert-manager-webhook-infomaniak -n cert-manager
+#
+# 2. Create API token at: https://manager.infomaniak.com/v3/profile/api-tokens
+#    (needs DNS Zone permission)
+#
+# 3. Create secret (replace YOUR_TOKEN):
+#    kubectl create secret generic infomaniak-api-token \
+#      --namespace cert-manager \
+#      --from-literal=api-token=YOUR_TOKEN
+#
+# 4. Apply this file:
+#    kubectl apply -f k8s/cert-manager-wildcard.yaml
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod-dns
+spec:
+  acme:
+    email: admin@poltr.info
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-dns-account-key
+    solvers:
+      - dns01:
+          webhook:
+            groupName: acme.infomaniak.com
+            solverName: infomaniak
+            config:
+              apiTokenSecretRef:
+                name: infomaniak-api-token
+                key: api-token
+---
+# Optional: Explicitly request the wildcard certificate
+# (cert-manager will also auto-create from Ingress annotation)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: poltr-wildcard-cert
+  namespace: poltr
+spec:
+  secretName: poltr-wildcard-tls
+  issuerRef:
+    name: letsencrypt-prod-dns
+    kind: ClusterIssuer
+  dnsNames:
+    - "poltr.info"
+    - "*.poltr.info"
+---
+# HTTP-01 ClusterIssuer for non-wildcard domains
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod-http
+spec:
+  acme:
+    email: admin@poltr.info
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-http-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+---
+# Certificate for poltr.ch domain (using HTTP-01)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: poltr-ch-cert
+  namespace: poltr
+spec:
+  secretName: poltr-ch-tls
+  issuerRef:
+    name: letsencrypt-prod-http
+    kind: ClusterIssuer
+  dnsNames:
+    - "poltr.ch"

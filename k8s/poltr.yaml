@@ -672,19 +672,18 @@ metadata:
   namespace: poltr
   annotations:
     kubernetes.io/ingress.class: "nginx"
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Using DNS-01 issuer for wildcard support
+    cert-manager.io/cluster-issuer: "letsencrypt-prod-dns"
 spec:
   tls:
+    # Wildcard certificate for all *.poltr.info subdomains
+    - hosts:
+        - "*.poltr.info"
+      secretName: poltr-wildcard-tls
+    # Separate cert for poltr.ch (different domain)
     - hosts:
         - poltr.ch
-        - app.poltr.info
-        - pds.poltr.info
-        - verifier.poltr.info
-        # - labeler.poltr.info
-        # - ozon.poltr.info
-        - wyss.poltr.info
-        # - '*.poltr.info'  # 
-      secretName: poltr-shared-tls
+      secretName: poltr-ch-tls
   rules:
     - host: poltr.ch
       http:
