@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import base64
 import logging
 import os
 import httpx
@@ -123,23 +124,33 @@ class TLoginAccountResponse(BaseModel):
     didDoc: dict | None = None  # Optional, not always returned
 
 
-async def pds_api_create_account(
+async def pds_api_admin_create_account(
     handle: str, password: str, user_email: str
 ) -> TCreateAccountResponse:
-    """Create account on PDS via its API."""
+    """Create account on PDS via its API using admin auth."""
     pds_url = os.getenv("PDS_HOSTNAME")
     if not pds_url:
         raise ValueError("PDS_HOSTNAME not set in environment")
+
+    pds_admin_password = os.getenv("PDS_ADMIN_PASSWORD")
+    if not pds_admin_password:
+        raise ValueError("PDS_ADMIN_PASSWORD not set in environment")
+
+    # PDS admin auth uses Basic auth with "admin" as username
+    auth_string = f"admin:{pds_admin_password}"
+    auth_bytes = base64.b64encode(auth_string.encode()).decode()
+    headers = {"Authorization": f"Basic {auth_bytes}"}
 
     async with httpx.AsyncClient(http2=True, timeout=30.0) as client:
         try:
             resp = await client.post(
                 f"https://{pds_url}/xrpc/com.atproto.server.createAccount",
+                headers=headers,
                 json={
                     "handle": handle,
                     "email": user_email,
                     "password": password,
-                    "birthDate": "1970-01-01", # For bluesky compatibility (compusory field)
+                    "birthDate": "1970-01-01",  # For bluesky compatibility
                 },
             )
         except httpx.RequestError as e:

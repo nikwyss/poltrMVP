@@ -7,7 +7,7 @@ import src.lib.db as db
 from src.lib.atproto_api import (
     TCreateAccountResponse,
     TLoginAccountResponse,
-    pds_api_create_account,
+    pds_api_admin_create_account,
     pds_api_login,
 )
 from src.lib.pds_creds import decrypt_app_password, encrypt_app_password
@@ -89,7 +89,7 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
     password = gen_password()
     ciphertext, nonce = encrypt_app_password(password)
 
-    user_session: TCreateAccountResponse = await pds_api_create_account(
+    user_session: TCreateAccountResponse = await pds_api_admin_create_account(
         handle, password, user_email
     )
 
