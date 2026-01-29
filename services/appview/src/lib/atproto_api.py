@@ -126,20 +126,21 @@ class TLoginAccountResponse(BaseModel):
 
 async def _pds_admin_create_invite_code() -> str:
     """Create a single-use invite code using admin auth."""
-    pds_url = os.getenv("PDS_HOSTNAME")
+    # Use internal K8s URL for admin operations (external URL blocks admin auth)
+    pds_internal_url = os.getenv("PDS_INTERNAL_URL", "http://pds.poltr.svc.cluster.local")
     pds_admin_password = os.getenv("PDS_ADMIN_PASSWORD")
 
-    if not pds_url or not pds_admin_password:
-        raise ValueError("PDS_HOSTNAME and PDS_ADMIN_PASSWORD must be set")
+    if not pds_admin_password:
+        raise ValueError("PDS_ADMIN_PASSWORD must be set")
 
     # Admin auth uses Basic auth with "admin" as username
     auth_string = f"admin:{pds_admin_password}"
     auth_bytes = base64.b64encode(auth_string.encode()).decode()
     headers = {"Authorization": f"Basic {auth_bytes}"}
 
-    async with httpx.AsyncClient(http2=True, timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
-            f"https://{pds_url}/xrpc/com.atproto.server.createInviteCode",
+            f"{pds_internal_url}/xrpc/com.atproto.server.createInviteCode",
             headers=headers,
             json={"useCount": 1},
         )
@@ -155,20 +156,18 @@ async def pds_api_admin_create_account(
     handle: str, password: str, user_email: str
 ) -> TCreateAccountResponse:
     """Create account on PDS: first generate invite code, then create account."""
-    pds_url = os.getenv("PDS_HOSTNAME")
-    if not pds_url:
-        raise ValueError("PDS_HOSTNAME not set in environment")
-
+    # Use internal K8s URL for reliability
+    pds_internal_url = os.getenv("PDS_INTERNAL_URL", "http://pds.poltr.svc.cluster.local")
 
     # Step 1: Generate a single-use invite code
     invite_code = await _pds_admin_create_invite_code()
     logger.info(f"Generated invite code for new account: {handle}")
 
     # Step 2: Create account with the invite code
-    async with httpx.AsyncClient(http2=True, timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             resp = await client.post(
-                f"https://{pds_url}/xrpc/com.atproto.server.createAccount",
+                f"{pds_internal_url}/xrpc/com.atproto.server.createAccount",
                 json={
                     "handle": handle,
                     "email": user_email,
