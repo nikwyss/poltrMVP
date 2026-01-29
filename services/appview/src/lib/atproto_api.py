@@ -139,7 +139,7 @@ async def pds_api_create_account(
                     "handle": handle,
                     "email": user_email,
                     "password": password,
-                    "birthDate": "1970-01-01",
+                    "birthDate": "1970-01-01", # For bluesky compatibility (compusory field)
                 },
             )
         except httpx.RequestError as e:
