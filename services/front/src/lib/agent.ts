@@ -142,43 +142,6 @@ export async function listProposalsAppView(_limit = 100): Promise<ProposalWithMe
 }
 
 /**
- * Initiate E-ID verification process
- */
-export async function initiateVerification(): Promise<{
-  verification_id: string;
-  verification_url: string;
-  verification_deep_link: string;
-  expires_at: string;
-}> {
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-  const authenticatedFetch = getAuthenticatedFetch();
-  
-  const res = await authenticatedFetch(`${apiUrl}/xrpc/app.ch.poltr.user.verification.initiate`);
-  
-  if (!res.ok) throw new Error(await res.text());
-  const data = await res.json();
-  return data;
-}
-
-/**
- * Poll verification status
- */
-export async function pollVerification(verificationId: string): Promise<{
-  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'ERROR';
-}> {
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-  const authenticatedFetch = getAuthenticatedFetch();
-
-  const res = await authenticatedFetch(
-    `${apiUrl}/xrpc/app.ch.poltr.user.verification.polling?verification_id=${verificationId}`
-  );
-
-  if (!res.ok) throw new Error(await res.text());
-  const data = await res.json();
-  return data;
-}
-
-/**
  * Create an app password for use with Bluesky clients
  */
 export async function createAppPassword(): Promise<{
@@ -194,5 +157,26 @@ export async function createAppPassword(): Promise<{
   });
 
   if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+/**
+ * Initiate E-ID verification via eidproto service
+ * Returns a redirect URL to the eidproto verification page
+ */
+export async function initiateEidVerification(): Promise<{
+  redirect_url: string;
+}> {
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const authenticatedFetch = getAuthenticatedFetch();
+
+  const res = await authenticatedFetch(`${apiUrl}/auth/initiate-eid-verification`, {
+    method: 'POST',
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ message: 'Unknown error' }));
+    throw new Error(error.message || 'Failed to initiate verification');
+  }
   return res.json();
 }

@@ -6,7 +6,6 @@ import Callback from './pages/Callback';
 import MagicLinkSent from './pages/auth/MagicLinkSent';
 import VerifyMagicLink from './pages/auth/VerifyMagicLink';
 import Home from './pages/Home';
-import LinkEID from './pages/auth/swiyu/SwiyuVerification';
 // import ProposalsFeed from './pages/votings/ProposalsListFeed';
 import ProposalsSearch from './pages/votings/ProposalsListRecords';
 
@@ -22,7 +21,6 @@ function App() {
           <Route path="/verify_login" element={<VerifyMagicLink type="login" />} />
           <Route path="/verify_registration" element={<VerifyMagicLink type="registration" />} />
           <Route path="/home" element={<Home />} />
-          <Route path="/link-eid" element={<LinkEID />} />
           <Route path="/proposals" element={<ProposalsSearch />} />
           {/* <Route path="/feed" element={<ProposalsFeed />} /> */}
           <Route path="*" element={<Navigate to="/" replace />} />

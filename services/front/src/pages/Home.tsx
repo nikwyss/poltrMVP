@@ -1,17 +1,31 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
 import { useEffect, useState } from 'react';
-import { createAppPassword } from '../lib/agent';
+import { createAppPassword, initiateEidVerification } from '../lib/agent';
 
 export default function Home() {
   const { user, isAuthenticated, logout, loading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [appPassword, setAppPassword] = useState<{
     name: string;
     password: string;
   } | null>(null);
   const [appPasswordLoading, setAppPasswordLoading] = useState(false);
   const [appPasswordError, setAppPasswordError] = useState<string | null>(null);
+  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [verificationSuccess, setVerificationSuccess] = useState(false);
+
+  // Check for verification callback params
+  useEffect(() => {
+    if (searchParams.get('verified') === 'true') {
+      setVerificationSuccess(true);
+    }
+    if (searchParams.get('error') === 'verification_failed') {
+      setVerificationError('E-ID verification failed. Please try again.');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -48,6 +62,20 @@ export default function Home() {
   const handleLogout = () => {
     logout();
     navigate('/');
+  };
+
+  const handleStartVerification = async () => {
+    setVerificationLoading(true);
+    setVerificationError(null);
+    try {
+      const { redirect_url } = await initiateEidVerification();
+      window.location.href = redirect_url;
+    } catch (err) {
+      setVerificationError(
+        err instanceof Error ? err.message : 'Failed to start verification'
+      );
+      setVerificationLoading(false);
+    }
   };
 
   return (
@@ -92,7 +120,8 @@ export default function Home() {
         </button>
 
         <button
-          onClick={() => navigate('/link-eid')}
+          onClick={handleStartVerification}
+          disabled={verificationLoading}
           style={{
             padding: '12px 24px',
             fontSize: '16px',
@@ -100,10 +129,11 @@ export default function Home() {
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer'
+            cursor: verificationLoading ? 'not-allowed' : 'pointer',
+            opacity: verificationLoading ? 0.7 : 1
           }}
         >
-          swiyu-Verification
+          {verificationLoading ? 'Starting...' : 'swiyu-Verification'}
         </button>
 
         <button
@@ -138,6 +168,40 @@ export default function Home() {
           Logout
         </button>
       </div>
+
+      {verificationSuccess && (
+        <div
+          style={{
+            marginTop: '20px',
+            padding: '16px',
+            backgroundColor: '#e8f5e9',
+            border: '1px solid #4caf50',
+            borderRadius: '8px',
+            color: '#2e7d32',
+            maxWidth: '400px',
+            textAlign: 'center'
+          }}
+        >
+          E-ID verification successful! Your account is now verified.
+        </div>
+      )}
+
+      {verificationError && (
+        <div
+          style={{
+            marginTop: '20px',
+            padding: '16px',
+            backgroundColor: '#ffebee',
+            border: '1px solid #f44336',
+            borderRadius: '8px',
+            color: '#c62828',
+            maxWidth: '400px',
+            textAlign: 'center'
+          }}
+        >
+          {verificationError}
+        </div>
+      )}
 
       {appPasswordError && (
         <div

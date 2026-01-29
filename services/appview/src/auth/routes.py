@@ -1,4 +1,6 @@
+import os
 import time
+import httpx
 from fastapi import Depends, Request
 from fastapi.responses import JSONResponse
 from src.auth.login import check_email_availability, create_account, login_pds_account
@@ -14,6 +16,9 @@ from src.auth.magic_link_handler import (
 )
 from src.lib.atproto_api import pds_api_create_app_password, set_birthdate_on_bluesky
 from src.lib.fastapi import app, limiter
+
+EIDPROTO_URL = os.getenv("EIDPROTO_URL", "https://eidproto.poltr.info")
+FRONTEND_URL = os.getenv("APPVIEW_FRONTEND_URL", "https://poltr.ch")
 
 
 @app.post("/auth/send-magic-link")
@@ -154,7 +159,7 @@ async def create_app_password(
 ):
     """Create an app password for use with Bluesky clients."""
     try:
-        # Set birthDate on Bluesky (for age verification compatibility) 
+        # Set birthDate on Bluesky (for age verification compatibility)
         await set_birthdate_on_bluesky(session)
 
         result = await pds_api_create_app_password(
@@ -165,4 +170,54 @@ async def create_app_password(
         return JSONResponse(
             status_code=500,
             content={"error": "app_password_failed", "message": str(e)},
+        )
+
+
+@app.post("/auth/initiate-eid-verification")
+@limiter.limit("5/minute")
+async def initiate_eid_verification(
+    request: Request, session: TSession = Depends(verify_session_token)
+):
+    """
+    Initiate E-ID verification via eidproto service.
+    Creates a secure session and returns the redirect URL.
+    """
+    pds_url = os.getenv("PDS_HOSTNAME", "pds.poltr.info")
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{EIDPROTO_URL}/api/verify/create-session",
+                json={
+                    "access_token": session.access_token,
+                    "refresh_token": session.refresh_token,
+                    "pds_url": pds_url,
+                    "success_url": f"{FRONTEND_URL}/home?verified=true",
+                    "error_url": f"{FRONTEND_URL}/home?error=verification_failed",
+                },
+            )
+
+            if response.status_code != 200:
+                error_data = response.json() if response.text else {}
+                return JSONResponse(
+                    status_code=response.status_code,
+                    content={
+                        "error": "eidproto_error",
+                        "message": error_data.get("error", "Failed to create verification session"),
+                    },
+                )
+
+            data = response.json()
+            # Return the full redirect URL
+            return JSONResponse(content={
+                "redirect_url": f"{EIDPROTO_URL}{data['redirect_url']}"
+            })
+
+    except httpx.RequestError as e:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": "eidproto_unavailable",
+                "message": f"Could not reach eidproto service: {str(e)}",
+            },
         )
