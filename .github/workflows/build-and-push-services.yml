@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [appview, indexer, front]
+        service: [appview, indexer, front, eidproto]
 
     steps:
       - name: Checkout
@@ -85,15 +85,20 @@ jobs:
           IMAGE_FRONT=ghcr.io/${{ github.repository_owner }}/poltr-front:${{ github.sha }}
           IMAGE_APP=ghcr.io/${{ github.repository_owner }}/poltr-appview:${{ github.sha }}
           IMAGE_INDEXER=ghcr.io/${{ github.repository_owner }}/poltr-indexer:${{ github.sha }}
+          IMAGE_EIDPROTO=ghcr.io/${{ github.repository_owner }}/poltr-eidproto:${{ github.sha }}
           # run kubectl operations (guarded to avoid failing whole workflow for missing resources)
           kubectl -n poltr set image deployment/appview appview="$IMAGE_APP" || true
           echo "Updating frontend deployment to $IMAGE_FRONT"
           kubectl -n poltr set image deployment/frontend frontend="$IMAGE_FRONT" || true
           kubectl -n poltr set image deployment/indexer indexer="$IMAGE_INDEXER" || true
+          echo "Updating eidproto deployment to $IMAGE_EIDPROTO"
+          kubectl -n poltr set image deployment/eidproto eidproto="$IMAGE_EIDPROTO" || true
           echo "Waiting for appview rollout..."
           kubectl -n poltr rollout status deployment/appview --timeout=180s || true
           echo "Waiting for indexer rollout..."
           kubectl -n poltr rollout status deployment/indexer --timeout=180s || true
           echo "Waiting for frontend rollout..."
           kubectl -n poltr rollout status deployment/frontend --timeout=180s || true
+          echo "Waiting for eidproto rollout..."
+          kubectl -n poltr rollout status deployment/eidproto --timeout=180s || true
         shell: bash
