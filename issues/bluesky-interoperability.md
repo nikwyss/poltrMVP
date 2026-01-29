@@ -149,10 +149,12 @@ PDS_BSKY_APP_VIEW_DID: "did:web:app.poltr.info"
 
 ```json
 {
-  "$type": "app.bsky.actor.defs#birthDate",
-  "birthDate": "1970-01-01"
+  "$type": "app.bsky.actor.defs#personalDetailsPref",
+  "birthDate": "1970-01-01T00:00:00.000Z"
 }
 ```
+
+**Wichtig:** Bluesky verwendet `personalDetailsPref`, nicht `birthDate` als Typ!
 
 ## Offene Fragen
 

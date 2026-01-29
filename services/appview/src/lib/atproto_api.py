@@ -292,7 +292,7 @@ async def pds_api_create_app_password(session: TSession, name: str) -> TCreateAp
 
 
 BLUESKY_APPVIEW_URL = os.getenv("BLUESKY_APPVIEW_URL", "https://api.bsky.app")
-DUMMY_BIRTHDATE = "1970-01-01"
+DUMMY_BIRTHDATE = "1970-01-01T00:00:00.000Z"
 
 
 async def set_birthdate_on_bluesky(session: TSession) -> bool:
@@ -329,9 +329,9 @@ async def set_birthdate_on_bluesky(session: TSession) -> bool:
             data = res.json()
             preferences = data.get("preferences", [])
 
-        # Step 2: Check if birthDate already exists
+        # Step 2: Check if birthDate already exists (in personalDetailsPref)
         has_birthdate = any(
-            p.get("$type") == "app.bsky.actor.defs#birthDate"
+            p.get("$type") == "app.bsky.actor.defs#personalDetailsPref" and p.get("birthDate")
             for p in preferences
         )
 
@@ -339,9 +339,9 @@ async def set_birthdate_on_bluesky(session: TSession) -> bool:
             logger.info(f"birthDate already set for {session.did}")
             return True
 
-        # Step 3: Add birthDate and save preferences
+        # Step 3: Add birthDate as personalDetailsPref and save preferences
         preferences.append({
-            "$type": "app.bsky.actor.defs#birthDate",
+            "$type": "app.bsky.actor.defs#personalDetailsPref",
             "birthDate": DUMMY_BIRTHDATE,
         })
 

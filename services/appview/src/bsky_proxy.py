@@ -10,7 +10,7 @@ from fastapi import Request, Response
 from src.lib.fastapi import app, logger
 
 BLUESKY_APPVIEW_URL = os.getenv("BLUESKY_APPVIEW_URL", "https://api.bsky.app")
-DUMMY_BIRTHDATE = "1970-01-01"
+DUMMY_BIRTHDATE = "1970-01-01T00:00:00.000Z"
 
 # Headers to forward from client to upstream
 FORWARD_REQUEST_HEADERS = [
@@ -34,15 +34,15 @@ def inject_birthdate_preference(response_content: bytes) -> bytes:
         data = json.loads(response_content)
         preferences = data.get("preferences", [])
 
-        # Check if birthDate already exists
+        # Check if birthDate already exists (in personalDetailsPref)
         has_birthdate = any(
-            p.get("$type") == "app.bsky.actor.defs#birthDate"
+            p.get("$type") == "app.bsky.actor.defs#personalDetailsPref" and p.get("birthDate")
             for p in preferences
         )
 
         if not has_birthdate:
             preferences.append({
-                "$type": "app.bsky.actor.defs#birthDate",
+                "$type": "app.bsky.actor.defs#personalDetailsPref",
                 "birthDate": DUMMY_BIRTHDATE
             })
             data["preferences"] = preferences
