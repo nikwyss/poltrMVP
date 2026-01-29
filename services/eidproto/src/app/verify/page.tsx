@@ -3,7 +3,17 @@
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-type VerificationStatus = 'initiating' | 'pending' | 'success' | 'error';
+type VerificationStatus = 'loading' | 'initiating' | 'pending' | 'success' | 'error';
+
+interface SessionData {
+  did: string;
+  handle: string;
+  access_token: string;
+  refresh_token: string;
+  pds_url: string;
+  success_url: string;
+  error_url: string;
+}
 
 interface InitiateResponse {
   state_token: string;
@@ -22,37 +32,63 @@ interface StatusResponse {
 
 function VerifyContent() {
   const searchParams = useSearchParams();
-  const [status, setStatus] = useState<VerificationStatus>('initiating');
+  const [status, setStatus] = useState<VerificationStatus>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [sessionData, setSessionData] = useState<SessionData | null>(null);
   const [verificationData, setVerificationData] = useState<InitiateResponse | null>(null);
-  const [message, setMessage] = useState<string>('Initializing verification...');
+  const [message, setMessage] = useState<string>('Loading...');
 
-  // Get params from URL
-  const accessToken = searchParams.get('access_token');
-  const refreshToken = searchParams.get('refresh_token');
-  const pdsUrl = searchParams.get('pds_url');
-  const successUrl = searchParams.get('success_url');
-  const errorUrl = searchParams.get('error_url');
+  // Get code from URL
+  const code = searchParams.get('code');
 
-  const initiate = useCallback(async () => {
-    if (!accessToken || !refreshToken || !pdsUrl || !successUrl || !errorUrl) {
-      setError('Missing required parameters: access_token, refresh_token, pds_url, success_url, error_url');
+  // Exchange code for session data
+  const exchangeCode = useCallback(async () => {
+    if (!code) {
+      setError('Missing verification code. Please start verification from your app.');
       setStatus('error');
       return;
     }
 
     try {
+      const response = await fetch('/api/verify/exchange-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Invalid or expired code');
+      }
+
+      const data: SessionData = await response.json();
+      setSessionData(data);
+      setStatus('initiating');
+      setMessage('Initializing verification...');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load session');
+      setStatus('error');
+    }
+  }, [code]);
+
+  // Initiate SWIYU verification
+  const initiate = useCallback(async () => {
+    if (!sessionData) return;
+
+    try {
       const response = await fetch('/api/verify/initiate', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${sessionData.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          refresh_token: refreshToken,
-          pds_url: pdsUrl,
-          success_url: successUrl,
-          error_url: errorUrl,
+          refresh_token: sessionData.refresh_token,
+          pds_url: sessionData.pds_url,
+          success_url: sessionData.success_url,
+          error_url: sessionData.error_url,
         }),
       });
 
@@ -69,10 +105,11 @@ function VerifyContent() {
       setError(String(err));
       setStatus('error');
     }
-  }, [accessToken, refreshToken, pdsUrl, successUrl, errorUrl]);
+  }, [sessionData]);
 
+  // Poll for verification status
   const pollStatus = useCallback(async () => {
-    if (!verificationData) return;
+    if (!verificationData || !sessionData) return;
 
     try {
       const response = await fetch(
@@ -87,7 +124,6 @@ function VerifyContent() {
       const data: StatusResponse = await response.json();
 
       if (data.status === 'PENDING') {
-        // Continue polling
         return;
       }
 
@@ -110,14 +146,20 @@ function VerifyContent() {
       }
     } catch (err) {
       console.error('Polling error:', err);
-      // Don't stop polling on transient errors
     }
-  }, [verificationData]);
+  }, [verificationData, sessionData]);
 
-  // Initiate on mount
+  // Exchange code on mount
   useEffect(() => {
-    initiate();
-  }, [initiate]);
+    exchangeCode();
+  }, [exchangeCode]);
+
+  // Initiate after session loaded
+  useEffect(() => {
+    if (status === 'initiating' && sessionData) {
+      initiate();
+    }
+  }, [status, sessionData, initiate]);
 
   // Poll while pending
   useEffect(() => {
@@ -134,7 +176,7 @@ function VerifyContent() {
           Swiss E-ID Verification
         </h1>
 
-        {status === 'initiating' && (
+        {(status === 'loading' || status === 'initiating') && (
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">{message}</p>
@@ -145,7 +187,6 @@ function VerifyContent() {
           <div className="text-center">
             <p className="text-gray-600 mb-4">{message}</p>
 
-            {/* QR Code - using verification URL as QR data */}
             <div className="bg-white p-4 rounded-lg border-2 border-gray-200 inline-block mb-4">
               <img
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
@@ -216,7 +257,7 @@ function VerifyContent() {
             </div>
             <p className="text-red-600 font-medium mb-2">Verification Failed</p>
             <p className="text-gray-500 text-sm">{error}</p>
-            {errorUrl && (
+            {sessionData?.error_url && (
               <p className="text-gray-400 text-xs mt-4">Redirecting...</p>
             )}
           </div>

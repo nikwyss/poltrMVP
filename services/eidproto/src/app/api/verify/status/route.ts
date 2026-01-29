@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyStateToken } from '@/lib/jwt';
 import { getSwiyuStatus, extractAhv } from '@/lib/swiyu';
-import { hashAhv } from '@/lib/crypto';
+import { hashAhv, signEidVerification } from '@/lib/crypto';
 import { writeEidRecord } from '@/lib/pds';
-import { validateEnv } from '@/lib/env';
+import { validateEnv, env } from '@/lib/env';
 
 export async function GET(request: NextRequest) {
   try {
@@ -68,28 +68,53 @@ export async function GET(request: NextRequest) {
 
       const eidHash = hashAhv(ahv);
 
-      // Write record to PDS
-      const result = await writeEidRecord(
-        state.accessToken,
-        state.refreshToken,
-        state.did,
-        state.pdsUrl,
-        eidHash
-      );
+      // If we have tokens, write to PDS server-side
+      if (state.accessToken && state.refreshToken) {
+        const result = await writeEidRecord(
+          state.accessToken,
+          state.refreshToken,
+          state.did,
+          state.pdsUrl,
+          eidHash
+        );
 
-      if (!result.success) {
+        if (!result.success) {
+          return NextResponse.json({
+            status: 'ERROR',
+            redirect_url: state.errorUrl,
+            message: 'Failed to write verification record to PDS',
+          });
+        }
+
         return NextResponse.json({
-          status: 'ERROR',
-          redirect_url: state.errorUrl,
-          message: 'Failed to write verification record to PDS',
+          status: 'SUCCESS',
+          redirect_url: state.successUrl,
+          message: 'eID verification complete',
+          eid_hash: eidHash,
         });
       }
 
+      // No tokens - return signed record for client-side write
+      const eidIssuer = env.EID_TRUSTED_ISSUER_DID;
+      const verifiedBy = env.SERVER_DID;
+      const verifiedAt = new Date().toISOString();
+      const signature = await signEidVerification(eidHash, eidIssuer, verifiedAt);
+
       return NextResponse.json({
-        status: 'SUCCESS',
-        redirect_url: state.successUrl,
-        message: 'eID verification complete',
-        eid_hash: eidHash,
+        status: 'SUCCESS_PENDING_WRITE',
+        message: 'eID verification complete, record pending write',
+        record: {
+          $type: 'info.poltr.eidproto.verification',
+          eidHash,
+          eidIssuer,
+          verifiedBy,
+          verifiedAt,
+          signature,
+        },
+        did: state.did,
+        pds_url: state.pdsUrl,
+        success_url: state.successUrl,
+        error_url: state.errorUrl,
       });
     }
 

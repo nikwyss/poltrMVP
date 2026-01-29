@@ -53,3 +53,39 @@ export async function getPublicKeyMultibase(): Promise<string> {
   // Base58btc encoding with 'z' prefix (multibase)
   return 'z' + bs58.encode(prefixed);
 }
+
+/**
+ * Decode a multibase public key to raw bytes.
+ * Expects 'z' prefix (base58btc) with ed25519 multicodec prefix (0xed01).
+ */
+export function decodeMultibasePublicKey(multibase: string): Uint8Array {
+  if (!multibase.startsWith('z')) {
+    throw new Error('Expected multibase with z prefix (base58btc)');
+  }
+  const decoded = bs58.decode(multibase.slice(1));
+  // Check for ed25519 multicodec prefix
+  if (decoded[0] !== 0xed || decoded[1] !== 0x01) {
+    throw new Error('Expected ed25519 multicodec prefix (0xed01)');
+  }
+  return decoded.slice(2);
+}
+
+/**
+ * Verify an eID verification signature.
+ * Returns true if signature is valid.
+ */
+export async function verifyEidSignature(
+  eidHash: string,
+  eidIssuer: string,
+  verifiedAt: string,
+  signature: string,
+  publicKey: Uint8Array
+): Promise<boolean> {
+  try {
+    const message = new TextEncoder().encode(`${eidHash}|${eidIssuer}|${verifiedAt}`);
+    const signatureBytes = Buffer.from(signature, 'base64');
+    return await ed.verifyAsync(signatureBytes, message, publicKey);
+  } catch {
+    return false;
+  }
+}

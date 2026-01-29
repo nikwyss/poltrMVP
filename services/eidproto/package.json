@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001 -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@atproto/oauth-client-browser": "^0.3.34",
     "@noble/ed25519": "^3.0.0",
     "bs58": "^6.0.0",
     "jose": "^6.1.3",
