@@ -6,19 +6,21 @@ This file lists **immediate, actionable tasks** for the current development spri
 
 ## 🔥 Next Steps
 
-- [ ] Fix DID/URL/ATProto IDs throughout codebase (appview vs. pds)
+- [ ] Check/Fix DID/URL/ATProto IDs throughout codebase (appview vs. pds)
 - [ ] Finalize lexicon setup: Poltr-specific version + Bluesky fallback
 - [ ] Create pseudonym system: Swiss mountain names table (Bergnamen)
 - [ ] Implement argument posting functionality
 - [ ] Design and implement user profile pages
 - [ ] Set up backfill task for missed firehose events
-- [ ] Integration / Backwardscompatibility with bluesky.
-
+- [ ] Interoperability: Content on bluesky.
+- [ ] Interoperability: Bluesky Content in the app.
+- [ ] Arguments / Peerreview
 
 
 ## Done already
+- Outwards Interoperaperibility: Login with app-password to Bluesky. (with adding dummy age)
+- EID-Verification (eidproto)
 - Master Git workflow: Set up feature branch / pull request process
 - Implement magic link authentication service wrapper
-- Moved DEPLOY.md to doc folder
 - Created comprehensive project documentation structure
 - Set up GitHub Actions workflow for service builds

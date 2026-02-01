@@ -1,207 +1,104 @@
-# Poltr AT Protocol Environment
+# POLTR Documentation Index
 
-This project sets up a complete AT Protocol (ATProto) environment for poltr.info, including:
+Welcome to the POLTR project documentation. This index helps you navigate all project management and technical documents.
 
-- **PDS (Personal Data Server)**: Hosts user data and identity on the AT Protocol network (uses embedded SQLite)
-- **Frontend**: Web application for user interaction
-- **Ingress**: NGINX ingress controller with Let's Encrypt TLS certificates
+## Overview
 
-## Prerequisites
+POLTR is an ATProto-based civic-tech platform for Swiss referenda, built as a monorepo with three custom services (frontend, appview, indexer) and orchestrated third-party images (Bluesky PDS, PostgreSQL).
 
-- Access to a Kubernetes cluster
-- `kubectl` configured to connect to your cluster
-- Docker (if building custom frontend images)
+## Essential Documents
 
-## Installation
+### 📋 Project Management
 
-### 1. Set up Ingress Controller
+- **[ROADMAP.md](./doc/ROADMAP.md)** - Strategic long-term planning: vision, phases (quarters/years), milestones, open questions
+- **[todo.md](./doc/todo.md)** - Tactical short-term tasks: current sprint work items (days/weeks), updated weekly
 
-Install NGINX ingress controller:
+### 🏗️ Technical Documentation
 
-```bash
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/cloud/deploy.yaml
-```
+- **[ARCHITECTURE.md](./doc/ARCHITECTURE.md)** - System architecture, components, data flow, and infrastructure
+- **[DEVELOPMENT.md](./doc/DEVELOPMENT.md)** - Local development setup, common tasks, and troubleshooting
+- **[DEPLOY.md](./doc/DEPLOY.md)** - Deployment procedures, CI/CD setup, and GitHub Actions configuration
 
-### 2. Configure Let's Encrypt
+### 🤝 Collaboration
 
-Apply the Let's Encrypt cluster issuer:
+- **[CONTRIBUTING.md](./doc/CONTRIBUTING.md)** - Development workflow, branching strategy, code standards, and testing
 
-```bash
-kubectl apply -f letsencrypt-prod.yaml
-```
+## Quick Navigation
 
-### 3. Configure Secrets
+### For New Contributors
+1. Start with [ROADMAP.md](./doc/ROADMAP.md) to understand the vision and current state
+2. Review [ARCHITECTURE.md](./doc/ARCHITECTURE.md) to understand the system
+3. Follow [DEVELOPMENT.md](./doc/DEVELOPMENT.md) to set up your environment
+4. Read [CONTRIBUTING.md](./doc/CONTRIBUTING.md) for workflow guidelines
 
-Copy the secrets template and fill in your values:
+### For Project Management
+1. **Daily/Weekly:** Check [todo.md](./doc/todo.md) for current sprint tasks and immediate priorities
+2. **Monthly/Quarterly:** Review [ROADMAP.md](./doc/ROADMAP.md) for strategic planning, phases, and open questions
+3. Update todo.md weekly; update ROADMAP.md when phases/strategy change
 
-```bash
-cp secrets.sh.dist secrets.sh
-# Edit secrets.sh with your actual credentials
-nano secrets.sh
-```
+### For Deployment
+1. Follow [DEPLOY.md](./doc/DEPLOY.md) for deployment procedures
+2. Check [ARCHITECTURE.md](./doc/ARCHITECTURE.md) for infrastructure details
+3. Review CI/CD workflows in `.github/workflows/`
 
-Generate required secrets:
+### For Development
+1. See [DEVELOPMENT.md](./doc/DEVELOPMENT.md) for setup instructions
+2. Check service-specific READMEs in `services/*/README.md`
+3. Review [CONTRIBUTING.md](./doc/CONTRIBUTING.md) for standards
 
-```bash
-# Generate PLC rotation key (must be 64 hex characters / 32 bytes)
-openssl rand -hex 32
+## Service-Specific Documentation
 
-# Generate JWT secret
-openssl rand -hex 32
+Each service has its own technical README with setup and deployment instructions:
 
-# Generate admin password
-openssl rand -hex 16
-```
+- **Frontend:** `services/front/README.md` - React + TypeScript + OAuth
+- **AppView:** `services/appview/README.md` - API service + PostgreSQL
+- **Indexer:** `services/indexer/README.md` - Firehose listener + PostgreSQL
 
-Create the secrets in Kubernetes:
+## External Resources
 
-```bash
-bash secrets.sh
-```
+- **AT Protocol:** https://atproto.com
+- **Bluesky PDS:** https://github.com/bluesky-social/pds
+- **Kubernetes Dashboard:** https://manager.infomaniak.com/v3/hosting/1558567/public-cloud/15667/project/36380/kaas/clusters/2369/dashboard
+- **GitHub Repository:** (Add your repo URL here)
 
-### 4. Deploy the Application
+## Document Status
 
-Deploy all components:
+| Document | Last Updated | Status |
+|----------|--------------|--------|
+| ROADMAP.md | 2024-12-23 | ✅ Current |
+| todo.md | 2024-12-23 | ✅ Current |
+| ARCHITECTURE.md | 2024-12-23 | ✅ Current |
+| DEVELOPMENT.md | 2024-12-23 | ✅ Current |
+| CONTRIBUTING.md | 2024-12-23 | ✅ Current |
+| DEPLOY.md | 2024-11-21 | ⚠️ Needs Review |
 
-```bash
-kubectl apply -f poltr.yaml
-```
+## Contributing to Documentation
 
-Check deployment status:
+When making significant changes to the project:
 
-```bash
-kubectl get pods -n poltr
-```
+1. Update relevant documentation files
+2. Update this index if adding new documents
+3. Update the "Document Status" table above
+4. Ensure cross-references are accurate
 
-## Configuration
+### Documentation Guidelines
 
-Key environment variables in the PDS deployment:
+- Keep documents focused and single-purpose
+- Use clear headings and structure
+- Include code examples where helpful
+- Link between related documents
+- Update regularly as project evolves
 
-- `PDS_HOSTNAME`: Your PDS domain (e.g., `poltr.info`)
-- `PDS_SERVICE_HANDLE_DOMAINS`: Allowed handle domains (e.g., `.poltr.info`)
-- `PDS_INVITE_REQUIRED`: Set to `"false"` to allow open registration
+## Getting Help
 
-## Deployment to Remote Kubernetes Cluster
+If you can't find what you're looking for:
 
-### Deploy Full Stack
+1. Check the service-specific READMEs
+2. Search existing GitHub issues
+3. Review the architecture document
+4. Ask in pull request comments
+5. Create a new issue with the `documentation` label
 
-```bash
-# Apply configuration
-kubectl apply -f poltr.yaml
+---
 
-# Verify deployment
-kubectl get pods -n poltr
-kubectl get ingress -n poltr
-```
-
-### Update Frontend Only
-
-```bash
-# Restart frontend to pull latest Docker image
-kubectl rollout restart deployment/frontend -n poltr
-
-# Monitor rollout status
-kubectl rollout status deployment/frontend -n poltr
-
-# Watch pods being recreated
-kubectl get pods -n poltr -l app=frontend -w
-```
-
-### Update PDS Configuration
-
-```bash
-# Edit poltr.yaml with your changes
-# Apply the updated configuration
-kubectl apply -f poltr.yaml
-
-# Restart PDS deployment
-kubectl rollout restart deployment/pds -n poltr
-```
-
-### Update Secrets
-
-```bash
-# Edit secrets.sh with new values
-bash secrets.sh
-
-# Restart affected deployments
-kubectl rollout restart deployment/pds -n poltr
-kubectl rollout restart deployment/frontend -n poltr
-```
-
-## Troubleshooting
-
-View logs for any component:
-
-```bash
-# PDS logs
-kubectl logs -n poltr deployment/pds --tail=50
-
-# Frontend logs
-kubectl logs -n poltr deployment/frontend --tail=50
-```
-
-Check pod status:
-
-```bash
-kubectl get pods -n poltr
-kubectl describe pod -n poltr <pod-name>
-```
-
-### Accessing SQLite Database
-
-The PDS uses SQLite for data storage. To access the database:
-
-```bash
-# Get the current pod name
-kubectl get pods -n poltr -l app=pds
-
-# Copy database file locally
-kubectl cp poltr/<pod-name>:/data/account.sqlite ./account.sqlite
-
-# View with DBeaver or sqlite3
-sqlite3 account.sqlite
-```
-
-## Cluster Management
-
-Kubernetes Dashboard: https://manager.infomaniak.com/v3/hosting/1558567/public-cloud/15667/project/36380/kaas/clusters/2369/dashboard
-
-## Architecture
-
-- **Namespace**: `poltr`
-- **Domains**: 
-  - `poltr.ch` → Frontend
-  - `poltr.info` → PDS (Personal Data Server)
-- **Storage**: Persistent volume for PDS data (SQLite databases and blobs)
-
-
-
-
-# IMPORT NEWEST PROPOSALS
-
-- update echtzeitdaten-am-abstimmungstag-zu-eidgenoessischen-abstimmungsvorlagen.json
-from https://ckan.opendata.swiss/api/3/action/package_show?id=echtzeitdaten-am-abstimmungstag-zu-eidgenoessischen-abstimmungsvorlagen
-
--  update .env with actually existing handle
-
-- port forwaring
-> kubectl port-forward -n poltr deployment/pds 2583:2583
-- import env variables
-> source scripts/.env
-
-- end port forwarding
-> pkill -f "kubectl port-forward -n poltr deployment/pds"
-
-- run script:
-> python3 scripts/import_proposals.py
-
-
-
-# UPDATE VENDOR Folder
-
-mkdir -p ./vendor
-git clone --depth 1 https://github.com/bluesky-social/atproto.git ./vendor/atproto
-
-# POSTGRES PORT FOREWARD
-> kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432
+**Last Updated:** 2024-12-23
