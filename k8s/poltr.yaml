@@ -807,16 +807,6 @@ spec:
                 name: eidproto
                 port:
                   number: 80
-    # - host: labeler.poltr.info
-    #   http:
-    #     paths:
-    #       - path: /
-    #         pathType: Prefix
-    #         backend:
-    #           service:
-    #             name: labeler
-    #             port:
-    #               number: 80
     - host: ozone.poltr.info
       http:
         paths:
@@ -827,16 +817,6 @@ spec:
                 name: ozone
                 port:
                   number: 80
-    # - host: mod.poltr.info
-    #   http:
-    #     paths:
-    #       - path: /
-    #         pathType: Prefix
-    #         backend:
-    #           service:
-    #             name: ozone
-    #             port:
-    #               number: 80
     # Wildcard host rule so any <handle>.poltr.info routes to the PDS
     - host: '*.poltr.info'
       http:

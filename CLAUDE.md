@@ -51,3 +51,11 @@ Frontend/eID Proto
        ▼
     Verifier (Swiss eID)
 ```
+
+
+## Ozone:
+
+Manuals:
+https://github.com/bluesky-social/ozone/blob/main/docs/userguide.md
+https://github.com/bluesky-social/ozone/blob/main/docs/moderation_states.png
+https://github.com/bluesky-social/ozone/blob/main/docs/api.md

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-02-02
+
+### Ozone Moderation Service
+- **Fixed handle verification**: Added Ingress path routing for `/.well-known/atproto-did` to PDS for `ozone.poltr.info`
+- **Created new moderation account**: `moderation.poltr.info` (`did:plc:5ecl3anpfxtmn2szxsm2mjhf`)
+- **Registered labeler service**: Added `#atproto_labeler` service to DID via PLC operation
+- **Updated OZONE_SERVER_DID**: Changed from `did:web:ozone.poltr.info` to `did:plc:5ecl3anpfxtmn2szxsm2mjhf`
+- **Updated OZONE_ADMIN_DIDS**: Added moderation account to admin list
+- **Deleted old account**: Removed `ozone.poltr.info` from PDS
+
+### k8s/poltr.yaml
+- **Added `.well-known/atproto-did` routing**: For `ozone.poltr.info`, routes handle verification requests to PDS while other requests go to Ozone service
+
+### Documentation
+- **Added `doc/CREATE_MODERATION_ACCOUNT.md`**: Step-by-step guide for creating Ozone moderation accounts with PLC operations
+
 ## 2026-01-29
 
 ### services/eidproto

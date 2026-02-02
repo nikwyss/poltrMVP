@@ -18,6 +18,7 @@ This file lists **immediate, actionable tasks** for the current development spri
 
 
 ## Done already
+- Ozone Moderation (setup)
 - Outwards Interoperaperibility: Login with app-password to Bluesky. (with adding dummy age)
 - EID-Verification (eidproto)
 - Master Git workflow: Set up feature branch / pull request process
