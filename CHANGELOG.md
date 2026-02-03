@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-02-03
+
+### services/cms (NEW)
+- **Set up Payload CMS 3.x**: Headless CMS for managing frontend content
+- **Collections**:
+  - `Users` - Admin authentication
+  - `Media` - Image/file uploads with alt text
+  - `Pages` - Full pages with title, slug, rich text content, SEO metadata, draft/published status
+  - `Blocks` - Reusable content blocks for homepage, header, footer, sidebar, banner, modal placements
+- **Stack**: Payload 3.74.0, Next.js 15.4.11, React 19, PostgreSQL (shared database)
+- **Port**: Runs on port 3002
+
+### services/front
+- **Refactored to Next.js**: Migrated frontend from Vite/React to Next.js App Router
+- **Added CMS client** (`src/lib/cms.ts`): API helper for fetching pages, blocks, media, and settings from Payload CMS
+- **ISR support**: Content cached with 60-second revalidation
+
+### services/appview
+- **Restructured API routes**: Reorganized XRPC endpoint handlers for better maintainability
+
 ## 2026-02-02
 
 ### Ozone Moderation Service
