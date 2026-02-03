@@ -3,7 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "../lib/AuthContext";
 
 export const metadata: Metadata = {
-  title: "POLTR | Swiss Civic Platform",
+  title: "POLTR | PoC Platform",
   description: "ATProto-based civic-tech platform for Swiss referenda",
 };
 

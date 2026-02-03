@@ -18,6 +18,18 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  name: cms-media
+  namespace: poltr
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
   name: allforone-postgres-data
   namespace: poltr
 spec:
@@ -615,6 +627,75 @@ spec:
       port: 80
       targetPort: 3000
 ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cms
+  namespace: poltr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: cms
+  template:
+    metadata:
+      labels:
+        app: cms
+    spec:
+      imagePullSecrets:
+        - name: ghcr-registry
+      containers:
+        - name: cms
+          image: ghcr.io/nikwyss/poltr-cms:latest
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: cms-secrets
+          ports:
+            - name: http
+              containerPort: 3000
+          volumeMounts:
+            - name: cms-media
+              mountPath: /app/media
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /admin
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /admin
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: cms-media
+          persistentVolumeClaim:
+            claimName: cms-media
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cms
+  namespace: poltr
+spec:
+  selector:
+    app: cms
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -703,6 +784,16 @@ spec:
             backend:
               service:
                 name: ozone
+                port:
+                  number: 80
+    - host: cms.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cms
                 port:
                   number: 80
     # Wildcard host rule so any <handle>.poltr.info routes to the PDS
