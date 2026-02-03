@@ -5,6 +5,7 @@ import httpx
 from pydantic import BaseModel
 from src.lib import db
 from src.auth.middleware import TSession
+from src.config import DUMMY_BIRTHDATE
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,9 @@ class TLoginAccountResponse(BaseModel):
 async def _pds_admin_create_invite_code() -> str:
     """Create a single-use invite code using admin auth."""
     # Use internal K8s URL for admin operations (external URL blocks admin auth)
-    pds_internal_url = os.getenv("PDS_INTERNAL_URL", "http://pds.poltr.svc.cluster.local")
+    pds_internal_url = os.getenv(
+        "PDS_INTERNAL_URL", "http://pds.poltr.svc.cluster.local"
+    )
     pds_admin_password = os.getenv("PDS_ADMIN_PASSWORD")
 
     if not pds_admin_password:
@@ -59,7 +62,10 @@ async def pds_api_admin_create_account(
 ) -> TCreateAccountResponse:
     """Create account on PDS: first generate invite code, then create account."""
     # Use internal K8s URL for reliability: admin account kann sich offenbar nicht remotely authenifizieren.
-    pds_internal_url = os.getenv("PDS_INTERNAL_URL", "http://pds.poltr.svc.cluster.local")
+    pds_internal_url = os.getenv("PDS_INTERNAL_URL")
+    assert (
+        pds_internal_url is not None
+    ), "PDS_INTERNAL_URL is not set: e.g. http://pds.poltr.svc.cluster.local"
 
     # Step 1: Generate a single-use invite code
     invite_code = await _pds_admin_create_invite_code()
@@ -83,7 +89,9 @@ async def pds_api_admin_create_account(
 
     if resp.status_code != 200:
         error_json = resp.json()
-        raise RuntimeError(f"PDS error: {error_json['error']} - {error_json['message']}")
+        raise RuntimeError(
+            f"PDS error: {error_json['error']} - {error_json['message']}"
+        )
 
     return TCreateAccountResponse(**resp.json())
 
@@ -105,7 +113,9 @@ async def pds_api_login(did: str, password: str) -> TLoginAccountResponse:
 
     if resp.status_code != 200:
         error_json = resp.json()
-        raise RuntimeError(f"PDS error: {error_json['error']} - {error_json['message']}")
+        raise RuntimeError(
+            f"PDS error: {error_json['error']} - {error_json['message']}"
+        )
 
     return TLoginAccountResponse(**resp.json())
 
@@ -116,7 +126,9 @@ class TCreateAppPasswordResponse(BaseModel):
     createdAt: str
 
 
-async def pds_api_create_app_password(session: TSession, name: str) -> TCreateAppPasswordResponse:
+async def pds_api_create_app_password(
+    session: TSession, name: str
+) -> TCreateAppPasswordResponse:
     """
     Create app password via com.atproto.server.createAppPassword.
     Returns the app password details (name, password, createdAt).
@@ -174,7 +186,9 @@ async def pds_api_create_app_password(session: TSession, name: str) -> TCreateAp
                             session.did,
                         )
                 else:
-                    logger.error(f"Failed to refresh session: {res_refresh.status_code}")
+                    logger.error(
+                        f"Failed to refresh session: {res_refresh.status_code}"
+                    )
                     raise RuntimeError("Failed to refresh session")
 
         # Create app password
@@ -191,10 +205,6 @@ async def pds_api_create_app_password(session: TSession, name: str) -> TCreateAp
         else:
             logger.error(f"Failed to create app password: {res.status_code} {res.text}")
             raise RuntimeError(f"Failed to create app password: {res.text}")
-
-
-BLUESKY_APPVIEW_URL = os.getenv("BLUESKY_APPVIEW_URL", "https://api.bsky.app")
-DUMMY_BIRTHDATE = "1970-01-01T00:00:00.000Z"
 
 
 async def set_birthdate_on_bluesky(session: TSession) -> bool:
@@ -225,7 +235,9 @@ async def set_birthdate_on_bluesky(session: TSession) -> bool:
             return False
 
         if res.status_code != 200:
-            logger.warning(f"Could not get preferences: {res.status_code} - continuing anyway")
+            logger.warning(
+                f"Could not get preferences: {res.status_code} - continuing anyway"
+            )
             preferences = []
         else:
             data = res.json()
@@ -233,7 +245,8 @@ async def set_birthdate_on_bluesky(session: TSession) -> bool:
 
         # Step 2: Check if birthDate already exists (in personalDetailsPref)
         has_birthdate = any(
-            p.get("$type") == "app.bsky.actor.defs#personalDetailsPref" and p.get("birthDate")
+            p.get("$type") == "app.bsky.actor.defs#personalDetailsPref"
+            and p.get("birthDate")
             for p in preferences
         )
 
@@ -242,10 +255,12 @@ async def set_birthdate_on_bluesky(session: TSession) -> bool:
             return True
 
         # Step 3: Add birthDate as personalDetailsPref and save preferences
-        preferences.append({
-            "$type": "app.bsky.actor.defs#personalDetailsPref",
-            "birthDate": DUMMY_BIRTHDATE,
-        })
+        preferences.append(
+            {
+                "$type": "app.bsky.actor.defs#personalDetailsPref",
+                "birthDate": DUMMY_BIRTHDATE,
+            }
+        )
 
         try:
             res = await client.post(

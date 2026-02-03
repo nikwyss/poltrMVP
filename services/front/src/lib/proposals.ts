@@ -1,4 +1,4 @@
-import type { ProposalRecord } from '../typing/proposals';
+import type { ProposalRecord } from '../types/proposals';
 import { getAuthenticatedAgent } from './agent';
 import { validateProposal } from './lexicons';
 

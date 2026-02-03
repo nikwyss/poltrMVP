@@ -3,33 +3,52 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Build-time arguments for Next.js public env vars (can override at build time)
+ARG NEXT_PUBLIC_REDIRECT_URI=https://poltr.ch/callback
+ARG NEXT_PUBLIC_CLIENT_ID_BASE=https://poltr.ch
+ARG NEXT_PUBLIC_PDS_URL=https://pds.poltr.info
+ARG NEXT_PUBLIC_API_URL=https://app.poltr.info
+ARG NEXT_PUBLIC_HANDLE_RESOLVER=https://bsky.social
+ENV NEXT_PUBLIC_REDIRECT_URI=$NEXT_PUBLIC_REDIRECT_URI
+ENV NEXT_PUBLIC_CLIENT_ID_BASE=$NEXT_PUBLIC_CLIENT_ID_BASE
+ENV NEXT_PUBLIC_PDS_URL=$NEXT_PUBLIC_PDS_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_HANDLE_RESOLVER=$NEXT_PUBLIC_HANDLE_RESOLVER
+
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies (without lockfile since workspace manages it)
+# Install dependencies
 RUN npm install
 
 # Copy source code
 COPY . .
 
-# Accept build arguments for OAuth configuration
-ARG VITE_REDIRECT_URI
-ARG VITE_CLIENT_ID_BASE
-
 # Build the application
 RUN npm run build
 
 # Production stage
-FROM nginx:alpine
+FROM node:20-alpine AS runner
 
-# Copy built assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+WORKDIR /app
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+ENV NODE_ENV=production
 
-# Expose port 80
-EXPOSE 80
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Copy built application
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]

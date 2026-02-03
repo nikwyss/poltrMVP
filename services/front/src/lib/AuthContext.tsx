@@ -1,3 +1,5 @@
+"use client";
+
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 
@@ -25,7 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Restore user from localStorage on mount
     const cachedUser = localStorage.getItem('poltr_user');
     const sessionToken = localStorage.getItem('session_token');
-    
+
     if (cachedUser && sessionToken) {
       try {
         setUser(JSON.parse(cachedUser));
@@ -35,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem('session_token');
       }
     }
-    
+
     setLoading(false);
   }, []);
 

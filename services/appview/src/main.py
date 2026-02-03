@@ -1,10 +1,24 @@
 from src.lib.fastapi import app
-from src.proposals.routes import *
+
+# Auth routes
 from src.auth.routes import *
+
+# Well-known routes
 from src.wellknown import *
 
-# PROXY ROUTES
-from src.bsky_proxy import *  # Proxy for app.bsky.* requests (must be last)
+# XRPC Routes - order matters! Specific routes before generic fallback
+from src.routes.actor import router as actor_router
+from src.routes.feed import router as feed_router
+from src.routes.ozone import router as ozone_router
+from src.routes.poltr import router as poltr_router
+from src.routes.bluesky import router as generic_router
+
+# Include routers in order (specific first, fallback last)
+app.include_router(actor_router)
+app.include_router(feed_router)
+app.include_router(ozone_router)
+app.include_router(poltr_router)
+app.include_router(generic_router)  # Fallback - must be last!
 
 
 if __name__ == "__main__":

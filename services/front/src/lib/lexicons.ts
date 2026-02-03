@@ -3,7 +3,7 @@ import { Lexicons } from '@atproto/lexicon';
 // Import lexicon schemas
 import proposalLexicon from '../lexicons/app.ch.poltr.vote.proposal.json';
 import embedLexicon from '../lexicons/app.ch.poltr.vote.embed.json';
-import type { ProposalEmbed, ProposalRecord } from '../typing/proposals';
+import type { ProposalEmbed, ProposalRecord } from '../types/proposals';
 
 // Create a Lexicons instance with our custom schemas
 export const lexicons = new Lexicons([

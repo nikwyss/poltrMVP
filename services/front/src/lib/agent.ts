@@ -1,4 +1,4 @@
-import type { ProposalWithMetadata } from '../typing/proposals';
+import type { ProposalWithMetadata } from '../types/proposals';
 import { Agent } from '@atproto/api';
 
 /**
@@ -8,7 +8,7 @@ import { Agent } from '@atproto/api';
 function getAuthenticatedFetch(): typeof fetch {
   return async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const headers = new Headers(init?.headers);
-    
+
     // Cookies are sent automatically with credentials: 'include'
     // But provide Authorization header as fallback for API compatibility
     const sessionToken = localStorage.getItem('session_token');
@@ -88,7 +88,7 @@ export async function listRecords(
   if (!repo.startsWith('did:plc:') && !repo.startsWith('did:web:')) {
     throw new Error(`Invalid DID format: ${repo}. Must start with 'did:plc:' or 'did:web:'`);
   }
-  
+
   const agent = await getAuthenticatedAgent();
   const response = await agent.com.atproto.repo.listRecords({
     repo,
@@ -105,13 +105,13 @@ export async function listRecords(
           console.warn('Failed to extract rkey from URI:', record.uri);
           return record;
         }
-        
+
         const hydrated = await agent.com.atproto.repo.getRecord({
           repo,
           collection,
           rkey,
         });
-        
+
         console.log('Hydrated record:', hydrated, record) ;
         return hydrated.data;
       } catch (err) {
@@ -127,11 +127,11 @@ export async function listRecords(
 
 
 export async function listProposalsAppView(_limit = 100): Promise<ProposalWithMetadata[]> {
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
   const authenticatedFetch = getAuthenticatedFetch();
-  
+
   const res = await authenticatedFetch(`${apiUrl}/xrpc/app.ch.poltr.vote.listProposals`);
-  
+
   if (!res.ok) throw new Error(await res.text());
   const content = await res.json();
   console.log(content);
@@ -149,7 +149,7 @@ export async function createAppPassword(): Promise<{
   password: string;
   createdAt: string;
 }> {
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
   const authenticatedFetch = getAuthenticatedFetch();
 
   const res = await authenticatedFetch(`${apiUrl}/auth/create-app-password`, {
@@ -167,7 +167,7 @@ export async function createAppPassword(): Promise<{
 export async function initiateEidVerification(): Promise<{
   redirect_url: string;
 }> {
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
   const authenticatedFetch = getAuthenticatedFetch();
 
   const res = await authenticatedFetch(`${apiUrl}/auth/initiate-eid-verification`, {

@@ -24,12 +24,12 @@ class EmailService:
         """Send a confirmation link for registration or other purposes"""
         try:
             if purpose == "registration":
-                link = f"{self.frontend_url}/verify_registration?token={token}"
+                link = f"{self.frontend_url}/verify-registration?token={token}"
                 subject = "Confirm your registration - POLTR"
                 action_text = "Confirm your account"
                 expiry_text = "30 minutes"
             elif purpose == "login":
-                link = f"{self.frontend_url}/verify_login?token={token}"
+                link = f"{self.frontend_url}/verify-login?token={token}"
                 subject = "Your Magic Link! - POLTR"
                 action_text = "Login to POLTR"
                 expiry_text = "15 minutes"

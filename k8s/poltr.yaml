@@ -263,6 +263,11 @@ spec:
                 secretKeyRef:
                   name: pds-secrets
                   key: PDS_HOSTNAME
+            - name: PDS_INTERNAL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key:  PDS_INTERNAL_URL
             - name: PDS_GOVERNANCE_ACCOUNT_DID
               valueFrom:
                 secretKeyRef:
@@ -278,25 +283,6 @@ spec:
             limits:
               cpu: "500m"
               memory: "512Mi"
-          # startupProbe:
-          #   httpGet:
-          #     path: /xrpc/_health
-          #     port: 3000
-          #   initialDelaySeconds: 40
-          #   periodSeconds: 10
-          #   failureThreshold: 40
-          # livenessProbe:
-          #   httpGet:
-          #     path: /
-          #     port: 3000
-          #   initialDelaySeconds: 40
-          #   periodSeconds: 40
-          # readinessProbe:
-          #   httpGet:
-          #     path: /xrpc/_health
-          #     port: 3000
-          #   initialDelaySeconds: 50
-          #   periodSeconds: 40
 ---
 apiVersion: v1
 kind: Service
@@ -310,48 +296,6 @@ spec:
     - name: http
       port: 80
       targetPort: 3000
-# ---
-# apiVersion: apps/v1
-# kind: Deployment
-# metadata:
-#   name: labeler-redis
-#   namespace: poltr
-# spec:
-#   replicas: 1
-#   selector:
-#     matchLabels:
-#       app: labeler-redis
-#   template:
-#     metadata:
-#       labels:
-#         app: labeler-redis
-#     spec:
-#       containers:
-#         - name: redis
-#           image: redis:7-alpine
-#           args: ["--save", "", "--appendonly", "no"]
-#           ports:
-#             - containerPort: 6379
-#           resources:
-#             requests:
-#               cpu: "50m"
-#               memory: "128Mi"
-#             limits:
-#               cpu: "250m"
-#               memory: "256Mi"
-# ---
-# apiVersion: v1
-# kind: Service
-# metadata:
-#   name: labeler-redis
-#   namespace: poltr
-# spec:
-#   selector:
-#     app: labeler-redis
-#   ports:
-#     - port: 6379
-#       targetPort: 6379
-# ---
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -465,62 +409,6 @@ spec:
     - name: http
       port: 80
       targetPort: 8080
-# apiVersion: apps/v1
-# kind: Deployment
-# metadata:
-#   name: labeler
-#   namespace: poltr
-# spec:
-#   replicas: 1
-#   selector:
-#     matchLabels:
-#       app: labeler
-#   template:
-#     metadata:
-#       labels:
-#         app: labeler
-#     spec:
-#       containers:
-#         - name: labeler
-#           image: ghcr.io/bluesky-social/labeler:latest
-#           envFrom:
-#             - secretRef:
-#                 name: labeler-secrets
-#           ports:
-#             - name: http
-#               containerPort: 2587
-#           resources:
-#             requests:
-#               cpu: "200m"
-#               memory: "512Mi"
-#             limits:
-#               cpu: "1"
-#               memory: "1Gi"
-#           livenessProbe:
-#             httpGet:
-#               path: /xrpc/_health
-#               port: http
-#             initialDelaySeconds: 20
-#             periodSeconds: 10
-#           readinessProbe:
-#             httpGet:
-#               path: /xrpc/_health
-#               port: http
-#             initialDelaySeconds: 10
-#             periodSeconds: 10
-# ---
-# apiVersion: v1
-# kind: Service
-# metadata:
-#   name: labeler
-#   namespace: poltr
-# spec:
-#   selector:
-#     app: labeler
-#   ports:
-#     - name: http
-#       port: 80
-#       targetPort: http
 ---
 apiVersion: apps/v1
 kind: Deployment
