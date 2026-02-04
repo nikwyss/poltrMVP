@@ -3,7 +3,8 @@
  * Fetches content from Payload CMS at cms.poltr.info
  */
 
-const CMS_URL = process.env.NEXT_PUBLIC_CMS_URL || 'https://cms.poltr.info'
+// Server-only: CMS URL is not exposed to the client
+const CMS_URL = process.env.CMS_URL || 'https://cms.poltr.info'
 
 export type Locale = 'de' | 'fr' | 'en'
 
