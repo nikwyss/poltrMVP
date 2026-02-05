@@ -545,7 +545,7 @@ spec:
             - secretRef:
                 name: front-secrets
           ports:
-            - containerPort: 80
+            - containerPort: 3000
           resources:
             requests:
               cpu: "50m"
@@ -566,7 +566,7 @@ spec:
     app: frontend
   ports:
     - port: 80
-      targetPort: 80
+      targetPort: 3000
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -717,9 +717,20 @@ spec:
     # Separate cert for poltr.ch (different domain)
     - hosts:
         - poltr.ch
+        - www.poltr.ch
       secretName: poltr-ch-tls
   rules:
     - host: poltr.ch
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+    - host: www.poltr.ch
       http:
         paths:
           - path: /
