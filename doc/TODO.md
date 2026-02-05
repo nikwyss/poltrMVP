@@ -1,11 +1,9 @@
-# ToDo for a Poc
-
-This file lists **immediate, actionable tasks** for the current development sprint (updated weekly).
-**Note:** For long-term planning and roadmap phases, see [ROADMAP.md](./ROADMAP.md)
+# ToDo for a MVP
 
 
 ## 🔥 Next Steps
 
+- [ ] CMS: Payload? 
 - [ ] Check/Fix DID/URL/ATProto IDs throughout codebase (appview vs. pds)
 - [ ] Finalize lexicon setup: Poltr-specific version + Bluesky fallback
 - [ ] Create pseudonym system: Swiss mountain names table (Bergnamen)
@@ -15,7 +13,9 @@ This file lists **immediate, actionable tasks** for the current development spri
 - [ ] Interoperability: Content on bluesky.
 - [ ] Interoperability: Bluesky Content in the app.
 - [ ] Arguments / Peerreview
-
+- [ ] Securing...
+- [ ] Testing
+...
 
 ## Done already
 - Ozone Moderation (setup)
