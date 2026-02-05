@@ -57,7 +57,7 @@ function renderNode(node: LexicalNode, index: number): React.ReactNode {
       return <p key={key}>{children}</p>
 
     case 'heading':
-      const HeadingTag = (node.tag || 'h2') as keyof JSX.IntrinsicElements
+      const HeadingTag = (node.tag || 'h2') as keyof React.JSX.IntrinsicElements
       return <HeadingTag key={key}>{children}</HeadingTag>
 
     case 'list':

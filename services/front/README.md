@@ -21,6 +21,7 @@ This app uses a **public OAuth client** (browser-based) which:
 - Works with loopback addresses for development (`127.0.0.1`)
 - No server-side secrets required
 
+
 ## Local Development
 
 ### Prerequisites
