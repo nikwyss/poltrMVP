@@ -27,9 +27,7 @@ function VerifyRegistrationContent() {
       }
 
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-
-        const response = await fetch(`${apiUrl}/auth/verify_registration`, {
+        const response = await fetch(`/api/auth/verify-registration`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -43,12 +41,7 @@ function VerifyRegistrationContent() {
           throw new Error(data.message || 'Verification failed');
         }
 
-        // Store session token in localStorage as fallback (cookies may not work cross-origin in dev)
-        if (data.session_token) {
-          localStorage.setItem('session_token', data.session_token);
-        }
-
-        // Store user data
+        // Store user data (session token is set as httpOnly cookie by the API route)
         login({
           did: data.user.did,
           handle: data.user.handle,

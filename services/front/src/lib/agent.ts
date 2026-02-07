@@ -2,24 +2,14 @@ import type { ProposalWithMetadata } from '../types/proposals';
 import { Agent } from '@atproto/api';
 
 /**
- * Get authenticated fetch handler that includes session token
- * Cookies are sent automatically, but we can also check localStorage for fallback
+ * Get authenticated fetch handler that routes through Next.js API proxy.
+ * The session cookie is sent automatically and forwarded as Bearer token by the proxy.
  */
 function getAuthenticatedFetch(): typeof fetch {
   return async (url: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const headers = new Headers(init?.headers);
-
-    // Cookies are sent automatically with credentials: 'include'
-    // But provide Authorization header as fallback for API compatibility
-    const sessionToken = localStorage.getItem('session_token');
-    if (sessionToken) {
-      headers.set('Authorization', `Bearer ${sessionToken}`);
-    }
-
     return fetch(url, {
       ...init,
-      headers,
-      credentials: 'include', // Include cookies in request
+      credentials: 'include',
     });
   };
 }
@@ -127,10 +117,9 @@ export async function listRecords(
 
 
 export async function listProposalsAppView(_limit = 100): Promise<ProposalWithMetadata[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
   const authenticatedFetch = getAuthenticatedFetch();
 
-  const res = await authenticatedFetch(`${apiUrl}/xrpc/app.ch.poltr.vote.listProposals`);
+  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.vote.listProposals`);
 
   if (!res.ok) throw new Error(await res.text());
   const content = await res.json();
@@ -149,10 +138,9 @@ export async function createAppPassword(): Promise<{
   password: string;
   createdAt: string;
 }> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
   const authenticatedFetch = getAuthenticatedFetch();
 
-  const res = await authenticatedFetch(`${apiUrl}/auth/create-app-password`, {
+  const res = await authenticatedFetch(`/api/xrpc/ch.poltr.auth.createAppPassword`, {
     method: 'POST',
   });
 
@@ -167,10 +155,9 @@ export async function createAppPassword(): Promise<{
 export async function initiateEidVerification(): Promise<{
   redirect_url: string;
 }> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
   const authenticatedFetch = getAuthenticatedFetch();
 
-  const res = await authenticatedFetch(`${apiUrl}/auth/initiate-eid-verification`, {
+  const res = await authenticatedFetch(`/api/xrpc/ch.poltr.auth.initiateEidVerification`, {
     method: 'POST',
   });
 

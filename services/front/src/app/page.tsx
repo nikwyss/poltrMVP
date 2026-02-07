@@ -15,8 +15,7 @@ export default function Login() {
     setError('');
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/auth/send-magic-link`, {
+      const response = await fetch(`/api/xrpc/ch.poltr.auth.sendMagicLink`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

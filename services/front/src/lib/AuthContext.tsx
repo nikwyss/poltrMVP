@@ -24,21 +24,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Restore user from localStorage on mount
+    // Restore user from localStorage for instant hydration
     const cachedUser = localStorage.getItem('poltr_user');
-    const sessionToken = localStorage.getItem('session_token');
 
-    if (cachedUser && sessionToken) {
+    if (cachedUser) {
       try {
         setUser(JSON.parse(cachedUser));
       } catch (err) {
         console.error('Failed to parse cached user:', err);
         localStorage.removeItem('poltr_user');
-        localStorage.removeItem('session_token');
       }
     }
 
-    setLoading(false);
+    // Verify session cookie is still valid
+    fetch('/api/auth/session')
+      .then((res) => res.json())
+      .then((data) => {
+        if (!data.authenticated) {
+          setUser(null);
+          localStorage.removeItem('poltr_user');
+        }
+      })
+      .catch(() => {
+        // If session check fails, keep cached user (offline/network error)
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   const login = (user: User) => {
@@ -49,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('poltr_user');
-    localStorage.removeItem('session_token');
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
   };
 
   return (
@@ -69,6 +81,5 @@ export function useAuth() {
 
 export function isAuthenticated(): boolean {
   const storedUser = localStorage.getItem('poltr_user');
-  const sessionToken = localStorage.getItem('session_token');
-  return !!(storedUser && sessionToken);
+  return !!storedUser;
 }

@@ -1,8 +1,16 @@
+"""
+ch.poltr.auth.* endpoints
+
+Authentication endpoints for magic link login, registration, app passwords,
+and E-ID verification.
+"""
+
 import os
 import time
 import httpx
-from fastapi import Depends, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
+
 from src.auth.login import check_email_availability, create_account, login_pds_account
 from src.auth.middleware import TSession, verify_session_token
 import src.lib.db as db
@@ -15,21 +23,22 @@ from src.auth.magic_link_handler import (
     verify_registration_magic_link_handler,
 )
 from src.lib.atproto_api import pds_api_create_app_password, set_birthdate_on_bluesky
-from src.lib.fastapi import app, limiter
+from src.lib.fastapi import limiter
 
 EIDPROTO_URL = os.getenv("EIDPROTO_URL", "https://eidproto.poltr.info")
 FRONTEND_URL = os.getenv("APPVIEW_FRONTEND_URL", "https://poltr.ch")
 
+router = APIRouter(prefix="/xrpc", tags=["auth"])
 
-@app.post("/auth/send-magic-link")
-@limiter.limit("5/minute")  # Max 5 requests per minute per IP
+
+@router.post("/ch.poltr.auth.sendMagicLink")
+@limiter.limit("5/minute")
 async def send_magic_link(request: Request, data: SendMagicLinkData):
     """Send magic link to user's email"""
     return await send_magic_link_handler(data)
 
 
-# Also accept GET /verify?token=... for browser magic link clicks
-@app.post("/auth/verify_login")
+@router.post("/ch.poltr.auth.verifyLogin")
 @limiter.limit("10/minute")
 async def verify_magic_link_get(request: Request, data: VerifyLoginMagicLinkData):
     """Verify magic link token and create session (GET via email link) (NEW)"""
@@ -48,7 +57,7 @@ async def verify_magic_link_get(request: Request, data: VerifyLoginMagicLinkData
     return await login_pds_account(user_email=response)
 
 
-@app.post("/auth/register")
+@router.post("/ch.poltr.auth.register")
 @limiter.limit("10/minute")
 async def register(request: Request):
     """Accept an email and send confirmation link before creating account."""
@@ -57,7 +66,6 @@ async def register(request: Request):
     if not email:
         return JSONResponse(status_code=400, content={"message": "email required"})
 
-    # generate confirmation token
     import secrets
     from datetime import datetime, timedelta
 
@@ -73,9 +81,7 @@ async def register(request: Request):
             },
         )
 
-    # store pending registration
     try:
-        # ensure pool initialized
         if db.pool is None:
             ok = await db.check_db_connection()
             if not ok:
@@ -99,7 +105,6 @@ async def register(request: Request):
             content={"message": f"Failed to store pending registration: {e}"},
         )
 
-    # send confirmation email
     try:
         from src.lib.email_service import email_service
 
@@ -120,12 +125,10 @@ async def register(request: Request):
     return JSONResponse(status_code=200, content={"message": "Confirmation email sent"})
 
 
-@app.post("/auth/verify_registration")
+@router.post("/ch.poltr.auth.verifyRegistration")
 @limiter.limit("10/minute")
 async def confirm_registration(request: Request, data: VerifyRegistrationMagicLinkData):
     """Finalize registration when user clicks confirmation link."""
-    # validate token
-
     response: str | JSONResponse | None = await verify_registration_magic_link_handler(
         data
     )
@@ -152,14 +155,13 @@ async def confirm_registration(request: Request, data: VerifyRegistrationMagicLi
     return await create_account(user_email=response)
 
 
-@app.post("/auth/create-app-password")
+@router.post("/ch.poltr.auth.createAppPassword")
 @limiter.limit("5/minute")
 async def create_app_password(
     request: Request, session: TSession = Depends(verify_session_token)
 ):
     """Create an app password for use with Bluesky clients."""
     try:
-        # Set birthDate on Bluesky (for age verification compatibility)
         await set_birthdate_on_bluesky(session)
 
         result = await pds_api_create_app_password(
@@ -173,7 +175,7 @@ async def create_app_password(
         )
 
 
-@app.post("/auth/initiate-eid-verification")
+@router.post("/ch.poltr.auth.initiateEidVerification")
 @limiter.limit("5/minute")
 async def initiate_eid_verification(
     request: Request, session: TSession = Depends(verify_session_token)
@@ -208,7 +210,6 @@ async def initiate_eid_verification(
                 )
 
             data = response.json()
-            # Return the full redirect URL
             return JSONResponse(content={
                 "redirect_url": f"{EIDPROTO_URL}{data['redirect_url']}"
             })

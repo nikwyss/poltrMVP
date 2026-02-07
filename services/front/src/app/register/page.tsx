@@ -21,7 +21,7 @@ export default function Register() {
 
     try {
       // POST email to appview which will send a confirmation email
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/auth/register`, {
+      const response = await fetch(`/api/xrpc/ch.poltr.auth.register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email }),

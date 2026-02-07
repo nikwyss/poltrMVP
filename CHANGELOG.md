@@ -1,5 +1,50 @@
 # Changelog
 
+## 2026-02-07
+
+### services/front
+- **Moved auth calls server-side via Next.js API routes**: Session token now lives in an `httpOnly` cookie instead of `localStorage`, eliminating XSS exposure
+- **Added `api/auth/verify-login/route.ts`**: Proxies login verification to AppView, sets session as `httpOnly` cookie
+- **Added `api/auth/verify-registration/route.ts`**: Same pattern for registration verification
+- **Added `api/auth/logout/route.ts`**: Clears the `poltr_session` cookie
+- **Added `api/auth/session/route.ts`**: Session validity check for AuthContext hydration
+- **Added `api/xrpc/[...path]/route.ts`**: Catch-all XRPC proxy — forwards all AppView calls server-side, reads `poltr_session` cookie and sends as `Authorization: Bearer` header
+- **Updated all client pages**: `page.tsx`, `verify-login`, `register`, `verify-registration` now use relative `/api/...` URLs instead of direct AppView calls
+- **Updated `lib/agent.ts`**: All XRPC calls (`listProposals`, `createAppPassword`, `initiateEidVerification`) route through `/api/xrpc/...` proxy; removed `localStorage` session token logic
+- **Updated `lib/AuthContext.tsx`**: On mount verifies session via `/api/auth/session`; logout calls `/api/auth/logout`; removed all `session_token` localStorage references
+- **`APPVIEW_URL` is now server-only**: No longer exposed to the client via `NEXT_PUBLIC_API_URL`
+
+## 2026-02-05
+
+### Infrastructure: Load Balancer Removal
+- **Switched from OpenStack LoadBalancer to hostPort**: ingress-nginx now binds directly to ports 80/443 on the node via hostPort, eliminating the OpenStack LB
+- **Assigned floating IP to node**: `83.228.203.147` moved from LB to node `ext1-pck-uvgx6be-pjt-pwlbk-g6tz7`
+- **Added security group rules**: Opened TCP 80 and 443 on the node's security group for public access
+- **Cost savings**: ~10 CHF/month (from ~17 to ~7 CHF/month)
+- **Added `doc/LOAD_BALANCING.md`**: Documents current dev/test setup and go-live restore procedure with all OpenStack resource IDs
+
+### services/front
+- **Fixed RichText build error**: Changed `JSX.IntrinsicElements` to `React.JSX.IntrinsicElements` in `src/components/RichText.tsx` (React 19 namespace change)
+- **CMS connectivity fix**: `CMS_URL` must use internal K8s service name (`http://cms.poltr.svc.cluster.local`) for server-side CMS fetches from within the cluster
+
+### k8s/poltr.yaml
+- **Added CMS service**: Deployment, Service, and Ingress for Payload CMS at `cms.poltr.info`
+- **Updated ingress**: Added `cms.poltr.info` host rule
+
+### Documentation
+- **Rewrote `doc/ARCHITECTURE.md`**: Updated with all 10 services (added CMS, Ozone, Ozone Redis, Verifier, eID Proto), ingress routing table, internal service DNS, PVCs, secrets, ConfigMaps, CronJobs
+- **Updated frontend tech stack**: Corrected from React+Vite+Nginx to Next.js 16 + standalone Node.js
+
+## 2026-02-04
+
+### services/front
+- **Embedded CMS into frontend**: Added `[slug]/page.tsx` catch-all route for CMS pages with `generateStaticParams` for SSG
+- **Added CMS client library** (`src/lib/cms.ts`): Fetches pages, blocks, media, settings from Payload CMS with ISR (60s revalidation)
+- **Added RichText renderer** (`src/components/RichText.tsx`): Lightweight Lexical JSON renderer for Payload CMS content (bold, italic, headings, lists, links, images, quotes)
+
+### services/cms
+- **Fixed CMS pod**: Corrected deployment configuration and health checks
+
 ## 2026-02-03
 
 ### services/cms (NEW)
