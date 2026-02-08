@@ -6,7 +6,7 @@ ATProto-based civic-tech platform for Swiss referenda. Monorepo with custom serv
 
 | Service | Path | Tech | Endpoint |
 |---------|------|------|----------|
-| Frontend | `services/front` | React 19 + Vite | poltr.ch |
+| Frontend | `services/front` | Next.js + React 19 | poltr.ch |
 | AppView | `services/appview` | Python 3.11 + FastAPI | app.poltr.info |
 | Indexer | `services/indexer` | Node.js | indexer.poltr.info |
 | eID Proto | `services/eidproto` | Next.js | eidproto.poltr.info |

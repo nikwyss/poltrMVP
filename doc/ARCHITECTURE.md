@@ -15,7 +15,8 @@ POLTR is an ATProto-based civic-tech platform for Swiss referenda running as a m
 #### 1. Frontend (`services/front`)
 - **Tech Stack:** Next.js 16, React 19, TypeScript
 - **Purpose:** User-facing web application with server-side rendering
-- **Auth:** AT Protocol OAuth with PKCE
+- **Auth:** AT Protocol OAuth with PKCE; session token in httpOnly cookie (server-side proxy)
+- **API Proxy:** All AppView calls go through Next.js API routes (`/api/xrpc/...`), cookie forwarded as Bearer token
 - **CMS Integration:** Fetches pages server-side from CMS (Payload CMS)
 - **Deployment:** Node.js standalone (`node server.js`)
 - **Image:** `ghcr.io/nikwyss/poltr-front:latest`
@@ -158,7 +159,7 @@ POLTR is an ATProto-based civic-tech platform for Swiss referenda running as a m
 ## Data Flow
 
 1. **User Authentication:** Frontend --> PDS (AT Protocol OAuth with PKCE + DPoP)
-2. **User Actions:** Frontend --> AppView --> PostgreSQL
+2. **User Actions:** Frontend --> Next.js API routes --> AppView --> PostgreSQL
 3. **Data Sync:** PDS Firehose --> Indexer --> PostgreSQL
 4. **Content Pages:** Frontend --> CMS API (server-side fetch)
 5. **Moderation:** AppView --> Ozone (labels and moderation actions)
@@ -293,7 +294,8 @@ kubectl rollout restart deployment/<name> -n poltr
 
 - PKCE flow for OAuth (public client)
 - DPoP-bound access tokens
-- No server-side secrets in frontend
+- Session tokens in httpOnly cookies (not accessible to client JS)
+- AppView URL is server-only (not exposed to browser)
 - TLS/HTTPS for all production endpoints (cert-manager + Let's Encrypt)
 - Kubernetes RBAC for deployments
 - Non-root container user for frontend (nextjs:1001)

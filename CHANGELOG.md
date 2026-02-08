@@ -34,6 +34,12 @@
 - **Removed root `package.json`/`node_modules`**: Unused workspace root with only `concurrently` devDependency
 - **Cleaned up `.gitignore`**: Updated all paths for new structure; ignored entire `infra/openstack/` directory
 
+### Documentation
+- **Rewrote root `README.md`**: Updated repo structure, services table, doc links, quick start (was still referencing Vite, broken links to moved files)
+- **Updated `doc/TODO.md`**: Moved completed items (CMS, backfill, auth, etc.) to Done section
+- **Updated `doc/ARCHITECTURE.md`**: Added server-side auth proxy to frontend section, data flow, and security notes
+- **Updated `CLAUDE.md`**: Fixed frontend tech stack (Next.js, not Vite)
+
 ## 2026-02-05
 
 ### Infrastructure: Load Balancer Removal
