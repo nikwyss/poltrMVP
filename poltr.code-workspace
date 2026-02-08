@@ -24,6 +24,25 @@
       "**/*.pyc": true
     }
   },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Port Forward: PostgreSQL",
+        "type": "shell",
+        "command": "kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432",
+        "isBackground": true,
+        "problemMatcher": []
+      },
+      {
+        "label": "Port Forward: PDS",
+        "type": "shell",
+        "command": "kubectl port-forward -n poltr deployment/pds 2583:2583",
+        "isBackground": true,
+        "problemMatcher": []
+      }
+    ]
+  },
   "launch": {
     "version": "0.2.0",
     "configurations": [
