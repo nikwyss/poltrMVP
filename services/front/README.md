@@ -139,55 +139,58 @@ For production deployment with a real domain:
 
 ```
 src/
+├── app/
+│   ├── page.tsx                        # Login page (root)
+│   ├── layout.tsx                      # Root layout with AuthProvider
+│   ├── auth/                           # Auth pages (UI)
+│   │   ├── register/page.tsx
+│   │   ├── verify-login/page.tsx
+│   │   ├── verify-registration/page.tsx
+│   │   ├── magic-link-sent/page.tsx
+│   │   └── callback/page.tsx           # OAuth callback
+│   ├── api/
+│   │   ├── auth/                       # Auth API routes (server-only)
+│   │   │   ├── verify-login/route.ts   # Sets httpOnly session cookie
+│   │   │   ├── verify-registration/route.ts
+│   │   │   ├── session/route.ts        # Session validity check
+│   │   │   └── logout/route.ts         # Clears session cookie
+│   │   └── xrpc/[...path]/route.ts     # Catch-all AppView proxy
+│   ├── home/page.tsx
+│   ├── proposals/page.tsx
+│   └── [slug]/page.tsx                 # CMS pages
 ├── lib/
-│   ├── oauthClient.ts      # OAuth client configuration
-│   ├── AuthContext.tsx     # Authentication state management
-│   ├── oauth.ts            # OAuth utilities (PKCE, state)
-│   └── atproto.ts          # AT Protocol helpers
-├── pages/
-│   ├── Login.tsx           # Login page with handle input
-│   ├── Callback.tsx        # OAuth callback handler
-│   └── Home.tsx            # Protected home page
-└── App.tsx                 # Main app with routing
+│   ├── AuthContext.tsx                  # Auth state management
+│   ├── agent.ts                        # AT Protocol agent + AppView calls
+│   ├── useAppPassword.ts               # App password hook
+│   ├── oauthClient.ts                  # OAuth client config
+│   └── cms.ts                          # CMS client
+└── components/
+    └── RichText.tsx                     # Lexical JSON renderer
 ```
+
+### `app/auth/` vs `app/api/auth/`
+
+Both folders deal with authentication but serve different roles:
+
+- **`app/auth/`** contains **pages** — React components rendered in the browser. These are the UI screens the user sees: the registration form, the "check your email" message, the verification spinner, and the OAuth callback handler.
+
+- **`app/api/auth/`** contains **API routes** — server-only Node.js handlers that return JSON. These exist because the verify-login and verify-registration flows need to intercept the AppView response, extract the `session_token`, and set it as an `httpOnly` cookie before returning user data to the client. The catch-all XRPC proxy (`app/api/xrpc/`) can't do this since it forwards responses as-is.
+
+The page at `app/auth/verify-login/page.tsx` calls the API route at `app/api/auth/verify-login/route.ts`, which in turn calls the AppView. This is intentional: the session token never reaches the browser's JavaScript.
 
 ## Security Notes
 
-- ✅ Uses PKCE for public client security
-- ✅ DPoP-bound access tokens enabled
-- ✅ State parameter validation handled automatically
-- ✅ Tokens stored securely in IndexedDB
-- ⚠️ For production, use HTTPS with a real domain
-- ⚠️ Loopback clients (127.0.0.1) are for development only
+- Session tokens are stored in `httpOnly` cookies, not accessible to client JS
+- All AppView calls are proxied server-side via Next.js API routes
+- `APPVIEW_URL` is a server-only env var (not exposed to the browser)
+- OAuth uses PKCE with DPoP-bound access tokens
+- For production, use HTTPS with a real domain
+- Loopback clients (127.0.0.1) are for development only
 
 ## Tech Stack
 
+- **Next.js** - Framework (App Router, standalone mode)
 - **React 19** - UI framework
 - **TypeScript** - Type safety
-- **Vite** - Build tool and dev server
-- **React Router** - Client-side routing
 - **@atproto/oauth-client-browser** - AT Protocol OAuth
-- **Nginx** (Docker) - Production web server
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- **Payload CMS** - Content management (external service)

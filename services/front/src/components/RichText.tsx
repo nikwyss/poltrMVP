@@ -57,7 +57,8 @@ function renderNode(node: LexicalNode, index: number): React.ReactNode {
       return <p key={key}>{children}</p>
 
     case 'heading':
-      const HeadingTag = (node.tag || 'h2') as keyof React.JSX.IntrinsicElements
+      const headingTag = node.tag as string
+      const HeadingTag = (['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(headingTag) ? headingTag : 'h2') as keyof React.JSX.IntrinsicElements
       return <HeadingTag key={key}>{children}</HeadingTag>
 
     case 'list':
@@ -68,10 +69,12 @@ function renderNode(node: LexicalNode, index: number): React.ReactNode {
       return <li key={key}>{children}</li>
 
     case 'link':
+      const rawHref = typeof node.url === 'string' ? node.url : ''
+      const href = /^(https?:\/\/|mailto:|tel:|\/)/.test(rawHref) ? rawHref : '#'
       return (
         <a
           key={key}
-          href={node.url as string}
+          href={href}
           target={node.newTab ? '_blank' : undefined}
           rel={node.newTab ? 'noopener noreferrer' : undefined}
         >

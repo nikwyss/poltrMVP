@@ -23,7 +23,7 @@ export async function createProposal(
   const agent = await getAuthenticatedAgent();
 
   // Get user's DID
-  const storedUser = sessionStorage.getItem('user');
+  const storedUser = localStorage.getItem('poltr_user');
   if (!storedUser) {
     throw new Error('No user in session');
   }
@@ -48,7 +48,7 @@ export async function createProposal(
 export async function deleteProposal(rkey: string): Promise<void> {
   const agent = await getAuthenticatedAgent();
 
-  const storedUser = sessionStorage.getItem('user');
+  const storedUser = localStorage.getItem('poltr_user');
   if (!storedUser) {
     throw new Error('No user in session');
   }
@@ -79,7 +79,7 @@ export async function updateProposal(
 
   const agent = await getAuthenticatedAgent();
 
-  const storedUser = sessionStorage.getItem('user');
+  const storedUser = localStorage.getItem('poltr_user');
   if (!storedUser) {
     throw new Error('No user in session');
   }

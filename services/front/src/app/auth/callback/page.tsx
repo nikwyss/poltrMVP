@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '../../lib/AuthContext';
-import { getOAuthClient } from '../../lib/oauthClient';
+import { useAuth } from '../../../lib/AuthContext';
+import { getOAuthClient } from '../../../lib/oauthClient';
 
 export default function Callback() {
   const router = useRouter();

@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '../../lib/AuthContext';
+import { useAuth } from '../../../lib/AuthContext';
 
-function VerifyRegistrationContent() {
+function VerifyLoginContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { login } = useAuth();
@@ -27,12 +27,12 @@ function VerifyRegistrationContent() {
       }
 
       try {
-        const response = await fetch(`/api/auth/verify-registration`, {
+        const response = await fetch(`/api/auth/verify-login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ token, type: 'registration' }),
+          body: JSON.stringify({ token, type: 'login' }),
         });
 
         const data = await response.json();
@@ -83,7 +83,7 @@ function VerifyRegistrationContent() {
           }}>
             &#8987;
           </div>
-          <h2>Verifying your registration...</h2>
+          <h2>Verifying your magic link...</h2>
         </div>
       )}
 
@@ -95,7 +95,7 @@ function VerifyRegistrationContent() {
           }}>
             &#9989;
           </div>
-          <h2 style={{ color: '#0085ff' }}>Registration Complete!</h2>
+          <h2 style={{ color: '#0085ff' }}>Success!</h2>
           <p style={{ color: '#666', marginTop: '10px' }}>
             Redirecting you to the app...
           </p>
@@ -138,7 +138,7 @@ function VerifyRegistrationContent() {
   );
 }
 
-export default function VerifyRegistration() {
+export default function VerifyLogin() {
   return (
     <Suspense fallback={
       <div style={{
@@ -150,7 +150,7 @@ export default function VerifyRegistration() {
         Loading...
       </div>
     }>
-      <VerifyRegistrationContent />
+      <VerifyLoginContent />
     </Suspense>
   );
 }

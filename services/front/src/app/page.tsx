@@ -30,7 +30,7 @@ export default function Login() {
       }
 
       // Navigate to confirmation page with email as query param
-      router.push(`/magic-link-sent?email=${encodeURIComponent(email)}`);
+      router.push(`/auth/magic-link-sent?email=${encodeURIComponent(email)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send magic link');
       setLoading(false);
@@ -104,7 +104,7 @@ export default function Login() {
         <div style={{ textAlign: 'center' }}>
           <button
             type="button"
-            onClick={() => router.push('/register')}
+            onClick={() => router.push('/auth/register')}
             disabled={loading}
             style={{
               background: 'none',

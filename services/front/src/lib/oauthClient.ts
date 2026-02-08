@@ -8,7 +8,7 @@ export async function getOAuthClient(): Promise<BrowserOAuthClient> {
   }
 
   // Get OAuth configuration from environment variables
-  const redirectUri = process.env.NEXT_PUBLIC_REDIRECT_URI || 'http://127.0.0.1:5173/callback';
+  const redirectUri = process.env.NEXT_PUBLIC_REDIRECT_URI || 'http://127.0.0.1:5173/auth/callback';
   const clientIdBase = process.env.NEXT_PUBLIC_CLIENT_ID_BASE || 'http://127.0.0.1:5173';
   const scope = 'atproto transition:generic';
 

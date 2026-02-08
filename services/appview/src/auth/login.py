@@ -171,9 +171,6 @@ async def create_session_cookie(
 
     # # Set secure httpOnly cookie
     is_production = os.getenv("ENVIRONMENT", "development") == "production"
-    # frontend = os.getenv("APPVIEW_FRONTEND_URL", "http://localhost:5173")
-    # redirect_url = f"{frontend}/#session={session_token}"
-    # response = RedirectResponse(url=redirect_url, status_code=302)
     response.set_cookie(
         key="session_token",
         value=session_token,

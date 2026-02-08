@@ -3,16 +3,14 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Build-time arguments for Next.js public env vars (can override at build time)
-ARG NEXT_PUBLIC_REDIRECT_URI=https://poltr.ch/callback
-ARG NEXT_PUBLIC_CLIENT_ID_BASE=https://poltr.ch
-ARG NEXT_PUBLIC_PDS_URL=https://pds.poltr.info
-ARG NEXT_PUBLIC_API_URL=https://app.poltr.info
-ARG NEXT_PUBLIC_HANDLE_RESOLVER=https://bsky.social
+# Build-time arguments for Next.js public env vars (inlined into JS bundles at build time)
+ARG NEXT_PUBLIC_REDIRECT_URI
+ARG NEXT_PUBLIC_CLIENT_ID_BASE
+ARG NEXT_PUBLIC_PDS_URL
+ARG NEXT_PUBLIC_HANDLE_RESOLVER
 ENV NEXT_PUBLIC_REDIRECT_URI=$NEXT_PUBLIC_REDIRECT_URI
 ENV NEXT_PUBLIC_CLIENT_ID_BASE=$NEXT_PUBLIC_CLIENT_ID_BASE
 ENV NEXT_PUBLIC_PDS_URL=$NEXT_PUBLIC_PDS_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_HANDLE_RESOLVER=$NEXT_PUBLIC_HANDLE_RESOLVER
 
 # Copy package files

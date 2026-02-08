@@ -3,18 +3,14 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../lib/AuthContext';
 import { useEffect, useState, Suspense } from 'react';
-import { createAppPassword, initiateEidVerification } from '../../lib/agent';
+import { initiateEidVerification } from '../../lib/agent';
+import { useAppPassword } from '../../lib/useAppPassword';
 
 function HomeContent() {
   const { user, isAuthenticated, logout, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [appPassword, setAppPassword] = useState<{
-    name: string;
-    password: string;
-  } | null>(null);
-  const [appPasswordLoading, setAppPasswordLoading] = useState(false);
-  const [appPasswordError, setAppPasswordError] = useState<string | null>(null);
+  const { appPassword, loading: appPasswordLoading, error: appPasswordError, handleCreateAppPassword } = useAppPassword();
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [verificationSuccess, setVerificationSuccess] = useState(false);
@@ -34,22 +30,6 @@ function HomeContent() {
       router.push('/');
     }
   }, [isAuthenticated, loading, router]);
-
-  const handleCreateAppPassword = async () => {
-    setAppPasswordLoading(true);
-    setAppPasswordError(null);
-    setAppPassword(null);
-    try {
-      const result = await createAppPassword();
-      setAppPassword({ name: result.name, password: result.password });
-    } catch (err) {
-      setAppPasswordError(
-        err instanceof Error ? err.message : 'Failed to create app password'
-      );
-    } finally {
-      setAppPasswordLoading(false);
-    }
-  };
 
   if (loading) {
     return (
