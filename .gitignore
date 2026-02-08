@@ -1,7 +1,9 @@
-k8s/secrets.yaml
+infra/kube/secrets.yaml
 
 *.env
-setup/opendata_swiss/votings.csv
+**/.env.*
+!**/.env.example
+infra/scripts/opendata_swiss/votings.csv
 vendor
 *./node_modules/*
 dump
@@ -31,8 +33,7 @@ node_modules
 .idea
 
 # OpenStack credentials
-infra/clouds.yaml
-infra/*-openrc.sh
+infra/openstack/
 
 # Infomaniak API token
 infomaniak-api-token.txt

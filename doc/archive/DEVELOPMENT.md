@@ -19,7 +19,7 @@ poltr/
 │   ├── front/      # React frontend (TypeScript + Vite)
 │   ├── appview/    # API service (Python + FastAPI)
 │   └── indexer/    # Firehose listener (Node.js)
-├── k8s/            # Kubernetes manifests
+├── infra/          # Infrastructure (kube manifests, certs, scripts)
 ├── doc/            # Project documentation
 └── .github/        # CI/CD workflows
 ```
@@ -93,7 +93,7 @@ kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432
 
 ```bash
 # Apply Kubernetes manifests
-kubectl apply -f k8s/poltr.yaml
+kubectl apply -f infra/kube/poltr.yaml
 
 # Restart a deployment
 kubectl rollout restart deployment/appview -n poltr
@@ -160,8 +160,8 @@ curl -o echtzeitdaten.json https://ckan.opendata.swiss/api/3/action/package_show
 kubectl port-forward -n poltr deployment/pds 2583:2583
 
 # Import
-source ./setup/opendata_swiss/.env 
-python3 ./setup/opendata_swiss/import_proposals.py
+source ./infra/scripts/opendata_swiss/.env 
+python3 ./infra/scripts/opendata_swiss/import_proposals.py
 ```
 
 ### Update Vendor Dependencies

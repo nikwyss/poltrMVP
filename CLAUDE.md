@@ -18,9 +18,9 @@ ATProto-based civic-tech platform for Swiss referenda. Monorepo with custom serv
 ## Kubernetes
 
 - **Namespace:** `poltr`
-- **Main manifest:** `k8s/poltr.yaml`
-- **Cronjobs:** `k8s/cronjobs.yaml`
-- **Secrets template:** `k8s/secrets.yaml.dist`
+- **Main manifest:** `infra/kube/poltr.yaml`
+- **Cronjobs:** `infra/kube/cronjobs.yaml`
+- **Secrets template:** `infra/kube/secrets.yaml.dist`
 
 Common commands:
 ```bash

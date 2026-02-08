@@ -12,7 +12,27 @@
 - **Updated all client pages**: `page.tsx`, `verify-login`, `register`, `verify-registration` now use relative `/api/...` URLs instead of direct AppView calls
 - **Updated `lib/agent.ts`**: All XRPC calls (`listProposals`, `createAppPassword`, `initiateEidVerification`) route through `/api/xrpc/...` proxy; removed `localStorage` session token logic
 - **Updated `lib/AuthContext.tsx`**: On mount verifies session via `/api/auth/session`; logout calls `/api/auth/logout`; removed all `session_token` localStorage references
-- **`APPVIEW_URL` is now server-only**: No longer exposed to the client via `NEXT_PUBLIC_API_URL`
+- **`APPVIEW_URL` server-only env var**: API routes use `APPVIEW_URL` with fallback to `NEXT_PUBLIC_API_URL` for local dev compatibility
+- **Hardened `RichText` component**: Whitelisted heading tags to `h1`–`h6` (prevents arbitrary tag injection), restricted link `href` to `http(s)://`, `mailto:`, `tel:`, and relative paths (blocks `javascript:` URIs)
+- **Extracted `useAppPassword` hook**: Moved app password state and logic from `home/page.tsx` to `lib/useAppPassword.ts`
+- **Reorganized auth pages under `app/auth/`**: Moved `register`, `verify-login`, `verify-registration`, `magic-link-sent`, `callback` into `auth/` subfolder (URLs now `/auth/...`); updated all internal links and import paths
+- **Updated `README.md`**: Rewrote project structure, documented `app/auth/` vs `app/api/auth/` distinction, corrected tech stack (was still referencing Vite/Nginx)
+
+- **Fixed `lib/proposals.ts`**: Changed `sessionStorage.getItem('user')` to `localStorage.getItem('poltr_user')` — `createProposal`, `deleteProposal`, `updateProposal` were broken
+- **Cleaned up Dockerfile**: Removed hardcoded env defaults, removed `NEXT_PUBLIC_API_URL` (no longer used client-side); `NEXT_PUBLIC_*` build args now passed from CI
+- **Untracked `.env.local` from git**: Added `**/.env.*` to `.gitignore`, kept `!**/.env.example`
+
+### services/appview
+- **Updated email template links**: Magic link URLs now point to `/auth/verify-login` and `/auth/verify-registration`
+
+### CI/CD
+- **Added `NEXT_PUBLIC_*` build args to GitHub Actions**: Frontend Docker build now receives public env vars (redirect URI, client ID base, PDS URL, handle resolver) via `build-args`
+
+### Infrastructure
+- **Added `APPVIEW_URL` to `front-secrets`**: Runtime server-only env var for API route proxying to AppView
+- **Restructured repo root**: Consolidated `k8s/`, `setup/`, `issues/` into `infra/` with subfolders (`kube/`, `cert/`, `deployer/`, `scripts/`, `openstack/`); moved docs to `doc/`; renamed `ARCHIV` to `archive`
+- **Removed root `package.json`/`node_modules`**: Unused workspace root with only `concurrently` devDependency
+- **Cleaned up `.gitignore`**: Updated all paths for new structure; ignored entire `infra/openstack/` directory
 
 ## 2026-02-05
 

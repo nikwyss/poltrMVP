@@ -5,8 +5,8 @@
 POLTR is an ATProto-based civic-tech platform for Swiss referenda running as a monorepo with multiple services deployed on Kubernetes (Infomaniak Public Cloud).
 
 **Namespace:** `poltr`
-**Main manifest:** `k8s/poltr.yaml`
-**Cronjobs:** `k8s/cronjobs.yaml`
+**Main manifest:** `infra/kube/poltr.yaml`
+**Cronjobs:** `infra/kube/cronjobs.yaml`
 
 ## Services
 

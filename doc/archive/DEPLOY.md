@@ -3,7 +3,7 @@ This document explains how to set up GitHub Actions-based deployments for `servi
 1) Create the ServiceAccount + RBAC in the cluster
 
 ```bash
-kubectl apply -f kube/gha-deployer.yaml
+kubectl apply -f infra/deployer/gha-deployer.yaml
 ```
 
 2) Create a service account token and kubeconfig file for GitHub Actions

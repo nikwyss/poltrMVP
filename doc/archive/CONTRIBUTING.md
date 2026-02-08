@@ -20,13 +20,15 @@
 poltr/
 ├── .github/workflows/       # CI/CD pipelines
 ├── doc/                     # Project documentation
-├── k8s/                     # Kubernetes manifests
+├── infra/                   # Infrastructure
+│   ├── kube/              # Kubernetes manifests
+│   ├── cert/              # Certificate management
+│   ├── deployer/          # GHA deployer RBAC
+│   └── scripts/           # One-off setup scripts
 ├── services/               # Application services
 │   ├── front/             # React frontend
 │   ├── appview/           # API service
 │   └── indexer/           # Firehose indexer
-├── setup/                  # Setup scripts
-└── vendor/                 # Third-party dependencies
 ```
 
 ## Local Development
@@ -76,7 +78,7 @@ kubectl logs -n poltr deployment/indexer --tail=50
 - Include health checks
 
 ### Kubernetes
-- All manifests in `k8s/` directory
+- All manifests in `infra/kube/` directory
 - Use namespaces (`poltr`)
 - Document resource requirements
 

@@ -15,7 +15,7 @@
 #      --from-literal=api-token=YOUR_TOKEN
 #
 # 4. Apply this file:
-#    kubectl apply -f k8s/cert-manager-wildcard.yaml
+#    kubectl apply -f infra/cert/cert-manager-wildcard.yaml
 ---
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer

@@ -110,7 +110,7 @@ Sollte das DID zurückgeben.
 
 ## 7. Ozone konfigurieren
 
-In `k8s/secrets.yaml` das neue DID setzen:
+In `infra/kube/secrets.yaml` das neue DID setzen:
 
 ```yaml
 OZONE_SERVER_DID: "<did>"
@@ -119,7 +119,7 @@ OZONE_SERVER_DID: "<did>"
 Apply und Restart:
 
 ```bash
-kubectl apply -f k8s/secrets.yaml
+kubectl apply -f infra/kube/secrets.yaml
 kubectl rollout restart deployment/ozone -n poltr
 ```
 
