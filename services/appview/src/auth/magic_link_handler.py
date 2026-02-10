@@ -30,7 +30,19 @@ async def send_magic_link_handler(data: SendMagicLinkData):
 
         email = data.email.lower()
 
-        # VERIFY ON PDS
+        # Check that account exists before sending a magic link
+        async with db.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT 1 FROM auth_creds WHERE email = $1", email
+            )
+            if not row:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "error": "user_not_found",
+                        "message": "No account found for this email",
+                    },
+                )
 
         # Generate secure random token
         token = secrets.token_urlsafe(32)
@@ -42,7 +54,7 @@ async def send_magic_link_handler(data: SendMagicLinkData):
         async with db.pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO magic_links (email, token, expires_at)
+                INSERT INTO auth_pending_logins (email, token, expires_at)
                 VALUES ($1, $2, $3)
                 """,
                 email,
@@ -91,8 +103,8 @@ async def verify_login_magic_link_handler(
         # Find token
         row = await conn.fetchrow(
             """
-            SELECT id, email, expires_at, used
-            FROM magic_links
+            SELECT id, email, expires_at
+            FROM auth_pending_logins
             WHERE token = $1
             """,
             token,
@@ -110,16 +122,6 @@ async def verify_login_magic_link_handler(
                 },
             )
 
-        # Check if already used
-        if row["used"]:
-            return JSONResponse(
-                status_code=400,
-                content={
-                    "error": "token_used",
-                    "message": "This link has already been used",
-                },
-            )
-
         # Check if expired
         if datetime.utcnow() > row["expires_at"]:
             return JSONResponse(
@@ -130,17 +132,12 @@ async def verify_login_magic_link_handler(
                 },
             )
 
-        # Mark token as used
-        await conn.execute(
-            """
-            UPDATE magic_links
-            SET used = TRUE
-            WHERE id = $1
-            """,
-            row["id"],
-        )
+        email = row["email"]
 
-        return row["email"]
+        # Delete pending login
+        await conn.execute("DELETE FROM auth_pending_logins WHERE id = $1", row["id"])
+
+        return email
 
 
 async def verify_registration_magic_link_handler(
@@ -160,7 +157,7 @@ async def verify_registration_magic_link_handler(
         row = await conn.fetchrow(
             """
             SELECT id, email, expires_at
-            FROM pending_registrations
+            FROM auth_pending_registrations
             WHERE token = $1
             """,
             token,
@@ -176,6 +173,6 @@ async def verify_registration_magic_link_handler(
         email = row["email"]
 
         # delete pending registration
-        await conn.execute("DELETE FROM pending_registrations WHERE id = $1", row["id"])
+        await conn.execute("DELETE FROM auth_pending_registrations WHERE id = $1", row["id"])
 
         return email

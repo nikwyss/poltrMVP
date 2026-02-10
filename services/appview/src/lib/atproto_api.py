@@ -96,6 +96,33 @@ async def pds_api_admin_create_account(
     return TCreateAccountResponse(**resp.json())
 
 
+async def pds_api_admin_delete_account(did: str) -> None:
+    """Delete a PDS account using admin auth. Used as compensating action."""
+    pds_internal_url = os.getenv(
+        "PDS_INTERNAL_URL", "http://pds.poltr.svc.cluster.local"
+    )
+    pds_admin_password = os.getenv("PDS_ADMIN_PASSWORD")
+    if not pds_admin_password:
+        raise ValueError("PDS_ADMIN_PASSWORD must be set")
+
+    auth_string = f"admin:{pds_admin_password}"
+    auth_bytes = base64.b64encode(auth_string.encode()).decode()
+    headers = {"Authorization": f"Basic {auth_bytes}"}
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{pds_internal_url}/xrpc/com.atproto.admin.deleteAccount",
+            headers=headers,
+            json={"did": did},
+        )
+
+    if resp.status_code != 200:
+        logger.error(f"Failed to delete PDS account {did}: {resp.text}")
+        raise RuntimeError(f"Failed to delete PDS account: {resp.text}")
+
+    logger.info(f"Compensating delete: removed PDS account {did}")
+
+
 async def pds_api_login(did: str, password: str) -> TLoginAccountResponse:
     """Login to PDS via its API."""
     pds_url = os.getenv("PDS_HOSTNAME")
@@ -176,7 +203,7 @@ async def pds_api_create_app_password(
                     async with db_pool.acquire() as conn:
                         await conn.execute(
                             """
-                            UPDATE pds_creds
+                            UPDATE auth_sessions
                             SET access_token = $1, refresh_token = $2
                             WHERE session_token = $3 AND did = $4
                             """,

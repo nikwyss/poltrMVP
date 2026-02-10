@@ -43,7 +43,7 @@ async def verify_session_token(
         row = await conn.fetchrow(
             """
             SELECT session_token, did, user_data, expires_at, last_accessed_at, access_token, refresh_token
-            FROM sessions
+            FROM auth_sessions
             WHERE session_token = $1
             """,
             token,
@@ -55,13 +55,13 @@ async def verify_session_token(
         # Check if session expired
         if datetime.utcnow() > row["expires_at"]:
             # Clean up expired session
-            await conn.execute("DELETE FROM sessions WHERE session_token = $1", token)
+            await conn.execute("DELETE FROM auth_sessions WHERE session_token = $1", token)
             raise HTTPException(status_code=401, detail="Session expired")
 
         # Update last accessed time
         await conn.execute(
             """
-            UPDATE sessions
+            UPDATE auth_sessions
             SET last_accessed_at = NOW()
             WHERE session_token = $1
             """,

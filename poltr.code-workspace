@@ -81,6 +81,16 @@
         "request": "launch",
         "command": "npm start",
         "cwd": "${workspaceFolder:frontend}"
+      },
+      {
+        "name": "AppView: Tests",
+        "type": "debugpy",
+        "request": "launch",
+        "module": "pytest",
+        "args": ["tests/", "-v"],
+        "cwd": "${workspaceFolder:appview}",
+        "python": "${workspaceFolder:appview}/venv/bin/python",
+        "justMyCode": false
       }
     ],
     "compounds": []

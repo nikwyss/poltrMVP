@@ -72,7 +72,7 @@ async def register(request: Request):
     token = secrets.token_urlsafe(32)
     expires_at = datetime.utcnow() + timedelta(minutes=30)
 
-    if not check_email_availability(email=email):
+    if not await check_email_availability(email=email):
         return JSONResponse(
             status_code=400,
             content={
@@ -91,7 +91,7 @@ async def register(request: Request):
         async with db.pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO pending_registrations (email, token, expires_at)
+                INSERT INTO auth_pending_registrations (email, token, expires_at)
                 VALUES ($1, $2, $3)
                 ON CONFLICT (email) DO UPDATE SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at
                 """,
@@ -143,7 +143,7 @@ async def confirm_registration(request: Request, data: VerifyRegistrationMagicLi
             content={"error": "invalid_token", "message": "Invalid token"},
         )
 
-    if not check_email_availability(email=response):
+    if not await check_email_availability(email=response):
         return JSONResponse(
             status_code=400,
             content={

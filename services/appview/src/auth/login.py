@@ -1,3 +1,4 @@
+import logging
 import secrets
 import json
 import os
@@ -8,9 +9,12 @@ from src.lib.atproto_api import (
     TCreateAccountResponse,
     TLoginAccountResponse,
     pds_api_admin_create_account,
+    pds_api_admin_delete_account,
     pds_api_login,
 )
 from src.lib.pds_creds import decrypt_app_password, encrypt_app_password
+
+logger = logging.getLogger(__name__)
 
 
 async def login_pds_account(user_email: str) -> JSONResponse:
@@ -26,7 +30,7 @@ async def login_pds_account(user_email: str) -> JSONResponse:
         row = await conn.fetchrow(
             """
             SELECT did, app_pw_ciphertext, app_pw_nonce
-            FROM pds_creds
+            FROM auth_creds
             WHERE email = $1
             """,
             user_email,
@@ -93,39 +97,47 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
         handle, password, user_email
     )
 
-    # Stroe encrypted password
+    # Everything after this point must succeed, or we delete the PDS account.
+    try:
+        if db.pool is None:
+            await db.init_pool()
 
-    if db.pool is None:
-        print("Pool is None, initializing now...")
-        await db.init_pool()
-        print("Pool initialized successfully")
+        # Store encrypted password in auth_creds
+        async with db.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO auth_creds (did, handle, email, pds_url, app_pw_ciphertext, app_pw_nonce)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                """,
+                user_session.did,
+                handle,
+                user_email,
+                os.getenv("PDS_HOSTNAME"),
+                ciphertext,
+                nonce,
+            )
 
-    # store password in creds table
-    async with db.pool.acquire() as conn:
+        response: JSONResponse = await create_session_cookie(user_session=user_session)
 
-        # Insert new entry in pds_creds table
-        await conn.execute(
-            """
-            INSERT INTO pds_creds (did, handle, email, pds_url, app_pw_ciphertext, app_pw_nonce)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            """,
-            user_session.did,
-            handle,
-            user_email,
-            os.getenv("PDS_HOSTNAME"),
-            ciphertext,
-            nonce,
+        response.content = (  # type: ignore
+            {
+                "success": True,
+                "message": "Account created successfully",
+            },
         )
+        return response
 
-    response: JSONResponse = await create_session_cookie(user_session=user_session)
-
-    response.content = (  # type: ignore
-        {
-            "success": True,
-            "message": "Account created successfully",
-        },
-    )
-    return response
+    except Exception as e:
+        # Compensating action: delete the PDS account we just created
+        logger.error(f"Registration failed after PDS account creation: {e}")
+        try:
+            await pds_api_admin_delete_account(user_session.did)
+        except Exception as delete_err:
+            logger.error(f"Failed to delete orphan PDS account {user_session.did}: {delete_err}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "registration_failed", "message": "Account creation failed, please try again"},
+        )
 
 
 async def create_session_cookie(
@@ -147,7 +159,7 @@ async def create_session_cookie(
     async with db.pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO sessions (session_token, did, user_data, expires_at, access_token, refresh_token)
+            INSERT INTO auth_sessions (session_token, did, user_data, expires_at, access_token, refresh_token)
             VALUES ($1, $2, $3, $4, $5, $6)
             """,
             session_token,
@@ -186,7 +198,7 @@ async def create_session_cookie(
 
 async def check_email_availability(email: str) -> bool:
     """
-    Check if a handle/email is not used in the pds_creds table.
+    Check if a handle/email is not used in the auth_creds table.
     True means available, False means taken.
     """
     if db.pool is None:
@@ -196,7 +208,7 @@ async def check_email_availability(email: str) -> bool:
         row = await conn.fetchrow(
             """
             SELECT email
-            FROM pds_creds
+            FROM auth_creds
             WHERE email = $1
             """,
             email,
