@@ -21,8 +21,53 @@
     "files.exclude": {
       "**/node_modules": true,
       "**/__pycache__": true,
-      "**/*.pyc": true
+      "**/*.pyc": true,
+      "**/.git": true
+    },
+    "editor.formatOnSave": true,
+    "python.defaultInterpreterPath": "${workspaceFolder:appview}/venv/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.analysis.typeCheckingMode": "basic",
+    "[python]": {
+      "editor.defaultFormatter": "ms-python.black-formatter",
+      "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit"
+      }
+    },
+    "[typescript]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+      }
+    },
+    "[typescriptreact]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+      }
+    },
+    "[javascript]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+      }
+    },
+    "[json]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[jsonc]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
     }
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-python.python",
+      "ms-python.vscode-pylance",
+      "ms-python.black-formatter",
+      "ms-python.debugpy",
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode"
+    ]
   },
   "tasks": {
     "version": "2.0.0",
@@ -40,6 +85,25 @@
         "command": "kubectl port-forward -n poltr deployment/pds 2583:2583",
         "isBackground": true,
         "problemMatcher": []
+      },
+      {
+        "label": "AppView: Install Dependencies",
+        "type": "shell",
+        "command": "source ${workspaceFolder:appview}/venv/bin/activate && pip install -r requirements.txt",
+        "options": {
+          "cwd": "${workspaceFolder:appview}"
+        },
+        "group": "build",
+        "problemMatcher": []
+      },
+      {
+        "label": "Indexer: Lint",
+        "type": "shell",
+        "command": "npm run lint",
+        "options": {
+          "cwd": "${workspaceFolder:indexer}"
+        },
+        "problemMatcher": ["$eslint-stylish"]
       }
     ]
   },
@@ -50,19 +114,61 @@
         "name": "AppView: FastAPI",
         "type": "debugpy",
         "request": "launch",
-        "module": "uvicorn",
+        "program": "${workspaceFolder:appview}/venv/bin/uvicorn",
         "args": [
-          "main:app",
+          "src.main:app",
           "--reload",
-          "--host",
-          "0.0.0.0",
-          "--port",
-          "3000"
+          "--host", "0.0.0.0",
+          "--port", "3000",
+          "--reload-exclude", "venv",
+          "--reload-exclude", ".venv",
+          "--reload-exclude", "__pycache__"
         ],
         "cwd": "${workspaceFolder:appview}",
+        "python": "${workspaceFolder:appview}/venv/bin/python",
+        "envFile": "${workspaceFolder:appview}/.env",
         "env": {
-          "APPVIEW_POSTGRES_URL": "${env:APPVIEW_POSTGRES_URL}"
+          "VIRTUAL_ENV": "${workspaceFolder:appview}/venv",
+          "PATH": "${workspaceFolder:appview}/venv/bin:${env:PATH}"
         }
+      },
+      {
+        "name": "AppView: Debug Current File",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${file}",
+        "console": "integratedTerminal",
+        "cwd": "${workspaceFolder:appview}",
+        "envFile": "${workspaceFolder:appview}/.env"
+      },
+      {
+        "name": "AppView: Tests",
+        "type": "debugpy",
+        "request": "launch",
+        "module": "pytest",
+        "args": ["tests/", "-v"],
+        "cwd": "${workspaceFolder:appview}",
+        "python": "${workspaceFolder:appview}/venv/bin/python",
+        "envFile": "${workspaceFolder:appview}/.env",
+        "justMyCode": false
+      },
+      {
+        "name": "Frontend: Dev Server",
+        "type": "node-terminal",
+        "request": "launch",
+        "command": "npx next dev -p 5173 -H 127.0.0.1",
+        "cwd": "${workspaceFolder:frontend}"
+      },
+      {
+        "name": "Frontend: Debug",
+        "type": "node",
+        "request": "launch",
+        "runtimeExecutable": "${workspaceFolder:frontend}/node_modules/.bin/next",
+        "cwd": "${workspaceFolder:frontend}",
+        "runtimeArgs": ["dev", "-p", "5173", "-H", "127.0.0.1"],
+        "env": { "NODE_OPTIONS": "--inspect" },
+        "skipFiles": ["<node_internals>/**"],
+        "console": "integratedTerminal"
       },
       {
         "name": "Indexer: Node.js",
@@ -76,21 +182,16 @@
         }
       },
       {
-        "name": "Frontend: Dev Server",
+        "name": "Port Forward: PostgreSQL",
         "type": "node-terminal",
         "request": "launch",
-        "command": "npm start",
-        "cwd": "${workspaceFolder:frontend}"
+        "command": "kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432"
       },
       {
-        "name": "AppView: Tests",
-        "type": "debugpy",
+        "name": "Port Forward: PDS",
+        "type": "node-terminal",
         "request": "launch",
-        "module": "pytest",
-        "args": ["tests/", "-v"],
-        "cwd": "${workspaceFolder:appview}",
-        "python": "${workspaceFolder:appview}/venv/bin/python",
-        "justMyCode": false
+        "command": "kubectl port-forward -n poltr deployment/pds 2583:2583"
       }
     ],
     "compounds": []

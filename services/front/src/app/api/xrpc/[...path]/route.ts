@@ -36,7 +36,15 @@ async function proxyRequest(request: NextRequest, { params }: { params: Promise<
     fetchInit.body = await request.text();
   }
 
-  const res = await fetch(url.toString(), fetchInit);
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), fetchInit);
+  } catch (err) {
+    return NextResponse.json(
+      { error: 'service_unavailable', message: 'AppView is not reachable' },
+      { status: 502 },
+    );
+  }
 
   const responseBody = await res.text();
 

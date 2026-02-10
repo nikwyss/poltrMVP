@@ -23,7 +23,13 @@ export default function Login() {
         body: JSON.stringify({ email }),
       });
 
-      const data = await response.json();
+      const text = await response.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error('Server error — please try again later');
+      }
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to send magic link');
