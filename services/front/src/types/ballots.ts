@@ -1,7 +1,7 @@
 
 // TypeScript types for our lexicons
-export interface ProposalRecord {
-  $type: 'app.ch.poltr.vote.proposal';
+export interface BallotRecord {
+  $type: 'app.ch.poltr.ballot.entry';
   title: string;
   topic?: string;
   text?: string;
@@ -11,12 +11,12 @@ export interface ProposalRecord {
   createdAt?: string;
 }
 
-export interface ProposalEmbed {
-  $type: 'app.ch.poltr.vote.embed';
-  proposal: ProposalView;
+export interface BallotEmbed {
+  $type: 'app.ch.poltr.ballot.embed';
+  ballot: BallotView;
 }
 
-export interface ProposalView {
+export interface BallotView {
   uri: string; // at-uri format
   cid: string;
   title: string;
@@ -26,10 +26,10 @@ export interface ProposalView {
 }
 
 
-export interface ProposalWithMetadata {
+export interface BallotWithMetadata {
   uri: string;
   cid: string;
-  record: ProposalRecord;
+  record: BallotRecord;
   author?: {
     did: string;
     labels: string[];
@@ -41,4 +41,3 @@ export interface ProposalWithMetadata {
   labels?: string[];
   liked?: boolean;
 }
-

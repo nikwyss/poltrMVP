@@ -87,7 +87,7 @@ function HomeContent() {
         gap: '16px'
       }}>
         <button
-          onClick={() => router.push('/proposals')}
+          onClick={() => router.push('/ballots')}
           style={{
             padding: '12px 24px',
             fontSize: '16px',

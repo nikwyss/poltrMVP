@@ -54,7 +54,7 @@ The API will be available at: http://localhost:3000
 ## API Endpoints
 
 - `GET /healthz` - Health check endpoint
-- `GET /xrpc/app.ch.poltr.vote.listProposals` - List proposals with optional filters:
+- `GET /xrpc/app.ch.poltr.ballot.list` - List ballot entries with optional filters:
   - `did` (optional): Filter by DID
   - `since` (optional): Filter by date (ISO 8601)
   - `limit` (optional): Number of results (default: 50)

@@ -27,7 +27,7 @@ POLTR is an ATProto-based civic-tech platform for Swiss referenda running as a m
 #### 2. AppView (`services/appview`)
 - **Tech Stack:** Python 3.11, FastAPI, asyncpg
 - **Purpose:** Application logic and read APIs
-- **Database:** PostgreSQL (shared with indexer)
+- **Database:** PostgreSQL `appview` database (shared with indexer)
 - **APIs:** Custom lexicons for proposals, arguments, likes
 - **Image:** `ghcr.io/nikwyss/poltr-appview:latest`
 - **Port:** 3000

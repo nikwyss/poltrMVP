@@ -22,10 +22,10 @@ export async function dbQuery(clientOrPool, text, params = []) {
 
 
 /**
- * Upsert a proposal record into poltr_vote_proposal.
+ * Upsert a ballot record into poltr_vote_proposal.
  * Uses the given client (transactional) or pool.
  */
-export async function upsertProposalDb(clientOrPool, params) {
+export async function upsertBallotDb(clientOrPool, params) {
   const { uri, cid, did, rkey, record } = params
 
   const title = record.title ?? null

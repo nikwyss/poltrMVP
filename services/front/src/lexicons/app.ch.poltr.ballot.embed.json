@@ -1,49 +1,49 @@
 {
   "lexicon": 1,
-  "id": "app.ch.poltr.vote.embed",
+  "id": "app.ch.poltr.ballot.embed",
   "defs": {
     "main": {
       "type": "object",
-      "description": "Embed a Swiss referendum proposal in a post or record",
+      "description": "Embed a Swiss ballot entry in a post or record",
       "properties": {
-        "proposal": {
+        "ballot": {
           "type": "ref",
-          "ref": "#proposalView"
+          "ref": "#ballotView"
         }
       },
-      "required": ["proposal"]
+      "required": ["ballot"]
     },
-    "proposalView": {
+    "ballotView": {
       "type": "object",
-      "description": "View of an embedded proposal record",
+      "description": "View of an embedded ballot record",
       "properties": {
         "uri": {
           "type": "string",
           "format": "at-uri",
-          "description": "AT URI of the proposal record"
+          "description": "AT URI of the ballot record"
         },
         "cid": {
           "type": "string",
           "format": "cid",
-          "description": "CID of the proposal record"
+          "description": "CID of the ballot record"
         },
         "title": {
           "type": "string",
-          "description": "Title of the proposal"
+          "description": "Title of the ballot entry"
         },
         "topic": {
           "type": "string",
-          "description": "Topic/category of the proposal"
+          "description": "Topic/category of the ballot entry"
         },
         "voteDate": {
           "type": "string",
           "format": "date",
-          "description": "Date of the referendum vote"
+          "description": "Date of the ballot vote"
         },
         "language": {
           "type": "string",
           "enum": ["de-CH", "fr-CH", "it-CH", "rm-CH"],
-          "description": "Language of the proposal"
+          "description": "Language of the ballot entry"
         }
       },
       "required": ["uri", "cid", "title", "voteDate"]

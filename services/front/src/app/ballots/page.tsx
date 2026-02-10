@@ -3,17 +3,17 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/AuthContext';
-import { listProposalsAppView } from '../../lib/agent';
+import { listBallots } from '../../lib/agent';
 import { formatDate } from '../../lib/utils';
-import type { ProposalWithMetadata } from '../../types/proposals';
+import type { BallotWithMetadata } from '../../types/ballots';
 
 
 
-export default function ProposalsSearch() {
+export default function BallotSearch() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [proposals, setProposals] = useState<ProposalWithMetadata[]>([]);
-  const [loading, setLoading] = useState(true); // loading proposals
+  const [ballots, setBallots] = useState<BallotWithMetadata[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -22,10 +22,10 @@ export default function ProposalsSearch() {
       router.push('/');
       return;
     }
-    loadProposals();
+    loadBallots();
   }, [isAuthenticated, authLoading, router]);
 
-  const loadProposals = async () => {
+  const loadBallots = async () => {
     if (!user) return;
 
     setLoading(true);
@@ -33,13 +33,13 @@ export default function ProposalsSearch() {
 
     try {
 
-      const proposals: ProposalWithMetadata[] = await listProposalsAppView()
-      console.log('Fetched proposals:', proposals);
+      const ballots: BallotWithMetadata[] = await listBallots()
+      console.log('Fetched ballots:', ballots);
 
-      setProposals(proposals || []);
+      setBallots(ballots || []);
     } catch (err) {
-      console.error('Error loading proposals:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load proposals');
+      console.error('Error loading ballots:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load ballots');
     } finally {
       setLoading(false);
     }
@@ -70,7 +70,7 @@ export default function ProposalsSearch() {
           alignItems: 'center',
           marginBottom: '30px'
         }}>
-          <h1 style={{ margin: 0 }}>Swiss Referendum Proposals.</h1>
+          <h1 style={{ margin: 0 }}>Swiss Ballot Entries.</h1>
           <button
             onClick={() => router.push('/home')}
             style={{
@@ -94,7 +94,7 @@ export default function ProposalsSearch() {
           backgroundColor: 'white',
           borderRadius: '8px'
         }}>
-          <p>Loading proposals...</p>
+          <p>Loading ballots...</p>
         </div>
       )}
 
@@ -109,7 +109,7 @@ export default function ProposalsSearch() {
         }}>
           <strong>Error:</strong> {error}
           <button
-            onClick={loadProposals}
+            onClick={loadBallots}
             style={{
               marginLeft: '20px',
               padding: '8px 16px',
@@ -125,7 +125,7 @@ export default function ProposalsSearch() {
         </div>
       )}
 
-      {!loading && !error && proposals.length === 0 && (
+      {!loading && !error && ballots.length === 0 && (
         <div style={{
           textAlign: 'center',
           padding: '40px',
@@ -133,20 +133,20 @@ export default function ProposalsSearch() {
           borderRadius: '8px'
         }}>
           <p style={{ color: '#666', fontSize: '18px' }}>
-            No proposals found. Create your first proposal!
+            No ballot entries found.
           </p>
         </div>
       )}
 
-      {!loading && proposals.length > 0 && (
+      {!loading && ballots.length > 0 && (
         <div style={{
           display: 'grid',
           gap: '20px',
           gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))'
         }}>
-          {proposals.map((proposal) => (
+          {ballots.map((ballot) => (
             <div
-              key={proposal.uri}
+              key={ballot.uri}
               style={{
                 backgroundColor: 'white',
                 padding: '20px',
@@ -175,14 +175,14 @@ export default function ProposalsSearch() {
                   color: '#333',
                   fontSize: '18px'
                 }}>
-                  {proposal.record.title}
+                  {ballot.record.title}
                 </h3>
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px'
                 }}>
-                  {proposal.record.language && (
+                  {ballot.record.language && (
                     <span style={{
                       fontSize: '12px',
                       padding: '4px 8px',
@@ -190,7 +190,7 @@ export default function ProposalsSearch() {
                       borderRadius: '4px',
                       color: '#1976d2'
                     }}>
-                      {proposal.record.language}
+                      {ballot.record.language}
                     </span>
                   )}
 
@@ -214,17 +214,17 @@ export default function ProposalsSearch() {
                 </div>
               </div>
 
-              {proposal.record.topic && (
+              {ballot.record.topic && (
                 <div style={{
                   fontSize: '14px',
                   color: '#666',
                   marginBottom: '8px'
                 }}>
-                  <strong>Topic:</strong> {proposal.record.topic}
+                  <strong>Topic:</strong> {ballot.record.topic}
                 </div>
               )}
 
-              {proposal.record.text && (
+              {ballot.record.text && (
                 <p style={{
                   fontSize: '14px',
                   color: '#666',
@@ -235,7 +235,7 @@ export default function ProposalsSearch() {
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden'
                 }}>
-                  {proposal.record.text}
+                  {ballot.record.text}
                 </p>
               )}
 
@@ -249,14 +249,14 @@ export default function ProposalsSearch() {
               }}>
                 <div style={{ fontSize: '14px', color: '#666' }}>
                   <strong>Vote Date:</strong><br />
-                  {formatDate(proposal.record.voteDate)}
+                  {formatDate(ballot.record.voteDate)}
                 </div>
-                {proposal.record.officialRef && (
+                {ballot.record.officialRef && (
                   <div style={{
                     fontSize: '12px',
                     color: '#999'
                   }}>
-                    Ref: (1) {proposal.record.officialRef}
+                    Ref: (1) {ballot.record.officialRef}
                   </div>
                 )}
               </div>
@@ -267,20 +267,20 @@ export default function ProposalsSearch() {
                 color: '#999',
                 wordBreak: 'break-all'
               }}>
-                URI: {proposal.uri}
+                URI: {ballot.uri}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {!loading && proposals.length > 0 && (
+      {!loading && ballots.length > 0 && (
         <div style={{
           marginTop: '30px',
           textAlign: 'center',
           color: '#666'
         }}>
-          Found {proposals.length} proposal{proposals.length !== 1 ? 's' : ''}
+          Found {ballots.length} ballot{ballots.length !== 1 ? 's' : ''}
         </div>
       )}
     </div>

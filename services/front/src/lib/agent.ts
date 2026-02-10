@@ -1,4 +1,4 @@
-import type { ProposalWithMetadata } from '../types/proposals';
+import type { BallotWithMetadata } from '../types/ballots';
 import { Agent } from '@atproto/api';
 
 /**
@@ -57,7 +57,7 @@ export async function getAuthenticatedSession(): Promise<{ session: any; did: st
 }
 
 /**
- * Call an AppView xrpc endpoint (e.g. app.ch.poltr.vote.listProposals) using
+ * Call an AppView xrpc endpoint (e.g. app.ch.poltr.ballot.list) using
  * the restored session's fetchHandler so the request is authenticated.
  */
 export async function callAppXrpc(url: string, init: RequestInit = {}): Promise<Response> {
@@ -116,18 +116,18 @@ export async function listRecords(
 }
 
 
-export async function listProposalsAppView(_limit = 100): Promise<ProposalWithMetadata[]> {
+export async function listBallots(_limit = 100): Promise<BallotWithMetadata[]> {
   const authenticatedFetch = getAuthenticatedFetch();
 
-  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.vote.listProposals`);
+  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.ballot.list`);
 
   if (!res.ok) throw new Error(await res.text());
   const content = await res.json();
   console.log(content);
-  if (!content?.proposals) {
-    throw new Error('Invalid response from listProposals endpoint');
+  if (!content?.ballots) {
+    throw new Error('Invalid response from ballot.list endpoint');
   }
-  return content.proposals;
+  return content.ballots;
 }
 
 /**

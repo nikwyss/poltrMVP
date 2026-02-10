@@ -13,7 +13,7 @@ class Author:
 
 
 @dataclass
-class ProposalRecord:
+class BallotRecord:
     type_: Optional[str] = None  # $type
     title: Optional[str] = None
     description: Optional[str] = None
@@ -24,7 +24,7 @@ class ProposalRecord:
 
 
 @dataclass
-class Proposal:
+class Ballot:
     uri: str
     cid: str
     author: Author

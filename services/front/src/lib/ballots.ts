@@ -1,23 +1,23 @@
-import type { ProposalRecord } from '../types/proposals';
+import type { BallotRecord } from '../types/ballots';
 import { getAuthenticatedAgent } from './agent';
-import { validateProposal } from './lexicons';
+import { validateBallot } from './lexicons';
 
 
 /**
- * Create a new proposal record
+ * Create a new ballot record
  */
-export async function createProposal(
-  proposal: Omit<ProposalRecord, '$type' | 'createdAt'>
+export async function createBallot(
+  ballot: Omit<BallotRecord, '$type' | 'createdAt'>
 ): Promise<{ uri: string; cid: string }> {
   // Add type and timestamp
-  const record: ProposalRecord = {
-    $type: 'app.ch.poltr.vote.proposal',
-    ...proposal,
+  const record: BallotRecord = {
+    $type: 'app.ch.poltr.ballot.entry',
+    ...ballot,
     createdAt: new Date().toISOString(),
   };
 
   // Validate the record against the lexicon
-  validateProposal(record);
+  validateBallot(record);
 
   // Get authenticated agent
   const agent = await getAuthenticatedAgent();
@@ -32,7 +32,7 @@ export async function createProposal(
   // Create the record
   const response = await agent.com.atproto.repo.createRecord({
     repo: user.did,
-    collection: 'app.ch.poltr.vote.proposal',
+    collection: 'app.ch.poltr.ballot.entry',
     record: record as unknown as Record<string, unknown>,
   });
 
@@ -43,9 +43,9 @@ export async function createProposal(
 }
 
 /**
- * Delete a proposal record
+ * Delete a ballot record
  */
-export async function deleteProposal(rkey: string): Promise<void> {
+export async function deleteBallot(rkey: string): Promise<void> {
   const agent = await getAuthenticatedAgent();
 
   const storedUser = localStorage.getItem('poltr_user');
@@ -56,26 +56,26 @@ export async function deleteProposal(rkey: string): Promise<void> {
 
   await agent.com.atproto.repo.deleteRecord({
     repo: user.did,
-    collection: 'app.ch.poltr.vote.proposal',
+    collection: 'app.ch.poltr.ballot.entry',
     rkey: rkey,
   });
 }
 
 /**
- * Update a proposal record
+ * Update a ballot record
  */
-export async function updateProposal(
+export async function updateBallot(
   rkey: string,
-  proposal: Omit<ProposalRecord, '$type' | 'createdAt'>
+  ballot: Omit<BallotRecord, '$type' | 'createdAt'>
 ): Promise<{ uri: string; cid: string }> {
   // Add type
-  const record: ProposalRecord = {
-    $type: 'app.ch.poltr.vote.proposal',
-    ...proposal,
+  const record: BallotRecord = {
+    $type: 'app.ch.poltr.ballot.entry',
+    ...ballot,
   };
 
   // Validate the record against the lexicon
-  validateProposal(record);
+  validateBallot(record);
 
   const agent = await getAuthenticatedAgent();
 
@@ -87,7 +87,7 @@ export async function updateProposal(
 
   const response = await agent.com.atproto.repo.putRecord({
     repo: user.did,
-    collection: 'app.ch.poltr.vote.proposal',
+    collection: 'app.ch.poltr.ballot.entry',
     rkey: rkey,
     record: record as unknown as Record<string, unknown>,
   });

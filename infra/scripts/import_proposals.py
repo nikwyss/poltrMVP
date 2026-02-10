@@ -151,7 +151,7 @@ class ProposalImporter:
         
         # Create the record
         record = {
-            "$type": "app.ch.poltr.vote.proposal",
+            "$type": "app.ch.poltr.ballot.entry",
             "title": vote.titel_kurz_d,
             "topic": "Federal",
             "text": vote.titel_off_d,
@@ -170,7 +170,7 @@ class ProposalImporter:
         }
         payload = {
             "repo": self.did,
-            "collection": "app.ch.poltr.vote.proposal",
+            "collection": "app.ch.poltr.ballot.entry",
             "rkey": rkey,
             "record": record
         }

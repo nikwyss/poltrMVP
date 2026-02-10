@@ -22,11 +22,11 @@ router = APIRouter(prefix="/xrpc", tags=["poltr"])
 
 
 # -----------------------------------------------------------------------------
-# app.ch.poltr.vote.listProposals
+# app.ch.poltr.ballot.list
 # -----------------------------------------------------------------------------
 
 
-async def _get_proposals_handler(
+async def _get_ballots_handler(
     session: TSession, since: Optional[str] = None, limit: int = 50
 ):
     params = []
@@ -59,7 +59,7 @@ async def _get_proposals_handler(
         async with db_pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
 
-        proposals = []
+        ballots = []
         for r in rows:
             row = dict(r)
 
@@ -77,7 +77,7 @@ async def _get_proposals_handler(
                 raw_record_dict = {
                     "$type": get_string(row, "record_type")
                     or get_string(row, "type")
-                    or "app.ch.poltr.vote.proposal",
+                    or "app.ch.poltr.ballot.entry",
                     "title": get_string(row, "title"),
                     "description": get_string(row, "description"),
                     "voteDate": get_date_iso(row, "vote_date"),
@@ -107,8 +107,8 @@ async def _get_proposals_handler(
             }
             author = {k: v for k, v in author_raw.items() if v is not None}
 
-            # Build proposal
-            proposal_raw = {
+            # Build ballot entry
+            ballot_raw = {
                 "uri": get_string(row, "uri") or get_string(row, "row_uri") or "",
                 "cid": get_string(row, "cid") or "",
                 "author": author,
@@ -120,18 +120,18 @@ async def _get_proposals_handler(
                 "labels": get_array(row, "labels"),
                 "viewer": row.get("viewer"),
             }
-            proposal = {k: v for k, v in proposal_raw.items() if v is not None}
-            proposals.append(proposal)
+            ballot = {k: v for k, v in ballot_raw.items() if v is not None}
+            ballots.append(ballot)
 
-        last_indexed = proposals[-1].get("indexedAt", "") if proposals else ""
+        last_indexed = ballots[-1].get("indexedAt", "") if ballots else ""
         cursor = (
             encode_cursor({"sort": "newest", "p": last_indexed, "r": ""})
-            if proposals
+            if ballots
             else None
         )
 
         return JSONResponse(
-            status_code=200, content={"cursor": cursor, "proposals": proposals}
+            status_code=200, content={"cursor": cursor, "ballots": ballots}
         )
     except Exception as err:
         logger.error(f"DB query failed: {err}")
@@ -140,12 +140,12 @@ async def _get_proposals_handler(
         )
 
 
-@router.get("/app.ch.poltr.vote.listProposals")
-async def list_proposals(
+@router.get("/app.ch.poltr.ballot.list")
+async def list_ballots(
     request: Request,
     since: str = Query(None),
     limit: int = Query(50),
     session: TSession = Depends(verify_session_token),
 ):
-    """List vote proposals."""
-    return await _get_proposals_handler(session=session, since=since, limit=limit)
+    """List ballot entries."""
+    return await _get_ballots_handler(session=session, since=since, limit=limit)

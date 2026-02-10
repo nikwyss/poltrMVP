@@ -1,14 +1,14 @@
 
 import { CID } from 'multiformats/cid';
 import 'dotenv/config'
-import { pool,  upsertProposalDb, markDeleted } from './db.js'
+import { pool,  upsertBallotDb, markDeleted } from './db.js'
 
 
 export const handleEvent = async (evt) => {
   // Only care about proposal records
 
   console.log('DEBUG -handleEvent => Received event for collection:', evt.collection);
-  // if (evt.collection !== 'app.ch.poltr.vote.proposal') return;
+  // if (evt.collection !== 'app.ch.poltr.ballot.entry') return;
 
 
 
@@ -29,7 +29,7 @@ export const handleEvent = async (evt) => {
     const record = evt.record;
     if (!record) return;
 
-    await upsertProposalDb(pool, {
+    await upsertBallotDb(pool, {
       uri,
       cid: cidString, // or evt.cid if your helper exposes it
       did,

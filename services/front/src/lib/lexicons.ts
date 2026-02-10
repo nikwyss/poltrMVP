@@ -1,33 +1,33 @@
 import { Lexicons } from '@atproto/lexicon';
 
 // Import lexicon schemas
-import proposalLexicon from '../lexicons/app.ch.poltr.vote.proposal.json';
-import embedLexicon from '../lexicons/app.ch.poltr.vote.embed.json';
-import type { ProposalEmbed, ProposalRecord } from '../types/proposals';
+import ballotLexicon from '../lexicons/app.ch.poltr.ballot.entry.json';
+import embedLexicon from '../lexicons/app.ch.poltr.ballot.embed.json';
+import type { BallotEmbed, BallotRecord } from '../types/ballots';
 
 // Create a Lexicons instance with our custom schemas
 export const lexicons = new Lexicons([
-  proposalLexicon as any,
+  ballotLexicon as any,
   embedLexicon as any,
 ]);
 
 
 // Validation functions
-export function validateProposal(data: any): ProposalRecord {
-  lexicons.assertValidRecord('app.ch.poltr.vote.proposal', data);
-  return data as ProposalRecord;
+export function validateBallot(data: any): BallotRecord {
+  lexicons.assertValidRecord('app.ch.poltr.ballot.entry', data);
+  return data as BallotRecord;
 }
 
-export function validateProposalEmbed(data: any): ProposalEmbed {
-  lexicons.assertValidXrpcParams('app.ch.poltr.vote.embed', data);
-  return data as ProposalEmbed;
+export function validateBallotEmbed(data: any): BallotEmbed {
+  lexicons.assertValidXrpcParams('app.ch.poltr.ballot.embed', data);
+  return data as BallotEmbed;
 }
 
 // Type guard functions
-export function isProposalRecord(data: any): data is ProposalRecord {
-  return data?.$type === 'app.ch.poltr.vote.proposal';
+export function isBallotRecord(data: any): data is BallotRecord {
+  return data?.$type === 'app.ch.poltr.ballot.entry';
 }
 
-export function isProposalEmbed(data: any): data is ProposalEmbed {
-  return data?.$type === 'app.ch.poltr.vote.embed';
+export function isBallotEmbed(data: any): data is BallotEmbed {
+  return data?.$type === 'app.ch.poltr.ballot.embed';
 }

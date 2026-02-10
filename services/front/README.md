@@ -156,7 +156,7 @@ src/
 │   │   │   └── logout/route.ts         # Clears session cookie
 │   │   └── xrpc/[...path]/route.ts     # Catch-all AppView proxy
 │   ├── home/page.tsx
-│   ├── proposals/page.tsx
+│   ├── ballots/page.tsx
 │   └── [slug]/page.tsx                 # CMS pages
 ├── lib/
 │   ├── AuthContext.tsx                  # Auth state management
