@@ -1,5 +1,5 @@
 -- # CREATING TABLES
-CREATE TABLE poltr_vote_proposal (
+CREATE TABLE app_ballots (
   uri         text PRIMARY KEY,   -- at://did/.../app.ch.poltr.vote.proposal/...
   cid         text NOT NULL,
   did         text NOT NULL,      -- repo DID (actor)
@@ -12,28 +12,28 @@ CREATE TABLE poltr_vote_proposal (
   deleted     boolean NOT NULL DEFAULT false
 );
 
-CREATE INDEX poltr_vote_proposal_vote_date_idx
-  ON poltr_vote_proposal (vote_date);
+CREATE INDEX app_ballots_vote_date_idx
+  ON app_ballots (vote_date);
 
-CREATE INDEX poltr_vote_proposal_did_idx
-  ON poltr_vote_proposal (did);
+CREATE INDEX app_ballots_did_idx
+  ON app_ballots (did);
 
 
 
-CREATE TABLE IF NOT EXISTS backfill_cursors (
+CREATE TABLE IF NOT EXISTS indexer_cursors (
   id            text PRIMARY KEY,      -- logical cursor id, e.g. 'firehose:repo-sync' or 'backfill:my-service'
   cursor        text,                  -- opaque cursor string (base64 / JSON / whatever)
   metadata      jsonb DEFAULT '{}'::jsonb,
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS backfill_cursors_updated_at_idx ON backfill_cursors (updated_at);
+CREATE INDEX IF NOT EXISTS indexer_cursors_updated_at_idx ON indexer_cursors (updated_at);
 
 
 -- // getCursor.js
 -- async function getCursor(pool, id) {
 --   const res = await pool.query(
---     'SELECT cursor, metadata, updated_at FROM backfill_cursors WHERE id = $1',
+--     'SELECT cursor, metadata, updated_at FROM indexer_cursors WHERE id = $1',
 --     [id]
 --   );
 --   return res.rows[0] || null;
@@ -41,7 +41,7 @@ CREATE INDEX IF NOT EXISTS backfill_cursors_updated_at_idx ON backfill_cursors (
 
 -- async function setCursor(pool, id, cursor, metadata = {}) {
 --   await pool.query(
---     `INSERT INTO backfill_cursors (id, cursor, metadata)
+--     `INSERT INTO indexer_cursors (id, cursor, metadata)
 --      VALUES ($1, $2, $3)
 --      ON CONFLICT (id) DO UPDATE
 --        SET cursor = EXCLUDED.cursor,
@@ -60,7 +60,7 @@ CREATE INDEX IF NOT EXISTS backfill_cursors_updated_at_idx ON backfill_cursors (
 
 --     // Ensure a row exists so FOR UPDATE will lock it (if it doesn't exist, insert a null cursor)
 --     await client.query(
---       `INSERT INTO backfill_cursors (id, cursor)
+--       `INSERT INTO indexer_cursors (id, cursor)
 --        VALUES ($1, NULL)
 --        ON CONFLICT (id) DO NOTHING`,
 --       [id]
@@ -68,7 +68,7 @@ CREATE INDEX IF NOT EXISTS backfill_cursors_updated_at_idx ON backfill_cursors (
 
 --     // Lock the row
 --     const res = await client.query(
---       'SELECT cursor, metadata FROM backfill_cursors WHERE id = $1 FOR UPDATE',
+--       'SELECT cursor, metadata FROM indexer_cursors WHERE id = $1 FOR UPDATE',
 --       [id]
 --     );
 --     const current = res.rows[0] || { cursor: null, metadata: {} };
@@ -79,7 +79,7 @@ CREATE INDEX IF NOT EXISTS backfill_cursors_updated_at_idx ON backfill_cursors (
 
 --     // Persist new cursor
 --     await client.query(
---       `UPDATE backfill_cursors
+--       `UPDATE indexer_cursors
 --        SET cursor = $2, metadata = $3, updated_at = now()
 --        WHERE id = $1`,
 --       [id, newCursor, current.metadata || {}]

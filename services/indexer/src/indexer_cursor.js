@@ -2,7 +2,7 @@ import { pool } from './db.js'
 
 export async function getCursor(id) {
   const res = await pool.query(
-    'SELECT cursor, metadata, updated_at FROM backfill_cursors WHERE id = $1',
+    'SELECT cursor, metadata, updated_at FROM indexer_cursors WHERE id = $1',
     [id]
   )
   // Return a consistent object shape. If no row, return { cursor: null, metadata: {} }
@@ -11,7 +11,7 @@ export async function getCursor(id) {
 
 export async function setCursor(id, cursor, metadata = {}) {
   await pool.query(
-    `INSERT INTO backfill_cursors (id, cursor, metadata)
+    `INSERT INTO indexer_cursors (id, cursor, metadata)
      VALUES ($1, $2, $3)
      ON CONFLICT (id) DO UPDATE SET
        cursor = EXCLUDED.cursor,

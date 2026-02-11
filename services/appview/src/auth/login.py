@@ -93,6 +93,9 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
     password = gen_password()
     ciphertext, nonce = encrypt_app_password(password)
 
+    # GENERATE Demokratiefabrik Username (using the pseudonym generator (PSEUDONYMITY IN POLTR))
+    # pass
+
     user_session: TCreateAccountResponse = await pds_api_admin_create_account(
         handle, password, user_email
     )
@@ -133,10 +136,15 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
         try:
             await pds_api_admin_delete_account(user_session.did)
         except Exception as delete_err:
-            logger.error(f"Failed to delete orphan PDS account {user_session.did}: {delete_err}")
+            logger.error(
+                f"Failed to delete orphan PDS account {user_session.did}: {delete_err}"
+            )
         return JSONResponse(
             status_code=500,
-            content={"error": "registration_failed", "message": "Account creation failed, please try again"},
+            content={
+                "error": "registration_failed",
+                "message": "Account creation failed, please try again",
+            },
         )
 
 

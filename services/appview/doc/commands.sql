@@ -1,5 +1,5 @@
 -- # CREATING TABLES
-CREATE TABLE poltr_vote_proposal (
+CREATE TABLE app_ballots (
   uri         text PRIMARY KEY,   -- at://did/.../app.ch.poltr.vote.proposal/...
   cid         text NOT NULL,
   did         text NOT NULL,      -- repo DID (actor)
@@ -12,8 +12,8 @@ CREATE TABLE poltr_vote_proposal (
   deleted     boolean NOT NULL DEFAULT false
 );
 
-CREATE INDEX poltr_vote_proposal_vote_date_idx
-  ON poltr_vote_proposal (vote_date);
+CREATE INDEX app_ballots_vote_date_idx
+  ON app_ballots (vote_date);
 
-CREATE INDEX poltr_vote_proposal_did_idx
-  ON poltr_vote_proposal (did);
+CREATE INDEX app_ballots_did_idx
+  ON app_ballots (did);

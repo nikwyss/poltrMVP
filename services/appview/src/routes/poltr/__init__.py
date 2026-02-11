@@ -30,27 +30,40 @@ async def _get_ballots_handler(
     session: TSession, since: Optional[str] = None, limit: int = 50
 ):
     params = []
-    where = ["deleted = false"]
+    where = ["b.deleted = false"]
 
     governance_id = os.getenv("PDS_GOVERNANCE_ACCOUNT_DID")
     if governance_id:
         params.append(governance_id)
-        where.append(f"did = ${len(params)}")
+        where.append(f"b.did = ${len(params)}")
 
     if since:
         try:
             since_date = datetime.fromisoformat(since.replace("Z", "+00:00"))
             params.append(since_date)
-            where.append(f"vote_date >= ${len(params)}")
+            where.append(f"b.vote_date >= ${len(params)}")
         except Exception:
             pass
 
+    # viewer DID for the liked subquery
+    viewer_did = session.did if session else None
+    if viewer_did:
+        params.append(viewer_did)
+        viewer_param = f"${len(params)}"
+        viewer_select = f""",
+            EXISTS(
+                SELECT 1 FROM app_likes
+                WHERE subject_uri = b.uri AND did = {viewer_param} AND NOT deleted
+            ) AS viewer_liked"""
+    else:
+        viewer_select = ",\n            false AS viewer_liked"
+
     params.append(limit)
     sql = f"""
-        SELECT *
-        FROM poltr_vote_proposal
+        SELECT b.*{viewer_select}
+        FROM app_ballots b
         WHERE {' AND '.join(where)}
-        ORDER BY vote_date DESC NULLS LAST, created_at DESC
+        ORDER BY b.vote_date DESC NULLS LAST, b.created_at DESC
         LIMIT ${len(params)};
     """
 
@@ -107,6 +120,13 @@ async def _get_ballots_handler(
             }
             author = {k: v for k, v in author_raw.items() if v is not None}
 
+            # Build viewer object
+            viewer_obj = {}
+            if row.get("viewer_liked"):
+                viewer_obj["liked"] = True
+            if not viewer_obj:
+                viewer_obj = None
+
             # Build ballot entry
             ballot_raw = {
                 "uri": get_string(row, "uri") or get_string(row, "row_uri") or "",
@@ -118,7 +138,7 @@ async def _get_ballots_handler(
                 "replyCount": get_number(row, "reply_count"),
                 "bookmarkCount": get_number(row, "bookmark_count"),
                 "labels": get_array(row, "labels"),
-                "viewer": row.get("viewer"),
+                "viewer": viewer_obj,
             }
             ballot = {k: v for k, v in ballot_raw.items() if v is not None}
             ballots.append(ballot)

@@ -11,7 +11,10 @@ async def init_pool():
     connection_string = os.getenv("APPVIEW_POSTGRES_URL")
     if not connection_string:
         raise ValueError("APPVIEW_POSTGRES_URL not set")
-    pool = await asyncpg.create_pool(connection_string)
+    pool = await asyncpg.create_pool(
+        connection_string,
+        server_settings={"search_path": "auth,public"},
+    )
     return pool
 
 

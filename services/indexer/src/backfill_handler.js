@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { IdResolver } from '@bluesky-social/identity'
-import { getCursor, setCursor } from './backfill_cursor.js'
+import { getCursor, setCursor } from './indexer_cursor.js'
 import { handleEvent } from './record_handler.js'
 import { FIREHOSE_SERVICE } from './service.js'
 import { Firehose, MemoryRunner } from '@bluesky-social/sync'

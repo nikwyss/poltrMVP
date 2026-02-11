@@ -1,0 +1,39 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.ballot.like",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A like on a ballot entry",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "ref",
+            "ref": "#subject"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        },
+        "required": ["subject", "createdAt"]
+      }
+    },
+    "subject": {
+      "type": "object",
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "at-uri"
+        },
+        "cid": {
+          "type": "string",
+          "format": "cid"
+        }
+      },
+      "required": ["uri", "cid"]
+    }
+  }
+}

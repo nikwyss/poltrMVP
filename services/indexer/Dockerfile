@@ -14,9 +14,9 @@ COPY ./src ./src
 # COPY ./README.md ./
 
 # Environment defaults (override at runtime as needed)
-ENV NODE_ENV=production \
-    PDS_HOSTNAME=pds.poltr.info \
-    APPVIEW_POSTGRES_URL=postgres://postgres:postgres@postgres:5432/postgres
+ENV NODE_ENV=production 
+# PDS_HOSTNAME=pds.poltr.info 
+# INDEXER_POSTGRES_URL=postgres://postgres:postgres@postgres:5432/postgres
 
 # Run the indexer
 CMD ["node", "src/main.js"]

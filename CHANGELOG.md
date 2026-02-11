@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-02-10
+
+### Ballot Likes Feature (`app.ch.poltr.ballot.like`)
+- **Added Lexicon schema** (`services/front/src/lexicons/app.ch.poltr.ballot.like.json`): New record type for liking ballot entries, with `subject` (uri + cid) and `createdAt` fields
+- **Added `app_likes` table** (`infra/scripts/postgres/db-setup.sql`): Stores individual likes with `uri`, `cid`, `did`, `subject_uri`, `subject_cid`, soft-delete support; indexed on `subject_uri` and `did`
+- **Added `like_count` column to `app_ballots`**: Denormalized count for fast reads, maintained by the indexer
+- **Added indexer DB helpers** (`services/indexer/src/db.js`): `upsertLikeDb`, `markLikeDeleted`, `refreshLikeCount` — upsert/delete likes and recount after each mutation
+- **Updated record handler** (`services/indexer/src/record_handler.js`): Routes `app.ch.poltr.ballot.like` events to like helpers, `app.ch.poltr.ballot.entry` to ballot helpers, ignores other collections
+- **Updated AppView API** (`services/appview/src/routes/poltr/__init__.py`): `app.ch.poltr.ballot.list` now returns `likeCount` from the denormalized column and `viewer.liked` (boolean) via an `EXISTS` subquery against the authenticated user's DID
+
 ## 2026-02-07
 
 ### services/front

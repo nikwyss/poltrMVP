@@ -16,6 +16,11 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+## Setup Postgres
+
+```
+psql -U <superuser> -d appview -f infra/scripts/postgres/db-setup.sql
+```
 
 ### Environment Configuration
 Copy `.env.dist` to `.env` and configure your database connection:

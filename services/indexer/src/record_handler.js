@@ -1,40 +1,45 @@
 
 import { CID } from 'multiformats/cid';
 import 'dotenv/config'
-import { pool,  upsertBallotDb, markDeleted } from './db.js'
+import { pool, upsertBallotDb, markDeleted, upsertLikeDb, markLikeDeleted } from './db.js'
 
+const COLLECTION_BALLOT = 'app.ch.poltr.ballot.entry'
+const COLLECTION_LIKE   = 'app.ch.poltr.ballot.like'
 
 export const handleEvent = async (evt) => {
-  // Only care about proposal records
+  const collection = evt.collection
 
-  console.log('DEBUG -handleEvent => Received event for collection:', evt.collection);
-  // if (evt.collection !== 'app.ch.poltr.ballot.entry') return;
+  if (collection !== COLLECTION_BALLOT && collection !== COLLECTION_LIKE) return
 
+  console.log('DEBUG -handleEvent => Received event for collection:', collection);
 
-
-// assuming your CID field is already a CID object:
   const cidString = CID.asCID(evt.cid)?.toString();
-
-  // const seq = evt.seq;         // firehose cursor
   const did = evt.did;
-  const uri = evt.uri.toString();   // already built
+  const uri = evt.uri.toString();
   const rkey = evt.rkey;
-  const action = evt.event;    // 'create' | 'update' | 'delete' (check lib docs)
+  const action = evt.event;
 
-  if (action === 'delete') {
-    await markDeleted(uri);
+  if (collection === COLLECTION_BALLOT) {
+    if (action === 'delete') {
+      await markDeleted(uri);
+      return
+    }
+    if (action === 'create' || action === 'update') {
+      const record = evt.record;
+      if (!record) return;
+      await upsertBallotDb(pool, { uri, cid: cidString, did, rkey, record });
+    }
   }
 
-  if (action === 'create' || action === 'update') {
-    const record = evt.record;
-    if (!record) return;
-
-    await upsertBallotDb(pool, {
-      uri,
-      cid: cidString, // or evt.cid if your helper exposes it
-      did,
-      rkey,
-      record,
-    });
+  if (collection === COLLECTION_LIKE) {
+    if (action === 'delete') {
+      await markLikeDeleted(uri);
+      return
+    }
+    if (action === 'create' || action === 'update') {
+      const record = evt.record;
+      if (!record) return;
+      await upsertLikeDb(pool, { uri, cid: cidString, did, rkey, record });
+    }
   }
 };

@@ -1,4 +1,17 @@
-CREATE TABLE poltr_vote_proposal (
+-- Full database setup for fresh 'appview' installs.
+-- Run as superuser or the allforone role.
+
+-- =============================================================================
+-- Schemas
+-- =============================================================================
+
+CREATE SCHEMA IF NOT EXISTS auth;
+
+-- =============================================================================
+-- public schema: app tables (indexer r/w, appview read)
+-- =============================================================================
+
+CREATE TABLE app_ballots (
   uri         text PRIMARY KEY,   -- at://did/.../app.ch.poltr.vote.proposal/...
   cid         text NOT NULL,
   did         text NOT NULL,      -- repo DID (actor)
@@ -6,13 +19,109 @@ CREATE TABLE poltr_vote_proposal (
   title       text,
   description text,
   vote_date   timestamptz,
+  like_count  integer NOT NULL DEFAULT 0,
   created_at  timestamptz NOT NULL,
   indexed_at  timestamptz NOT NULL DEFAULT now(),
   deleted     boolean NOT NULL DEFAULT false
 );
 
-CREATE INDEX poltr_vote_proposal_vote_date_idx
-  ON poltr_vote_proposal (vote_date);
+CREATE INDEX app_ballots_vote_date_idx
+  ON app_ballots (vote_date);
 
-CREATE INDEX poltr_vote_proposal_did_idx
-  ON poltr_vote_proposal (did);
+CREATE INDEX app_ballots_did_idx
+  ON app_ballots (did);
+
+CREATE TABLE app_likes (
+  uri         text PRIMARY KEY,
+  cid         text NOT NULL,
+  did         text NOT NULL,
+  rkey        text NOT NULL,
+  subject_uri text NOT NULL,
+  subject_cid text,
+  created_at  timestamptz NOT NULL,
+  indexed_at  timestamptz NOT NULL DEFAULT now(),
+  deleted     boolean NOT NULL DEFAULT false
+);
+
+CREATE INDEX app_likes_subject_uri_idx ON app_likes (subject_uri);
+CREATE INDEX app_likes_did_idx ON app_likes (did);
+
+-- =============================================================================
+-- auth schema: auth tables (appview only, no indexer access)
+-- =============================================================================
+
+CREATE TABLE auth.auth_creds (
+  did               text PRIMARY KEY,
+  handle            text NOT NULL,
+  email             varchar(255) NOT NULL UNIQUE,
+  pds_url           text,
+  app_pw_ciphertext bytea NOT NULL,
+  app_pw_nonce      bytea NOT NULL
+);
+
+CREATE INDEX idx_auth_creds_email ON auth.auth_creds (email);
+
+CREATE TABLE auth.auth_sessions (
+  id               serial PRIMARY KEY,
+  session_token    varchar(128) NOT NULL UNIQUE,
+  user_data        jsonb,
+  expires_at       timestamp NOT NULL,
+  created_at       timestamp DEFAULT now(),
+  last_accessed_at timestamp DEFAULT now(),
+  access_token     text,
+  refresh_token    text,
+  did              varchar(255)
+);
+
+CREATE INDEX idx_auth_sessions_token ON auth.auth_sessions (session_token);
+CREATE INDEX idx_auth_sessions_did ON auth.auth_sessions (did);
+CREATE INDEX idx_auth_sessions_expires_at ON auth.auth_sessions (expires_at);
+
+CREATE TABLE auth.auth_pending_logins (
+  id         serial PRIMARY KEY,
+  email      varchar(255) NOT NULL,
+  token      varchar(64) NOT NULL UNIQUE,
+  expires_at timestamp NOT NULL,
+  created_at timestamp DEFAULT now()
+);
+
+CREATE INDEX idx_auth_pending_logins_token ON auth.auth_pending_logins (token);
+CREATE INDEX idx_auth_pending_logins_email ON auth.auth_pending_logins (email);
+CREATE INDEX idx_auth_pending_logins_expires_at ON auth.auth_pending_logins (expires_at);
+
+CREATE TABLE auth.auth_pending_registrations (
+  id         serial PRIMARY KEY,
+  email      varchar(255) NOT NULL UNIQUE,
+  token      varchar(64) NOT NULL UNIQUE,
+  expires_at timestamp NOT NULL,
+  created_at timestamp DEFAULT now()
+);
+
+CREATE INDEX idx_auth_pending_registrations_token ON auth.auth_pending_registrations (token);
+CREATE INDEX idx_auth_pending_registrations_email ON auth.auth_pending_registrations (email);
+CREATE INDEX idx_auth_pending_registrations_expires_at ON auth.auth_pending_registrations (expires_at);
+
+-- =============================================================================
+-- Roles & Grants
+-- =============================================================================
+
+-- allforone: full access to both schemas
+GRANT USAGE, CREATE ON SCHEMA auth TO allforone;
+GRANT ALL ON ALL TABLES IN SCHEMA auth TO allforone;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO allforone;
+ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON TABLES TO allforone;
+ALTER DEFAULT PRIVILEGES IN SCHEMA auth GRANT ALL ON SEQUENCES TO allforone;
+
+-- indexer: public schema only, no auth access
+CREATE ROLE indexer WITH LOGIN PASSWORD 'CHANGE_ME';
+GRANT CONNECT ON DATABASE appview TO indexer;
+GRANT USAGE ON SCHEMA public TO indexer;
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO indexer;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO indexer;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO indexer;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO indexer;
+REVOKE ALL ON SCHEMA auth FROM indexer;
+
+
+
+-- ALTER ROLE indexer WITH PASSWORD 'HGKJL9376689787kjHGFGHLJ5467890BJHFH';

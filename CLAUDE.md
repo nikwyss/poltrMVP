@@ -59,3 +59,7 @@ Manuals:
 https://github.com/bluesky-social/ozone/blob/main/docs/userguide.md
 https://github.com/bluesky-social/ozone/blob/main/docs/moderation_states.png
 https://github.com/bluesky-social/ozone/blob/main/docs/api.md
+
+
+# DB Setup Script
+Keep ./scripts/postgres/db-setup.sql file up to date. (it should entail an all setup script for an empty postgres DB.)
