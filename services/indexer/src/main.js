@@ -29,10 +29,6 @@ async function main() {
   const firehose = new Firehose({
     idResolver,
     service: FIREHOSE_SERVICE,
-    getCursor: async () => {
-      const row = await getCursor('firehose:subscription')
-      return row.cursor ?? undefined
-    },
     handleEvent: async (r) => {
       await handleEvent(r).then(() => {
         console.log('Event handled successfully for seq', r.seq);
@@ -43,6 +39,15 @@ async function main() {
       console.error('Firehose error', err);
     },
   })
+
+  // Workaround: @bluesky-social/sync has a bug where getCursor option is not
+  // called properly in getParams (it returns the function instead of calling it).
+  // Override getParams on the internal subscription directly.
+  firehose.sub.opts.getParams = async () => {
+    const row = await getCursor('firehose:subscription')
+    const cursor = row.cursor ?? undefined
+    return cursor != null ? { cursor } : {}
+  }
 
   // try to start the firehose with retries for transient errors
   const maxRetries = Number(process.env.FIREHOSE_MAX_RETRIES ?? 5)

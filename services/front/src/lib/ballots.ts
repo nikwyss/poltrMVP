@@ -29,10 +29,11 @@ export async function createBallot(
   }
   const user = JSON.parse(storedUser);
 
-  // Create the record
-  const response = await agent.com.atproto.repo.createRecord({
+  // Create the record using officialRef as rkey to prevent duplicates
+  const response = await agent.com.atproto.repo.putRecord({
     repo: user.did,
     collection: 'app.ch.poltr.ballot.entry',
+    rkey: ballot.officialRef,
     record: record as unknown as Record<string, unknown>,
   });
 

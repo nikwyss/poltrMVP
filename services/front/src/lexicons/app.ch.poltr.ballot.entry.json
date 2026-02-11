@@ -5,7 +5,7 @@
     "main": {
       "type": "record",
       "description": "A Swiss ballot entry with metadata and voting details",
-      "key": "tid",
+      "key": "any",
       "record": {
         "type": "object",
         "properties": {
@@ -16,7 +16,7 @@
           "voteDate": { "type": "string", "format": "date" },
           "language": { "type": "string", "enum": ["de-CH", "fr-CH", "it-CH", "rm-CH"] }
         },
-        "required": ["title", "voteDate"]
+        "required": ["title", "voteDate", "officialRef"]
       }
     }
   }

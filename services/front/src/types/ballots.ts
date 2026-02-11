@@ -5,7 +5,7 @@ export interface BallotRecord {
   title: string;
   topic?: string;
   text?: string;
-  officialRef?: string;
+  officialRef: string;
   voteDate: string; // ISO date string
   language?: 'de-CH' | 'fr-CH' | 'it-CH' | 'rm-CH';
   createdAt?: string;

@@ -10,8 +10,6 @@ import sys
 import csv
 from dataclasses import dataclass
 from typing import Optional
-import hashlib
-import base64
 from datetime import datetime, timezone
 from typing import Dict, Optional
 import time
@@ -120,31 +118,22 @@ class ProposalImporter:
             print(f"ERROR: Authentication failed - {e}")
             return False
     
-    def generate_rkey(self, resource_id: str) -> str:
-        """Generate rkey from resource ID"""
-        md5_hash = hashlib.md5(resource_id.encode()).hexdigest()
-        b64 = base64.b64encode(bytes.fromhex(md5_hash)).decode()
-        # Remove padding and make URL-safe
-        rkey = b64.replace('=', '').replace('+', '-').replace('/', '_')[:13]
-        return rkey
-    
     def create_proposal(self, vote: SwissVote) -> bool:
         """Create a proposal record"""
-        # Extract data
 
         # Parse date from DD.MM.YYYY format
         vote_date = datetime.strptime(vote.datum, "%d.%m.%Y").date()
-        
+
         # SKIP if voting date is in the past
         today = datetime.now().date()
         today = today.replace(year=today.year - 1)
-        
+
         if vote_date < today:
             # print(f"Skipping past vote date: {vote.datum}")
             return False
-        
-        # Generate rkey
-        rkey = self.generate_rkey(f"{vote.anr}")
+
+        # Use anr directly as rkey (e.g. "413.2") for deterministic AT-URIs
+        rkey = vote.anr
         
         # Convert date to ISO format string for the record
         vote_date_iso = vote_date.strftime("%Y-%m-%d")
@@ -209,7 +198,7 @@ class ProposalImporter:
             print(f"✗ Failed: {error_msg}")
             return False
     
-    def import_from_url(self, csv_url: str):
+    def import_from_url(self, csv_url: str, max_imports: int = 0):
         """Import proposals from JSON file"""
         print(f"Reading data from: {csv_url}")
 
@@ -241,6 +230,9 @@ class ProposalImporter:
 
             if self.create_proposal(voting):
                 created_count += 1
+                if max_imports and created_count >= max_imports:
+                    print(f"Reached max imports limit ({max_imports})")
+                    break
             else:
                 skipped_count += 1
             
@@ -256,6 +248,7 @@ def main():
     handle = os.getenv("PDS_GOVERNANCE_ACCOUNT_HANDLE")
     password = os.getenv("PDS_GOVERNANCE_ACCOUNT_PASSWORD")
     pds_host = os.getenv("PDS_HOST", "http://localhost:2583")
+    max_imports = int(os.getenv("MAX_IMPORTS", "0"))  # 0 = unlimited
     
     # Validate arguments
     if not csv_url:
@@ -287,7 +280,7 @@ def main():
     print()
     
     # Import proposals
-    importer.import_from_url(csv_url)
+    importer.import_from_url(csv_url, max_imports=max_imports)
 
 
 if __name__ == "__main__":
