@@ -6,7 +6,7 @@ Poltr-specific endpoints for Swiss civic tech features.
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Query, Request, Depends
@@ -17,6 +17,7 @@ from src.lib.fastapi import logger
 from src.lib.db import get_pool
 from src.lib.cursor import encode_cursor
 from src.lib.lib import get_string, get_date_iso, get_number, get_array, get_object
+from src.lib.atproto_api import pds_create_record, pds_delete_record
 
 router = APIRouter(prefix="/xrpc", tags=["poltr"])
 
@@ -45,18 +46,20 @@ async def _get_ballots_handler(
         except Exception:
             pass
 
-    # viewer DID for the liked subquery
+    # viewer DID for the like subquery – return the like URI so the
+    # frontend can delete it (unlike) without an extra round-trip.
     viewer_did = session.did if session else None
     if viewer_did:
         params.append(viewer_did)
         viewer_param = f"${len(params)}"
         viewer_select = f""",
-            EXISTS(
-                SELECT 1 FROM app_likes
+            (
+                SELECT uri FROM app_likes
                 WHERE subject_uri = b.uri AND did = {viewer_param} AND NOT deleted
-            ) AS viewer_liked"""
+                LIMIT 1
+            ) AS viewer_like"""
     else:
-        viewer_select = ",\n            false AS viewer_liked"
+        viewer_select = ",\n            NULL AS viewer_like"
 
     params.append(limit)
     sql = f"""
@@ -122,8 +125,8 @@ async def _get_ballots_handler(
 
             # Build viewer object
             viewer_obj = {}
-            if row.get("viewer_liked"):
-                viewer_obj["liked"] = True
+            if row.get("viewer_like"):
+                viewer_obj["like"] = row["viewer_like"]
             if not viewer_obj:
                 viewer_obj = None
 
@@ -169,3 +172,75 @@ async def list_ballots(
 ):
     """List ballot entries."""
     return await _get_ballots_handler(session=session, since=since, limit=limit)
+
+
+# -----------------------------------------------------------------------------
+# app.ch.poltr.ballot.like / unlike
+# -----------------------------------------------------------------------------
+
+
+@router.post("/app.ch.poltr.ballot.like")
+async def create_like(
+    request: Request,
+    session: TSession = Depends(verify_session_token),
+):
+    """Create a like record on the PDS for the authenticated user."""
+    body = await request.json()
+    subject = body.get("subject")
+
+    if not subject or not subject.get("uri") or not subject.get("cid"):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "invalid_request", "message": "subject.uri and subject.cid required"},
+        )
+
+    record = {
+        "$type": "app.ch.poltr.ballot.like",
+        "subject": subject,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+    try:
+        result = await pds_create_record(session, "app.ch.poltr.ballot.like", record)
+        return JSONResponse(status_code=200, content=result)
+    except Exception as err:
+        logger.error(f"Failed to create like: {err}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "pds_error", "message": str(err)},
+        )
+
+
+@router.post("/app.ch.poltr.ballot.unlike")
+async def delete_like(
+    request: Request,
+    session: TSession = Depends(verify_session_token),
+):
+    """Delete a like record from the PDS for the authenticated user."""
+    body = await request.json()
+    like_uri = body.get("likeUri")
+
+    if not like_uri:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "invalid_request", "message": "likeUri required"},
+        )
+
+    # Extract rkey from AT-URI: at://did/collection/rkey
+    parts = like_uri.split("/")
+    rkey = parts[-1] if parts else None
+    if not rkey:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "invalid_request", "message": "Could not extract rkey from likeUri"},
+        )
+
+    try:
+        await pds_delete_record(session, "app.ch.poltr.ballot.like", rkey)
+        return JSONResponse(status_code=200, content={"success": True})
+    except Exception as err:
+        logger.error(f"Failed to delete like: {err}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "pds_error", "message": str(err)},
+        )

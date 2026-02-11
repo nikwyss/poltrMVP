@@ -1,5 +1,5 @@
 import type { BallotRecord } from '../types/ballots';
-import { getAuthenticatedAgent } from './agent';
+import { getAuthenticatedAgent, callAppXrpc } from './agent';
 import { validateBallot } from './lexicons';
 
 
@@ -60,6 +60,47 @@ export async function deleteBallot(rkey: string): Promise<void> {
     collection: 'app.ch.poltr.ballot.entry',
     rkey: rkey,
   });
+}
+
+/**
+ * Like a ballot. Routes through the appview which writes to the PDS.
+ * Returns the URI of the created like record.
+ */
+export async function likeBallot(
+  subjectUri: string,
+  subjectCid: string
+): Promise<string> {
+  const res = await callAppXrpc('/api/xrpc/app.ch.poltr.ballot.like', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      subject: { uri: subjectUri, cid: subjectCid },
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Failed to like: ${err}`);
+  }
+
+  const data = await res.json();
+  return data.uri;
+}
+
+/**
+ * Unlike a ballot. Routes through the appview which deletes from the PDS.
+ */
+export async function unlikeBallot(likeUri: string): Promise<void> {
+  const res = await callAppXrpc('/api/xrpc/app.ch.poltr.ballot.unlike', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ likeUri }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Failed to unlike: ${err}`);
+  }
 }
 
 /**

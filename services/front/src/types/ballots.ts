@@ -39,5 +39,7 @@ export interface BallotWithMetadata {
   replyCount?: number;
   bookmarkCount?: number;
   labels?: string[];
-  liked?: boolean;
+  viewer?: {
+    like?: string; // AT-URI of the viewer's like record
+  };
 }

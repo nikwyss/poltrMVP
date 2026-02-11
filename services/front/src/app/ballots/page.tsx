@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/AuthContext';
 import { listBallots } from '../../lib/agent';
+import { likeBallot, unlikeBallot } from '../../lib/ballots';
 import { formatDate } from '../../lib/utils';
 import type { BallotWithMetadata } from '../../types/ballots';
 
@@ -44,6 +45,55 @@ export default function BallotSearch() {
       setLoading(false);
     }
   };
+
+  const handleToggleLike = useCallback(async (ballot: BallotWithMetadata) => {
+    const isLiked = !!ballot.viewer?.like;
+
+    // Optimistic update
+    setBallots((prev) =>
+      prev.map((b) =>
+        b.uri === ballot.uri
+          ? {
+              ...b,
+              likeCount: (b.likeCount ?? 0) + (isLiked ? -1 : 1),
+              viewer: isLiked ? undefined : { like: '__pending__' },
+            }
+          : b
+      )
+    );
+
+    try {
+      if (isLiked) {
+        await unlikeBallot(ballot.viewer!.like!);
+        setBallots((prev) =>
+          prev.map((b) =>
+            b.uri === ballot.uri ? { ...b, viewer: undefined } : b
+          )
+        );
+      } else {
+        const likeUri = await likeBallot(ballot.uri, ballot.cid);
+        setBallots((prev) =>
+          prev.map((b) =>
+            b.uri === ballot.uri ? { ...b, viewer: { like: likeUri } } : b
+          )
+        );
+      }
+    } catch (err) {
+      console.error('Failed to toggle like:', err);
+      // Revert optimistic update
+      setBallots((prev) =>
+        prev.map((b) =>
+          b.uri === ballot.uri
+            ? {
+                ...b,
+                likeCount: (b.likeCount ?? 0) + (isLiked ? 1 : -1),
+                viewer: isLiked ? { like: ballot.viewer!.like! } : undefined,
+              }
+            : b
+        )
+      );
+    }
+  }, []);
 
   if (authLoading) {
     return (
@@ -198,18 +248,25 @@ export default function BallotSearch() {
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
+                      handleToggleLike(ballot);
                     }}
+                    title={ballot.viewer?.like ? 'Unlike' : 'Like'}
                     style={{
                       background: 'none',
                       border: '1px solid transparent',
                       padding: '2px 4px',
                       fontSize: '20px',
                       cursor: 'pointer',
-                      color: 1 ? '#d81b60' : '#b0bec5',
+                      color: ballot.viewer?.like ? '#d81b60' : '#b0bec5',
                       transition: 'color 0.2s'
                     }}
                   >
-                    {0  ? '\u2764' : '\u2661'}
+                    {ballot.viewer?.like ? '\u2764' : '\u2661'}
+                    {(ballot.likeCount ?? 0) > 0 && (
+                      <span style={{ fontSize: '12px', marginLeft: '4px' }}>
+                        {ballot.likeCount}
+                      </span>
+                    )}
                   </button>
                 </div>
               </div>

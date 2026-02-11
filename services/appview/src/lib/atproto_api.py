@@ -307,6 +307,62 @@ async def pds_api_create_app_password(
             raise RuntimeError(f"Failed to create app password: {res.text}")
 
 
+async def pds_create_record(session: TSession, collection: str, record: dict) -> dict:
+    """Create a record on the PDS on behalf of the user. Returns {uri, cid}."""
+    pds_url = os.getenv("PDS_HOSTNAME")
+    if not pds_url:
+        raise ValueError("PDS_HOSTNAME not set")
+
+    headers = {
+        "Authorization": f"Bearer {session.access_token}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"https://{pds_url}/xrpc/com.atproto.repo.createRecord",
+            headers=headers,
+            json={
+                "repo": session.did,
+                "collection": collection,
+                "record": record,
+            },
+        )
+
+    if resp.status_code != 200:
+        logger.error(f"pds_create_record failed: {resp.text}")
+        raise RuntimeError(f"PDS error: {resp.text}")
+
+    return resp.json()
+
+
+async def pds_delete_record(session: TSession, collection: str, rkey: str):
+    """Delete a record from the PDS on behalf of the user."""
+    pds_url = os.getenv("PDS_HOSTNAME")
+    if not pds_url:
+        raise ValueError("PDS_HOSTNAME not set")
+
+    headers = {
+        "Authorization": f"Bearer {session.access_token}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"https://{pds_url}/xrpc/com.atproto.repo.deleteRecord",
+            headers=headers,
+            json={
+                "repo": session.did,
+                "collection": collection,
+                "rkey": rkey,
+            },
+        )
+
+    if resp.status_code != 200:
+        logger.error(f"pds_delete_record failed: {resp.text}")
+        raise RuntimeError(f"PDS error: {resp.text}")
+
+
 async def set_birthdate_on_bluesky(session: TSession) -> bool:
     """
     Set birthDate preference on Bluesky's AppView.
