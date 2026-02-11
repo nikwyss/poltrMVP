@@ -3,7 +3,6 @@
 ## Next
 
 - [ ] Finalize lexicon setup: Poltr-specific version + Bluesky fallback
-- [ ] Create pseudonym system: Swiss mountain names table (Bergnamen)
 - [ ] Implement argument posting functionality
 - [ ] Design and implement user profile pages
 - [ ] Interoperability: Content on Bluesky
@@ -13,6 +12,7 @@
 
 ## Done
 
+- Create pseudonym system: Swiss mountain names table (Bergnamen)
 - Server-side auth: httpOnly cookies, XRPC proxy, no token in localStorage
 - RichText XSS hardening (heading tag whitelist, link href validation)
 - Repo restructure: `infra/` (kube, cert, deployer, scripts), cleaned root

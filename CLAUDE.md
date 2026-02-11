@@ -63,3 +63,8 @@ https://github.com/bluesky-social/ozone/blob/main/docs/api.md
 
 # DB Setup Script
 Keep ./scripts/postgres/db-setup.sql file up to date. (it should entail an all setup script for an empty postgres DB.)
+
+# Much more to read is in the ./doc folder.
+
+# Changelog
+There is the CHANGELOG.md on the root level

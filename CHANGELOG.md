@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-02-11
+
+### Pseudonymization (`app.ch.poltr.actor.pseudonym`)
+- **Added lexicon schema** (`services/front/src/lexicons/app.ch.poltr.actor.pseudonym.json`): New record type for pseudonymous identities with `displayName`, `mountainName`, `mountainFullname`, `canton`, `height`, `color`, and `createdAt`
+- **Added `auth.mountain_templates` table** (`infra/scripts/postgres/db-setup.sql`): Seed/reference table with 4,294 Swiss mountains (name, fullname, canton, height >= 2,000m)
+- **Added `app_profiles` table** (`infra/scripts/postgres/db-setup.sql`): Ephemeral indexed table keyed by DID, stores pseudonym data from firehose
+- **Added mountain seed data** (`infra/scripts/postgres/seed-mountains.sql`): 4,294 INSERT statements generated from `doc/templates/berge_vorlage.xlsx`; generator script at `infra/scripts/postgres/seed-mountains.py`
+- **Rewrote pseudonym generator** (`services/appview/src/auth/pseudonym_generator.py`): `generate_pseudonym()` draws random mountain from DB, generates random letter (A-Z) and luma-constrained hex color
+- **Added PDS write functions** (`services/appview/src/lib/atproto_api.py`): `pds_set_profile()` writes `app.bsky.actor.profile` with displayName; `pds_write_pseudonym_record()` writes `app.ch.poltr.actor.pseudonym` record via `com.atproto.repo.putRecord`
+- **Integrated in account creation** (`services/appview/src/auth/login.py`): `create_account()` now generates pseudonym, writes profile + pseudonym records to PDS, and passes displayName to session cookie
+- **Added indexer support** (`services/indexer/src/record_handler.js`, `services/indexer/src/db.js`): Handles `app.ch.poltr.actor.pseudonym` events from firehose — `upsertProfileDb()` on create/update, `deleteProfile()` on delete
+- **Added documentation** (`doc/PSEUDONYMIZATION.md`): Describes concept, architecture, database schema, ATProto lexicon, and data flow
+
 ## 2026-02-10
 
 ### Ballot Likes Feature (`app.ch.poltr.ballot.like`)
