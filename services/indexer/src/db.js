@@ -113,6 +113,51 @@ export async function markLikeDeleted(uri) {
 /**
  * Recount non-deleted likes and update app_ballots.like_count.
  */
+/**
+ * Upsert a pseudonym profile into app_profiles.
+ */
+export async function upsertProfileDb(clientOrPool, params) {
+  const { did, record } = params;
+
+  const displayName = record.displayName ?? null;
+  const mountainName = record.mountainName ?? null;
+  const mountainFullname = record.mountainFullname ?? null;
+  const canton = record.canton ?? null;
+  const height = record.height ?? null;
+  const color = record.color ?? null;
+  const createdAt = record.createdAt ? new Date(record.createdAt) : null;
+
+  await dbQuery(
+    clientOrPool,
+    `
+    INSERT INTO app_profiles
+      (did, display_name, mountain_name, mountain_fullname, canton, height, color, created_at)
+    VALUES
+      ($1,  $2,           $3,            $4,                $5,     $6,     $7,    $8)
+    ON CONFLICT (did) DO UPDATE SET
+      display_name      = EXCLUDED.display_name,
+      mountain_name     = EXCLUDED.mountain_name,
+      mountain_fullname = EXCLUDED.mountain_fullname,
+      canton            = EXCLUDED.canton,
+      height            = EXCLUDED.height,
+      color             = EXCLUDED.color,
+      created_at        = EXCLUDED.created_at,
+      indexed_at        = now()
+    `,
+    [did, displayName, mountainName, mountainFullname, canton, height, color, createdAt],
+  );
+}
+
+/**
+ * Delete a profile from app_profiles.
+ */
+export async function deleteProfile(did) {
+  await pool.query(
+    `DELETE FROM app_profiles WHERE did = $1`,
+    [did],
+  );
+}
+
 export async function refreshLikeCount(clientOrPool, subjectUri) {
   await dbQuery(
     clientOrPool,

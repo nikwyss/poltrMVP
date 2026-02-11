@@ -1,0 +1,24 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.actor.pseudonym",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "Pseudonymous identity for a POLTR user, based on a Swiss mountain name",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "required": ["displayName", "mountainName", "canton", "height", "color"],
+        "properties": {
+          "displayName": { "type": "string", "description": "Full pseudonym e.g. 'A. Eiger'" },
+          "mountainName": { "type": "string", "description": "Mountain name from template" },
+          "mountainFullname": { "type": "string", "description": "Full official mountain name" },
+          "canton": { "type": "string", "description": "Swiss canton abbreviation e.g. 'BE'" },
+          "height": { "type": "number", "description": "Mountain height in meters" },
+          "color": { "type": "string", "description": "Hex color for avatar e.g. '#a3b2c1'" },
+          "createdAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

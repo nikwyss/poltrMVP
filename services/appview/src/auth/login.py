@@ -11,7 +11,10 @@ from src.lib.atproto_api import (
     pds_api_admin_create_account,
     pds_api_admin_delete_account,
     pds_api_login,
+    pds_set_profile,
+    pds_write_pseudonym_record,
 )
+from src.auth.pseudonym_generator import generate_pseudonym
 from src.lib.pds_creds import decrypt_app_password, encrypt_app_password
 
 logger = logging.getLogger(__name__)
@@ -93,9 +96,6 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
     password = gen_password()
     ciphertext, nonce = encrypt_app_password(password)
 
-    # GENERATE Demokratiefabrik Username (using the pseudonym generator (PSEUDONYMITY IN POLTR))
-    # pass
-
     user_session: TCreateAccountResponse = await pds_api_admin_create_account(
         handle, password, user_email
     )
@@ -104,6 +104,15 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
     try:
         if db.pool is None:
             await db.init_pool()
+
+        # Generate pseudonym (random Swiss mountain + letter + color)
+        pseudonym = await generate_pseudonym()
+
+        # Write profile (displayName) to PDS
+        await pds_set_profile(user_session.accessJwt, user_session.did, pseudonym["displayName"])
+
+        # Write pseudonym record to PDS
+        await pds_write_pseudonym_record(user_session.accessJwt, user_session.did, pseudonym)
 
         # Store encrypted password in auth_creds
         async with db.pool.acquire() as conn:
@@ -120,7 +129,9 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
                 nonce,
             )
 
-        response: JSONResponse = await create_session_cookie(user_session=user_session)
+        response: JSONResponse = await create_session_cookie(
+            user_session=user_session, display_name=pseudonym["displayName"]
+        )
 
         response.content = (  # type: ignore
             {
@@ -150,6 +161,7 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
 
 async def create_session_cookie(
     user_session: TCreateAccountResponse | TLoginAccountResponse,
+    display_name: str | None = None,
 ) -> JSONResponse:
     """Helper to set session cookie on response"""
 
@@ -160,7 +172,7 @@ async def create_session_cookie(
     user_data = {
         "did": user_session.did,
         "handle": user_session.handle,
-        "displayName": user_session.handle.split(".")[0],
+        "displayName": display_name or user_session.handle.split(".")[0],
     }
 
     # Store session in database

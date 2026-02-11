@@ -1,15 +1,16 @@
 
 import { CID } from 'multiformats/cid';
 import 'dotenv/config'
-import { pool, upsertBallotDb, markDeleted, upsertLikeDb, markLikeDeleted } from './db.js'
+import { pool, upsertBallotDb, markDeleted, upsertLikeDb, markLikeDeleted, upsertProfileDb, deleteProfile } from './db.js'
 
-const COLLECTION_BALLOT = 'app.ch.poltr.ballot.entry'
-const COLLECTION_LIKE   = 'app.ch.poltr.ballot.like'
+const COLLECTION_BALLOT    = 'app.ch.poltr.ballot.entry'
+const COLLECTION_LIKE      = 'app.ch.poltr.ballot.like'
+const COLLECTION_PSEUDONYM = 'app.ch.poltr.actor.pseudonym'
 
 export const handleEvent = async (evt) => {
   const collection = evt.collection
 
-  if (collection !== COLLECTION_BALLOT && collection !== COLLECTION_LIKE) return
+  if (collection !== COLLECTION_BALLOT && collection !== COLLECTION_LIKE && collection !== COLLECTION_PSEUDONYM) return
 
   console.log('DEBUG -handleEvent => Received event for collection:', collection);
 
@@ -40,6 +41,18 @@ export const handleEvent = async (evt) => {
       const record = evt.record;
       if (!record) return;
       await upsertLikeDb(pool, { uri, cid: cidString, did, rkey, record });
+    }
+  }
+
+  if (collection === COLLECTION_PSEUDONYM) {
+    if (action === 'delete') {
+      await deleteProfile(did);
+      return
+    }
+    if (action === 'create' || action === 'update') {
+      const record = evt.record;
+      if (!record) return;
+      await upsertProfileDb(pool, { did, record });
     }
   }
 };

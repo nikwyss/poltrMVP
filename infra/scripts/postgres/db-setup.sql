@@ -46,6 +46,18 @@ CREATE TABLE app_likes (
 CREATE INDEX app_likes_subject_uri_idx ON app_likes (subject_uri);
 CREATE INDEX app_likes_did_idx ON app_likes (did);
 
+CREATE TABLE app_profiles (
+  did              text PRIMARY KEY,
+  display_name     varchar(200),
+  mountain_name    varchar(150),
+  mountain_fullname varchar(250),
+  canton           varchar(20),
+  height           numeric(7,1),
+  color            varchar(10),
+  created_at       timestamptz,
+  indexed_at       timestamptz NOT NULL DEFAULT now()
+);
+
 -- =============================================================================
 -- auth schema: auth tables (appview only, no indexer access)
 -- =============================================================================
@@ -101,6 +113,14 @@ CREATE INDEX idx_auth_pending_registrations_token ON auth.auth_pending_registrat
 CREATE INDEX idx_auth_pending_registrations_email ON auth.auth_pending_registrations (email);
 CREATE INDEX idx_auth_pending_registrations_expires_at ON auth.auth_pending_registrations (expires_at);
 
+CREATE TABLE auth.mountain_templates (
+  id        serial PRIMARY KEY,
+  name      varchar(150) NOT NULL,
+  fullname  varchar(250),
+  canton    varchar(20) NOT NULL,
+  height    numeric(7,1) NOT NULL
+);
+
 -- =============================================================================
 -- Roles & Grants
 -- =============================================================================
@@ -124,4 +144,4 @@ REVOKE ALL ON SCHEMA auth FROM indexer;
 
 
 
--- ALTER ROLE indexer WITH PASSWORD 'HGKJL9376689787kjHGFGHLJ5467890BJHFH';
+-- ALTER ROLE indexer WITH PASSWORD 'CHANGE_ME';

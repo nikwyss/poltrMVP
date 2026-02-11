@@ -1,6 +1,7 @@
 import base64
 import logging
 import os
+from datetime import datetime, timezone
 import httpx
 from pydantic import BaseModel
 from src.lib import db
@@ -94,6 +95,78 @@ async def pds_api_admin_create_account(
         )
 
     return TCreateAccountResponse(**resp.json())
+
+
+async def pds_set_profile(access_jwt: str, did: str, display_name: str):
+    """Write app.bsky.actor.profile record with displayName to PDS."""
+    pds_internal_url = os.getenv("PDS_INTERNAL_URL")
+    assert pds_internal_url, "PDS_INTERNAL_URL is not set"
+
+    headers = {
+        "Authorization": f"Bearer {access_jwt}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{pds_internal_url}/xrpc/com.atproto.repo.putRecord",
+            headers=headers,
+            json={
+                "repo": did,
+                "collection": "app.bsky.actor.profile",
+                "rkey": "self",
+                "record": {
+                    "$type": "app.bsky.actor.profile",
+                    "displayName": display_name,
+                },
+            },
+        )
+
+    if resp.status_code != 200:
+        logger.error(f"Failed to set profile for {did}: {resp.text}")
+        raise RuntimeError(f"Failed to set profile: {resp.text}")
+
+    logger.info(f"Profile set for {did}: {display_name}")
+
+
+async def pds_write_pseudonym_record(access_jwt: str, did: str, pseudonym_data: dict):
+    """Write app.ch.poltr.actor.pseudonym record to PDS."""
+    pds_internal_url = os.getenv("PDS_INTERNAL_URL")
+    assert pds_internal_url, "PDS_INTERNAL_URL is not set"
+
+    headers = {
+        "Authorization": f"Bearer {access_jwt}",
+        "Content-Type": "application/json",
+    }
+
+    record = {
+        "$type": "app.ch.poltr.actor.pseudonym",
+        "displayName": pseudonym_data["displayName"],
+        "mountainName": pseudonym_data["mountainName"],
+        "mountainFullname": pseudonym_data.get("mountainFullname"),
+        "canton": pseudonym_data["canton"],
+        "height": pseudonym_data["height"],
+        "color": pseudonym_data["color"],
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{pds_internal_url}/xrpc/com.atproto.repo.putRecord",
+            headers=headers,
+            json={
+                "repo": did,
+                "collection": "app.ch.poltr.actor.pseudonym",
+                "rkey": "self",
+                "record": record,
+            },
+        )
+
+    if resp.status_code != 200:
+        logger.error(f"Failed to write pseudonym record for {did}: {resp.text}")
+        raise RuntimeError(f"Failed to write pseudonym record: {resp.text}")
+
+    logger.info(f"Pseudonym record written for {did}")
 
 
 async def pds_api_admin_delete_account(did: str) -> None:
