@@ -68,3 +68,6 @@ Keep ./scripts/postgres/db-setup.sql file up to date. (it should entail an all s
 
 # Changelog
 There is the CHANGELOG.md on the root level
+
+# don't commit.
+don't ask to comitt results. (i will review your changes manually and commit myself.)
