@@ -29,6 +29,10 @@ async function main() {
   const firehose = new Firehose({
     idResolver,
     service: FIREHOSE_SERVICE,
+    getCursor: async () => {
+      const row = await getCursor('firehose:subscription')
+      return row.cursor ?? undefined
+    },
     handleEvent: async (r) => {
       await handleEvent(r).then(() => {
         console.log('Event handled successfully for seq', r.seq);
@@ -76,10 +80,7 @@ async function main() {
   const stop = async () => {
     console.log('Stopping firehose and closing DB pool')
     try {
-      const stopper = (firehose)?.stop
-      if (typeof stopper === 'function') {
-        await stopper.call(firehose)
-      }
+      await firehose.destroy()
     } catch (err) {
       console.error('Error stopping firehose', err)
     }

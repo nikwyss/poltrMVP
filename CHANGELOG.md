@@ -2,6 +2,10 @@
 
 ## 2026-02-11
 
+### Indexer Fixes (`services/indexer`)
+- **Added `getCursor` to firehose subscription** (`src/main.js`): Firehose now resumes from last known cursor on restart, preventing missed events during pod downtime
+- **Fixed graceful shutdown** (`src/main.js`): Changed `firehose.stop()` to `firehose.destroy()` to match the `@bluesky-social/sync` API
+
 ### Pseudonymization (`app.ch.poltr.actor.pseudonym`)
 - **Added lexicon schema** (`services/front/src/lexicons/app.ch.poltr.actor.pseudonym.json`): New record type for pseudonymous identities with `displayName`, `mountainName`, `mountainFullname`, `canton`, `height`, `color`, and `createdAt`
 - **Added `auth.mountain_templates` table** (`infra/scripts/postgres/db-setup.sql`): Seed/reference table with 4,294 Swiss mountains (name, fullname, canton, height >= 2,000m)
