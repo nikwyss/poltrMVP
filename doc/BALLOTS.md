@@ -43,6 +43,9 @@ We use as rkey the offical BFS numbering. e.g.
 552.2;28.11.2010;Gegenentwurf zur Ausschaffungsinitiative...
 552.3;28.11.2010;Stichfrage zu Ausschaffungsinitiative und Gegenentwurf;...
 
+goat get at://smartinfo.poltr.info/app.ch.poltr.ballot.entry/682.3
+
+
 ## Related Records
 
 - **Likes** (`app.ch.poltr.ballot.like`): Reference a ballot by its AT-URI. Like count is denormalized on `app_ballots.like_count`.
@@ -63,3 +66,5 @@ The PDS is the source of truth. The AppView indexes an ephemeral copy via the fi
 
   Now a ballot with officialRef: "413.2" produces the deterministic URI at://did:plc:xxx/app.ch.poltr.ballot.entry/413.2. Writing it again just overwrites
    — no duplicates possible.
+
+   goat get at://smartinfo.poltr.info/app.ch.poltr.ballot.entry/682.3
