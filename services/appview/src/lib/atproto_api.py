@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import logging
 import os
@@ -117,6 +118,27 @@ async def pds_admin_create_account(
     return TCreateAccountResponse(**resp.json())
 
 
+async def wait_for_plc_resolution(did: str, timeout: float = 10.0, interval: float = 0.5):
+    """Poll plc.directory until the DID resolves. Prevents Bluesky AppView stub
+    entries caused by the relay forwarding identity events before PLC propagation.
+    Non-fatal: logs a warning and returns if resolution doesn't succeed in time.
+    """
+    plc_url = os.getenv("PLC_DIRECTORY_URL", "https://plc.directory")
+    elapsed = 0.0
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        while elapsed < timeout:
+            try:
+                resp = await client.get(f"{plc_url}/{did}")
+                if resp.status_code == 200:
+                    logger.info(f"DID {did} resolved on PLC after {elapsed:.1f}s")
+                    return
+            except httpx.RequestError:
+                pass
+            await asyncio.sleep(interval)
+            elapsed += interval
+    logger.warning(f"DID {did} not resolved on PLC after {timeout}s — continuing anyway")
+
+
 async def pds_admin_delete_account(did: str) -> None:
     """Delete a PDS account using admin auth. Used as compensating action."""
     pds_internal_url = os.getenv(
@@ -171,6 +193,61 @@ async def pds_put_record(access_jwt: str, did: str, collection: str, rkey: str, 
         raise RuntimeError(f"Failed to put record ({collection}): {resp.text}")
 
     logger.info(f"Record written ({collection}) for {did}")
+
+
+async def pds_admin_toggle_handle(did: str, handle: str):
+    """Toggle account handle to force a new #identity event on the firehose.
+
+    Works around a Bluesky AppView bug where the initial identity event is
+    lost (e.g. PLC resolution race), leaving the account un-indexed.
+    Toggling the handle emits a fresh identity event that re-triggers indexing.
+    See: https://github.com/bluesky-social/atproto/discussions/4379
+
+    Fully non-fatal: never raises, only logs warnings on failure.
+    """
+    try:
+        pds_internal_url = os.getenv(
+            "PDS_INTERNAL_URL", "http://pds.poltr.svc.cluster.local"
+        )
+        pds_admin_password = os.getenv("PDS_ADMIN_PASSWORD")
+        if not pds_admin_password:
+            logger.warning("PDS_ADMIN_PASSWORD not set, skipping handle toggle")
+            return
+
+        auth_string = f"admin:{pds_admin_password}"
+        auth_bytes = base64.b64encode(auth_string.encode()).decode()
+        headers = {
+            "Authorization": f"Basic {auth_bytes}",
+            "Content-Type": "application/json",
+        }
+
+        base, domain = handle.split(".", 1)
+        tmp_handle = f"{base}-tmp.{domain}"
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Step 1: temporary handle
+            resp = await client.post(
+                f"{pds_internal_url}/xrpc/com.atproto.admin.updateAccountHandle",
+                headers=headers,
+                json={"did": did, "handle": tmp_handle},
+            )
+            if resp.status_code != 200:
+                logger.warning(f"Handle toggle step 1 failed: {resp.status_code} {resp.text}")
+                return
+
+            # Step 2: revert to original
+            resp = await client.post(
+                f"{pds_internal_url}/xrpc/com.atproto.admin.updateAccountHandle",
+                headers=headers,
+                json={"did": did, "handle": handle},
+            )
+            if resp.status_code != 200:
+                logger.warning(f"Handle toggle step 2 failed: {resp.status_code} {resp.text}")
+                return
+
+            logger.info(f"Handle toggled for {did} to force identity re-indexing")
+    except Exception as e:
+        logger.warning(f"Handle toggle failed (non-fatal): {e}")
 
 
 async def relay_request_crawl(hostname: str | None = None):

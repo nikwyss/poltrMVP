@@ -11,9 +11,11 @@ from src.lib.atproto_api import (
     TLoginAccountResponse,
     pds_admin_create_account,
     pds_admin_delete_account,
+    pds_admin_toggle_handle,
     pds_login,
     pds_put_record,
     relay_request_crawl,
+    wait_for_plc_resolution,
 )
 from src.auth.pseudonym_generator import generate_pseudonym
 from src.config import PROFILE_BIO_TEMPLATE
@@ -139,6 +141,22 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
 
     logger.debug("........PDS account created successfully")
 
+    # Wait for the DID to be resolvable on PLC directory before proceeding.
+    # The PDS emits an #identity event immediately on createAccount; if the
+    # Bluesky relay forwards it before PLC propagation finishes, the AppView
+    # creates a broken stub entry that can never be repaired.
+    await wait_for_plc_resolution(user_session.did)
+
+    # Write a minimal profile immediately so the Bluesky AppView can index
+    # this account.  The full pseudonym-based profile overwrites this below.
+    await pds_put_record(
+        user_session.accessJwt,
+        user_session.did,
+        "app.bsky.actor.profile",
+        "self",
+        {"$type": "app.bsky.actor.profile", "displayName": "", "description": ""},
+    )
+
     # Everything after this point must succeed, or we delete the PDS account.
     try:
         if db.pool is None:
@@ -149,7 +167,7 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
 
         logger.debug(".......pseudonym generated, now writing to PDS and DB")
 
-        # Write profile (displayName + bio) to PDS
+        # Write full profile (displayName + bio) to PDS
         bio_data = {
             **pseudonym,
             "mountainFullname": pseudonym.get("mountainFullname")
@@ -173,30 +191,36 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
         logger.debug("........profile set, now writing pseudonym record to PDS")
 
         # Write pseudonym record to PDS
-        pseudonym_record = {
-            "$type": "app.ch.poltr.actor.pseudonym",
-            "displayName": pseudonym["displayName"],
-            "mountainName": pseudonym["mountainName"],
-            "canton": pseudonym["canton"],
-            "height": pseudonym["height"],
-            "color": pseudonym["color"],
-            "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-        }
-        if pseudonym.get("mountainFullname"):
-            pseudonym_record["mountainFullname"] = pseudonym["mountainFullname"]
+        # pseudonym_record = {
+        #     "$type": "app.ch.poltr.actor.pseudonym",
+        #     "displayName": pseudonym["displayName"],
+        #     "mountainName": pseudonym["mountainName"],
+        #     "canton": pseudonym["canton"],
+        #     "height": pseudonym["height"],
+        #     "color": pseudonym["color"],
+        #     "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        # }
+        # if pseudonym.get("mountainFullname"):
+        #     pseudonym_record["mountainFullname"] = pseudonym["mountainFullname"]
 
-        logger.debug(f"Pseudonym record payload: {pseudonym_record}")
+        # logger.debug(f"Pseudonym record payload: {pseudonym_record}")
 
-        await pds_put_record(
-            user_session.accessJwt,
-            user_session.did,
-            "app.ch.poltr.actor.pseudonym",
-            "self",
-            pseudonym_record,
-        )
+        # await pds_put_record(
+        #     user_session.accessJwt,
+        #     user_session.did,
+        #     "app.ch.poltr.actor.pseudonym",
+        #     "self",
+        #     pseudonym_record,
+        # )
 
         # Ask relay to crawl our PDS so the new profile is visible on Bluesky
         await relay_request_crawl()
+
+        # Toggle handle to force a second #identity event on the firehose.
+        # Works around a Bluesky AppView bug where the initial identity event
+        # fails due to a PLC directory race condition, leaving the account
+        # un-indexed on bsky.app.
+        await pds_admin_toggle_handle(user_session.did, handle)
 
         logger.debug(
             "........pseudonym record written, now storing creds in DB and creating session cookie"

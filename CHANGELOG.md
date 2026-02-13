@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-02-13
+
+### Bluesky Federation Fix (`services/appview`)
+- **Added PLC resolution barrier** (`src/lib/atproto_api.py`): New `wait_for_plc_resolution()` polls plc.directory until the DID is resolvable (up to 10s) before writing records. Prevents the Bluesky AppView from creating broken stub entries when the relay forwards the identity event before PLC propagation finishes.
+- **Added handle-toggle workaround** (`src/lib/atproto_api.py`): New `pds_admin_toggle_handle()` forces a second `#identity` event on the PDS firehose after account creation, giving the AppView a second chance to resolve the DID and index the account (see [atproto#4379](https://github.com/bluesky-social/atproto/discussions/4379))
+- **Updated registration flow** (`src/auth/login.py`): After `createAccount`, waits for PLC resolution, then writes records, requests relay crawl, and toggles handle — ensuring new accounts are reliably indexed on bsky.app
+
 ## 2026-02-12
 
 ### Bluesky Cross-Post for Ballot Entries (`services/indexer`)
