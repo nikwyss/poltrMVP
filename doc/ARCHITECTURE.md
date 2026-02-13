@@ -31,7 +31,7 @@ POLTR is an ATProto-based civic-tech platform for Swiss referenda running as a m
 - **APIs:** Custom lexicons for proposals, arguments, likes
 - **Image:** `ghcr.io/nikwyss/poltr-appview:latest`
 - **Port:** 3000
-- **Secrets:** `appview-secrets` + refs to `pds-secrets` (PDS_ADMIN_PASSWORD, PDS_HOSTNAME, PDS_INTERNAL_URL, PDS_GOVERNANCE_ACCOUNT_DID)
+- **Secrets:** `appview-secrets` + refs to `pds-secrets` (PDS_ADMIN_PASSWORD, PDS_HOSTNAME, PDS_INTERNAL_URL, PDS_GOVERNANCE_ACCOUNT_DID, PDS_PUBLIC_HANDLE)
 - **Endpoint:** https://app.poltr.info
 
 #### 3. Indexer (`services/indexer`)

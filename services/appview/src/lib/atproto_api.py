@@ -28,7 +28,18 @@ class TLoginAccountResponse(BaseModel):
     didDoc: dict | None = None  # Optional, not always returned
 
 
-async def _pds_admin_create_invite_code() -> str:
+class TCreateAppPasswordResponse(BaseModel):
+    name: str
+    password: str
+    createdAt: str
+
+
+# =============================================================================
+# Internal PDS helpers (use PDS_INTERNAL_URL, raw JWT or admin auth)
+# =============================================================================
+
+
+async def _pds_admin_create_invite() -> str:
     """Create a single-use invite code using admin auth."""
     # Use internal K8s URL for admin operations (external URL blocks admin auth)
     pds_internal_url = os.getenv(
@@ -52,13 +63,17 @@ async def _pds_admin_create_invite_code() -> str:
         )
 
     if resp.status_code != 200:
-        error_json = resp.json()
+        try:
+            error_json = resp.json()
+        except Exception:
+            error_json = resp.text
+        logger.error(f"PDS createInviteCode failed ({resp.status_code}): {error_json}")
         raise RuntimeError(f"Failed to create invite code: {error_json}")
 
     return resp.json()["code"]
 
 
-async def pds_api_admin_create_account(
+async def pds_admin_create_account(
     handle: str, password: str, user_email: str
 ) -> TCreateAccountResponse:
     """Create account on PDS: first generate invite code, then create account."""
@@ -69,7 +84,7 @@ async def pds_api_admin_create_account(
     ), "PDS_INTERNAL_URL is not set: e.g. http://pds.poltr.svc.cluster.local"
 
     # Step 1: Generate a single-use invite code
-    invite_code = await _pds_admin_create_invite_code()
+    invite_code = await _pds_admin_create_invite()
     logger.info(f"Generated invite code for new account: {handle}")
 
     # Step 2: Create account with the invite code
@@ -89,87 +104,20 @@ async def pds_api_admin_create_account(
             raise RuntimeError(f"PDS request error: {e}") from e
 
     if resp.status_code != 200:
-        error_json = resp.json()
-        raise RuntimeError(
-            f"PDS error: {error_json['error']} - {error_json['message']}"
-        )
+        try:
+            error_json = resp.json()
+            error_type = error_json.get("error", "Unknown")
+            error_message = error_json.get("message", resp.text)
+        except Exception:
+            error_type = "Unknown"
+            error_message = resp.text
+        logger.error(f"PDS createAccount failed ({resp.status_code}): {error_type} - {error_message}")
+        raise RuntimeError(f"PDS error: {error_type} - {error_message}")
 
     return TCreateAccountResponse(**resp.json())
 
 
-async def pds_set_profile(access_jwt: str, did: str, display_name: str):
-    """Write app.bsky.actor.profile record with displayName to PDS."""
-    pds_internal_url = os.getenv("PDS_INTERNAL_URL")
-    assert pds_internal_url, "PDS_INTERNAL_URL is not set"
-
-    headers = {
-        "Authorization": f"Bearer {access_jwt}",
-        "Content-Type": "application/json",
-    }
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(
-            f"{pds_internal_url}/xrpc/com.atproto.repo.putRecord",
-            headers=headers,
-            json={
-                "repo": did,
-                "collection": "app.bsky.actor.profile",
-                "rkey": "self",
-                "record": {
-                    "$type": "app.bsky.actor.profile",
-                    "displayName": display_name,
-                },
-            },
-        )
-
-    if resp.status_code != 200:
-        logger.error(f"Failed to set profile for {did}: {resp.text}")
-        raise RuntimeError(f"Failed to set profile: {resp.text}")
-
-    logger.info(f"Profile set for {did}: {display_name}")
-
-
-async def pds_write_pseudonym_record(access_jwt: str, did: str, pseudonym_data: dict):
-    """Write app.ch.poltr.actor.pseudonym record to PDS."""
-    pds_internal_url = os.getenv("PDS_INTERNAL_URL")
-    assert pds_internal_url, "PDS_INTERNAL_URL is not set"
-
-    headers = {
-        "Authorization": f"Bearer {access_jwt}",
-        "Content-Type": "application/json",
-    }
-
-    record = {
-        "$type": "app.ch.poltr.actor.pseudonym",
-        "displayName": pseudonym_data["displayName"],
-        "mountainName": pseudonym_data["mountainName"],
-        "mountainFullname": pseudonym_data.get("mountainFullname"),
-        "canton": pseudonym_data["canton"],
-        "height": pseudonym_data["height"],
-        "color": pseudonym_data["color"],
-        "createdAt": datetime.now(timezone.utc).isoformat(),
-    }
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(
-            f"{pds_internal_url}/xrpc/com.atproto.repo.putRecord",
-            headers=headers,
-            json={
-                "repo": did,
-                "collection": "app.ch.poltr.actor.pseudonym",
-                "rkey": "self",
-                "record": record,
-            },
-        )
-
-    if resp.status_code != 200:
-        logger.error(f"Failed to write pseudonym record for {did}: {resp.text}")
-        raise RuntimeError(f"Failed to write pseudonym record: {resp.text}")
-
-    logger.info(f"Pseudonym record written for {did}")
-
-
-async def pds_api_admin_delete_account(did: str) -> None:
+async def pds_admin_delete_account(did: str) -> None:
     """Delete a PDS account using admin auth. Used as compensating action."""
     pds_internal_url = os.getenv(
         "PDS_INTERNAL_URL", "http://pds.poltr.svc.cluster.local"
@@ -196,8 +144,64 @@ async def pds_api_admin_delete_account(did: str) -> None:
     logger.info(f"Compensating delete: removed PDS account {did}")
 
 
-async def pds_api_login(did: str, password: str) -> TLoginAccountResponse:
-    """Login to PDS via its API."""
+async def pds_put_record(access_jwt: str, did: str, collection: str, rkey: str, record: dict):
+    """Put (create/update) a record on PDS via internal URL. Used during registration."""
+    pds_internal_url = os.getenv("PDS_INTERNAL_URL")
+    assert pds_internal_url, "PDS_INTERNAL_URL is not set"
+
+    headers = {
+        "Authorization": f"Bearer {access_jwt}",
+        "Content-Type": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{pds_internal_url}/xrpc/com.atproto.repo.putRecord",
+            headers=headers,
+            json={
+                "repo": did,
+                "collection": collection,
+                "rkey": rkey,
+                "record": record,
+            },
+        )
+
+    if resp.status_code != 200:
+        logger.error(f"pds_put_record failed ({collection}) for {did}: {resp.text}")
+        raise RuntimeError(f"Failed to put record ({collection}): {resp.text}")
+
+    logger.info(f"Record written ({collection}) for {did}")
+
+
+async def relay_request_crawl(hostname: str | None = None):
+    """Ask the Bluesky relay to crawl our PDS so new repos/records get indexed."""
+    relay_url = os.getenv("BSKY_RELAY_URL", "https://bsky.network")
+    pds_hostname = hostname or os.getenv("PDS_HOSTNAME")
+    if not pds_hostname:
+        logger.warning("PDS_HOSTNAME not set, skipping requestCrawl")
+        return
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        try:
+            resp = await client.post(
+                f"{relay_url}/xrpc/com.atproto.sync.requestCrawl",
+                json={"hostname": pds_hostname},
+            )
+            if resp.status_code == 200:
+                logger.info(f"Relay crawl requested for {pds_hostname}")
+            else:
+                logger.warning(f"requestCrawl returned {resp.status_code}: {resp.text}")
+        except httpx.RequestError as e:
+            logger.warning(f"requestCrawl failed (non-fatal): {e}")
+
+
+# =============================================================================
+# Public PDS methods (use PDS_HOSTNAME, session-based auth)
+# =============================================================================
+
+
+async def pds_login(did: str, password: str) -> TLoginAccountResponse:
+    """Login to PDS via createSession."""
     pds_url = os.getenv("PDS_HOSTNAME")
     if not pds_url:
         raise ValueError("PDS_HOSTNAME not set in environment")
@@ -220,13 +224,7 @@ async def pds_api_login(did: str, password: str) -> TLoginAccountResponse:
     return TLoginAccountResponse(**resp.json())
 
 
-class TCreateAppPasswordResponse(BaseModel):
-    name: str
-    password: str
-    createdAt: str
-
-
-async def pds_api_create_app_password(
+async def pds_create_app_password(
     session: TSession, name: str
 ) -> TCreateAppPasswordResponse:
     """
@@ -363,7 +361,7 @@ async def pds_delete_record(session: TSession, collection: str, rkey: str):
         raise RuntimeError(f"PDS error: {resp.text}")
 
 
-async def set_birthdate_on_bluesky(session: TSession) -> bool:
+async def pds_set_birthdate(session: TSession) -> bool:
     """
     Set birthDate preference on Bluesky's AppView.
     Called when user creates an app password (= wants to use Bluesky).

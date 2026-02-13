@@ -20,6 +20,7 @@ CREATE TABLE app_ballots (
   description text,
   vote_date   timestamptz,
   like_count  integer NOT NULL DEFAULT 0,
+  bsky_post_uri text,               -- URI of the cross-posted app.bsky.feed.post
   created_at  timestamptz NOT NULL,
   indexed_at  timestamptz NOT NULL DEFAULT now(),
   deleted     boolean NOT NULL DEFAULT false
@@ -63,12 +64,13 @@ CREATE TABLE app_profiles (
 -- =============================================================================
 
 CREATE TABLE auth.auth_creds (
-  did               text PRIMARY KEY,
-  handle            text NOT NULL,
-  email             varchar(255) NOT NULL UNIQUE,
-  pds_url           text,
-  app_pw_ciphertext bytea NOT NULL,
-  app_pw_nonce      bytea NOT NULL
+  did                    text PRIMARY KEY,
+  handle                 text NOT NULL,
+  email                  varchar(255) NOT NULL UNIQUE,
+  pds_url                text,
+  app_pw_ciphertext      bytea NOT NULL,
+  app_pw_nonce           bytea NOT NULL,
+  pseudonym_template_id  integer REFERENCES auth.mountain_templates(id)
 );
 
 CREATE INDEX idx_auth_creds_email ON auth.auth_creds (email);

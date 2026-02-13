@@ -45,7 +45,7 @@ Reference table with 4,294 Swiss mountains. Populated via `infra/scripts/postgre
 ### public.app_profiles (indexed from firehose)
 
 Ephemeral table indexed by the firehose indexer. Rebuildable from PDS records.
-
+#TODO: remove this: conflicts with pseudonimity: (this would be possible to lt translate real names into pseudonyms.)
 | Column            | Type          | Description                     |
 |-------------------|---------------|---------------------------------|
 | did               | text PK       | User DID                        |

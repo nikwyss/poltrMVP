@@ -5,13 +5,29 @@ const APPVIEW_URL = process.env.APPVIEW_URL || process.env.NEXT_PUBLIC_API_URL |
 export async function POST(request: NextRequest) {
   const body = await request.json();
 
-  const res = await fetch(`${APPVIEW_URL}/xrpc/ch.poltr.auth.verifyRegistration`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${APPVIEW_URL}/xrpc/ch.poltr.auth.verifyRegistration`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return NextResponse.json(
+      { error: 'service_unavailable', message: 'Could not reach the server, please try again later' },
+      { status: 502 },
+    );
+  }
 
-  const data = await res.json();
+  let data: Record<string, unknown>;
+  try {
+    data = await res.json();
+  } catch {
+    return NextResponse.json(
+      { error: 'invalid_response', message: 'Unexpected server response' },
+      { status: 502 },
+    );
+  }
 
   if (!res.ok) {
     return NextResponse.json(data, { status: res.status });

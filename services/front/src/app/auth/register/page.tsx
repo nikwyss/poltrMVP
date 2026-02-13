@@ -33,8 +33,7 @@ export default function Register() {
       }
 
       await response.json().catch(() => ({}));
-      setSuccess('Confirmation email sent — check your inbox and follow the link to complete registration.');
-      setTimeout(() => { router.push('/'); }, 5000);
+      router.push(`/auth/magic-link-sent?email=${encodeURIComponent(formData.email)}&purpose=registration`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account');
     } finally {

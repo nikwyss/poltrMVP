@@ -82,3 +82,17 @@ spec:
     kind: ClusterIssuer
   dnsNames:
     - "poltr.ch"
+---
+# Wildcard certificate for handle domain *.id.poltr.ch (using DNS-01)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: poltr-handle-cert
+  namespace: poltr
+spec:
+  secretName: poltr-handle-tls
+  issuerRef:
+    name: letsencrypt-prod-dns
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.id.poltr.ch"

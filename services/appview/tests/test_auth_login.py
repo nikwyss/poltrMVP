@@ -71,7 +71,7 @@ async def test_login_success():
     with (
         patch("src.lib.db.pool", pool),
         patch("src.auth.login.decrypt_app_password", return_value="decrypted-pw"),
-        patch("src.auth.login.pds_api_login", new_callable=AsyncMock, return_value=mock_login_response),
+        patch("src.auth.login.pds_login", new_callable=AsyncMock, return_value=mock_login_response),
     ):
         from src.auth.login import login_pds_account
 
@@ -108,7 +108,7 @@ async def test_create_account_success():
     with (
         patch("src.lib.db.pool", pool),
         patch("src.auth.login.encrypt_app_password", return_value=(b"ct", b"nonce")),
-        patch("src.auth.login.pds_api_admin_create_account", new_callable=AsyncMock, return_value=mock_session),
+        patch("src.auth.login.pds_admin_create_account", new_callable=AsyncMock, return_value=mock_session),
     ):
         from src.auth.login import create_account
 
@@ -154,8 +154,8 @@ async def test_create_account_compensating_delete_on_db_failure():
     with (
         patch("src.lib.db.pool", FailingPool()),
         patch("src.auth.login.encrypt_app_password", return_value=(b"ct", b"nonce")),
-        patch("src.auth.login.pds_api_admin_create_account", new_callable=AsyncMock, return_value=mock_session),
-        patch("src.auth.login.pds_api_admin_delete_account", mock_delete),
+        patch("src.auth.login.pds_admin_create_account", new_callable=AsyncMock, return_value=mock_session),
+        patch("src.auth.login.pds_admin_delete_account", mock_delete),
     ):
         from src.auth.login import create_account
 
@@ -193,8 +193,8 @@ async def test_create_account_compensating_delete_failure_still_returns_500():
     with (
         patch("src.lib.db.pool", FailingPool()),
         patch("src.auth.login.encrypt_app_password", return_value=(b"ct", b"nonce")),
-        patch("src.auth.login.pds_api_admin_create_account", new_callable=AsyncMock, return_value=mock_session),
-        patch("src.auth.login.pds_api_admin_delete_account", mock_delete),
+        patch("src.auth.login.pds_admin_create_account", new_callable=AsyncMock, return_value=mock_session),
+        patch("src.auth.login.pds_admin_delete_account", mock_delete),
     ):
         from src.auth.login import create_account
 

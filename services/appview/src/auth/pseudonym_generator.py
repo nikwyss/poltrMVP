@@ -27,7 +27,7 @@ async def generate_pseudonym() -> dict:
 
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT name, fullname, canton, height FROM auth.mountain_templates ORDER BY random() LIMIT 1"
+            "SELECT id, name, fullname, canton, height FROM auth.mountain_templates ORDER BY random() LIMIT 1"
         )
 
     if not row:
@@ -36,8 +36,8 @@ async def generate_pseudonym() -> dict:
     letter = random.choice(string.ascii_uppercase)
     color = get_random_color()
     display_name = f"{letter}. {row['name']}"
-
     return {
+        "templateId": row["id"],
         "displayName": display_name,
         "mountainName": row["name"],
         "mountainFullname": row["fullname"],

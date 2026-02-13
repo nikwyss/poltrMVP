@@ -5,16 +5,18 @@ import os
 from datetime import datetime, timedelta
 from fastapi.responses import JSONResponse, RedirectResponse
 import src.lib.db as db
+from datetime import datetime, timezone
 from src.lib.atproto_api import (
     TCreateAccountResponse,
     TLoginAccountResponse,
-    pds_api_admin_create_account,
-    pds_api_admin_delete_account,
-    pds_api_login,
-    pds_set_profile,
-    pds_write_pseudonym_record,
+    pds_admin_create_account,
+    pds_admin_delete_account,
+    pds_login,
+    pds_put_record,
+    relay_request_crawl,
 )
 from src.auth.pseudonym_generator import generate_pseudonym
+from src.config import PROFILE_BIO_TEMPLATE
 from src.lib.pds_creds import decrypt_app_password, encrypt_app_password
 
 logger = logging.getLogger(__name__)
@@ -23,11 +25,11 @@ logger = logging.getLogger(__name__)
 async def login_pds_account(user_email: str) -> JSONResponse:
     """Logs in an existing pds account (including auth login)"""
     if db.pool is None:
-        print("Pool is None, initializing now...")
+        logger.debug("Pool is None, initializing now...")
         await db.init_pool()
-        print("Pool initialized successfully")
+        logger.debug("Pool initialized successfully")
 
-    print(f"Logging in user: {user_email}")
+    logger.debug(f"Attempting to log in user with email: {user_email}")
 
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -54,7 +56,7 @@ async def login_pds_account(user_email: str) -> JSONResponse:
         nonce = row["app_pw_nonce"]
         ciphertext = row["app_pw_ciphertext"]
         password = decrypt_app_password(ciphertext, nonce)
-        pds_user_session: TLoginAccountResponse = await pds_api_login(
+        pds_user_session: TLoginAccountResponse = await pds_login(
             did=did,
             password=password,
         )
@@ -62,6 +64,8 @@ async def login_pds_account(user_email: str) -> JSONResponse:
         response: JSONResponse = await create_session_cookie(
             user_session=pds_user_session
         )
+
+        logger.debug(f"Login successful for {user_email}, session cookie created")
         response.content = (  # type: ignore
             {
                 "success": True,
@@ -81,11 +85,14 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
     # create account on PDS
     import random, string, secrets
 
+    logger.debug("START CREATING ACCOUNT.....")
+
     def gen_handle():
         name = "user" + "".join(
             random.choices(string.ascii_lowercase + string.digits, k=6)
         )
-        domain = os.getenv("PDS_DOMAIN_SHORT", "poltr.info")
+        domain = os.getenv("PDS_PUBLIC_HANDLE")
+        assert domain, "PDS_PUBLIC_HANDLE is not set (e.g. id.poltr.ch)"
         return f"{name}.{domain}"
 
     def gen_password():
@@ -96,9 +103,41 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
     password = gen_password()
     ciphertext, nonce = encrypt_app_password(password)
 
-    user_session: TCreateAccountResponse = await pds_api_admin_create_account(
-        handle, password, user_email
-    )
+    logger.debug("........pw and handles generated, now creating PDS account")
+
+    try:
+        user_session: TCreateAccountResponse = await pds_admin_create_account(
+            handle, password, user_email
+        )
+    except RuntimeError as e:
+        error_msg = str(e)
+        logger.error(f"PDS account creation failed for {user_email}: {error_msg}")
+        # Map PDS errors to user-friendly messages
+        if "Email already taken" in error_msg:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": "email_taken",
+                    "message": "This email is already registered on the PDS",
+                },
+            )
+        if "Handle already taken" in error_msg:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": "handle_taken",
+                    "message": "Generated handle conflict, please try again",
+                },
+            )
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": "pds_error",
+                "message": "Could not create account on PDS, please try again later",
+            },
+        )
+
+    logger.debug("........PDS account created successfully")
 
     # Everything after this point must succeed, or we delete the PDS account.
     try:
@@ -108,18 +147,67 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
         # Generate pseudonym (random Swiss mountain + letter + color)
         pseudonym = await generate_pseudonym()
 
-        # Write profile (displayName) to PDS
-        await pds_set_profile(user_session.accessJwt, user_session.did, pseudonym["displayName"])
+        logger.debug(".......pseudonym generated, now writing to PDS and DB")
+
+        # Write profile (displayName + bio) to PDS
+        bio_data = {
+            **pseudonym,
+            "mountainFullname": pseudonym.get("mountainFullname")
+            or pseudonym["mountainName"],
+        }
+        bio = PROFILE_BIO_TEMPLATE.format(**bio_data)
+
+        await pds_put_record(
+            user_session.accessJwt,
+            user_session.did,
+            "app.bsky.actor.profile",
+            "self",
+            {
+                "$type": "app.bsky.actor.profile",
+                "displayName": pseudonym["displayName"],
+                "description": bio,
+                # TODO: later: add avatar (blob) and banner
+            },
+        )
+
+        logger.debug("........profile set, now writing pseudonym record to PDS")
 
         # Write pseudonym record to PDS
-        await pds_write_pseudonym_record(user_session.accessJwt, user_session.did, pseudonym)
+        pseudonym_record = {
+            "$type": "app.ch.poltr.actor.pseudonym",
+            "displayName": pseudonym["displayName"],
+            "mountainName": pseudonym["mountainName"],
+            "canton": pseudonym["canton"],
+            "height": pseudonym["height"],
+            "color": pseudonym["color"],
+            "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        }
+        if pseudonym.get("mountainFullname"):
+            pseudonym_record["mountainFullname"] = pseudonym["mountainFullname"]
+
+        logger.debug(f"Pseudonym record payload: {pseudonym_record}")
+
+        await pds_put_record(
+            user_session.accessJwt,
+            user_session.did,
+            "app.ch.poltr.actor.pseudonym",
+            "self",
+            pseudonym_record,
+        )
+
+        # Ask relay to crawl our PDS so the new profile is visible on Bluesky
+        await relay_request_crawl()
+
+        logger.debug(
+            "........pseudonym record written, now storing creds in DB and creating session cookie"
+        )
 
         # Store encrypted password in auth_creds
         async with db.pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO auth_creds (did, handle, email, pds_url, app_pw_ciphertext, app_pw_nonce)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO auth_creds (did, handle, email, pds_url, app_pw_ciphertext, app_pw_nonce, pseudonym_template_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 """,
                 user_session.did,
                 handle,
@@ -127,11 +215,16 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
                 os.getenv("PDS_HOSTNAME"),
                 ciphertext,
                 nonce,
+                pseudonym["templateId"],
             )
+
+        logger.debug("........creds stored in DB, now creating session cookie")
 
         response: JSONResponse = await create_session_cookie(
             user_session=user_session, display_name=pseudonym["displayName"]
         )
+
+        logger.debug("........session cookie created, now returning response")
 
         response.content = (  # type: ignore
             {
@@ -143,9 +236,11 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
 
     except Exception as e:
         # Compensating action: delete the PDS account we just created
-        logger.error(f"Registration failed after PDS account creation: {e}")
+        logger.error(
+            f"Registration failed after PDS account creation: {e}. Delete orphan account again."
+        )
         try:
-            await pds_api_admin_delete_account(user_session.did)
+            await pds_admin_delete_account(user_session.did)
         except Exception as delete_err:
             logger.error(
                 f"Failed to delete orphan PDS account {user_session.did}: {delete_err}"

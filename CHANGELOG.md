@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-02-12
+
+### Bluesky Cross-Post for Ballot Entries (`services/indexer`)
+- **Added PDS client module** (`services/indexer/src/pds_client.js`): Authenticates as the governance account on the PDS and creates `app.bsky.feed.post` records with `app.bsky.embed.external` embedding a link card back to POLTR
+- **Updated record handler** (`services/indexer/src/record_handler.js`): On new `app.ch.poltr.ballot.entry` from the governance DID, auto-creates a corresponding Bluesky post (non-blocking — indexing continues on failure)
+- **Added `bsky_post_uri` column** (`infra/scripts/postgres/db-setup.sql`, `services/indexer/src/db.js`): Tracks cross-posted Bluesky post URIs on `app_ballots` to prevent duplicates
+- **New env vars**: `PDS_INTERNAL_URL`, `PDS_GOVERNANCE_ACCOUNT_DID`, `PDS_GOVERNANCE_PASSWORD`, `FRONTEND_URL`
+- **Updated K8s secrets** (`infra/kube/secrets.yaml.dist`): Added `PDS_GOVERNANCE_ACCOUNT_DID` to `pds-secrets`; added `PDS_GOVERNANCE_PASSWORD` and `FRONTEND_URL` to `indexer-secrets`
+- **Updated indexer deployment** (`infra/kube/poltr.yaml`): Indexer now pulls `PDS_INTERNAL_URL` and `PDS_GOVERNANCE_ACCOUNT_DID` from `pds-secrets`
+
+### Handle Domain Migration (`id.poltr.ch`)
+- **Added TLS certificate for `*.id.poltr.ch`** (`infra/cert/cert-manager-wildcard.yaml`): New Certificate resource using DNS-01 challenge via existing `letsencrypt-prod-dns` ClusterIssuer
+- **Added Ingress TLS + routing for `*.id.poltr.ch`** (`infra/kube/poltr.yaml`): New TLS entry with `poltr-handle-tls` secret; new host rule routing `*.id.poltr.ch` to PDS (placed before `*.poltr.info` catch-all)
+- **Updated `PDS_SERVICE_HANDLE_DOMAINS`** (`infra/kube/secrets.yaml`, `secrets.yaml.dist`): Changed from `.poltr.info` to `.id.poltr.ch` — new accounts get `@user.id.poltr.ch` handles
+- **Manual steps required**: DNS CNAME `*.id.poltr.ch → pds.poltr.info` must be created in Infomaniak Panel; existing accounts need handle migration
+
 ## 2026-02-11
 
 ### Indexer Fixes (`services/indexer`)

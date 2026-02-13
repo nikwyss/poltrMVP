@@ -216,44 +216,24 @@ function HomeContent() {
           <h3 style={{ margin: '0 0 12px 0', color: '#2e7d32' }}>
             App Password Created!
           </h3>
+          <p style={{ margin: '8px 0' }}>
+            <strong>Handle:</strong>{' '}
+            <code style={{ backgroundColor: '#fff', padding: '4px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
+              {user.handle}
+            </code>
+          </p>
+          <p style={{ margin: '8px 0' }}>
+            <strong>PDS:</strong>{' '}
+            <code style={{ backgroundColor: '#fff', padding: '4px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
+              {process.env.NEXT_PUBLIC_PDS_URL || 'https://pds.poltr.info'}
+            </code>
+          </p>
           <p style={{ margin: '8px 0', wordBreak: 'break-all' }}>
             <strong>Password:</strong>{' '}
-            <code
-              style={{
-                backgroundColor: '#fff',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                fontFamily: 'monospace'
-              }}
-            >
+            <code style={{ backgroundColor: '#fff', padding: '4px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
               {appPassword.password}
             </code>
           </p>
-          <div
-            style={{
-              marginTop: '16px',
-              padding: '12px',
-              backgroundColor: '#fff3e0',
-              border: '1px solid #ff9800',
-              borderRadius: '4px'
-            }}
-          >
-            <p style={{ margin: '0 0 8px 0', fontWeight: 'bold', color: '#e65100' }}>
-              &#9888; Copy this password now!
-            </p>
-            <p style={{ margin: '0', fontSize: '14px', color: '#bf360c' }}>
-              It will not be shown again.
-            </p>
-          </div>
-          <div style={{ marginTop: '16px', fontSize: '14px' }}>
-            <p style={{ margin: '4px 0' }}>
-              <strong>Use this to login to Bluesky with:</strong>
-            </p>
-            <p style={{ margin: '4px 0' }}>
-              Handle: <code>{user.handle}</code>
-            </p>
-            <p style={{ margin: '4px 0' }}>Password: (the password above)</p>
-          </div>
         </div>
       )}
     </div>

@@ -1,7 +1,11 @@
 
 import { CID } from 'multiformats/cid';
 import 'dotenv/config'
-import { pool, upsertBallotDb, markDeleted, upsertLikeDb, markLikeDeleted, upsertProfileDb, deleteProfile } from './db.js'
+import process from 'node:process'
+import { pool, upsertBallotDb, markDeleted, upsertLikeDb, markLikeDeleted, upsertProfileDb, deleteProfile, getBskyPostUri, setBskyPostUri } from './db.js'
+import { createBskyPost } from './pds_client.js'
+
+const GOVERNANCE_DID = process.env.PDS_GOVERNANCE_ACCOUNT_DID
 
 const COLLECTION_BALLOT    = 'app.ch.poltr.ballot.entry'
 const COLLECTION_LIKE      = 'app.ch.poltr.ballot.like'
@@ -29,6 +33,21 @@ export const handleEvent = async (evt) => {
       const record = evt.record;
       if (!record) return;
       await upsertBallotDb(pool, { uri, cid: cidString, did, rkey, record });
+
+      // Cross-post to Bluesky for new governance ballots
+      if (action === 'create' && GOVERNANCE_DID && did === GOVERNANCE_DID) {
+        try {
+          const existing = await getBskyPostUri(uri);
+          if (!existing) {
+            const bskyUri = await createBskyPost(record, rkey);
+            if (bskyUri) {
+              await setBskyPostUri(uri, bskyUri);
+            }
+          }
+        } catch (err) {
+          console.error('Cross-post to Bluesky failed (non-blocking):', err);
+        }
+      }
     }
   }
 

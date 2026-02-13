@@ -214,16 +214,27 @@ spec:
           envFrom:
             - secretRef:
                 name: indexer-secrets
+          env:
+            - name: PDS_INTERNAL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_INTERNAL_URL
+            - name: PDS_GOVERNANCE_ACCOUNT_DID
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_GOVERNANCE_ACCOUNT_DID
           ports:
             - containerPort: 3000
-              protocol: TCP                
+              protocol: TCP
           resources:
             requests:
               cpu: "100m"
               memory: "64Mi"
             limits:
               cpu: "200m"
-              memory: "256Mi"          
+              memory: "256Mi"
 ---
 apiVersion: v1
 kind: Service
@@ -275,11 +286,16 @@ spec:
                 secretKeyRef:
                   name: pds-secrets
                   key: PDS_HOSTNAME
+            - name: PDS_PUBLIC_HANDLE
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_PUBLIC_HANDLE
             - name: PDS_INTERNAL_URL
               valueFrom:
                 secretKeyRef:
                   name: pds-secrets
-                  key:  PDS_INTERNAL_URL
+                  key: PDS_INTERNAL_URL
             - name: PDS_GOVERNANCE_ACCOUNT_DID
               valueFrom:
                 secretKeyRef:
@@ -705,15 +721,18 @@ metadata:
   name: poltr-ingress
   namespace: poltr
   annotations:
-    kubernetes.io/ingress.class: "nginx"
-    # Using DNS-01 issuer for wildcard support
     cert-manager.io/cluster-issuer: "letsencrypt-prod-dns"
 spec:
+  ingressClassName: nginx
   tls:
     # Wildcard certificate for all *.poltr.info subdomains
     - hosts:
         - "*.poltr.info"
       secretName: poltr-wildcard-tls
+    # Wildcard certificate for handle domain *.id.poltr.ch
+    - hosts:
+        - "*.id.poltr.ch"
+      secretName: poltr-handle-tls
     # Separate cert for poltr.ch (different domain)
     - hosts:
         - poltr.ch
@@ -738,16 +757,6 @@ spec:
             backend:
               service:
                 name: frontend
-                port:
-                  number: 80
-    - host: pds.poltr.info
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: pds
                 port:
                   number: 80
     - host: indexer.poltr.info
@@ -810,8 +819,8 @@ spec:
                 name: cms
                 port:
                   number: 80
-    # Wildcard host rule so any <handle>.poltr.info routes to the PDS
-    - host: '*.poltr.info'
+    # Handle domain: any <handle>.id.poltr.ch routes to PDS
+    - host: "*.id.poltr.ch"
       http:
         paths:
           - path: /
@@ -821,4 +830,44 @@ spec:
                 name: pds
                 port:
                   number: 80
-
+    # Wildcard host rule so any <handle>.poltr.info routes to the PDS
+    - host: "*.poltr.info"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pds
+                port:
+                  number: 80
+---
+# Separate Ingress for PDS main host — needs long WebSocket timeouts
+# so the Bluesky relay can maintain a persistent firehose subscription.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pds-ingress
+  namespace: poltr
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod-dns"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - "*.poltr.info"
+      secretName: poltr-wildcard-tls
+  rules:
+    - host: pds.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pds
+                port:
+                  number: 80

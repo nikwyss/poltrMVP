@@ -7,6 +7,8 @@ function MagicLinkSentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get('email') || 'your email';
+  const purpose = searchParams.get('purpose');
+  const isRegistration = purpose === 'registration';
 
   return (
     <div style={{
@@ -36,7 +38,7 @@ function MagicLinkSentContent() {
           color: '#666',
           marginBottom: '10px'
         }}>
-          We&apos;ve sent a magic link to:
+          We&apos;ve sent a {isRegistration ? 'confirmation' : 'magic'} link to:
         </p>
         <p style={{
           fontSize: '18px',
@@ -51,7 +53,7 @@ function MagicLinkSentContent() {
           color: '#666',
           marginBottom: '30px'
         }}>
-          Click the link in the email to log in. The link will expire in 15 minutes.
+          Click the link in the email to {isRegistration ? 'complete your registration' : 'log in'}. The link will expire in {isRegistration ? '30' : '15'} minutes.
         </p>
         <button
           onClick={() => router.push('/')}

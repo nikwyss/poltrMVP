@@ -1,0 +1,135 @@
+import 'dotenv/config'
+import process from 'node:process'
+
+const PDS_INTERNAL_URL = process.env.PDS_INTERNAL_URL ?? 'http://pds.poltr.svc.cluster.local'
+const GOVERNANCE_DID = process.env.PDS_GOVERNANCE_ACCOUNT_DID
+const GOVERNANCE_PASSWORD = process.env.PDS_GOVERNANCE_PASSWORD
+const FRONTEND_URL = process.env.FRONTEND_URL ?? 'https://poltr.ch'
+
+let accessJwt = null
+let refreshJwt = null
+let tokenExpiresAt = 0
+
+function isConfigured() {
+  return !!(GOVERNANCE_DID && GOVERNANCE_PASSWORD)
+}
+
+/**
+ * Create a session (login) for the governance account on the PDS.
+ */
+async function createSession() {
+  const res = await fetch(`${PDS_INTERNAL_URL}/xrpc/com.atproto.server.createSession`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      identifier: GOVERNANCE_DID,
+      password: GOVERNANCE_PASSWORD,
+    }),
+  })
+
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`createSession failed (${res.status}): ${body}`)
+  }
+
+  const data = await res.json()
+  accessJwt = data.accessJwt
+  refreshJwt = data.refreshJwt
+  // Tokens typically last 2 hours; refresh well before expiry
+  tokenExpiresAt = Date.now() + 90 * 60 * 1000
+}
+
+/**
+ * Refresh the session using the refresh token.
+ */
+async function refreshSession() {
+  if (!refreshJwt) {
+    return createSession()
+  }
+
+  const res = await fetch(`${PDS_INTERNAL_URL}/xrpc/com.atproto.server.refreshSession`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${refreshJwt}` },
+  })
+
+  if (!res.ok) {
+    // Refresh failed, fall back to full login
+    console.warn('refreshSession failed, falling back to createSession')
+    return createSession()
+  }
+
+  const data = await res.json()
+  accessJwt = data.accessJwt
+  refreshJwt = data.refreshJwt
+  tokenExpiresAt = Date.now() + 90 * 60 * 1000
+}
+
+/**
+ * Get a valid access token, refreshing if needed.
+ */
+async function getAccessToken() {
+  if (!accessJwt || Date.now() >= tokenExpiresAt) {
+    if (refreshJwt && Date.now() < tokenExpiresAt + 30 * 60 * 1000) {
+      await refreshSession()
+    } else {
+      await createSession()
+    }
+  }
+  return accessJwt
+}
+
+/**
+ * Create a Bluesky cross-post for a ballot entry.
+ *
+ * @param {object} record - The ballot record (with title, description, etc.)
+ * @param {string} rkey - The ballot record key
+ * @returns {string|null} The URI of the created bsky post, or null on failure
+ */
+export async function createBskyPost(record, rkey) {
+  if (!isConfigured()) {
+    console.warn('PDS cross-post not configured (missing env vars), skipping')
+    return null
+  }
+
+  const title = record.title ?? 'New ballot'
+  const description = record.description ?? ''
+  const ballotUrl = `${FRONTEND_URL}/ballots/${rkey}`
+
+  const postRecord = {
+    $type: 'app.bsky.feed.post',
+    text: title,
+    embed: {
+      $type: 'app.bsky.embed.external',
+      external: {
+        uri: ballotUrl,
+        title: title,
+        description: description,
+      },
+    },
+    createdAt: new Date().toISOString(),
+  }
+
+  const token = await getAccessToken()
+
+  const res = await fetch(`${PDS_INTERNAL_URL}/xrpc/com.atproto.repo.createRecord`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      repo: GOVERNANCE_DID,
+      collection: 'app.bsky.feed.post',
+      record: postRecord,
+    }),
+  })
+
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`createRecord for bsky post failed (${res.status}): ${body}`)
+  }
+
+  const data = await res.json()
+  console.log('Cross-post created:', data.uri)
+  return data.uri
+}

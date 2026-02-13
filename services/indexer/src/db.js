@@ -158,6 +158,27 @@ export async function deleteProfile(did) {
   );
 }
 
+/**
+ * Check if a ballot already has a cross-posted bsky post.
+ */
+export async function getBskyPostUri(uri) {
+  const res = await pool.query(
+    `SELECT bsky_post_uri FROM app_ballots WHERE uri = $1`,
+    [uri],
+  );
+  return res.rows?.[0]?.bsky_post_uri ?? null;
+}
+
+/**
+ * Store the cross-posted bsky post URI on the ballot.
+ */
+export async function setBskyPostUri(ballotUri, bskyPostUri) {
+  await pool.query(
+    `UPDATE app_ballots SET bsky_post_uri = $1 WHERE uri = $2`,
+    [bskyPostUri, ballotUri],
+  );
+}
+
 export async function refreshLikeCount(clientOrPool, subjectUri) {
   await dbQuery(
     clientOrPool,

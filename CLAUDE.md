@@ -37,6 +37,38 @@ kubectl describe pod -n poltr <pod-name>
   - `goat firehose` - watch network firehose
   - `goat pds` - PDS admin commands
 
+### PDS Administration with goat
+
+The PDS admin API is only accessible via the internal K8s URL (`pds.poltr.svc.cluster.local`).
+For local dev, port-forward first:
+```bash
+kubectl port-forward -n poltr svc/pds 2583:80
+```
+
+Then use goat with `--pds-host` and `--admin-password` (from `PDS_ADMIN_PASSWORD` in appview `.env`):
+
+```bash
+# List all accounts
+goat pds account list --pds-host http://localhost:2583
+
+# Get detailed info for an account (includes email, handle, invites)
+goat pds admin account info --pds-host http://localhost:2583 --admin-password <PDS_ADMIN_PASSWORD> <did>
+
+# List accounts via admin (supports filtering, e.g. takendown)
+goat pds admin account list --pds-host http://localhost:2583 --admin-password <PDS_ADMIN_PASSWORD>
+
+# Delete an account
+goat pds admin account delete --pds-host http://localhost:2583 --admin-password <PDS_ADMIN_PASSWORD> <did>
+
+# Create an account (auto-generates invite code)
+goat pds admin account create --pds-host http://localhost:2583 --admin-password <PDS_ADMIN_PASSWORD> ...
+
+# Create invite codes
+goat pds admin create-invites --pds-host http://localhost:2583 --admin-password <PDS_ADMIN_PASSWORD>
+```
+
+For production, replace `--pds-host` with the internal URL or use an active port-forward.
+
 ## Architecture
 
 ```

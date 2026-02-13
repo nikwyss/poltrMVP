@@ -22,7 +22,7 @@ from src.auth.magic_link_handler import (
     SendMagicLinkData,
     verify_registration_magic_link_handler,
 )
-from src.lib.atproto_api import pds_api_create_app_password, set_birthdate_on_bluesky
+from src.lib.atproto_api import pds_create_app_password, pds_set_birthdate
 from src.lib.fastapi import limiter
 
 EIDPROTO_URL = os.getenv("EIDPROTO_URL", "https://eidproto.poltr.info")
@@ -162,9 +162,9 @@ async def create_app_password(
 ):
     """Create an app password for use with Bluesky clients."""
     try:
-        await set_birthdate_on_bluesky(session)
+        await pds_set_birthdate(session)
 
-        result = await pds_api_create_app_password(
+        result = await pds_create_app_password(
             session, f"poltr-{int(time.time())}"
         )
         return JSONResponse(content=result.model_dump())
