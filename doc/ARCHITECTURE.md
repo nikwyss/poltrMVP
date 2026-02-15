@@ -62,7 +62,7 @@ POLTR is an ATProto-based civic-tech platform for Swiss referenda running as a m
 - **Storage:** PVC `pds-data` (1Gi) mounted at `/data`
 - **Port:** 2583
 - **Secrets:** `pds-secrets`
-- **Endpoint:** https://pds.poltr.info
+- **Endpoint:** https://pds2.poltr.info
 - **Config:**
   - Service handle domains: `.poltr.info`
   - Wildcard ingress: `*.poltr.info` routes to PDS for handle resolution
@@ -218,7 +218,7 @@ Single `poltr-ingress` with nginx ingress class and cert-manager (Let's Encrypt 
 |------|---------|------|
 | `poltr.ch` | frontend | 80 |
 | `www.poltr.ch` | frontend | 80 |
-| `pds.poltr.info` | pds | 80 |
+| `pds2.poltr.info` | pds | 80 |
 | `indexer.poltr.info` | indexer | 80 |
 | `app.poltr.info` | appview | 80 |
 | `verifier.poltr.info` | verifier-service | 80 |

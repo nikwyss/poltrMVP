@@ -184,7 +184,7 @@ async def initiate_eid_verification(
     Initiate E-ID verification via eidproto service.
     Creates a secure session and returns the redirect URL.
     """
-    pds_url = os.getenv("PDS_HOSTNAME", "pds.poltr.info")
+    pds_url = os.getenv("PDS_HOSTNAME", "pds2.poltr.info")
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:

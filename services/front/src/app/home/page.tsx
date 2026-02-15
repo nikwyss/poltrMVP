@@ -6,6 +6,42 @@ import { useEffect, useState, Suspense } from 'react';
 import { initiateEidVerification } from '../../lib/agent';
 import { useAppPassword } from '../../lib/useAppPassword';
 
+function CopyField({ label, value, breakAll }: { label: string; value: string; breakAll?: boolean }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <p style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '8px', wordBreak: breakAll ? 'break-all' : undefined }}>
+      <strong>{label}:</strong>
+      <code style={{ backgroundColor: '#fff', padding: '4px 8px', borderRadius: '4px', fontFamily: 'monospace', flex: 1 }}>
+        {value}
+      </code>
+      <button
+        onClick={handleCopy}
+        title={copied ? 'Copied!' : `Copy ${label.toLowerCase()}`}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: '4px',
+          fontSize: '16px',
+          lineHeight: 1,
+          opacity: copied ? 1 : 0.6,
+          flexShrink: 0,
+        }}
+      >
+        {copied ? '\u2705' : '\uD83D\uDCCB'}
+      </button>
+    </p>
+  );
+}
+
 function HomeContent() {
   const { user, isAuthenticated, logout, loading } = useAuth();
   const router = useRouter();
@@ -216,24 +252,9 @@ function HomeContent() {
           <h3 style={{ margin: '0 0 12px 0', color: '#2e7d32' }}>
             App Password Created!
           </h3>
-          <p style={{ margin: '8px 0' }}>
-            <strong>Handle:</strong>{' '}
-            <code style={{ backgroundColor: '#fff', padding: '4px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
-              {user.handle}
-            </code>
-          </p>
-          <p style={{ margin: '8px 0' }}>
-            <strong>PDS:</strong>{' '}
-            <code style={{ backgroundColor: '#fff', padding: '4px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
-              {process.env.NEXT_PUBLIC_PDS_URL || 'https://pds.poltr.info'}
-            </code>
-          </p>
-          <p style={{ margin: '8px 0', wordBreak: 'break-all' }}>
-            <strong>Password:</strong>{' '}
-            <code style={{ backgroundColor: '#fff', padding: '4px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
-              {appPassword.password}
-            </code>
-          </p>
+          <CopyField label="PDS" value={process.env.NEXT_PUBLIC_PDS_URL || 'https://pds2.poltr.info'} />
+          <CopyField label="Handle" value={user.handle} />
+          <CopyField label="Password" value={appPassword.password} breakAll />
         </div>
       )}
     </div>

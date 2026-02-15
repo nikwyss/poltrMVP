@@ -861,7 +861,7 @@ spec:
         - "*.poltr.info"
       secretName: poltr-wildcard-tls
   rules:
-    - host: pds.poltr.info
+    - host: pds2.poltr.info
       http:
         paths:
           - path: /

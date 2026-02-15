@@ -23,7 +23,7 @@ Beim Login über den offiziellen Bluesky-Client (bsky.app) wird eine Altersverif
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │  Bluesky Client │────▶│    User's PDS   │────▶│ Bluesky AppView │
-│   (bsky.app)    │     │ (pds.poltr.info)│     │  (api.bsky.app) │
+│   (bsky.app)    │     │ (pds2.poltr.info)│     │  (api.bsky.app) │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
         │                       │                       │
         │ atproto-proxy:        │ PDS_BSKY_APP_VIEW_*   │

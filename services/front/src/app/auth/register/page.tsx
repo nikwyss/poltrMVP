@@ -7,7 +7,7 @@ export default function Register() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     email: '',
-    pdsUrl: process.env.NEXT_PUBLIC_PDS_URL || 'https://pds.poltr.info',
+    pdsUrl: process.env.NEXT_PUBLIC_PDS_URL || 'https://pds2.poltr.info',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

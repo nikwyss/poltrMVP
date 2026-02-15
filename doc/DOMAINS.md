@@ -19,7 +19,7 @@ This separation provides:
 | **Handle domain** | `id.smartvote.ch` | `id.poltr.ch` |
 | **User handles** | `@user.id.smartvote.ch` | `@user.id.poltr.ch` |
 | **Infrastructure** | `*.smartvote.social` | `*.poltr.info` |
-| **PDS** | `pds.smartvote.social` | `pds.poltr.info` |
+| **PDS** | `pds.smartvote.social` | `pds2.poltr.info` |
 | **AppView** | `app.smartvote.social` | `app.poltr.info` |
 | **Ozone** | `mod.smartvote.social` | `ozone.poltr.info` |
 | **Indexer** | `indexer.smartvote.social` | `indexer.poltr.info` |
@@ -84,7 +84,7 @@ No changes to the existing smartvote.ch website, www, mail, or any other records
 Managed in **Infomaniak DNS**. Only one record needed:
 
 ```dns
-*.id.poltr.ch.    CNAME    pds.poltr.info.
+*.id.poltr.ch.    CNAME    pds2.poltr.info.
 ```
 
 ### Test: poltr.info (infrastructure domain)
@@ -103,7 +103,7 @@ PDS_SERVICE_HANDLE_DOMAINS: ".id.smartvote.ch"
 ### Test
 
 ```yaml
-PDS_HOSTNAME: "pds.poltr.info"
+PDS_HOSTNAME: "pds2.poltr.info"
 PDS_SERVICE_HANDLE_DOMAINS: ".id.poltr.ch"
 ```
 
@@ -124,7 +124,7 @@ PDS_SERVICE_HANDLE_DOMAINS: ".id.poltr.ch"
 | DID | Service |
 |-----|---------|
 | `did:web:app.poltr.info` | AppView server identity |
-| `did:web:pds.poltr.info` | PDS server identity |
+| `did:web:pds2.poltr.info` | PDS server identity |
 | `did:web:mod.poltr.info` | Ozone moderation identity |
 | `did:web:labeler.poltr.info` | Labeler identity |
 | `did:web:verifier.poltr.info` | eID verifier identity |

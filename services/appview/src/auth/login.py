@@ -16,9 +16,10 @@ from src.lib.atproto_api import (
     pds_put_record,
     relay_request_crawl,
     wait_for_plc_resolution,
+    wait_for_relay_repo_indexed,
 )
 from src.auth.pseudonym_generator import generate_pseudonym
-from src.config import PROFILE_BIO_TEMPLATE
+from src.config import MAX_PDS_ACCOUNTS, PROFILE_BIO_TEMPLATE
 from src.lib.pds_creds import decrypt_app_password, encrypt_app_password
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,22 @@ async def login_pds_account(user_email: str) -> JSONResponse:
 
 async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
     """Creates a new pds account (including auth login)"""
+
+    # Enforce account limit (relay throttles at 100 per PDS hostname)
+    if MAX_PDS_ACCOUNTS > 0:
+        if db.pool is None:
+            await db.init_pool()
+        async with db.pool.acquire() as conn:
+            count = await conn.fetchval("SELECT COUNT(*) FROM auth_creds")
+        if count >= MAX_PDS_ACCOUNTS:
+            logger.warning(f"Account limit reached: {count}/{MAX_PDS_ACCOUNTS}")
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "error": "account_limit_reached",
+                    "message": f"Registration is temporarily closed (account limit: {MAX_PDS_ACCOUNTS})",
+                },
+            )
 
     # create account on PDS
     import random, string, secrets
@@ -156,6 +173,8 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
         "self",
         {"$type": "app.bsky.actor.profile", "displayName": "", "description": ""},
     )
+    # Note: we don't track the rev from the minimal profile since the full
+    # profile below will overwrite it with a newer commit.
 
     # Everything after this point must succeed, or we delete the PDS account.
     try:
@@ -175,7 +194,7 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
         }
         bio = PROFILE_BIO_TEMPLATE.format(**bio_data)
 
-        await pds_put_record(
+        profile_result = await pds_put_record(
             user_session.accessJwt,
             user_session.did,
             "app.bsky.actor.profile",
@@ -187,8 +206,11 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
                 # TODO: later: add avatar (blob) and banner
             },
         )
+        # Extract the commit rev so we can verify the relay has this exact
+        # commit before firing the handle toggle identity event.
+        profile_commit_rev = profile_result.get("commit", {}).get("rev")
 
-        logger.debug("........profile set, now writing pseudonym record to PDS")
+        logger.debug(f"........profile set (commit rev: {profile_commit_rev}), now writing pseudonym record to PDS")
 
         # Write pseudonym record to PDS
         # pseudonym_record = {
@@ -216,10 +238,17 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
         # Ask relay to crawl our PDS so the new profile is visible on Bluesky
         await relay_request_crawl()
 
+        # Wait until the Bluesky relay has indexed the repo commit that
+        # contains the profile record.  The AppView creates permanent broken
+        # stub entries when it processes an #identity event before the repo
+        # data is available on the relay.  By passing the expected commit rev
+        # we ensure the relay has the EXACT commit with the profile — not just
+        # an older commit from account creation.
+        await wait_for_relay_repo_indexed(user_session.did, expected_rev=profile_commit_rev)
+
         # Toggle handle to force a second #identity event on the firehose.
-        # Works around a Bluesky AppView bug where the initial identity event
-        # fails due to a PLC directory race condition, leaving the account
-        # un-indexed on bsky.app.
+        # Because the relay already has the repo commit at this point, the
+        # AppView will successfully index the account with the profile record.
         await pds_admin_toggle_handle(user_session.did, handle)
 
         logger.debug(

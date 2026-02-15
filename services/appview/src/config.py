@@ -12,8 +12,12 @@ PROFILE_BIO_TEMPLATE = (
     " für Schweizer Volksbstimmungen. Das Pseudonym leitet sich"
     " vom Berg '{mountainFullname}' ({height:.0f}m, {canton}) ab."
 )
-PDS_URL = os.getenv("PDS_URL", "https://pds.poltr.info")
+PDS_URL = os.getenv("PDS_URL", "https://pds2.poltr.info")
 OZONE_URL = os.getenv("OZONE_URL", "https://ozone.poltr.info")
+
+# Account limit — Bluesky relay throttles at 100 accounts per PDS hostname.
+# 0 = no limit.
+MAX_PDS_ACCOUNTS = int(os.getenv("MAX_PDS_ACCOUNTS", "50"))
 
 # Headers to forward from client to upstream
 FORWARD_REQUEST_HEADERS = [

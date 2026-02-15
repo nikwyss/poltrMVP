@@ -118,7 +118,7 @@ async def pds_admin_create_account(
     return TCreateAccountResponse(**resp.json())
 
 
-async def wait_for_plc_resolution(did: str, timeout: float = 10.0, interval: float = 0.5):
+async def wait_for_plc_resolution(did: str, timeout: float = 10.0, interval: float = 2.0):
     """Poll plc.directory until the DID resolves. Prevents Bluesky AppView stub
     entries caused by the relay forwarding identity events before PLC propagation.
     Non-fatal: logs a warning and returns if resolution doesn't succeed in time.
@@ -137,6 +137,55 @@ async def wait_for_plc_resolution(did: str, timeout: float = 10.0, interval: flo
             await asyncio.sleep(interval)
             elapsed += interval
     logger.warning(f"DID {did} not resolved on PLC after {timeout}s — continuing anyway")
+
+
+async def wait_for_relay_repo_indexed(
+    did: str, expected_rev: str | None = None, timeout: float = 30.0, interval: float = 3.0
+):
+    """Poll the Bluesky relay until it has indexed the expected repo commit.
+
+    The Bluesky AppView creates permanent broken stub entries when it processes
+    an #identity event before the corresponding repo commit (with the profile
+    record) has been relayed.  By waiting until the relay confirms it has the
+    specific commit (matched by rev), we ensure that a subsequent identity event
+    (via handle toggle) will find the profile record already available on the
+    relay.
+
+    If expected_rev is provided, the relay must report that exact rev (or newer).
+    Without it, any 200 response is accepted (backwards-compatible).
+
+    Non-fatal: logs a warning and returns if the relay doesn't confirm in time.
+    """
+    relay_url = os.getenv("BSKY_RELAY_URL", "https://bsky.network")
+    elapsed = 0.0
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        while elapsed < timeout:
+            try:
+                resp = await client.get(
+                    f"{relay_url}/xrpc/com.atproto.sync.getLatestCommit",
+                    params={"did": did},
+                )
+                if resp.status_code == 200:
+                    relay_rev = resp.json().get("rev", "")
+                    if expected_rev is None or relay_rev >= expected_rev:
+                        logger.info(
+                            f"Relay has indexed repo for {did} after {elapsed:.1f}s "
+                            f"(relay rev: {relay_rev}, expected: {expected_rev})"
+                        )
+                        return
+                    else:
+                        logger.debug(
+                            f"Relay has older rev for {did}: {relay_rev} < {expected_rev}, "
+                            f"waiting... ({elapsed:.1f}s)"
+                        )
+            except httpx.RequestError:
+                pass
+            await asyncio.sleep(interval)
+            elapsed += interval
+    logger.warning(
+        f"Relay has not indexed expected rev for {did} after {timeout}s "
+        f"(expected: {expected_rev}) — continuing anyway"
+    )
 
 
 async def pds_admin_delete_account(did: str) -> None:
@@ -166,8 +215,9 @@ async def pds_admin_delete_account(did: str) -> None:
     logger.info(f"Compensating delete: removed PDS account {did}")
 
 
-async def pds_put_record(access_jwt: str, did: str, collection: str, rkey: str, record: dict):
-    """Put (create/update) a record on PDS via internal URL. Used during registration."""
+async def pds_put_record(access_jwt: str, did: str, collection: str, rkey: str, record: dict) -> dict:
+    """Put (create/update) a record on PDS via internal URL. Used during registration.
+    Returns the full response including commit rev."""
     pds_internal_url = os.getenv("PDS_INTERNAL_URL")
     assert pds_internal_url, "PDS_INTERNAL_URL is not set"
 
@@ -192,7 +242,10 @@ async def pds_put_record(access_jwt: str, did: str, collection: str, rkey: str, 
         logger.error(f"pds_put_record failed ({collection}) for {did}: {resp.text}")
         raise RuntimeError(f"Failed to put record ({collection}): {resp.text}")
 
-    logger.info(f"Record written ({collection}) for {did}")
+    data = resp.json()
+    commit_rev = data.get("commit", {}).get("rev", "unknown")
+    logger.info(f"Record written ({collection}) for {did}, commit rev: {commit_rev}")
+    return data
 
 
 async def pds_admin_toggle_handle(did: str, handle: str):
