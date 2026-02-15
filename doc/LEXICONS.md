@@ -49,18 +49,6 @@ Pseudonymous identity for a POLTR user, derived from a Swiss mountain.
 
 - **Key:** `literal:self` (singleton per user)
 
-## Embeds
-
-### `app.ch.poltr.ballot.embed`
-
-Embeddable view of a ballot entry (for use in posts or other records).
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| ballot | ref → ballotView | yes | Ballot view object |
-
-**ballotView** contains: `uri`, `cid`, `title`, `topic`, `voteDate`, `language`.
-
 ---
 
 ## Future: Tooling & Publishing

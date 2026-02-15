@@ -1,11 +1,76 @@
 # Changelog
 
+## 2026-02-15b
+
+### Bluesky Cross-Post Fix (`services/indexer`, `services/appview`)
+- **Fixed cross-post not triggering**: `PDS_GOVERNANCE_ACCOUNT_DID` and `PDS_GOVERNANCE_PASSWORD` were missing/wrong in both K8s secrets and local `.env` — updated to match `smartinfo.id.poltr.ch` (`did:plc:3ch7iwf6od4szklpolupbv7o`)
+- **Fixed TID rkey format**: Switched `upsertBskyPost` from `putRecord` (plain rkey) to `createRecord` (auto-generated TID rkey). Bluesky's AppView only indexes `app.bsky.feed.post` records with TID-format rkeys
+- **Upsert support for cross-posts**: On ballot update, deletes the previous cross-post and creates a new one; passes `existingPostUri` from DB to avoid orphaned posts
+- **Added `bsky_post_uri` column** to `app_ballots` (was missing from live DB, already in `db-setup.sql`)
+- **AppView session re-login fallback** (`src/lib/atproto_api.py`): When both access and refresh tokens are expired, `_ensure_fresh_token` now falls back to re-authenticating using the encrypted PDS password stored in `auth_creds` instead of failing with "Failed to refresh session"
+
+## 2026-02-15
+
+### Bluesky Cross-Likes (`services/appview`, `services/indexer`)
+- **New `_create_bsky_cross_like()` function** (`src/routes/poltr/__init__.py`): When a user likes a ballot entry on POLTR, automatically creates a corresponding `app.bsky.feed.like` on Bluesky targeting the cross-posted Bluesky post (best-effort, non-blocking)
+- **Updated unlike endpoint**: Deletes the mirrored Bluesky like when user unlikes on POLTR
+- **Added `bsky_post_cid` column** to `app_ballots` (`db-setup.sql`): Stores CID of cross-posted Bluesky post (needed for like targeting)
+- **Added `bsky_like_uri` column** to `app_likes` (`db-setup.sql`): Tracks mirrored Bluesky like URI for deletion on unlike
+- **Updated indexer cross-post** (`pds_client.js`, `record_handler.js`, `db.js`): Now stores both URI and CID when cross-posting ballot entries to Bluesky
+
+### AppView Token Refresh Refactor (`services/appview`)
+- **New `_ensure_fresh_token()` helper** (`src/lib/atproto_api.py`): Extracted duplicate PDS token refresh logic into reusable function. Now used by `pds_create_app_password()`, `pds_create_record()`, and `pds_delete_record()`
+
+### Account Limit Enforcement (`services/appview`)
+- **New `MAX_PDS_ACCOUNTS` config** (`src/config.py`): Environment variable (default: 50) to cap account creation. Bluesky relay throttles at 100 accounts per PDS hostname
+- **Updated `create_account()`** (`src/auth/login.py`): Returns 503 `"account_limit_reached"` when limit hit
+
+### Indexer Backfill Rewrite (`services/indexer`)
+- **Rewrote `runBackfill()`** (`src/backfill_handler.js`): Replaced multi-batch iterator with single-pass idle-timeout approach using Firehose + MemoryRunner. Runs until no new events for `BACKFILL_IDLE_TIMEOUT_SEC` (default 10s), then auto-cleans up
+- **Added MemoryRunner to main firehose** (`src/main.js`): Cursor now persisted on every event via `runner.setCursor()`. Removed manual workaround for `@bluesky-social/sync` getCursor bug
+- **Added `/health` endpoint** (`src/main.js`): Returns firehose connection state and current cursor
+- **Added `FIREHOSE_ENABLED` env var**: Can disable firehose for testing
+- **Updated dependencies** (`package-lock.json`): Express 4.22.1, Fastify 5.7.4, body-parser 1.20.4
+
+### Removed Unused Ballot Embed Lexicon (`services/front`)
+- **Deleted `app.ch.poltr.ballot.embed.json`**: Unused lexicon schema — cross-posting uses `app.bsky.embed.external` (link cards) instead
+- **Cleaned up** `src/lib/lexicons.ts`, `src/types/ballots.ts`: Removed related types and validation functions
+
+### Test Registration Script (`infra/scripts`)
+- **Added `test_registration.py`**: Step-by-step diagnostic tool that creates a test account, traces the full federation chain (PDS → PLC → relay → Bluesky AppView), identifies exactly where the chain breaks, with interactive pauses and automatic cleanup
+
+### Documentation
+- **Added `doc/pds-relay-probleme.md`** (German): Operational runbook covering three PDS-relay failure modes — throttling on first boot (race condition), sequence gap after reset, and throttling risk on restore
+- **Updated `doc/FEDERATION.md`**: Removed `app.ch.poltr.ballot.embed`, documented cross-likes to Bluesky
+- **Updated `doc/BALLOTS.md`**: Documented cross-post and cross-like behavior
+- **Updated `doc/LEXICONS.md`**: Removed `app.ch.poltr.ballot.embed` section
+- **Updated `CLAUDE.md`**: Added "PDS — Critical: Do Not Break Relay Federation" safety section
+
+### Misc
+- **Updated `infra/scripts/import_proposals.py`**: Removed 1-year date filter — now imports all historical ballots
+
+## 2026-02-14
+
+### PDS Rename: `pds.poltr.info` → `pds2.poltr.info`
+- **Context**: The hostname `pds.poltr.info` is permanently throttled on the Bluesky relay (`bsky.network`). Throttling is hostname-based and cannot be fixed from our side. Renaming to `pds2.poltr.info` gives a clean relay reputation.
+- **Updated code defaults** (11 files): All hardcoded `pds.poltr.info` references updated to `pds2.poltr.info` in appview config, auth routes, frontend pages/Dockerfile/.env, indexer service/Dockerfile, pds_reset.py, test_registration.py, and GitHub Actions workflow.
+- **Updated K8s manifests**: `PDS_HOSTNAME` in `secrets.yaml.dist` (pds-secrets + indexer-secrets), Ingress host in `poltr.yaml`.
+- **Updated documentation**: Bulk replaced `pds.poltr.info` → `pds2.poltr.info` across CLAUDE.md, README.md, FEDERATION.md, DOMAINS.md, ARCHITECTURE.md, bluesky-interoperability.md, pds-relay-probleme.md.
+- **What does NOT change**: K8s service name `pds`, internal URL `http://pds.poltr.svc.cluster.local`, PVC name `pds-data`, TLS cert (`*.poltr.info` wildcard).
+- **Manual steps required**: Generate new `did:plc` via `pds_reset.py`, K8s reset procedure, DNS update (`*.id.poltr.ch` CNAME → `pds2.poltr.info`), rebuild frontend Docker image.
+
 ## 2026-02-13
 
+### PDS Hard Reset Script (`infra/scripts`)
+- **Added `pds_reset.py`** (`infra/scripts/pds_reset.py`): Two-mode script for PDS identity reset. Mode 1 (default): generates new secp256k1 key pair, derives `did:key`, builds and signs PLC genesis operation (DAG-CBOR + SHA-256 + secp256k1), computes `did:plc`, registers at `plc.directory`, and prints new secret values, K8s reset checklist, and DB cleanup SQL. Mode 2 (`--verify`): post-reset verification that checks PDS health, `describeServer`, PLC resolution, `requestCrawl`, creates a test account, writes a profile, and — critically — verifies the relay reports `active: true` (not throttled). Cleanup deletes the test account.
+- **Context**: All 22 existing accounts were permanently `RepoInactive: throttled` by the Bluesky relay, creating broken stubs on the Bluesky AppView (`createdAt: 0001-01-01`). A new PDS server DID with clean relay reputation is required.
+
 ### Bluesky Federation Fix (`services/appview`)
-- **Added PLC resolution barrier** (`src/lib/atproto_api.py`): New `wait_for_plc_resolution()` polls plc.directory until the DID is resolvable (up to 10s) before writing records. Prevents the Bluesky AppView from creating broken stub entries when the relay forwards the identity event before PLC propagation finishes.
-- **Added handle-toggle workaround** (`src/lib/atproto_api.py`): New `pds_admin_toggle_handle()` forces a second `#identity` event on the PDS firehose after account creation, giving the AppView a second chance to resolve the DID and index the account (see [atproto#4379](https://github.com/bluesky-social/atproto/discussions/4379))
-- **Updated registration flow** (`src/auth/login.py`): After `createAccount`, waits for PLC resolution, then writes records, requests relay crawl, and toggles handle — ensuring new accounts are reliably indexed on bsky.app
+- **Added relay repo indexing barrier** (`src/lib/atproto_api.py`): New `wait_for_relay_repo_indexed()` polls `bsky.network/xrpc/com.atproto.sync.getLatestCommit` until the relay confirms it has indexed the repo commit (up to 30s). This is the critical fix: the Bluesky AppView creates permanent broken stub entries when it processes an `#identity` event before the corresponding repo commit (containing the profile record) is available on the relay.
+- **Added PLC resolution barrier** (`src/lib/atproto_api.py`): New `wait_for_plc_resolution()` polls plc.directory until the DID is resolvable (up to 10s) before writing records.
+- **Added handle-toggle workaround** (`src/lib/atproto_api.py`): New `pds_admin_toggle_handle()` forces a second `#identity` event on the PDS firehose after account creation, giving the AppView a second chance to index the account (see [atproto#4379](https://github.com/bluesky-social/atproto/discussions/4379))
+- **Updated registration flow** (`src/auth/login.py`): After `createAccount`, the flow now: (1) waits for PLC resolution, (2) writes minimal + full profile records, (3) requests relay crawl, (4) **waits for relay to confirm repo is indexed**, (5) only then toggles handle to emit the `#identity` event — ensuring the AppView sees the repo data before processing the identity event
+- **Fixed relay rev comparison** (`src/lib/atproto_api.py`, `src/auth/login.py`): `wait_for_relay_repo_indexed()` now compares commit revs instead of just checking for any 200 response. Previously, the relay could return 200 for an older commit (from initial account creation, before the profile was written), causing the handle toggle to fire while the relay still lacked the profile data. Now `pds_put_record()` returns the commit rev, and the relay wait verifies the relay has that exact rev or newer before proceeding.
 
 ## 2026-02-12
 

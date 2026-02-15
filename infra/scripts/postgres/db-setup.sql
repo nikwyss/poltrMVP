@@ -21,6 +21,7 @@ CREATE TABLE app_ballots (
   vote_date   timestamptz,
   like_count  integer NOT NULL DEFAULT 0,
   bsky_post_uri text,               -- URI of the cross-posted app.bsky.feed.post
+  bsky_post_cid text,               -- CID of the cross-posted app.bsky.feed.post
   created_at  timestamptz NOT NULL,
   indexed_at  timestamptz NOT NULL DEFAULT now(),
   deleted     boolean NOT NULL DEFAULT false
@@ -39,6 +40,7 @@ CREATE TABLE app_likes (
   rkey        text NOT NULL,
   subject_uri text NOT NULL,
   subject_cid text,
+  bsky_like_uri text,               -- URI of the cross-like app.bsky.feed.like (set by AppView)
   created_at  timestamptz NOT NULL,
   indexed_at  timestamptz NOT NULL DEFAULT now(),
   deleted     boolean NOT NULL DEFAULT false

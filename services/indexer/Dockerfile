@@ -15,7 +15,7 @@ COPY ./src ./src
 
 # Environment defaults (override at runtime as needed)
 ENV NODE_ENV=production 
-# PDS_HOSTNAME=pds.poltr.info 
+# PDS_HOSTNAME=pds2.poltr.info
 # INDEXER_POSTGRES_URL=postgres://postgres:postgres@postgres:5432/postgres
 
 # Run the indexer

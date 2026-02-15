@@ -1,22 +1,37 @@
+import { CID } from "multiformats/cid";
+import "dotenv/config";
+import process from "node:process";
+import {
+  pool,
+  upsertBallotDb,
+  markDeleted,
+  upsertLikeDb,
+  markLikeDeleted,
+  upsertProfileDb,
+  deleteProfile,
+  getBskyPostUri,
+  setBskyPostUri,
+} from "./db.js";
+import { upsertBskyPost } from "./pds_client.js";
 
-import { CID } from 'multiformats/cid';
-import 'dotenv/config'
-import process from 'node:process'
-import { pool, upsertBallotDb, markDeleted, upsertLikeDb, markLikeDeleted, upsertProfileDb, deleteProfile, getBskyPostUri, setBskyPostUri } from './db.js'
-import { createBskyPost } from './pds_client.js'
+const GOVERNANCE_DID = process.env.PDS_GOVERNANCE_ACCOUNT_DID;
 
-const GOVERNANCE_DID = process.env.PDS_GOVERNANCE_ACCOUNT_DID
-
-const COLLECTION_BALLOT    = 'app.ch.poltr.ballot.entry'
-const COLLECTION_LIKE      = 'app.ch.poltr.ballot.like'
-const COLLECTION_PSEUDONYM = 'app.ch.poltr.actor.pseudonym'
+const COLLECTION_BALLOT = "app.ch.poltr.ballot.entry";
+const COLLECTION_LIKE = "app.ch.poltr.ballot.like";
+const COLLECTION_PSEUDONYM = "app.ch.poltr.actor.pseudonym";
 
 export const handleEvent = async (evt) => {
-  const collection = evt.collection
+  const collection = evt.collection;
 
-  if (collection !== COLLECTION_BALLOT && collection !== COLLECTION_LIKE && collection !== COLLECTION_PSEUDONYM) return
-
-  console.log('DEBUG -handleEvent => Received event for collection:', collection);
+  if (collection) {
+    console.log("Handling event for collection:", collection);
+  }
+  if (
+    collection !== COLLECTION_BALLOT &&
+    collection !== COLLECTION_LIKE &&
+    collection !== COLLECTION_PSEUDONYM
+  )
+    return;
 
   const cidString = CID.asCID(evt.cid)?.toString();
   const did = evt.did;
@@ -25,38 +40,36 @@ export const handleEvent = async (evt) => {
   const action = evt.event;
 
   if (collection === COLLECTION_BALLOT) {
-    if (action === 'delete') {
+    if (action === "delete") {
       await markDeleted(uri);
-      return
+      return;
     }
-    if (action === 'create' || action === 'update') {
+    if (action === "create" || action === "update") {
       const record = evt.record;
       if (!record) return;
       await upsertBallotDb(pool, { uri, cid: cidString, did, rkey, record });
 
-      // Cross-post to Bluesky for new governance ballots
-      if (action === 'create' && GOVERNANCE_DID && did === GOVERNANCE_DID) {
+      // Cross-post to Bluesky for governance ballots (create or update)
+      if (GOVERNANCE_DID && did === GOVERNANCE_DID) {
         try {
-          const existing = await getBskyPostUri(uri);
-          if (!existing) {
-            const bskyUri = await createBskyPost(record, rkey);
-            if (bskyUri) {
-              await setBskyPostUri(uri, bskyUri);
-            }
+          const existingPostUri = await getBskyPostUri(uri);
+          const bskyResult = await upsertBskyPost(record, rkey, existingPostUri);
+          if (bskyResult) {
+            await setBskyPostUri(uri, bskyResult.uri, bskyResult.cid);
           }
         } catch (err) {
-          console.error('Cross-post to Bluesky failed (non-blocking):', err);
+          console.error("Cross-post to Bluesky failed (non-blocking):", err);
         }
       }
     }
   }
 
   if (collection === COLLECTION_LIKE) {
-    if (action === 'delete') {
+    if (action === "delete") {
       await markLikeDeleted(uri);
-      return
+      return;
     }
-    if (action === 'create' || action === 'update') {
+    if (action === "create" || action === "update") {
       const record = evt.record;
       if (!record) return;
       await upsertLikeDb(pool, { uri, cid: cidString, did, rkey, record });
@@ -64,11 +77,11 @@ export const handleEvent = async (evt) => {
   }
 
   if (collection === COLLECTION_PSEUDONYM) {
-    if (action === 'delete') {
+    if (action === "delete") {
       await deleteProfile(did);
-      return
+      return;
     }
-    if (action === 'create' || action === 'update') {
+    if (action === "create" || action === "update") {
       const record = evt.record;
       if (!record) return;
       await upsertProfileDb(pool, { did, record });

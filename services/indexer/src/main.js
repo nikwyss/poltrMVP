@@ -1,19 +1,24 @@
 import 'dotenv/config'
 import process from 'node:process'
-import { Firehose } from '@bluesky-social/sync'
+import { Firehose, MemoryRunner } from '@bluesky-social/sync'
 import { IdResolver } from '@bluesky-social/identity'
 import { closePool } from './db.js'
 import Fastify from 'fastify'
 import { getCursor, setCursor } from './indexer_cursor.js'
-import { processBatchFirehose, runBackfill } from './backfill_handler.js'
+import { runBackfill } from './backfill_handler.js'
 import { FIREHOSE_SERVICE } from './service.js'
 import { handleEvent } from './record_handler.js'
 
 const idResolver = new IdResolver()
 
-
+const firehoseEnabled = (process.env.FIREHOSE_ENABLED ?? 'true') !== 'false'
+let firehoseRunning = false
 
 async function main() {
+  if (!firehoseEnabled) {
+    console.log('Firehose disabled via FIREHOSE_ENABLED=false')
+    return
+  }
 
   function extractStatusCode(err) {
     if (!err) return null
@@ -24,30 +29,29 @@ async function main() {
     return null
   }
 
-  
+  // Load initial cursor for MemoryRunner
+  const row = await getCursor('firehose:subscription')
+  const startCursor = row.cursor != null ? Number(row.cursor) : undefined
+
+  const runner = new MemoryRunner({
+    startCursor,
+    setCursor: async (cursor) => {
+      await setCursor('firehose:subscription', cursor)
+    },
+  })
+
   // MAIN FIREHOSE SUBSCRIPTION
   const firehose = new Firehose({
     idResolver,
     service: FIREHOSE_SERVICE,
-    handleEvent: async (r) => {
-      await handleEvent(r).then(() => {
-        console.log('Event handled successfully for seq', r.seq);
-        setCursor('firehose:subscription', r.seq)
-      })
+    runner,
+    handleEvent: async (evt) => {
+      await handleEvent(evt)
     },
     onError: (err) => {
-      console.error('Firehose error', err);
+      console.error('Firehose error:', err)
     },
   })
-
-  // Workaround: @bluesky-social/sync has a bug where getCursor option is not
-  // called properly in getParams (it returns the function instead of calling it).
-  // Override getParams on the internal subscription directly.
-  firehose.sub.opts.getParams = async () => {
-    const row = await getCursor('firehose:subscription')
-    const cursor = row.cursor ?? undefined
-    return cursor != null ? { cursor } : {}
-  }
 
   // try to start the firehose with retries for transient errors
   const maxRetries = Number(process.env.FIREHOSE_MAX_RETRIES ?? 5)
@@ -56,10 +60,14 @@ async function main() {
     try {
       attempt++
       console.log(`Starting firehose (attempt ${attempt}) -> ${FIREHOSE_SERVICE}`)
+      firehoseRunning = true
       await firehose.start()
-      console.log('Firehose indexer running on', FIREHOSE_SERVICE)
+      // start() only resolves when the firehose stops
+      firehoseRunning = false
+      console.log('Firehose stopped')
       break
     } catch (err) {
+      firehoseRunning = false
       const cause = err && err.cause ? err.cause : err
       const status = extractStatusCode(cause)
       console.error(
@@ -84,6 +92,7 @@ async function main() {
   // graceful stop on signals
   const stop = async () => {
     console.log('Stopping firehose and closing DB pool')
+    firehoseRunning = false
     try {
       await firehose.destroy()
     } catch (err) {
@@ -113,26 +122,18 @@ async function startAdminServer() {
   const app = Fastify({ logger: false })
 
   const backfillHandler = async (req, reply) => {
-    // console.log('Received backfill request')
     const id = 'backfill:firehose-missed'
-    const maxBatches = Number(req.query.maxBatches ?? 100)
     try {
-
       const current = await getCursor(id)
       if (current && current.metadata && current.metadata.finished) {
         console.log('Backfill already finished for', id)
         return reply.code(200).send({ ok: true, id, cursor: current.cursor, finished: true })
       }
 
-      console.log("Starting backfill", { id, maxBatches })
-      const newCursor = await runBackfill({
-        id,
-        processBatch: processBatchFirehose,
-        maxBatches,
-      })
-      const after = await getCursor(id)
-      console.log("Backfill completed", { id, newCursor })
-      return reply.code(200).send({ ok: true, id, cursor: newCursor ?? (after && after.cursor) ?? null })
+      console.log('Starting backfill', { id })
+      const result = await runBackfill({ id })
+      console.log('Backfill completed', { id, cursor: result.cursor, processed: result.processed })
+      return reply.code(200).send({ ok: true, ...result })
     } catch (err) {
       console.error('Backfill error', err)
       return reply.code(500).send({ ok: false, error: String(err) })
@@ -141,6 +142,16 @@ async function startAdminServer() {
 
   app.post('/backfill', backfillHandler)
   app.get('/backfill', backfillHandler)
+
+  app.get('/health', async (_req, reply) => {
+    const cursor = await getCursor('firehose:subscription')
+    return reply.code(200).send({
+      ok: true,
+      firehoseEnabled,
+      firehose: firehoseRunning ? 'connected' : 'disconnected',
+      cursor: cursor.cursor ?? null,
+    })
+  })
 
   await app.listen({ port, host: '0.0.0.0' })
   console.log('Admin HTTP server listening on port', port)

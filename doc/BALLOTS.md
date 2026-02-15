@@ -48,8 +48,8 @@ goat get at://smartinfo.poltr.info/app.ch.poltr.ballot.entry/682.3
 
 ## Related Records
 
-- **Likes** (`app.ch.poltr.ballot.like`): Reference a ballot by its AT-URI. Like count is denormalized on `app_ballots.like_count`.
-- **Embeds** (`app.ch.poltr.ballot.embed`): Embed a ballot view in other contexts.
+- **Likes** (`app.ch.poltr.ballot.like`): Reference a ballot by its AT-URI. Like count is denormalized on `app_ballots.like_count`. Likes are also cross-posted as `app.bsky.feed.like` on the Bluesky cross-post (best-effort).
+- **Bluesky cross-post** (`app.bsky.feed.post`): The indexer creates a Bluesky post with `embed.external` for each governance ballot. URI and CID are stored in `app_ballots.bsky_post_uri` / `bsky_post_cid`.
 
 ## Data Flow
 

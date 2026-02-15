@@ -179,6 +179,57 @@ async def list_ballots(
 # -----------------------------------------------------------------------------
 
 
+async def _create_bsky_cross_like(session: TSession, ballot_uri: str):
+    """Best-effort: create an app.bsky.feed.like on the Bluesky cross-post.
+
+    Returns the bsky like URI on success, None on skip/failure.
+    """
+    try:
+        db_pool = await get_pool()
+        async with db_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT bsky_post_uri, bsky_post_cid FROM app_ballots WHERE uri = $1",
+                ballot_uri,
+            )
+
+        if not row or not row["bsky_post_uri"] or not row["bsky_post_cid"]:
+            return None
+
+        bsky_like_record = {
+            "$type": "app.bsky.feed.like",
+            "subject": {
+                "uri": row["bsky_post_uri"],
+                "cid": row["bsky_post_cid"],
+            },
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        }
+
+        result = await pds_create_record(session, "app.bsky.feed.like", bsky_like_record)
+        bsky_like_uri = result.get("uri")
+
+        if bsky_like_uri:
+            # Pre-populate bsky_like_uri so delete_like can find it later.
+            # The indexer's upsert doesn't mention bsky_like_uri, so it won't overwrite.
+            async with db_pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO app_likes (uri, cid, did, rkey, subject_uri, subject_cid, bsky_like_uri, created_at)
+                    VALUES ($1, '', $2, '', $3, '', $4, now())
+                    ON CONFLICT (uri) DO UPDATE SET bsky_like_uri = $4
+                    """,
+                    f"pending:{session.did}:{ballot_uri}",
+                    session.did,
+                    ballot_uri,
+                    bsky_like_uri,
+                )
+
+        logger.info(f"Bsky cross-like created: {bsky_like_uri}")
+        return bsky_like_uri
+    except Exception as err:
+        logger.warning(f"Bsky cross-like failed (non-blocking): {err}")
+        return None
+
+
 @router.post("/app.ch.poltr.ballot.like")
 async def create_like(
     request: Request,
@@ -202,13 +253,17 @@ async def create_like(
 
     try:
         result = await pds_create_record(session, "app.ch.poltr.ballot.like", record)
-        return JSONResponse(status_code=200, content=result)
     except Exception as err:
         logger.error(f"Failed to create like: {err}")
         return JSONResponse(
             status_code=500,
             content={"error": "pds_error", "message": str(err)},
         )
+
+    # Best-effort cross-like to Bluesky
+    await _create_bsky_cross_like(session, subject["uri"])
+
+    return JSONResponse(status_code=200, content=result)
 
 
 @router.post("/app.ch.poltr.ballot.unlike")
@@ -235,12 +290,37 @@ async def delete_like(
             content={"error": "invalid_request", "message": "Could not extract rkey from likeUri"},
         )
 
+    # Look up the bsky cross-like URI before deleting
+    bsky_like_uri = None
+    try:
+        db_pool = await get_pool()
+        async with db_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT bsky_like_uri FROM app_likes WHERE uri = $1 AND did = $2",
+                like_uri,
+                session.did,
+            )
+            if row:
+                bsky_like_uri = row["bsky_like_uri"]
+    except Exception as err:
+        logger.warning(f"Failed to look up bsky_like_uri (non-blocking): {err}")
+
     try:
         await pds_delete_record(session, "app.ch.poltr.ballot.like", rkey)
-        return JSONResponse(status_code=200, content={"success": True})
     except Exception as err:
         logger.error(f"Failed to delete like: {err}")
         return JSONResponse(
             status_code=500,
             content={"error": "pds_error", "message": str(err)},
         )
+
+    # Best-effort delete the Bluesky cross-like
+    if bsky_like_uri:
+        try:
+            bsky_rkey = bsky_like_uri.split("/")[-1]
+            await pds_delete_record(session, "app.bsky.feed.like", bsky_rkey)
+            logger.info(f"Bsky cross-like deleted: {bsky_like_uri}")
+        except Exception as err:
+            logger.warning(f"Bsky cross-like delete failed (non-blocking): {err}")
+
+    return JSONResponse(status_code=200, content={"success": True})

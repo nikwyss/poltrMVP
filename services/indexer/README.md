@@ -39,7 +39,7 @@ Your indexer = client that subscribes to one or more firehoses
 So your setup can be:
 
              (1) your own PDS firehose
-pds.poltr.info  ───────────────┐
+pds2.poltr.info  ───────────────┐
                                │
                                ▼
                         app.poltr.info
@@ -53,7 +53,7 @@ Concretely
 
 Keep your current indexer logic for:
 
-wss://pds.poltr.info/xrpc/com.atproto.sync.subscribeRepos
+wss://pds2.poltr.info/xrpc/com.atproto.sync.subscribeRepos
 
 Add a second consumer in the same service that connects to:
 

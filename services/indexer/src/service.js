@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import process from 'node:process'
 
-const PDS_HOSTNAME = process.env.PDS_HOSTNAME ?? 'pds.poltr.info'
+const PDS_HOSTNAME = process.env.PDS_HOSTNAME ?? 'pds2.poltr.info'
 const RAW_FIREHOSE = process.env.FIREHOSE_URL
 
 export let FIREHOSE_SERVICE

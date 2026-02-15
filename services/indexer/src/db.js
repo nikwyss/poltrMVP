@@ -170,12 +170,12 @@ export async function getBskyPostUri(uri) {
 }
 
 /**
- * Store the cross-posted bsky post URI on the ballot.
+ * Store the cross-posted bsky post URI and CID on the ballot.
  */
-export async function setBskyPostUri(ballotUri, bskyPostUri) {
+export async function setBskyPostUri(ballotUri, bskyPostUri, bskyPostCid) {
   await pool.query(
-    `UPDATE app_ballots SET bsky_post_uri = $1 WHERE uri = $2`,
-    [bskyPostUri, ballotUri],
+    `UPDATE app_ballots SET bsky_post_uri = $1, bsky_post_cid = $2 WHERE uri = $3`,
+    [bskyPostUri, bskyPostCid ?? null, ballotUri],
   );
 }
 

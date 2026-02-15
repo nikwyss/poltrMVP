@@ -721,8 +721,7 @@ For a fresh PDS or PDS reset:
 POLTR uses its own AT Protocol namespace (`app.ch.poltr.*`):
 
 - `app.ch.poltr.ballot.entry` - ballot/referendum entries
-- `app.ch.poltr.ballot.like` - likes on ballots
-- `app.ch.poltr.ballot.embed` - ballot embeds
+- `app.ch.poltr.ballot.like` - likes on ballots (cross-liked to Bluesky as `app.bsky.feed.like`)
 - `app.ch.poltr.actor.pseudonym` - user pseudonyms
 
 These records live in user repos on the PDS and are indexed by the POLTR AppView via the PDS firehose. Bluesky's AppView only indexes `app.bsky.*` records, so POLTR-specific records are invisible to Bluesky. This is by design — POLTR data stays in the POLTR ecosystem.
@@ -757,7 +756,7 @@ Build a Bluesky feed generator that curates POLTR ballot posts into a subscribab
 
 ### Option 3: Custom Embed Types (Future)
 
-AT Protocol supports open unions for embeds. Once Bluesky ships custom embed fallback rendering, a native `app.ch.poltr.ballot.embed` could show rich ballot data on Bluesky.
+AT Protocol supports open unions for embeds. Once Bluesky ships custom embed fallback rendering, a custom embed type could show rich ballot data natively on Bluesky. The previously defined `app.ch.poltr.ballot.embed` lexicon was removed as unused — it can be re-introduced when the ecosystem supports it.
 
 ## References
 

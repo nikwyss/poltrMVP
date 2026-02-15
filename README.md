@@ -35,7 +35,7 @@ poltr/
 | Indexer | Node.js | indexer.poltr.info |
 | eID Proto | Next.js | eidproto.poltr.info |
 | CMS | Payload CMS | cms.poltr.info |
-| PDS | Bluesky PDS | pds.poltr.info |
+| PDS | Bluesky PDS | pds2.poltr.info |
 | Ozone | Bluesky Ozone | ozone.poltr.info |
 | Verifier | swiyu | verifier.poltr.info |
 

@@ -124,14 +124,6 @@ class ProposalImporter:
         # Parse date from DD.MM.YYYY format
         vote_date = datetime.strptime(vote.datum, "%d.%m.%Y").date()
 
-        # SKIP if voting date is in the past
-        today = datetime.now().date()
-        today = today.replace(year=today.year - 1)
-
-        if vote_date < today:
-            # print(f"Skipping past vote date: {vote.datum}")
-            return False
-
         # Use anr directly as rkey (e.g. "413.2") for deterministic AT-URIs
         rkey = vote.anr
         
