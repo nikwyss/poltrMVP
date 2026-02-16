@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   const response = NextResponse.json(rest);
 
   if (session_token) {
-    response.cookies.set('poltr_session', session_token, {
+    response.cookies.set('poltr_session', session_token as string, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
