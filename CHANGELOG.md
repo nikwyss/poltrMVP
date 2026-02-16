@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-02-16
+
+### Bluesky Feed Generator (`services/appview`, `infra/kube`)
+- **Added `app.bsky.feed.getFeedSkeleton` endpoint** (`src/routes/feed/__init__.py`): Returns a skeleton of cross-posted ballot post URIs for the poltr feed. Queries `app_ballots` for rows with `bsky_post_uri IS NOT NULL AND NOT deleted`, ordered by `created_at DESC`. Uses composite `created_at::rkey` cursor for stable pagination. Validates feed URI, supports `limit` (1–100, default 50) and `cursor` params.
+- **Added `app.bsky.feed.describeFeedGenerator` endpoint** (`src/routes/feed/__init__.py`): Returns the feed generator DID (`did:web:app.poltr.info`) and the poltr feed URI
+- **Updated `/.well-known/did.json`** (`src/wellknown.py`): Added `BskyFeedGenerator` service entry so Bluesky can discover the feed generator at `https://app.poltr.info`
+- **Added `FEED_GENERATOR_DID`** to `appview-secrets` (`infra/kube/secrets.yaml`): Defaults to `did:web:app.poltr.info`
+- **Manual step required**: Create `app.bsky.feed.generator` record (rkey `poltr`) in governance account repo on PDS — see `doc/BLUESKY_FEED.md`
+
 ## 2026-02-15b
 
 ### Bluesky Cross-Post Fix (`services/indexer`, `services/appview`)

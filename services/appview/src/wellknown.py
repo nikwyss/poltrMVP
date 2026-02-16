@@ -13,4 +13,11 @@ async def get_did_document():
     return {
         "@context": ["https://www.w3.org/ns/did/v1"],
         "id": server_did,
+        "service": [
+            {
+                "id": "#bsky_fg",
+                "type": "BskyFeedGenerator",
+                "serviceEndpoint": "https://app.poltr.info",
+            }
+        ],
     }

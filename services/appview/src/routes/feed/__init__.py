@@ -2,12 +2,17 @@
 app.bsky.feed.* endpoints
 
 Handles feed-related operations (timeline, posts, threads).
+Includes the poltr feed generator (getFeedSkeleton, describeFeedGenerator).
 """
 
-import httpx
-from fastapi import APIRouter, Request
-from fastapi.responses import Response
+import os
+from datetime import datetime, timezone
 
+import httpx
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import JSONResponse, Response
+
+from src.lib.db import get_pool
 from src.lib.fastapi import logger
 from src.config import (
     BLUESKY_APPVIEW_URL,
@@ -16,6 +21,99 @@ from src.config import (
 )
 
 router = APIRouter(prefix="/xrpc", tags=["feed"])
+
+FEED_GENERATOR_DID = os.getenv("FEED_GENERATOR_DID", "did:web:app.poltr.info")
+GOVERNANCE_DID = os.getenv("PDS_GOVERNANCE_ACCOUNT_DID", "")
+FEED_URI = f"at://{GOVERNANCE_DID}/app.bsky.feed.generator/poltr"
+
+
+# -----------------------------------------------------------------------------
+# Feed generator endpoints (poltr feed)
+# -----------------------------------------------------------------------------
+
+
+@router.get("/app.bsky.feed.describeFeedGenerator")
+async def describe_feed_generator():
+    """Describe available feeds served by this generator."""
+    return {"did": FEED_GENERATOR_DID, "feeds": [{"uri": FEED_URI}]}
+
+
+@router.get("/app.bsky.feed.getFeedSkeleton")
+async def get_feed_skeleton(
+    feed: str,
+    limit: int = Query(default=50, ge=1, le=100),
+    cursor: str = Query(default=None),
+):
+    """Return a skeleton of post URIs for the poltr feed."""
+    if feed != FEED_URI:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "UnknownFeed",
+                "message": f"Unknown feed: {feed}",
+            },
+        )
+
+    # Parse cursor: "2026-02-15T20:53:04.083000+00:00::rkey"
+    cursor_ts = None
+    cursor_rkey = None
+    if cursor:
+        parts = cursor.split("::", 1)
+        if len(parts) != 2:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "BadCursor", "message": "Malformed cursor"},
+            )
+        try:
+            cursor_ts = datetime.fromisoformat(parts[0])
+            cursor_rkey = parts[1]
+        except (ValueError, IndexError):
+            return JSONResponse(
+                status_code=400,
+                content={"error": "BadCursor", "message": "Malformed cursor"},
+            )
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        if cursor_ts and cursor_rkey:
+            rows = await conn.fetch(
+                """
+                SELECT bsky_post_uri, created_at, rkey
+                FROM app_ballots
+                WHERE bsky_post_uri IS NOT NULL AND NOT deleted
+                  AND (created_at, rkey) < ($1, $2)
+                ORDER BY created_at DESC, rkey DESC
+                LIMIT $3
+                """,
+                cursor_ts,
+                cursor_rkey,
+                limit,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT bsky_post_uri, created_at, rkey
+                FROM app_ballots
+                WHERE bsky_post_uri IS NOT NULL AND NOT deleted
+                ORDER BY created_at DESC, rkey DESC
+                LIMIT $1
+                """,
+                limit,
+            )
+
+    feed_items = [{"post": row["bsky_post_uri"]} for row in rows]
+
+    new_cursor = None
+    if rows:
+        last = rows[-1]
+        new_cursor = f"{last['created_at'].isoformat()}::{last['rkey']}"
+
+    return {"feed": feed_items, "cursor": new_cursor}
+
+
+# -----------------------------------------------------------------------------
+# Proxy helpers
+# -----------------------------------------------------------------------------
 
 
 def _forward_headers(request: Request) -> dict:
