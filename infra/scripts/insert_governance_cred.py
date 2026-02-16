@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "services
 from src.lib.pds_creds import encrypt_app_password
 
 DID = "did:plc:3ch7iwf6od4szklpolupbv7o"
-HANDLE = "smartinfo.id.poltr.ch"
+HANDLE = "admin.id.poltr.ch"
 EMAIL = "governance@poltr.ch"  # placeholder — adjust if needed
 PASSWORD = "U88+yGBFb4f9iDzl//RPBUj6dn6GZFfC"
 

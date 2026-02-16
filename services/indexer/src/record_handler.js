@@ -11,13 +11,15 @@ import {
   deleteProfile,
   getBskyPostUri,
   setBskyPostUri,
+  getBskyPostForBallot,
+  setBskyLikeUri,
 } from "./db.js";
-import { upsertBskyPost } from "./pds_client.js";
+import { upsertBskyPost, createBskyLike } from "./pds_client.js";
 
 const GOVERNANCE_DID = process.env.PDS_GOVERNANCE_ACCOUNT_DID;
 
 const COLLECTION_BALLOT = "app.ch.poltr.ballot.entry";
-const COLLECTION_LIKE = "app.ch.poltr.ballot.like";
+const COLLECTION_RATING = "app.ch.poltr.content.rating";
 const COLLECTION_PSEUDONYM = "app.ch.poltr.actor.pseudonym";
 
 export const handleEvent = async (evt) => {
@@ -28,7 +30,7 @@ export const handleEvent = async (evt) => {
   }
   if (
     collection !== COLLECTION_BALLOT &&
-    collection !== COLLECTION_LIKE &&
+    collection !== COLLECTION_RATING &&
     collection !== COLLECTION_PSEUDONYM
   )
     return;
@@ -64,7 +66,7 @@ export const handleEvent = async (evt) => {
     }
   }
 
-  if (collection === COLLECTION_LIKE) {
+  if (collection === COLLECTION_RATING) {
     if (action === "delete") {
       await markLikeDeleted(uri);
       return;
@@ -73,6 +75,21 @@ export const handleEvent = async (evt) => {
       const record = evt.record;
       if (!record) return;
       await upsertLikeDb(pool, { uri, cid: cidString, did, rkey, record });
+
+      // Cross-like to Bluesky (best-effort, non-blocking)
+      if (action === "create") {
+        try {
+          const bskyPost = await getBskyPostForBallot(record.subject?.uri);
+          if (bskyPost) {
+            const bskyLike = await createBskyLike(did, bskyPost.bsky_post_uri, bskyPost.bsky_post_cid);
+            if (bskyLike) {
+              await setBskyLikeUri(uri, bskyLike.uri);
+            }
+          }
+        } catch (err) {
+          console.error("Bsky cross-like failed (non-blocking):", err);
+        }
+      }
     }
   }
 

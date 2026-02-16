@@ -27,6 +27,7 @@ from src.lib.fastapi import limiter
 
 EIDPROTO_URL = os.getenv("EIDPROTO_URL", "https://eidproto.poltr.info")
 FRONTEND_URL = os.getenv("APPVIEW_FRONTEND_URL", "https://poltr.ch")
+APP_PASSWORD_ENABLED = os.getenv("APPVIEW_APP_PASSWORD_ENABLED", "false").lower() == "true"
 
 router = APIRouter(prefix="/xrpc", tags=["auth"])
 
@@ -161,6 +162,11 @@ async def create_app_password(
     request: Request, session: TSession = Depends(verify_session_token)
 ):
     """Create an app password for use with Bluesky clients."""
+    if not APP_PASSWORD_ENABLED:
+        return JSONResponse(
+            status_code=403,
+            content={"error": "disabled", "message": "App password creation is disabled"},
+        )
     try:
         await pds_set_birthdate(session)
 

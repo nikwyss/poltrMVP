@@ -8,11 +8,13 @@ import { getCursor, setCursor } from './indexer_cursor.js'
 import { runBackfill } from './backfill_handler.js'
 import { FIREHOSE_SERVICE } from './service.js'
 import { handleEvent } from './record_handler.js'
+import { startBskyPoller } from './bsky_poller.js'
 
 const idResolver = new IdResolver()
 
 const firehoseEnabled = (process.env.FIREHOSE_ENABLED ?? 'true') !== 'false'
 let firehoseRunning = false
+let stopPoller = () => {}
 
 async function main() {
   if (!firehoseEnabled) {
@@ -91,8 +93,9 @@ async function main() {
 
   // graceful stop on signals
   const stop = async () => {
-    console.log('Stopping firehose and closing DB pool')
+    console.log('Stopping firehose, poller, and closing DB pool')
     firehoseRunning = false
+    stopPoller()
     try {
       await firehose.destroy()
     } catch (err) {
@@ -162,3 +165,6 @@ async function startAdminServer() {
 startAdminServer().catch((err) => {
   console.error('Admin server failed to start', err)
 })
+
+// Start Bluesky thread poller (controlled by BSKY_POLL_ENABLED env var)
+stopPoller = startBskyPoller()

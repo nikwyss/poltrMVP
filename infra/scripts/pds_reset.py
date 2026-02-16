@@ -332,7 +332,7 @@ def _print_db_cleanup_sql():
   --   UPDATE app_ballots SET did = '<new_governance_did>';{C.RESET}
 """)
     print(f"  {C.DIM}Post-reset: recreate governance account:{C.RESET}")
-    print(f"  {C.DIM}  PDS_ADMIN_PASSWORD=<pw> python create_gov_handle.py smartinfo.poltr.info admin@poltr.ch{C.RESET}")
+    print(f"  {C.DIM}  PDS_ADMIN_PASSWORD=<pw> python create_gov_handle.py admin.id.poltr.ch admin@poltr.ch{C.RESET}")
     print(f"  {C.DIM}  Then update PDS_GOVERNANCE_ACCOUNT_DID in pds-secrets with the new DID.{C.RESET}")
 
 

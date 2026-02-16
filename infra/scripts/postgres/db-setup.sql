@@ -22,6 +22,10 @@ CREATE TABLE app_ballots (
   like_count  integer NOT NULL DEFAULT 0,
   bsky_post_uri text,               -- URI of the cross-posted app.bsky.feed.post
   bsky_post_cid text,               -- CID of the cross-posted app.bsky.feed.post
+  active      integer NOT NULL DEFAULT 0,  -- 0=disabled, 1=active (enables REVERSE mirroring from Bluesky)
+  bsky_like_count   integer NOT NULL DEFAULT 0,
+  bsky_repost_count integer NOT NULL DEFAULT 0,
+  bsky_reply_count  integer NOT NULL DEFAULT 0,
   created_at  timestamptz NOT NULL,
   indexed_at  timestamptz NOT NULL DEFAULT now(),
   deleted     boolean NOT NULL DEFAULT false
@@ -41,6 +45,7 @@ CREATE TABLE app_likes (
   subject_uri text NOT NULL,
   subject_cid text,
   bsky_like_uri text,               -- URI of the cross-like app.bsky.feed.like (set by AppView)
+  preference  integer,              -- 0-100 preference scale from app.ch.poltr.content.rating
   created_at  timestamptz NOT NULL,
   indexed_at  timestamptz NOT NULL DEFAULT now(),
   deleted     boolean NOT NULL DEFAULT false
@@ -48,6 +53,36 @@ CREATE TABLE app_likes (
 
 CREATE INDEX app_likes_subject_uri_idx ON app_likes (subject_uri);
 CREATE INDEX app_likes_did_idx ON app_likes (did);
+
+CREATE TABLE app_comments (
+  uri               text PRIMARY KEY,
+  cid               text NOT NULL,
+  did               text NOT NULL,
+  rkey              text NOT NULL,
+  origin            text NOT NULL,          -- 'intern' or 'extern'
+  text              text,
+  ballot_uri        text NOT NULL,
+  ballot_rkey       text NOT NULL,
+  parent_uri        text,
+  argument_uri      text,                   -- URI of the ancestor argument this comment belongs to (null if direct reply to ballot)
+  bsky_post_uri     text,
+  bsky_post_cid     text,
+  handle            text,
+  display_name      text,
+  like_count        integer NOT NULL DEFAULT 0,
+  bsky_like_count   integer NOT NULL DEFAULT 0,
+  bsky_repost_count integer NOT NULL DEFAULT 0,
+  bsky_reply_count  integer NOT NULL DEFAULT 0,
+  created_at        timestamptz NOT NULL,
+  indexed_at        timestamptz NOT NULL DEFAULT now(),
+  deleted           boolean NOT NULL DEFAULT false
+);
+
+CREATE INDEX app_comments_ballot_uri_idx ON app_comments (ballot_uri);
+CREATE INDEX app_comments_ballot_rkey_idx ON app_comments (ballot_rkey);
+CREATE INDEX app_comments_parent_uri_idx ON app_comments (parent_uri);
+CREATE INDEX app_comments_argument_uri_idx ON app_comments (argument_uri);
+CREATE INDEX app_comments_did_idx ON app_comments (did);
 
 CREATE TABLE app_profiles (
   did              text PRIMARY KEY,

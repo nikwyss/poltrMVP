@@ -2,7 +2,7 @@
 """
 Create a governance/admin handle on the PDS.
 Usage: python create_gov_handle.py <handle> <email>
-Example: python create_gov_handle.py smartinfo.poltr.info admin@poltr.ch
+Example: python create_gov_handle.py admin.id.poltr.ch admin@poltr.ch
 """
 import os
 import sys
@@ -67,7 +67,7 @@ def create_account(handle: str, email: str, password: str, invite_code: str) -> 
 def main():
     if len(sys.argv) < 3:
         print(f"Usage: {sys.argv[0]} <handle> <email>")
-        print(f"Example: {sys.argv[0]} smartinfo.poltr.info admin@poltr.ch")
+        print(f"Example: {sys.argv[0]} admin.id.poltr.ch admin@poltr.ch")
         sys.exit(1)
 
     handle = sys.argv[1]

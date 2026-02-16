@@ -175,7 +175,7 @@ async def list_ballots(
 
 
 # -----------------------------------------------------------------------------
-# app.ch.poltr.ballot.like / unlike
+# app.ch.poltr.content.rating / unrating
 # -----------------------------------------------------------------------------
 
 
@@ -230,7 +230,7 @@ async def _create_bsky_cross_like(session: TSession, ballot_uri: str):
         return None
 
 
-@router.post("/app.ch.poltr.ballot.like")
+@router.post("/app.ch.poltr.content.rating")
 async def create_like(
     request: Request,
     session: TSession = Depends(verify_session_token),
@@ -246,13 +246,14 @@ async def create_like(
         )
 
     record = {
-        "$type": "app.ch.poltr.ballot.like",
+        "$type": "app.ch.poltr.content.rating",
         "subject": subject,
+        "preference": body.get("preference", 100),
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
 
     try:
-        result = await pds_create_record(session, "app.ch.poltr.ballot.like", record)
+        result = await pds_create_record(session, "app.ch.poltr.content.rating", record)
     except Exception as err:
         logger.error(f"Failed to create like: {err}")
         return JSONResponse(
@@ -266,7 +267,7 @@ async def create_like(
     return JSONResponse(status_code=200, content=result)
 
 
-@router.post("/app.ch.poltr.ballot.unlike")
+@router.post("/app.ch.poltr.content.unrating")
 async def delete_like(
     request: Request,
     session: TSession = Depends(verify_session_token),
@@ -306,7 +307,7 @@ async def delete_like(
         logger.warning(f"Failed to look up bsky_like_uri (non-blocking): {err}")
 
     try:
-        await pds_delete_record(session, "app.ch.poltr.ballot.like", rkey)
+        await pds_delete_record(session, "app.ch.poltr.content.rating", rkey)
     except Exception as err:
         logger.error(f"Failed to delete like: {err}")
         return JSONResponse(

@@ -154,6 +154,7 @@ function HomeContent() {
           {verificationLoading ? 'Starting...' : 'swiyu-Verification'}
         </button>
 
+        {process.env.NEXT_PUBLIC_APP_PASSWORD_ENABLED === 'true' && (
         <button
           onClick={handleCreateAppPassword}
           disabled={appPasswordLoading}
@@ -170,6 +171,7 @@ function HomeContent() {
         >
           {appPasswordLoading ? 'Creating...' : 'Create App Password'}
         </button>
+        )}
 
         <button
           onClick={handleLogout}
@@ -221,7 +223,7 @@ function HomeContent() {
         </div>
       )}
 
-      {appPasswordError && (
+      {process.env.NEXT_PUBLIC_APP_PASSWORD_ENABLED === 'true' && appPasswordError && (
         <div
           style={{
             marginTop: '20px',
@@ -238,7 +240,7 @@ function HomeContent() {
         </div>
       )}
 
-      {appPassword && (
+      {process.env.NEXT_PUBLIC_APP_PASSWORD_ENABLED === 'true' && appPassword && (
         <div
           style={{
             marginTop: '20px',

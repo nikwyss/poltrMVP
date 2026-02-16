@@ -6,6 +6,29 @@ Schema files: `services/front/src/lexicons/`
 
 ---
 
+## Data Hierarchy
+
+```
+Ballot (app.ch.poltr.ballot.entry)
+  │
+  ├── Comment (app.bsky.feed.post)          ← direct reply to ballot cross-post
+  │     └── Comment (app.bsky.feed.post)    ← nested replies
+  │
+  └── Argument (app.ch.poltr.ballot.argument, TBD)
+        │
+        ├── Comment (app.bsky.feed.post)    ← reply to argument cross-post
+        │     └── Comment (app.bsky.feed.post)
+        └── ...
+```
+
+**Ballots** are the top-level discussion topics (Swiss referendum items). Each ballot is a custom poltr record (`app.ch.poltr.ballot.entry`) created by the governance account and cross-posted to Bluesky as `app.bsky.feed.post`.
+
+**Arguments** are structured positions on a ballot (pro/contra). They use a dedicated poltr lexicon (`app.ch.poltr.ballot.argument`, to be defined) and are cross-posted as `app.bsky.feed.post` replies to the ballot cross-post.
+
+**Comments** use the standard Bluesky post lexicon (`app.bsky.feed.post`). They are replies to either a ballot or an argument cross-post. This means comments are native Bluesky posts — no custom lexicon needed. Comments are stored in `app_comments` with `argument_uri` linking them to their ancestor argument (null if replying directly to the ballot).
+
+---
+
 ## Records
 
 ### `app.ch.poltr.ballot.entry`
@@ -23,13 +46,14 @@ A Swiss ballot (referendum/initiative) entry. Created by the governance account.
 
 - **Key:** `any` (uses `officialRef` as rkey to prevent duplicates)
 
-### `app.ch.poltr.ballot.like`
+### `app.ch.poltr.content.rating`
 
-A like on a ballot entry. One per user per ballot.
+A rating on poltr content (ballot, argument, post). Includes a 0–100 preference scale. Cross-posted to Bluesky as `app.bsky.feed.like` when preference > 0.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| subject | object | yes | `{ uri: at-uri, cid: cid }` referencing the ballot |
+| subject | object | yes | `{ uri: at-uri, cid: cid }` referencing the content |
+| preference | integer | yes | Preference indication from 0 (neutral) to 100 (strong support) |
 | createdAt | string (datetime) | yes | Timestamp |
 
 - **Key:** `tid` (auto-generated)

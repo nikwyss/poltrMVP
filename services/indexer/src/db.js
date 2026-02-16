@@ -67,24 +67,26 @@ export async function upsertLikeDb(clientOrPool, params) {
 
   const subjectUri = record?.subject?.uri ?? null;
   const subjectCid = record?.subject?.cid ?? null;
+  const preference = record?.preference ?? null;
   const createdAt = record?.createdAt ? new Date(record.createdAt) : new Date();
 
   await dbQuery(
     clientOrPool,
     `
     INSERT INTO app_likes
-      (uri, cid, did, rkey, subject_uri, subject_cid, created_at, deleted)
+      (uri, cid, did, rkey, subject_uri, subject_cid, preference, created_at, deleted)
     VALUES
-      ($1,  $2,  $3,  $4,  $5,          $6,          $7,         false)
+      ($1,  $2,  $3,  $4,  $5,          $6,          $7,         $8,         false)
     ON CONFLICT (uri) DO UPDATE SET
       cid         = EXCLUDED.cid,
       subject_uri = EXCLUDED.subject_uri,
       subject_cid = EXCLUDED.subject_cid,
+      preference  = EXCLUDED.preference,
       created_at  = EXCLUDED.created_at,
       deleted     = false,
       indexed_at  = now()
     `,
-    [uri, cid, did, rkey, subjectUri, subjectCid, createdAt],
+    [uri, cid, did, rkey, subjectUri, subjectCid, preference, createdAt],
   );
 
   if (subjectUri) {
@@ -176,6 +178,123 @@ export async function setBskyPostUri(ballotUri, bskyPostUri, bskyPostCid) {
   await pool.query(
     `UPDATE app_ballots SET bsky_post_uri = $1, bsky_post_cid = $2 WHERE uri = $3`,
     [bskyPostUri, bskyPostCid ?? null, ballotUri],
+  );
+}
+
+/**
+ * Get the cross-posted Bluesky post URI and CID for a ballot.
+ */
+export async function getBskyPostForBallot(subjectUri) {
+  const res = await pool.query(
+    `SELECT bsky_post_uri, bsky_post_cid FROM app_ballots WHERE uri = $1`,
+    [subjectUri],
+  );
+  const row = res.rows?.[0];
+  if (!row || !row.bsky_post_uri || !row.bsky_post_cid) return null;
+  return { bsky_post_uri: row.bsky_post_uri, bsky_post_cid: row.bsky_post_cid };
+}
+
+/**
+ * Store the cross-posted Bluesky like URI on the like record.
+ */
+export async function setBskyLikeUri(likeUri, bskyLikeUri) {
+  await pool.query(
+    `UPDATE app_likes SET bsky_like_uri = $1 WHERE uri = $2`,
+    [bskyLikeUri, likeUri],
+  );
+}
+
+/**
+ * Get the stored encrypted PDS credentials for a user.
+ */
+export async function getUserPdsCreds(did) {
+  const res = await pool.query(
+    `SELECT app_pw_ciphertext, app_pw_nonce FROM auth.auth_creds WHERE did = $1`,
+    [did],
+  );
+  const row = res.rows?.[0];
+  if (!row) return null;
+  return { ciphertext: row.app_pw_ciphertext, nonce: row.app_pw_nonce };
+}
+
+/**
+ * Get all active ballots that have a Bluesky cross-post.
+ */
+export async function getActiveBallots() {
+  const res = await pool.query(
+    `SELECT uri, bsky_post_uri
+     FROM app_ballots
+     WHERE active = 1
+       AND bsky_post_uri IS NOT NULL
+       AND NOT deleted`,
+  );
+  return res.rows;
+}
+
+/**
+ * Get cross-posted Bluesky URIs for arguments belonging to a ballot.
+ * Returns rows with { bsky_post_uri }.
+ * TODO: query from app_arguments table once it exists.
+ */
+export async function getArgumentUrisForBallot(_ballotUri) {
+  return [];
+}
+
+/**
+ * Update Bluesky engagement counts on a ballot.
+ */
+export async function updateBallotBskyCounts(ballotUri, { likeCount, repostCount, replyCount }) {
+  await pool.query(
+    `UPDATE app_ballots
+     SET bsky_like_count   = $1,
+         bsky_repost_count = $2,
+         bsky_reply_count  = $3,
+         indexed_at        = now()
+     WHERE uri = $4`,
+    [likeCount ?? 0, repostCount ?? 0, replyCount ?? 0, ballotUri],
+  );
+}
+
+/**
+ * Upsert a Bluesky thread post into app_comments (origin = 'extern').
+ * On conflict, updates engagement counts but preserves text.
+ */
+export async function upsertBskyThreadPost(params) {
+  const {
+    uri, cid, did, rkey, text, ballotUri, ballotRkey,
+    parentUri, argumentUri, bskyPostUri, bskyPostCid,
+    handle, displayName, likeCount, repostCount, replyCount, createdAt,
+  } = params;
+
+  await pool.query(
+    `INSERT INTO app_comments
+       (uri, cid, did, rkey, origin, text, ballot_uri, ballot_rkey,
+        parent_uri, argument_uri, bsky_post_uri, bsky_post_cid,
+        handle, display_name,
+        bsky_like_count, bsky_repost_count, bsky_reply_count,
+        created_at, deleted)
+     VALUES
+       ($1, $2, $3, $4, 'extern', $5, $6, $7,
+        $8, $9, $10, $11,
+        $12, $13,
+        $14, $15, $16,
+        $17, false)
+     ON CONFLICT (uri) DO UPDATE SET
+       cid               = EXCLUDED.cid,
+       argument_uri      = COALESCE(EXCLUDED.argument_uri, app_comments.argument_uri),
+       handle            = EXCLUDED.handle,
+       display_name      = EXCLUDED.display_name,
+       bsky_like_count   = EXCLUDED.bsky_like_count,
+       bsky_repost_count = EXCLUDED.bsky_repost_count,
+       bsky_reply_count  = EXCLUDED.bsky_reply_count,
+       indexed_at        = now()`,
+    [
+      uri, cid, did, rkey, text, ballotUri, ballotRkey,
+      parentUri, argumentUri ?? null, bskyPostUri, bskyPostCid,
+      handle, displayName,
+      likeCount ?? 0, repostCount ?? 0, replyCount ?? 0,
+      createdAt ? new Date(createdAt) : new Date(),
+    ],
   );
 }
 

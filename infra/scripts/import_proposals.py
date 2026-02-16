@@ -209,17 +209,21 @@ class ProposalImporter:
         with open(csv_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f, delimiter=';')
             for row in reader:
-                votings.append(row)
+                votings.append(SwissVote.from_csv_row(row))
+
+        # Sort by vote date descending (newest first) and take only the top N
+        votings.sort(
+            key=lambda v: datetime.strptime(v.datum, "%d.%m.%Y") if v.datum else datetime.min,
+            reverse=True,
+        )
+        top_n = int(os.getenv("TOP_NEWEST", "10"))
+        votings = votings[:top_n]
+        print(f"Filtered to top {len(votings)} newest ballots (by vote date)")
 
         created_count = 0
         skipped_count = 0
 
-
         for i, voting in enumerate(votings, 1):
-            # Extract essential data for filtering
-            # Try to create the proposal
-            voting = SwissVote.from_csv_row(voting)
-
             if self.create_proposal(voting):
                 created_count += 1
                 if max_imports and created_count >= max_imports:

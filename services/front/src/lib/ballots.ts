@@ -70,7 +70,7 @@ export async function likeBallot(
   subjectUri: string,
   subjectCid: string
 ): Promise<string> {
-  const res = await callAppXrpc('/api/xrpc/app.ch.poltr.ballot.like', {
+  const res = await callAppXrpc('/api/xrpc/app.ch.poltr.content.rating', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -91,7 +91,7 @@ export async function likeBallot(
  * Unlike a ballot. Routes through the appview which deletes from the PDS.
  */
 export async function unlikeBallot(likeUri: string): Promise<void> {
-  const res = await callAppXrpc('/api/xrpc/app.ch.poltr.ballot.unlike', {
+  const res = await callAppXrpc('/api/xrpc/app.ch.poltr.content.unrating', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ likeUri }),

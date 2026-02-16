@@ -1,10 +1,10 @@
 {
   "lexicon": 1,
-  "id": "app.ch.poltr.ballot.like",
+  "id": "app.ch.poltr.content.rating",
   "defs": {
     "main": {
       "type": "record",
-      "description": "A like on a ballot entry",
+      "description": "A rating on poltr content (ballot, argument, post). Includes a 0-100 preference scale. Cross-posted to Bluesky as app.bsky.feed.like when preference > 0.",
       "key": "tid",
       "record": {
         "type": "object",
@@ -13,12 +13,18 @@
             "type": "ref",
             "ref": "#subject"
           },
+          "preference": {
+            "type": "integer",
+            "description": "Preference indication from 0 (neutral) to 100 (strong support)",
+            "minimum": 0,
+            "maximum": 100
+          },
           "createdAt": {
             "type": "string",
             "format": "datetime"
           }
         },
-        "required": ["subject", "createdAt"]
+        "required": ["subject", "preference", "createdAt"]
       }
     },
     "subject": {

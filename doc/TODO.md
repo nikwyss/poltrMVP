@@ -2,16 +2,22 @@
 
 ## Next
 
-- [ ] Finalize lexicon setup: Poltr-specific version + Bluesky fallback
 - [ ] Implement argument posting functionality
-- [ ] Design and implement user profile pages
-- [ ] Interoperability: Content on Bluesky
-- [ ] Interoperability: Bluesky content in the app
 - [ ] Arguments / Peer review
 - [ ] Testing
 
+## VISION
+- [ ] Translations: translations only in the appviev
+
+
+## ONGOING
+- [ ] Interoperability: Content on Bluesky
+- [ ] Interoperability: Bluesky content in the app
+- [ ] Finalize lexicon setup: Poltr-specific version + Bluesky fallback (embedded entries)
+
 ## Done
 
+- Design and implement user profile pages on bluesky
 - Create pseudonym system: Swiss mountain names table (Bergnamen)
 - Server-side auth: httpOnly cookies, XRPC proxy, no token in localStorage
 - RichText XSS hardening (heading tag whitelist, link href validation)

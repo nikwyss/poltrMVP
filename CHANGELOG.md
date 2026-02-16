@@ -3,7 +3,7 @@
 ## 2026-02-15b
 
 ### Bluesky Cross-Post Fix (`services/indexer`, `services/appview`)
-- **Fixed cross-post not triggering**: `PDS_GOVERNANCE_ACCOUNT_DID` and `PDS_GOVERNANCE_PASSWORD` were missing/wrong in both K8s secrets and local `.env` — updated to match `smartinfo.id.poltr.ch` (`did:plc:3ch7iwf6od4szklpolupbv7o`)
+- **Fixed cross-post not triggering**: `PDS_GOVERNANCE_ACCOUNT_DID` and `PDS_GOVERNANCE_PASSWORD` were missing/wrong in both K8s secrets and local `.env` — updated to match `admin.id.poltr.ch` (`did:plc:3ch7iwf6od4szklpolupbv7o`)
 - **Fixed TID rkey format**: Switched `upsertBskyPost` from `putRecord` (plain rkey) to `createRecord` (auto-generated TID rkey). Bluesky's AppView only indexes `app.bsky.feed.post` records with TID-format rkeys
 - **Upsert support for cross-posts**: On ballot update, deletes the previous cross-post and creates a new one; passes `existingPostUri` from DB to avoid orphaned posts
 - **Added `bsky_post_uri` column** to `app_ballots` (was missing from live DB, already in `db-setup.sql`)
