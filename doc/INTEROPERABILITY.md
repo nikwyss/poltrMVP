@@ -2,6 +2,69 @@
 
 Complete matrix of all cross-PDS interaction flows.
 
+## Data Flow
+
+```
+                    MIRROR (poltr → Bluesky)
+ ┌──────────────────────────────────────────────────────────────────┐
+ │                                                                  │
+ │  poltr.ch                poltr PDS              Bluesky          │
+ │  ┌──────────┐           ┌──────────┐           ┌──────────┐     │
+ │  │ Frontend │──write──► │  Records │──relay───► │ bsky.app │     │
+ │  │          │           │          │  (firehose)│          │     │
+ │  │ ballots  │           │ ballot   │            │ cross-   │     │
+ │  │ args     │           │ entry    │──mirror──► │ posted   │     │
+ │  │ comments │           │ rating   │  (indexer) │ feed.post│     │
+ │  │ ratings  │           │ feed.post│            │ feed.like│     │
+ │  └──────────┘           └──────────┘            └──────────┘     │
+ │       ▲                      ▲                       │           │
+ │       │                      │                       │           │
+ │       │                 ┌──────────┐                 │           │
+ │       │                 │ Indexer  │                 │           │
+ │       │                 │          │◄── firehose ────┘           │
+ │       │                 │ upsert   │    (own PDS)                │
+ │       │                 │ cross-   │                             │
+ │       │                 │ post/like│                             │
+ │       │                 └──────────┘                             │
+ │       │                      │                                   │
+ │       │                      ▼                                   │
+ │       │                 ┌──────────┐                             │
+ │       └─── serves ◄────│PostgreSQL│                             │
+ │                         │          │                             │
+ │                         │ ballots  │                             │
+ │                         │ comments │                             │
+ │                         │ likes    │                             │
+ │                         └──────────┘                             │
+ │                              ▲                                   │
+ │                              │                                   │
+ └──────────────────────────────┼───────────────────────────────────┘
+                                │
+ ┌──────────────────────────────┼───────────────────────────────────┐
+ │                              │                                   │
+ │  REVERSE (Bluesky → poltr)   │                                   │
+ │                              │                                   │
+ │                         ┌──────────┐            ┌──────────┐     │
+ │                         │ Poller   │──GET──────►│ Bluesky  │     │
+ │                         │ (bsky_   │  getPost   │ Public   │     │
+ │                         │ poller.js│  Thread    │ API      │     │
+ │                         │          │◄───────────│          │     │
+ │                         │ upsert   │ thread +   └──────────┘     │
+ │                         │ counts   │ counts                      │
+ │                         └──────────┘                             │
+ │                              │                                   │
+ │                              ▼                                   │
+ │                         ┌──────────┐                             │
+ │                         │PostgreSQL│                             │
+ │                         │          │                             │
+ │                         │ app_     │  (origin='extern')          │
+ │                         │ comments │                             │
+ │                         │ bsky_*_  │                             │
+ │                         │ count    │                             │
+ │                         └──────────┘                             │
+ │                                                                  │
+ └──────────────────────────────────────────────────────────────────┘
+```
+
 ## Configurations
 
 These configurations are implemented or at least implementable.
@@ -16,7 +79,7 @@ These configurations are implemented or at least implementable.
 
 - **`REVERSE (ENABLED)`** — Bluesky posts are  periodically imported back into poltr. Limit: Only enabled for **active ballots** (`app_ballots.active = 1`). The indexer polls the Bluesky public API (`app.bsky.feed.getPostThread`) for each active ballot's cross-post URI on a configurable interval (default 10 min). The full reply thread tree (up to depth 10) is walked recursively and upserted into `app_comments` (origin = `extern`). Engagement counts (likes, reposts, replies) are updated on the ballot row.
 
-
+Hence: No auth path for Bluesky-native users to interact on poltr.ch. Would require cross-PDS OAuth or public/anonymous access.
 
 ```
 Indexer (bsky_poller.js)
@@ -49,92 +112,72 @@ Controlled by environment variables: `BSKY_POLL_ENABLED` (default `false`), `BSK
 | Real-time updates | Polling interval means up to 10 min delay | Low — acceptable for discussion import |
 
 
-## FULL MATRIX
+## Mirroring Poltr to Bluesky (bsky.app)
+Wheater one does allow discussion to be monitored and  continued on bluesky depends on the Option "MIRROR".
+(One exception: comments are natively understood by bluesky.) 
+
+The following matrix tables visualize applications where Cross-Plattform Logins are disabled: Polter-Accounts cannot login at bluesky and vice versa. 
+
 <table>
 <thead>
 <tr>
-  <th rowspan="3">Action</th>
-  <th rowspan="3">Platform</th>
-</tr>
-<tr>
-  <th colspan="2">Account: pds.poltr</th>
-  <th colspan="2">Account: pds.bluesky</th>
-</tr>
-<tr>
-  <th>Target: pds.poltr</th>
-  <th>Target: pds.bluesky <br />(poltr-related)</th>
-  <th>Target: pds.poltr</th>
-  <th>Target: pds.bluesky <br />(poltr-related)</th>
+  <th>Action</th>
+  <th>Poltr-Content on Bluesky</th>
 </tr>
 </thead>
 <tbody>
 
-<!-- READ -->
 <tr>
-  <td rowspan="2"><b>Read</b></td>
-  <td><b>poltr.ch</b></td>
-  <td>✅ <b>Native</b></td>
-  <td>✅ <b>Implemented by "REVERSE"</b><br /> For active ballots, the indexer periodically polls <code>getPostThread</code> and imports Bluesky replies into <code>app_comments</</td>
-  <td colspan="2">❌ <b>Not implemented.</b> Bluesky-native users cannot log into poltr.ch. Would require cross-PDS auth or public access.</td>
-</tr>
-<tr>
-  <td><b>bsky.app</b></td>
-  <td colspan="2">⚡ <b>Not enabled.</b> Poltr-users cannot log into bluesky. Would require enabled app-password.</td>
+  <td> <b>Read</b></td>
 
-  <td>✅ <b>Implemented by "MIRROR"</b> <br/>Indexer auto-creates mirrored <code>app.bsky.feed.post</code> (ballots and arguments; comments do not need mirroring as they already stored as app.bsky.feed.post). Also, there is an extra blueskay-feed for poltr content.</td>
-  <td>✅ <b>Native</b></td>
+  <td>Indexer auto-creates mirrored <code>app.bsky.feed.post</code> (ballots and arguments; comments do not need mirroring as they already stored as app.bsky.feed.post). Additionally, a <a href="BLUESKY_FEED.md">Bluesky feed generator</a> can expose poltr content as a subscribable feed on bsky.app.</td>
 </tr>
 
-<!-- LIKE / RATE -->
 <tr>
-  <td rowspan="2"><b>Like / Rate</b></td>
-  <td><b>poltr.ch</b></td>
-  <td>✅ <b>Native.</b> Creates <code>app.ch.poltr.content.rating</code> (0–100 preference).  <br/><br/><code>MIRROR:</code>If positive, the rating is cross-posted as like. </td>
-  <td>✅ <b>Implemented by "REVERSE"</b><br /> For active ballots, reverse-imported Bluesky replies could be rated on poltr.ch. (0-100)  <br/><br/><code>MIRROR:</code>If positive, the rating is cross-posted as like. </td>
-
-  <td colspan="2">❌ <b>Not implemented.</b> Bluesky-native users cannot log into poltr.ch. Would require cross-PDS auth or public access.</td>
-  <tr>
-
-  <td><b>bsky.app</b></td>
-  <td colspan="2">⚡ <b>Not enabled.</b> Poltr-users cannot log into bluesky. Would require enabled app-password.</td>
-  <td>✅ <b>Implemented by "MIRROR"</b><br /> Bluesky user may like cross-posted content on bsky.app.</td>
-  <td>✅ <b>Native</b><br><code>REVERSE (EXTENSION)</code>: For active ballots, like counts might be captured via <code>getPostThread</code> polling and stored on <code>bsky_like_count</code>.</td>
+  <td><b>Like / Rate</b></td>
+  <td>Bluesky user may like cross-posted content on bsky.app. The ratings that have been already submitted on poltr are cross-posted as bluesky likes.</td>
 </tr>
 
-<!-- POST / REPLY -->
 <tr>
-  <td rowspan="2"><b>Post / Reply</b></td>
-  <td><b>poltr.ch</b></td>
-  <td>✅ <b>Native</b></td>
-  <td>✅ <b>Native</b></td>
-  <td colspan="2">❌ <b>Not implemented.</b> Bluesky-native users cannot log into poltr.ch. Would require cross-PDS auth or public access.</td>
+  <td><b>Post / Reply</b></td>
+  <td>Bluesky user may reply to cross-posted content on bsky.app.</td>
 </tr>
-<tr>
-  <td><b>bsky.app</b></td>
-  <td colspan="2">⚡ <b>Not enabled.</b> Poltr-users cannot log into bluesky. Would require enabled app-password.</td>
-  <td>✅ <b>Implemented by "MIRROR"</b><br /> Bluesky user may reply to cross-posted content on bsky.app.</td>
-  <td>✅ <b>Native</b><br><code>REVERSE</code>: For active ballots, the replies are  captured via <code>getPostThread</code> polling and stored on poltr <code>bsky_like_count</code>.</td>
-</tr>
-
 
 </tbody>
 </table>
 
-## Legend
+## Reverse Mirroring Bluesky to Poltr (poltr.ch)
+Weather one decides that the discussion lead in bluesky is connected again to the discussion on poltr, hings on the Option "REVERSE". The options makes that poltr.ch automatically imports likes and posts created on bluesky and that is related to poltr content.
 
-| Symbol | Status | Meaning |
-|--------|--------|---------|
-| ✅ | **Implemented** | Fully working end-to-end |
-| ⚡ | **Not enabled** | Mechanism is not enabled |
-| ❌ | **Not implemented** | No mechanism exists |
-| `MIRROR` | Option tag | This capability depends on the mirroring option |
-| `REVERSE` | Option tag | This capability depends on the reverse-mirroring option (active ballots only) |
-| `REVERSE (EXTENSION)` | Option tag | This capability depends on the capacity of the reverse-mirroring option |
+<table>
+<thead>
+<tr>
+  <th>Action</th>
+  <th>Poltr-related Bluesky-Content on Poltr</th>
+</tr>
+
+<tr>
+  <td><b>Read</b></td>
+  <td>For active ballots, the indexer periodically polls <code>getPostThread</code> and imports Bluesky replies into <code>app_comments</code>. Additionally, a <a href="BLUESKY_FEED.md">Bluesky feed generator</a> can expose poltr content as a subscribable feed on poltr.ch.</td>
+</tr>
+
+<tr>
+  <td><b>Like / Rate</b></td>
+<td>Like counts from Bluesky are imported to Poltr (aggregated counts only, not individual like records). Poltr-User can rate the content for themselves. If positive, the rating is cross-posted again to bluesky as feed.like. (Mirroring)</td>
+</tr>
+
+<tr>
+  <td><b>Post / Reply</b></td>
+  <td>Also on Bluesky generated content can be replied on Poltr.</td>
+</tr>
+
+</tbody>
+</table>
 
 ## Gaps summary
 
 ### `MIRROR` — poltr content on Bluesky
-Only ballots are cross-posted today. Arguments, comments, and ratings need the same cross-post mechanism. Once all content types are mirrored, a [Bluesky feed generator](BLUESKY_FEED.md) can expose them as a subscribable feed on bsky.app.
+Only ballots are cross-posted at the moment. Arguments,and ratings need the same cross-post mechanism. Once all content types are mirrored, a [Bluesky feed generator](BLUESKY_FEED.md) can expose them as a subscribable feed on bsky.app.
 
 ### `REVERSE` — Bluesky reactions back to poltr (active ballots only)
 Implemented via periodic polling (`bsky_poller.js`). Scoped to ballots with `active = 1` in `app_ballots`. The indexer calls `getPostThread` on the Bluesky public API for each active ballot's cross-post URI. Captures:
@@ -143,5 +186,4 @@ Implemented via periodic polling (`bsky_poller.js`). Scoped to ballots with `act
 
 Controlled by `BSKY_POLL_ENABLED` (default `false`) and `BSKY_POLL_INTERVAL_MS` (default 10 min). Not captured: quote-post reply trees, threads deeper than 10 levels.
 
-### Bluesky-native users on poltr.ch
-No auth path for Bluesky-native users to interact on poltr.ch. Would require cross-PDS OAuth or public/anonymous access.
+
