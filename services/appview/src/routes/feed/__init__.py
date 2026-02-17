@@ -103,12 +103,12 @@ async def get_feed_skeleton(
 
     feed_items = [{"post": row["bsky_post_uri"]} for row in rows]
 
-    new_cursor = None
+    result: dict = {"feed": feed_items}
     if rows:
         last = rows[-1]
-        new_cursor = f"{last['created_at'].isoformat()}::{last['rkey']}"
+        result["cursor"] = f"{last['created_at'].isoformat()}::{last['rkey']}"
 
-    return {"feed": feed_items, "cursor": new_cursor}
+    return result
 
 
 # -----------------------------------------------------------------------------
