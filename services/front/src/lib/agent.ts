@@ -1,4 +1,4 @@
-import type { BallotWithMetadata } from '../types/ballots';
+import type { BallotWithMetadata, ArgumentWithMetadata } from '../types/ballots';
 import { Agent } from '@atproto/api';
 
 /**
@@ -115,6 +115,28 @@ export async function listRecords(
   return { ...response.data, records: hydratedRecords };
 }
 
+
+export async function getBallot(rkey: string): Promise<BallotWithMetadata> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.ballot.get?rkey=${encodeURIComponent(rkey)}`);
+  if (!res.ok) throw new Error(await res.text());
+  const content = await res.json();
+  if (!content?.ballot) {
+    throw new Error('Invalid response from ballot.get endpoint');
+  }
+  return content.ballot;
+}
+
+export async function listArguments(ballotRkey: string): Promise<ArgumentWithMetadata[]> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.argument.list?ballot_rkey=${encodeURIComponent(ballotRkey)}`);
+  if (!res.ok) throw new Error(await res.text());
+  const content = await res.json();
+  if (!content?.arguments) {
+    throw new Error('Invalid response from argument.list endpoint');
+  }
+  return content.arguments;
+}
 
 export async function listBallots(_limit = 100): Promise<BallotWithMetadata[]> {
   const authenticatedFetch = getAuthenticatedFetch();

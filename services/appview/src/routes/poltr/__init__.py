@@ -23,6 +23,80 @@ router = APIRouter(prefix="/xrpc", tags=["poltr"])
 
 
 # -----------------------------------------------------------------------------
+# Shared helpers
+# -----------------------------------------------------------------------------
+
+
+def _serialize_ballot(row: dict) -> dict:
+    """Serialize a DB row from app_ballots into the API ballot shape."""
+    # Parse record
+    record = {}
+    raw_record = get_object(row, "record")
+    if raw_record:
+        record = raw_record
+    elif isinstance(row.get("record"), str):
+        try:
+            record = json.loads(row["record"])
+        except Exception:
+            record = {}
+    else:
+        raw_record_dict = {
+            "$type": get_string(row, "record_type")
+            or get_string(row, "type")
+            or "app.ch.poltr.ballot.entry",
+            "title": get_string(row, "title"),
+            "description": get_string(row, "description"),
+            "voteDate": get_date_iso(row, "vote_date"),
+            "createdAt": get_date_iso(row, "created_at"),
+            "deleted": bool(row.get("deleted")),
+        }
+        record = {k: v for k, v in raw_record_dict.items() if v is not None}
+
+    # Parse author
+    author_obj = get_object(row, "author")
+    author_raw = {
+        "did": get_string(row, "author_did")
+        or get_string(row, "did")
+        or (get_string(author_obj, "did") if author_obj else None),
+        "handle": get_string(row, "author_handle")
+        or get_string(row, "handle")
+        or (get_string(author_obj, "handle") if author_obj else None),
+        "displayName": (
+            get_string(author_obj, "displayName") if author_obj else None
+        )
+        or get_string(row, "author_display_name"),
+        "avatar": (get_string(author_obj, "avatar") if author_obj else None)
+        or get_string(row, "author_avatar"),
+        "labels": get_array(row, "author_labels")
+        or (author_obj.get("labels", []) if author_obj else []),
+        "viewer": (author_obj.get("viewer") if author_obj else None),
+    }
+    author = {k: v for k, v in author_raw.items() if v is not None}
+
+    # Build viewer object
+    viewer_obj = {}
+    if row.get("viewer_like"):
+        viewer_obj["like"] = row["viewer_like"]
+    if not viewer_obj:
+        viewer_obj = None
+
+    # Build ballot entry
+    ballot_raw = {
+        "uri": get_string(row, "uri") or get_string(row, "row_uri") or "",
+        "cid": get_string(row, "cid") or "",
+        "author": author,
+        "record": record,
+        "indexedAt": get_date_iso(row, "indexed_at"),
+        "likeCount": get_number(row, "like_count"),
+        "replyCount": get_number(row, "reply_count"),
+        "bookmarkCount": get_number(row, "bookmark_count"),
+        "labels": get_array(row, "labels"),
+        "viewer": viewer_obj,
+    }
+    return {k: v for k, v in ballot_raw.items() if v is not None}
+
+
+# -----------------------------------------------------------------------------
 # app.ch.poltr.ballot.list
 # -----------------------------------------------------------------------------
 
@@ -75,76 +149,7 @@ async def _get_ballots_handler(
         async with db_pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
 
-        ballots = []
-        for r in rows:
-            row = dict(r)
-
-            # Parse record
-            record = {}
-            raw_record = get_object(row, "record")
-            if raw_record:
-                record = raw_record
-            elif isinstance(row.get("record"), str):
-                try:
-                    record = json.loads(row["record"])
-                except Exception:
-                    record = {}
-            else:
-                raw_record_dict = {
-                    "$type": get_string(row, "record_type")
-                    or get_string(row, "type")
-                    or "app.ch.poltr.ballot.entry",
-                    "title": get_string(row, "title"),
-                    "description": get_string(row, "description"),
-                    "voteDate": get_date_iso(row, "vote_date"),
-                    "createdAt": get_date_iso(row, "created_at"),
-                    "deleted": bool(row.get("deleted")),
-                }
-                record = {k: v for k, v in raw_record_dict.items() if v is not None}
-
-            # Parse author
-            author_obj = get_object(row, "author")
-            author_raw = {
-                "did": get_string(row, "author_did")
-                or get_string(row, "did")
-                or (get_string(author_obj, "did") if author_obj else None),
-                "handle": get_string(row, "author_handle")
-                or get_string(row, "handle")
-                or (get_string(author_obj, "handle") if author_obj else None),
-                "displayName": (
-                    get_string(author_obj, "displayName") if author_obj else None
-                )
-                or get_string(row, "author_display_name"),
-                "avatar": (get_string(author_obj, "avatar") if author_obj else None)
-                or get_string(row, "author_avatar"),
-                "labels": get_array(row, "author_labels")
-                or (author_obj.get("labels", []) if author_obj else []),
-                "viewer": (author_obj.get("viewer") if author_obj else None),
-            }
-            author = {k: v for k, v in author_raw.items() if v is not None}
-
-            # Build viewer object
-            viewer_obj = {}
-            if row.get("viewer_like"):
-                viewer_obj["like"] = row["viewer_like"]
-            if not viewer_obj:
-                viewer_obj = None
-
-            # Build ballot entry
-            ballot_raw = {
-                "uri": get_string(row, "uri") or get_string(row, "row_uri") or "",
-                "cid": get_string(row, "cid") or "",
-                "author": author,
-                "record": record,
-                "indexedAt": get_date_iso(row, "indexed_at"),
-                "likeCount": get_number(row, "like_count"),
-                "replyCount": get_number(row, "reply_count"),
-                "bookmarkCount": get_number(row, "bookmark_count"),
-                "labels": get_array(row, "labels"),
-                "viewer": viewer_obj,
-            }
-            ballot = {k: v for k, v in ballot_raw.items() if v is not None}
-            ballots.append(ballot)
+        ballots = [_serialize_ballot(dict(r)) for r in rows]
 
         last_indexed = ballots[-1].get("indexedAt", "") if ballots else ""
         cursor = (
@@ -172,6 +177,147 @@ async def list_ballots(
 ):
     """List ballot entries."""
     return await _get_ballots_handler(session=session, since=since, limit=limit)
+
+
+# -----------------------------------------------------------------------------
+# app.ch.poltr.ballot.get
+# -----------------------------------------------------------------------------
+
+
+@router.get("/app.ch.poltr.ballot.get")
+async def get_ballot(
+    request: Request,
+    rkey: str = Query(...),
+    session: TSession = Depends(verify_session_token),
+):
+    """Get a single ballot by rkey."""
+    params = [rkey]
+    where = ["b.deleted = false", "b.rkey = $1"]
+
+    governance_id = os.getenv("PDS_GOVERNANCE_ACCOUNT_DID")
+    if governance_id:
+        params.append(governance_id)
+        where.append(f"b.did = ${len(params)}")
+
+    viewer_did = session.did if session else None
+    if viewer_did:
+        params.append(viewer_did)
+        viewer_param = f"${len(params)}"
+        viewer_select = f""",
+            (
+                SELECT uri FROM app_likes
+                WHERE subject_uri = b.uri AND did = {viewer_param} AND NOT deleted
+                LIMIT 1
+            ) AS viewer_like"""
+    else:
+        viewer_select = ",\n            NULL AS viewer_like"
+
+    sql = f"""
+        SELECT b.*{viewer_select}
+        FROM app_ballots b
+        WHERE {' AND '.join(where)}
+        LIMIT 1;
+    """
+
+    try:
+        db_pool = await get_pool()
+        async with db_pool.acquire() as conn:
+            row = await conn.fetchrow(sql, *params)
+
+        if not row:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "not_found", "message": "Ballot not found"},
+            )
+
+        ballot = _serialize_ballot(dict(row))
+        return JSONResponse(status_code=200, content={"ballot": ballot})
+    except Exception as err:
+        logger.error(f"DB query failed: {err}")
+        return JSONResponse(
+            status_code=500, content={"error": "internal_error", "details": str(err)}
+        )
+
+
+# -----------------------------------------------------------------------------
+# app.ch.poltr.argument.list
+# -----------------------------------------------------------------------------
+
+
+@router.get("/app.ch.poltr.argument.list")
+async def list_arguments(
+    request: Request,
+    ballot_rkey: str = Query(...),
+    limit: int = Query(100),
+    session: TSession = Depends(verify_session_token),
+):
+    """List arguments for a ballot."""
+    params = [ballot_rkey]
+
+    viewer_did = session.did if session else None
+    if viewer_did:
+        params.append(viewer_did)
+        viewer_param = f"${len(params)}"
+        viewer_select = f""",
+            (
+                SELECT uri FROM app_likes
+                WHERE subject_uri = a.uri AND did = {viewer_param} AND NOT deleted
+                LIMIT 1
+            ) AS viewer_like"""
+    else:
+        viewer_select = ",\n            NULL AS viewer_like"
+
+    params.append(limit)
+    sql = f"""
+        SELECT a.*{viewer_select}
+        FROM app_arguments a
+        WHERE a.ballot_rkey = $1 AND NOT a.deleted
+        ORDER BY a.type ASC, a.created_at ASC
+        LIMIT ${len(params)};
+    """
+
+    try:
+        db_pool = await get_pool()
+        async with db_pool.acquire() as conn:
+            rows = await conn.fetch(sql, *params)
+
+        arguments = []
+        for r in rows:
+            row = dict(r)
+
+            record_raw = {
+                "$type": "app.ch.poltr.ballot.argument",
+                "title": get_string(row, "title"),
+                "body": get_string(row, "body"),
+                "type": get_string(row, "type"),
+                "ballot": get_string(row, "ballot_uri"),
+                "createdAt": get_date_iso(row, "created_at"),
+            }
+            record = {k: v for k, v in record_raw.items() if v is not None}
+
+            viewer_obj = {}
+            if row.get("viewer_like"):
+                viewer_obj["like"] = row["viewer_like"]
+
+            arg_raw = {
+                "uri": get_string(row, "uri") or "",
+                "cid": get_string(row, "cid") or "",
+                "record": record,
+                "author": {"did": get_string(row, "did") or ""},
+                "likeCount": get_number(row, "like_count"),
+                "commentCount": get_number(row, "comment_count"),
+                "indexedAt": get_date_iso(row, "indexed_at"),
+                "viewer": viewer_obj if viewer_obj else None,
+            }
+            arg = {k: v for k, v in arg_raw.items() if v is not None}
+            arguments.append(arg)
+
+        return JSONResponse(status_code=200, content={"arguments": arguments})
+    except Exception as err:
+        logger.error(f"DB query failed: {err}")
+        return JSONResponse(
+            status_code=500, content={"error": "internal_error", "details": str(err)}
+        )
 
 
 # -----------------------------------------------------------------------------

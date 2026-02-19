@@ -194,9 +194,12 @@ export default function BallotSearch() {
           gap: '20px',
           gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))'
         }}>
-          {ballots.map((ballot) => (
+          {ballots.map((ballot) => {
+            const rkey = ballot.uri.split('/').pop();
+            return (
             <div
               key={ballot.uri}
+              onClick={() => rkey && router.push(`/ballots/${rkey}`)}
               style={{
                 backgroundColor: 'white',
                 padding: '20px',
@@ -327,7 +330,8 @@ export default function BallotSearch() {
                 URI: {ballot.uri}
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
 

@@ -11,6 +11,30 @@ export interface BallotRecord {
   createdAt?: string;
 }
 
+export interface ArgumentRecord {
+  $type: 'app.ch.poltr.ballot.argument';
+  title: string;
+  body: string;
+  type: 'PRO' | 'CONTRA';
+  ballot: string; // AT URI of the ballot
+  createdAt?: string;
+}
+
+export interface ArgumentWithMetadata {
+  uri: string;
+  cid: string;
+  record: ArgumentRecord;
+  author: {
+    did: string;
+  };
+  likeCount?: number;
+  commentCount?: number;
+  indexedAt?: string;
+  viewer?: {
+    like?: string;
+  };
+}
+
 export interface BallotWithMetadata {
   uri: string;
   cid: string;
