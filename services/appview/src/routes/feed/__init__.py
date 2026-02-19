@@ -78,10 +78,17 @@ async def get_feed_skeleton(
         if cursor_ts and cursor_rkey:
             rows = await conn.fetch(
                 """
-                SELECT bsky_post_uri, created_at, rkey
-                FROM app_ballots
-                WHERE bsky_post_uri IS NOT NULL AND NOT deleted
-                  AND (created_at, rkey) < ($1, $2)
+                SELECT bsky_post_uri, created_at, rkey FROM (
+                    SELECT bsky_post_uri, created_at, rkey FROM app_ballots
+                     WHERE bsky_post_uri IS NOT NULL AND NOT deleted
+                    UNION ALL
+                    SELECT bsky_post_uri, created_at, rkey FROM app_arguments
+                     WHERE bsky_post_uri IS NOT NULL AND NOT deleted
+                    UNION ALL
+                    SELECT bsky_post_uri, created_at, rkey FROM app_comments
+                     WHERE bsky_post_uri IS NOT NULL AND NOT deleted
+                ) combined
+                WHERE (created_at, rkey) < ($1, $2)
                 ORDER BY created_at DESC, rkey DESC
                 LIMIT $3
                 """,
@@ -92,9 +99,16 @@ async def get_feed_skeleton(
         else:
             rows = await conn.fetch(
                 """
-                SELECT bsky_post_uri, created_at, rkey
-                FROM app_ballots
-                WHERE bsky_post_uri IS NOT NULL AND NOT deleted
+                SELECT bsky_post_uri, created_at, rkey FROM (
+                    SELECT bsky_post_uri, created_at, rkey FROM app_ballots
+                     WHERE bsky_post_uri IS NOT NULL AND NOT deleted
+                    UNION ALL
+                    SELECT bsky_post_uri, created_at, rkey FROM app_arguments
+                     WHERE bsky_post_uri IS NOT NULL AND NOT deleted
+                    UNION ALL
+                    SELECT bsky_post_uri, created_at, rkey FROM app_comments
+                     WHERE bsky_post_uri IS NOT NULL AND NOT deleted
+                ) combined
                 ORDER BY created_at DESC, rkey DESC
                 LIMIT $1
                 """,
