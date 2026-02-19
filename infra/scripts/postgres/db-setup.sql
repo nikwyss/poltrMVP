@@ -54,6 +54,30 @@ CREATE TABLE app_likes (
 CREATE INDEX app_likes_subject_uri_idx ON app_likes (subject_uri);
 CREATE INDEX app_likes_did_idx ON app_likes (did);
 
+CREATE TABLE app_arguments (
+  uri           text PRIMARY KEY,       -- at://did/.../app.ch.poltr.ballot.argument/...
+  cid           text NOT NULL,
+  did           text NOT NULL,          -- repo DID (author)
+  rkey          text NOT NULL,          -- record key
+  title         text NOT NULL,
+  body          text NOT NULL,
+  type          text NOT NULL,          -- 'PRO' or 'CONTRA'
+  ballot_uri    text NOT NULL,          -- AT URI of the ballot entry
+  ballot_rkey   text NOT NULL,          -- rkey of the ballot (for fast lookups)
+  bsky_post_uri text,                -- URI of the cross-posted app.bsky.feed.post
+  bsky_post_cid text,                -- CID of the cross-posted app.bsky.feed.post
+  like_count    integer NOT NULL DEFAULT 0,
+  comment_count integer NOT NULL DEFAULT 0,
+  created_at    timestamptz NOT NULL,
+  indexed_at    timestamptz NOT NULL DEFAULT now(),
+  deleted       boolean NOT NULL DEFAULT false
+);
+
+CREATE INDEX app_arguments_ballot_uri_idx  ON app_arguments (ballot_uri);
+CREATE INDEX app_arguments_ballot_rkey_idx ON app_arguments (ballot_rkey);
+CREATE INDEX app_arguments_did_idx         ON app_arguments (did);
+CREATE INDEX app_arguments_type_idx        ON app_arguments (type);
+
 CREATE TABLE app_comments (
   uri               text PRIMARY KEY,
   cid               text NOT NULL,
@@ -181,6 +205,11 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO indexer;
 REVOKE ALL ON SCHEMA auth FROM indexer;
 
+
+-- Allow indexer to read user PDS credentials for Bluesky cross-likes
+-- TODO: look into this
+GRANT USAGE ON SCHEMA auth TO indexer;
+GRANT SELECT ON auth.auth_creds TO indexer;
 
 
 -- ALTER ROLE indexer WITH PASSWORD 'CHANGE_ME';

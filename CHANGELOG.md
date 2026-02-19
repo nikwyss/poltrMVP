@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-02-20
+
+### Ballot Arguments (`services/indexer`, `services/front`, `infra/scripts`)
+- **Added lexicon** (`services/front/src/lexicons/app.ch.poltr.ballot.argument.json`): New `app.ch.poltr.ballot.argument` record type with `title`, `body`, `type` (PRO/CONTRA), `ballot` (AT-URI reference), and `createdAt`
+- **Added `app_arguments` table** (`infra/scripts/postgres/db-setup.sql`): Stores arguments with `ballot_uri`/`ballot_rkey` foreign references, `bsky_post_uri`/`bsky_post_cid` for cross-posts, `like_count`, `comment_count`, soft-delete support; indexed on `ballot_uri`, `ballot_rkey`, `did`, `type`
+- **Added indexer support** (`services/indexer/src/record_handler.js`, `services/indexer/src/db.js`): Handles `app.ch.poltr.ballot.argument` create/update/delete events from firehose — `upsertArgumentDb()`, `markArgumentDeleted()` (returns bsky_post_uri for cleanup)
+
+### Argument Cross-Posting to Bluesky (`services/indexer`)
+- **Added `createBskyArgumentPost()`** (`services/indexer/src/pds_client.js`): Posts arguments as `app.bsky.feed.post` replies to the ballot's cross-posted Bluesky post. Authenticates as the argument author (not governance) using stored app passwords from `auth.auth_creds`
+- **Added `deleteBskyPost()`** (`services/indexer/src/pds_client.js`): Deletes cross-posts by extracting the DID from the AT-URI and authenticating as that user; falls back to governance account for older posts
+- **Added DB helpers** (`services/indexer/src/db.js`): `getArgumentBskyPostUri()`, `setArgumentBskyPostUri()` for tracking argument cross-post URIs
+- **Wired up cross-post lifecycle** (`services/indexer/src/record_handler.js`): On argument create, cross-posts as reply if ballot has a Bluesky post; on argument delete, removes the cross-post
+
+### Argument Import Script (`infra/scripts`)
+- **Added `import_arguments.py`**: Imports PRO/CONTRA arguments from `dump/content.xlsx` into PDS as `app.ch.poltr.ballot.argument` records
+  - Assigns arguments to random non-admin PDS users to simulate real platform behaviour
+  - Authenticates using stored app passwords from `auth.auth_creds` (no `updateAccountPassword` — preserves credentials)
+  - Uses `putRecord` with deterministic rkeys (xlsx row id) for idempotent re-imports
+  - Scans all repos for existing arguments before import to reuse the same account on re-import (prevents duplicates)
+  - Env vars: `PDS_HOST`, `PDS_ADMIN_PASSWORD`, `BALLOT_URI`, `MAX_IMPORTS`, `XLSX_PATH`, `INDEXER_POSTGRES_URL`, `APPVIEW_PDS_CREDS_MASTER_KEY_B64`
+- **Updated `import_proposals.py`**: Added `BALLOT_ANR` env var to import a single ballot by BFS number
+
+### Indexer Auth Access (`infra/scripts/postgres/db-setup.sql`)
+- **Granted indexer read access to `auth.auth_creds`**: Required for decrypting user app passwords for Bluesky cross-posts (`GRANT USAGE ON SCHEMA auth TO indexer; GRANT SELECT ON auth.auth_creds TO indexer`)
+
 ## 2026-02-16
 
 ### Bluesky Feed Generator (`services/appview`, `infra/kube`)

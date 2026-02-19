@@ -14,7 +14,7 @@ Ballot (app.ch.poltr.ballot.entry)
   ├── Comment (app.bsky.feed.post)          ← direct reply to ballot cross-post
   │     └── Comment (app.bsky.feed.post)    ← nested replies
   │
-  └── Argument (app.ch.poltr.ballot.argument, TBD)
+  └── Argument (app.ch.poltr.ballot.argument)
         │
         ├── Comment (app.bsky.feed.post)    ← reply to argument cross-post
         │     └── Comment (app.bsky.feed.post)
@@ -23,7 +23,7 @@ Ballot (app.ch.poltr.ballot.entry)
 
 **Ballots** are the top-level discussion topics (Swiss referendum items). Each ballot is a custom poltr record (`app.ch.poltr.ballot.entry`) created by the governance account and cross-posted to Bluesky as `app.bsky.feed.post`.
 
-**Arguments** are structured positions on a ballot (pro/contra). They use a dedicated poltr lexicon (`app.ch.poltr.ballot.argument`, to be defined) and are cross-posted as `app.bsky.feed.post` replies to the ballot cross-post.
+**Arguments** are structured positions on a ballot (pro/contra). They use a dedicated poltr lexicon (`app.ch.poltr.ballot.argument`) and are cross-posted as `app.bsky.feed.post` replies to the ballot cross-post. Arguments are posted under the author's repo (not governance).
 
 **Comments** use the standard Bluesky post lexicon (`app.bsky.feed.post`). They are replies to either a ballot or an argument cross-post. This means comments are native Bluesky posts — no custom lexicon needed. Comments are stored in `app_comments` with `argument_uri` linking them to their ancestor argument (null if replying directly to the ballot).
 
@@ -57,6 +57,22 @@ A rating on poltr content (ballot, argument, post). Includes a 0–100 preferenc
 | createdAt | string (datetime) | yes | Timestamp |
 
 - **Key:** `tid` (auto-generated)
+
+### `app.ch.poltr.ballot.argument`
+
+A structured argument for or against a Swiss ballot entry. Cross-posted to Bluesky as an `app.bsky.feed.post` reply to the ballot's cross-post, under the author's repo.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| title | string | yes | Argument title |
+| body | string | yes | Argument body text |
+| type | enum | yes | `PRO` or `CONTRA` |
+| ballot | string (at-uri) | yes | AT-URI of the parent ballot entry |
+| createdAt | string (datetime) | yes | Timestamp |
+
+- **Key:** `tid` (deterministic rkeys from import use xlsx row id)
+- **Cross-post:** Posted as `app.bsky.feed.post` reply to the ballot's Bluesky post. On delete, the cross-post is also removed.
+- **DB table:** `app_arguments` (indexed by `ballot_uri`, `ballot_rkey`, `did`, `type`)
 
 ### `app.ch.poltr.actor.pseudonym`
 Pseudonymous identity for a POLTR user, derived from a Swiss mountain.

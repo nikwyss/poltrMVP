@@ -1,0 +1,29 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.ballot.argument",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An argument for or against a Swiss ballot entry",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "body": { "type": "string" },
+          "type": { "type": "string", "enum": ["PRO", "CONTRA"] },
+          "ballot": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "AT URI of the ballot entry this argument refers to"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        },
+        "required": ["title", "body", "type", "ballot", "createdAt"]
+      }
+    }
+  }
+}

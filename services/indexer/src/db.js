@@ -182,16 +182,24 @@ export async function setBskyPostUri(ballotUri, bskyPostUri, bskyPostCid) {
 }
 
 /**
- * Get the cross-posted Bluesky post URI and CID for a ballot.
+ * Get the bsky cross-post URI for an argument.
  */
-export async function getBskyPostForBallot(subjectUri) {
+export async function getArgumentBskyPostUri(uri) {
   const res = await pool.query(
-    `SELECT bsky_post_uri, bsky_post_cid FROM app_ballots WHERE uri = $1`,
-    [subjectUri],
+    `SELECT bsky_post_uri FROM app_arguments WHERE uri = $1`,
+    [uri],
   );
-  const row = res.rows?.[0];
-  if (!row || !row.bsky_post_uri || !row.bsky_post_cid) return null;
-  return { bsky_post_uri: row.bsky_post_uri, bsky_post_cid: row.bsky_post_cid };
+  return res.rows?.[0]?.bsky_post_uri ?? null;
+}
+
+/**
+ * Store the cross-posted bsky post URI and CID on an argument.
+ */
+export async function setArgumentBskyPostUri(argumentUri, bskyPostUri, bskyPostCid) {
+  await pool.query(
+    `UPDATE app_arguments SET bsky_post_uri = $1, bsky_post_cid = $2 WHERE uri = $3`,
+    [bskyPostUri, bskyPostCid ?? null, argumentUri],
+  );
 }
 
 /**
@@ -218,6 +226,19 @@ export async function getUserPdsCreds(did) {
 }
 
 /**
+ * Get the cross-posted Bluesky post URI and CID for a ballot.
+ */
+export async function getBskyPostForBallot(subjectUri) {
+  const res = await pool.query(
+    `SELECT bsky_post_uri, bsky_post_cid FROM app_ballots WHERE uri = $1`,
+    [subjectUri],
+  );
+  const row = res.rows?.[0];
+  if (!row || !row.bsky_post_uri || !row.bsky_post_cid) return null;
+  return { bsky_post_uri: row.bsky_post_uri, bsky_post_cid: row.bsky_post_cid };
+}
+
+/**
  * Get all active ballots that have a Bluesky cross-post.
  */
 export async function getActiveBallots() {
@@ -234,10 +255,63 @@ export async function getActiveBallots() {
 /**
  * Get cross-posted Bluesky URIs for arguments belonging to a ballot.
  * Returns rows with { bsky_post_uri }.
- * TODO: query from app_arguments table once it exists.
  */
-export async function getArgumentUrisForBallot(_ballotUri) {
-  return [];
+export async function getArgumentUrisForBallot(ballotUri) {
+  const res = await pool.query(
+    `SELECT bsky_post_uri FROM app_arguments
+     WHERE ballot_uri = $1 AND bsky_post_uri IS NOT NULL AND NOT deleted`,
+    [ballotUri],
+  );
+  return res.rows;
+}
+
+/**
+ * Upsert an argument record into app_arguments.
+ */
+export async function upsertArgumentDb(clientOrPool, params) {
+  const { uri, cid, did, rkey, record } = params;
+
+  const title = record.title ?? null;
+  const body = record.body ?? null;
+  const type = record.type ?? null;
+  const ballotUri = record.ballot ?? null;
+  const ballotRkey = ballotUri ? ballotUri.split("/").pop() : null;
+  const createdAt = record.createdAt ? new Date(record.createdAt) : new Date();
+
+  await dbQuery(
+    clientOrPool,
+    `
+    INSERT INTO app_arguments
+      (uri, cid, did, rkey, title, body, type, ballot_uri, ballot_rkey, created_at, deleted)
+    VALUES
+      ($1,  $2,  $3,  $4,  $5,    $6,   $7,   $8,         $9,          $10,       false)
+    ON CONFLICT (uri) DO UPDATE SET
+      cid         = EXCLUDED.cid,
+      title       = EXCLUDED.title,
+      body        = EXCLUDED.body,
+      type        = EXCLUDED.type,
+      ballot_uri  = EXCLUDED.ballot_uri,
+      ballot_rkey = EXCLUDED.ballot_rkey,
+      created_at  = EXCLUDED.created_at,
+      deleted     = false,
+      indexed_at  = now()
+    `,
+    [uri, cid, did, rkey, title, body, type, ballotUri, ballotRkey, createdAt],
+  );
+}
+
+/**
+ * Soft-delete an argument. Returns the bsky_post_uri if one exists.
+ */
+export async function markArgumentDeleted(uri) {
+  const res = await pool.query(
+    `UPDATE app_arguments
+     SET deleted = true, indexed_at = now()
+     WHERE uri = $1
+     RETURNING bsky_post_uri`,
+    [uri],
+  );
+  return res.rows?.[0]?.bsky_post_uri ?? null;
 }
 
 /**

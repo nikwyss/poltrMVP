@@ -190,8 +190,8 @@ class ProposalImporter:
             print(f"✗ Failed: {error_msg}")
             return False
     
-    def import_from_url(self, csv_url: str, max_imports: int = 0):
-        """Import proposals from JSON file"""
+    def import_from_url(self, csv_url: str, max_imports: int = 0, ballot_anr: str = ""):
+        """Import proposals from CSV url. If ballot_anr is set, import only that one."""
         print(f"Reading data from: {csv_url}")
 
         # downoad the csv_url (with redirect)
@@ -211,14 +211,21 @@ class ProposalImporter:
             for row in reader:
                 votings.append(SwissVote.from_csv_row(row))
 
-        # Sort by vote date descending (newest first) and take only the top N
-        votings.sort(
-            key=lambda v: datetime.strptime(v.datum, "%d.%m.%Y") if v.datum else datetime.min,
-            reverse=True,
-        )
-        top_n = int(os.getenv("TOP_NEWEST", "10"))
-        votings = votings[:top_n]
-        print(f"Filtered to top {len(votings)} newest ballots (by vote date)")
+        if ballot_anr:
+            votings = [v for v in votings if v.anr == ballot_anr]
+            if not votings:
+                print(f"ERROR: No ballot found with anr={ballot_anr}")
+                return
+            print(f"Importing single ballot: anr={ballot_anr} ({votings[0].titel_kurz_d})")
+        else:
+            # Sort by vote date descending (newest first) and take only the top N
+            votings.sort(
+                key=lambda v: datetime.strptime(v.datum, "%d.%m.%Y") if v.datum else datetime.min,
+                reverse=True,
+            )
+            top_n = int(os.getenv("TOP_NEWEST", "10"))
+            votings = votings[:top_n]
+            print(f"Filtered to top {len(votings)} newest ballots (by vote date)")
 
         created_count = 0
         skipped_count = 0
@@ -245,6 +252,7 @@ def main():
     password = os.getenv("PDS_GOVERNANCE_ACCOUNT_PASSWORD")
     pds_host = os.getenv("PDS_HOST", "http://localhost:2583")
     max_imports = int(os.getenv("MAX_IMPORTS", "0"))  # 0 = unlimited
+    ballot_anr = os.getenv("BALLOT_ANR", "")  # e.g. "413.2" to import a single ballot
     
     # Validate arguments
     if not csv_url:
@@ -265,6 +273,8 @@ def main():
     print("=== AT Protocol Proposal Import ===")
     print(f"PDS Host: {pds_host}")
     print(f"Handle: {handle}")
+    if ballot_anr:
+        print(f"Ballot ANR: {ballot_anr}")
     print()
     
     # Create importer and authenticate
@@ -276,7 +286,7 @@ def main():
     print()
     
     # Import proposals
-    importer.import_from_url(csv_url, max_imports=max_imports)
+    importer.import_from_url(csv_url, max_imports=max_imports, ballot_anr=ballot_anr)
 
 
 if __name__ == "__main__":

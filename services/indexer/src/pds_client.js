@@ -187,6 +187,117 @@ export async function upsertBskyPost(record, rkey, existingPostUri = null) {
 }
 
 /**
+ * Create a Bluesky cross-post for an argument, as a reply to the ballot's bsky post.
+ * Posts under the argument author's repo.
+ *
+ * @param {string} did - The DID of the argument author
+ * @param {object} record - The argument record (title, body, type)
+ * @param {{uri: string, cid: string}} parentPost - The ballot's bsky post URI and CID
+ * @returns {{uri: string, cid: string}|null}
+ */
+export async function createBskyArgumentPost(did, record, parentPost) {
+  const token = await createUserSession(did)
+  if (!token) {
+    console.warn(`No credentials for ${did}, skipping argument cross-post`)
+    return null
+  }
+
+  const prefix = record.type === 'PRO' ? 'PRO' : 'CONTRA'
+  const title = record.title ?? ''
+  const body = record.body ?? ''
+  const text = `[${prefix}] ${title}\n\n${body}`.slice(0, 300)
+
+  const postRecord = {
+    $type: 'app.bsky.feed.post',
+    text,
+    reply: {
+      root: { uri: parentPost.uri, cid: parentPost.cid },
+      parent: { uri: parentPost.uri, cid: parentPost.cid },
+    },
+    createdAt: new Date().toISOString(),
+  }
+
+  const res = await fetch(`${PDS_INTERNAL_URL}/xrpc/com.atproto.repo.createRecord`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      repo: did,
+      collection: 'app.bsky.feed.post',
+      record: postRecord,
+    }),
+  })
+
+  if (!res.ok) {
+    const resBody = await res.text()
+    throw new Error(`createRecord for bsky argument post failed (${res.status}): ${resBody}`)
+  }
+
+  const data = await res.json()
+  console.log(`Argument cross-post created by ${did}:`, data.uri)
+  return { uri: data.uri, cid: data.cid }
+}
+
+/**
+ * Delete a Bluesky cross-post by its AT-URI.
+ * Extracts the repo DID from the URI and authenticates as that user.
+ */
+export async function deleteBskyPost(bskyPostUri) {
+  // Parse AT-URI: at://did/collection/rkey
+  const parts = bskyPostUri.replace('at://', '').split('/')
+  const repoDid = parts[0]
+  const rkey = parts[parts.length - 1]
+
+  // Authenticate as the post owner
+  const token = await createUserSession(repoDid)
+  if (!token) {
+    // Fall back to governance account for older cross-posts
+    if (!isConfigured()) return
+    const govToken = await getAccessToken()
+    const res = await fetch(`${PDS_INTERNAL_URL}/xrpc/com.atproto.repo.deleteRecord`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${govToken}`,
+      },
+      body: JSON.stringify({
+        repo: GOVERNANCE_DID,
+        collection: 'app.bsky.feed.post',
+        rkey,
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`deleteBskyPost failed (${res.status}): ${body}`)
+    }
+    console.log('Bsky cross-post deleted (governance):', bskyPostUri)
+    return
+  }
+
+  const res = await fetch(`${PDS_INTERNAL_URL}/xrpc/com.atproto.repo.deleteRecord`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      repo: repoDid,
+      collection: 'app.bsky.feed.post',
+      rkey,
+    }),
+  })
+
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`deleteBskyPost failed (${res.status}): ${body}`)
+  }
+
+  console.log('Bsky cross-post deleted:', bskyPostUri)
+}
+
+/**
  * Decrypt a user's stored PDS app password using the master key.
  */
 function decryptAppPassword(ciphertext, nonce) {
@@ -285,3 +396,4 @@ export async function createBskyLike(did, bskyPostUri, bskyPostCid) {
   console.log('Bsky cross-like created:', data.uri)
   return { uri: data.uri, cid: data.cid }
 }
+

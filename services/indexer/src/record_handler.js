@@ -7,18 +7,23 @@ import {
   markDeleted,
   upsertLikeDb,
   markLikeDeleted,
+  upsertArgumentDb,
+  markArgumentDeleted,
   upsertProfileDb,
   deleteProfile,
   getBskyPostUri,
   setBskyPostUri,
   getBskyPostForBallot,
   setBskyLikeUri,
+  getArgumentBskyPostUri,
+  setArgumentBskyPostUri,
 } from "./db.js";
-import { upsertBskyPost, createBskyLike } from "./pds_client.js";
+import { upsertBskyPost, createBskyArgumentPost, deleteBskyPost, createBskyLike } from "./pds_client.js";
 
 const GOVERNANCE_DID = process.env.PDS_GOVERNANCE_ACCOUNT_DID;
 
 const COLLECTION_BALLOT = "app.ch.poltr.ballot.entry";
+const COLLECTION_ARGUMENT = "app.ch.poltr.ballot.argument";
 const COLLECTION_RATING = "app.ch.poltr.content.rating";
 const COLLECTION_PSEUDONYM = "app.ch.poltr.actor.pseudonym";
 
@@ -30,6 +35,7 @@ export const handleEvent = async (evt) => {
   }
   if (
     collection !== COLLECTION_BALLOT &&
+    collection !== COLLECTION_ARGUMENT &&
     collection !== COLLECTION_RATING &&
     collection !== COLLECTION_PSEUDONYM
   )
@@ -61,6 +67,46 @@ export const handleEvent = async (evt) => {
           }
         } catch (err) {
           console.error("Cross-post to Bluesky failed (non-blocking):", err);
+        }
+      }
+    }
+  }
+
+  if (collection === COLLECTION_ARGUMENT) {
+    if (action === "delete") {
+      const bskyPostUri = await markArgumentDeleted(uri);
+      if (bskyPostUri) {
+        try {
+          await deleteBskyPost(bskyPostUri);
+        } catch (err) {
+          console.error("Argument cross-post delete failed (non-blocking):", err);
+        }
+      }
+      return;
+    }
+    if (action === "create" || action === "update") {
+      const record = evt.record;
+      if (!record) return;
+      await upsertArgumentDb(pool, { uri, cid: cidString, did, rkey, record });
+
+      // Cross-post argument as reply to ballot's bsky post
+      if (record.ballot) {
+        try {
+          const existingArgPost = await getArgumentBskyPostUri(uri);
+          if (!existingArgPost) {
+            const ballotBsky = await getBskyPostForBallot(record.ballot);
+            if (ballotBsky) {
+              const bskyResult = await createBskyArgumentPost(did, record, {
+                uri: ballotBsky.bsky_post_uri,
+                cid: ballotBsky.bsky_post_cid,
+              });
+              if (bskyResult) {
+                await setArgumentBskyPostUri(uri, bskyResult.uri, bskyResult.cid);
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Argument cross-post to Bluesky failed (non-blocking):", err);
         }
       }
     }
