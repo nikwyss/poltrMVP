@@ -255,6 +255,10 @@ async def list_arguments(
     params = [ballot_rkey]
 
     viewer_did = session.did if session else None
+    peer_review_on = os.getenv("PEER_REVIEW_ENABLED", "false").lower() == "true"
+
+    # Filter: when peer review is enabled, show approved + preliminary;
+    # show rejected only to the author. When disabled, show all.
     if viewer_did:
         params.append(viewer_did)
         viewer_param = f"${len(params)}"
@@ -264,14 +268,23 @@ async def list_arguments(
                 WHERE subject_uri = a.uri AND did = {viewer_param} AND NOT deleted
                 LIMIT 1
             ) AS viewer_like"""
+        if peer_review_on:
+            review_filter = f"AND (a.review_status IN ('approved', 'preliminary') OR a.did = {viewer_param})"
+        else:
+            review_filter = ""
     else:
         viewer_select = ",\n            NULL AS viewer_like"
+        if peer_review_on:
+            review_filter = "AND a.review_status IN ('approved', 'preliminary')"
+        else:
+            review_filter = ""
 
     params.append(limit)
     sql = f"""
         SELECT a.*{viewer_select}
         FROM app_arguments a
         WHERE a.ballot_rkey = $1 AND NOT a.deleted
+          {review_filter}
         ORDER BY a.type ASC, a.created_at ASC
         LIMIT ${len(params)};
     """
@@ -306,6 +319,7 @@ async def list_arguments(
                 "author": {"did": get_string(row, "did") or ""},
                 "likeCount": get_number(row, "like_count"),
                 "commentCount": get_number(row, "comment_count"),
+                "reviewStatus": get_string(row, "review_status") if peer_review_on else None,
                 "indexedAt": get_date_iso(row, "indexed_at"),
                 "viewer": viewer_obj if viewer_obj else None,
             }

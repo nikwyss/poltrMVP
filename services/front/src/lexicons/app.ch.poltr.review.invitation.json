@@ -1,0 +1,31 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.review.invitation",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An invitation for a user to peer-review a specific argument",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "properties": {
+          "argument": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "AT URI of the argument under review"
+          },
+          "invitee": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the invited reviewer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        },
+        "required": ["argument", "invitee", "createdAt"]
+      }
+    }
+  }
+}

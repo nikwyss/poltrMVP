@@ -1,0 +1,53 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.review.response",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A reviewer's evaluation of an argument",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "properties": {
+          "argument": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "AT URI of the argument under review"
+          },
+          "reviewer": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the reviewer"
+          },
+          "criteria": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": { "type": "string" },
+                "label": { "type": "string" },
+                "rating": { "type": "integer", "minimum": 1, "maximum": 5 }
+              },
+              "required": ["key", "label", "rating"]
+            },
+            "description": "Per-criterion assessments"
+          },
+          "vote": {
+            "type": "string",
+            "enum": ["APPROVE", "REJECT"],
+            "description": "Final vote: approve or reject the argument"
+          },
+          "justification": {
+            "type": "string",
+            "description": "Written justification (required for REJECT, optional for APPROVE)"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        },
+        "required": ["argument", "reviewer", "criteria", "vote", "createdAt"]
+      }
+    }
+  }
+}

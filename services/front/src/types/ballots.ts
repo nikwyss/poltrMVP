@@ -29,10 +29,54 @@ export interface ArgumentWithMetadata {
   };
   likeCount?: number;
   commentCount?: number;
+  reviewStatus?: 'preliminary' | 'approved' | 'rejected';
   indexedAt?: string;
   viewer?: {
     like?: string;
   };
+}
+
+export interface ReviewCriterion {
+  key: string;
+  label: string;
+}
+
+export interface ReviewCriterionRating extends ReviewCriterion {
+  rating: number;
+}
+
+export interface ReviewInvitation {
+  invitationUri: string;
+  argumentUri: string;
+  invitedAt: string;
+  argument: {
+    title: string;
+    body: string;
+    type: 'PRO' | 'CONTRA';
+    ballotUri: string;
+    ballotRkey: string;
+    authorDid: string;
+  };
+}
+
+export interface ReviewResponse {
+  reviewerDid: string;
+  criteria: ReviewCriterionRating[];
+  vote: 'APPROVE' | 'REJECT';
+  justification?: string;
+  createdAt: string;
+}
+
+export interface ReviewStatus {
+  argumentUri: string;
+  reviewStatus: 'preliminary' | 'approved' | 'rejected';
+  governanceUri?: string;
+  quorum: number;
+  approvals: number;
+  rejections: number;
+  totalReviews: number;
+  invitationCount: number;
+  reviews?: ReviewResponse[];
 }
 
 export interface BallotWithMetadata {

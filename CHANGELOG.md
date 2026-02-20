@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-02-20 (Peer Review)
+
+### Peer-Review System for Arguments (`services/appview`, `services/indexer`, `services/front`, `infra`)
+
+Community-driven quality gate for user-submitted arguments. Arguments start as "preliminary", undergo probabilistic peer-review by active users, and if approved, get republished as exact copies to the governance account's PDS. Controlled by `PEER_REVIEW_ENABLED` feature flag (default: off). See `doc/PEER_REVIEW.md` for the full design.
+
+- **Database schema** (`infra/scripts/postgres/db-setup.sql`): Added `review_status`, `original_uri`, `governance_uri` columns to `app_arguments`; created `app_review_invitations` and `app_review_responses` tables with unique constraints and indexes
+- **Lexicons** (`services/front/src/lexicons/`): Added `app.ch.poltr.review.invitation` and `app.ch.poltr.review.response` record schemas
+- **Secrets** (`infra/kube/secrets.yaml.dist`): Added `PEER_REVIEW_ENABLED`, `PEER_REVIEW_QUORUM`, `PEER_REVIEW_INVITE_PROBABILITY`, `PEER_REVIEW_POLL_INTERVAL_SECONDS`, `PEER_REVIEW_CRITERIA` to appview-secrets; added `PEER_REVIEW_QUORUM` to indexer-secrets
+- **Indexer** (`services/indexer/src/`): Added firehose handlers for `review.invitation` and `review.response` collections; modified `upsertArgumentDb` to derive initial `review_status` from `originalUri` field; added post-index quorum check in `upsertReviewResponseDb` — updates `review_status` to `approved`/`rejected` when decision formula is met
+- **Governance PDS helper** (`services/appview/src/lib/governance_pds.py`): Extracted shared governance session management from crosspost.py; added `create_governance_record()` helper used by crosspost, peer-review invitations, and governance copy creation
+- **Peer-review background loop** (`services/appview/src/lib/peer_review.py`): Two responsibilities per poll cycle: (1) invite eligible active users for preliminary arguments with configurable probability, (2) create governance PDS copies for newly approved arguments (where indexer set `review_status = 'approved'` but `governance_uri` is not yet set)
+- **Review endpoints** (`services/appview/src/routes/review/__init__.py`): 4 XRPC endpoints — `review.pending` (list invitations for user), `review.submit` (write review to governance PDS; quorum check happens in indexer via firehose), `review.status` (vote counts + quorum progress; author sees individual feedback), `review.criteria` (configurable criteria list from env)
+- **Modified argument listing** (`services/appview/src/routes/poltr/__init__.py`): Added `reviewStatus` to response when peer review is enabled; filters rejected arguments to author-only visibility; when `PEER_REVIEW_ENABLED=false`, omits `reviewStatus` and shows all arguments without filtering
+- **Modified crosspost** (`services/appview/src/lib/crosspost.py`): Refactored to use shared `governance_pds.py`; preliminary arguments cross-posted with `[Preliminary]` prefix under author (only when peer review enabled); approved governance copies cross-posted under governance account
+- **Frontend types** (`services/front/src/types/ballots.ts`): Added `ReviewCriterion`, `ReviewCriterionRating`, `ReviewInvitation`, `ReviewStatus`, `ReviewResponse` interfaces; added `reviewStatus` to `ArgumentWithMetadata`
+- **Frontend API** (`services/front/src/lib/agent.ts`): Added `getReviewCriteria()`, `getPendingReviews()`, `submitReview()`, `getReviewStatus()`
+- **Frontend UI** (`services/front/src/app/`): Added review status badges (amber "Preliminary", green "Peer-reviewed", red "Rejected") on argument cards in ballot detail; created `/review` dashboard page with criteria rating sliders (1–5), approve/reject toggle, justification textarea; added Peer Review navigation button
+
 ## 2026-02-20
 
 ### Ballot Arguments (`services/indexer`, `services/front`, `infra/scripts`)

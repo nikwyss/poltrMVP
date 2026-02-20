@@ -113,20 +113,36 @@ export default function BallotDetail() {
           alignItems: 'center',
           marginBottom: '30px'
         }}>
-          <button
-            onClick={() => router.push('/ballots')}
-            style={{
-              padding: '10px 20px',
-              fontSize: '14px',
-              backgroundColor: '#0085ff',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            &#8592; Back to Ballots
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => router.push('/ballots')}
+              style={{
+                padding: '10px 20px',
+                fontSize: '14px',
+                backgroundColor: '#0085ff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              &#8592; Back to Ballots
+            </button>
+            <button
+              onClick={() => router.push('/review')}
+              style={{
+                padding: '10px 20px',
+                fontSize: '14px',
+                backgroundColor: '#7c4dff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Peer Review
+            </button>
+          </div>
         </div>
 
         {loading && (
@@ -287,9 +303,29 @@ export default function BallotDetail() {
                           boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
                           borderLeft: '4px solid #4caf50'
                         }}>
-                          <h4 style={{ margin: '0 0 8px 0', color: '#333', fontSize: '15px' }}>
-                            {arg.record.title}
-                          </h4>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                            <h4 style={{ margin: 0, color: '#333', fontSize: '15px' }}>
+                              {arg.record.title}
+                            </h4>
+                            {arg.reviewStatus === 'preliminary' && (
+                              <span style={{
+                                fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
+                                backgroundColor: '#fff3e0', color: '#e65100', whiteSpace: 'nowrap',
+                              }}>Preliminary</span>
+                            )}
+                            {arg.reviewStatus === 'approved' && (
+                              <span style={{
+                                fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
+                                backgroundColor: '#e8f5e9', color: '#2e7d32', whiteSpace: 'nowrap',
+                              }}>Peer-reviewed</span>
+                            )}
+                            {arg.reviewStatus === 'rejected' && (
+                              <span style={{
+                                fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
+                                backgroundColor: '#ffebee', color: '#c62828', whiteSpace: 'nowrap',
+                              }}>Rejected</span>
+                            )}
+                          </div>
                           <p style={{
                             margin: '0 0 8px 0',
                             fontSize: '14px',
@@ -336,9 +372,29 @@ export default function BallotDetail() {
                           boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
                           borderLeft: '4px solid #ef5350'
                         }}>
-                          <h4 style={{ margin: '0 0 8px 0', color: '#333', fontSize: '15px' }}>
-                            {arg.record.title}
-                          </h4>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                            <h4 style={{ margin: 0, color: '#333', fontSize: '15px' }}>
+                              {arg.record.title}
+                            </h4>
+                            {arg.reviewStatus === 'preliminary' && (
+                              <span style={{
+                                fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
+                                backgroundColor: '#fff3e0', color: '#e65100', whiteSpace: 'nowrap',
+                              }}>Preliminary</span>
+                            )}
+                            {arg.reviewStatus === 'approved' && (
+                              <span style={{
+                                fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
+                                backgroundColor: '#e8f5e9', color: '#2e7d32', whiteSpace: 'nowrap',
+                              }}>Peer-reviewed</span>
+                            )}
+                            {arg.reviewStatus === 'rejected' && (
+                              <span style={{
+                                fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
+                                backgroundColor: '#ffebee', color: '#c62828', whiteSpace: 'nowrap',
+                              }}>Rejected</span>
+                            )}
+                          </div>
                           <p style={{
                             margin: '0 0 8px 0',
                             fontSize: '14px',

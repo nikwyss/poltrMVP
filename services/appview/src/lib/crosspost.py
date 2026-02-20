@@ -17,94 +17,18 @@ import httpx
 
 from src.lib.db import get_pool
 from src.lib.pds_creds import decrypt_app_password
+from src.lib.governance_pds import get_governance_token, _pds_internal_url, _governance_did
 
 logger = logging.getLogger("crosspost")
 
 _task: asyncio.Task | None = None
 
-# Governance session cache
-_gov_access_jwt: str | None = None
-_gov_refresh_jwt: str | None = None
-_gov_token_expires_at: float = 0
-
 # User session cache: did -> {access_jwt, expires_at}
 _user_sessions: dict[str, dict] = {}
 
 
-def _pds_internal_url() -> str:
-    return os.getenv("PDS_INTERNAL_URL", "http://pds.poltr.svc.cluster.local")
-
-
-def _governance_did() -> str | None:
-    return os.getenv("PDS_GOVERNANCE_ACCOUNT_DID")
-
-
-def _governance_password() -> str | None:
-    return os.getenv("PDS_GOVERNANCE_PASSWORD")
-
-
 def _frontend_url() -> str:
     return os.getenv("APPVIEW_FRONTEND_URL", "https://poltr.ch")
-
-
-# ---------------------------------------------------------------------------
-# Session management
-# ---------------------------------------------------------------------------
-
-
-async def _create_governance_session(client: httpx.AsyncClient) -> str:
-    """Create a PDS session for the governance account. Returns access JWT."""
-    global _gov_access_jwt, _gov_refresh_jwt, _gov_token_expires_at
-
-    gov_did = _governance_did()
-    gov_pw = _governance_password()
-    if not gov_did or not gov_pw:
-        raise RuntimeError("Governance DID or password not configured")
-
-    resp = await client.post(
-        f"{_pds_internal_url()}/xrpc/com.atproto.server.createSession",
-        json={"identifier": gov_did, "password": gov_pw},
-    )
-    if resp.status_code != 200:
-        raise RuntimeError(f"Governance createSession failed ({resp.status_code}): {resp.text}")
-
-    data = resp.json()
-    _gov_access_jwt = data["accessJwt"]
-    _gov_refresh_jwt = data.get("refreshJwt")
-    _gov_token_expires_at = asyncio.get_event_loop().time() + 90 * 60
-    return _gov_access_jwt
-
-
-async def _refresh_governance_session(client: httpx.AsyncClient) -> str:
-    """Refresh governance session. Falls back to full login on failure."""
-    global _gov_access_jwt, _gov_refresh_jwt, _gov_token_expires_at
-
-    if not _gov_refresh_jwt:
-        return await _create_governance_session(client)
-
-    resp = await client.post(
-        f"{_pds_internal_url()}/xrpc/com.atproto.server.refreshSession",
-        headers={"Authorization": f"Bearer {_gov_refresh_jwt}"},
-    )
-    if resp.status_code != 200:
-        logger.warning("Governance refreshSession failed, falling back to createSession")
-        return await _create_governance_session(client)
-
-    data = resp.json()
-    _gov_access_jwt = data["accessJwt"]
-    _gov_refresh_jwt = data.get("refreshJwt")
-    _gov_token_expires_at = asyncio.get_event_loop().time() + 90 * 60
-    return _gov_access_jwt
-
-
-async def _get_governance_token(client: httpx.AsyncClient) -> str:
-    """Get a valid governance access token, refreshing if needed."""
-    now = asyncio.get_event_loop().time()
-    if not _gov_access_jwt or now >= _gov_token_expires_at:
-        if _gov_refresh_jwt and now < _gov_token_expires_at + 30 * 60:
-            return await _refresh_governance_session(client)
-        return await _create_governance_session(client)
-    return _gov_access_jwt
 
 
 async def _get_user_token(client: httpx.AsyncClient, did: str) -> str | None:
@@ -168,7 +92,7 @@ async def _crosspost_ballots(client: httpx.AsyncClient):
         return
 
     logger.info(f"Found {len(rows)} pending ballot(s) to cross-post")
-    token = await _get_governance_token(client)
+    token = await get_governance_token(client)
 
     for row in rows:
         try:
@@ -241,12 +165,17 @@ async def _crosspost_ballots(client: httpx.AsyncClient):
 
 
 async def _crosspost_arguments(client: httpx.AsyncClient):
-    """Find arguments without a bsky cross-post and create them as replies."""
+    """Find arguments without a bsky cross-post and create them as replies.
+
+    Preliminary arguments are cross-posted under the author's account with [Preliminary] prefix.
+    Approved governance copies are cross-posted under the governance account.
+    """
+    gov_did = _governance_did()
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT a.uri, a.did, a.title, a.body, a.type,
+            SELECT a.uri, a.did, a.title, a.body, a.type, a.review_status, a.original_uri,
                    b.bsky_post_uri AS ballot_bsky_uri, b.bsky_post_cid AS ballot_bsky_cid
             FROM app_arguments a
             JOIN app_ballots b ON a.ballot_uri = b.uri
@@ -260,18 +189,34 @@ async def _crosspost_arguments(client: httpx.AsyncClient):
         return
 
     logger.info(f"Found {len(rows)} pending argument(s) to cross-post")
+    peer_review_on = os.getenv("PEER_REVIEW_ENABLED", "false").lower() == "true"
 
     for row in rows:
         try:
-            token = await _get_user_token(client, row["did"])
-            if not token:
-                logger.warning(f"No credentials for {row['did']}, skipping argument cross-post")
-                continue
+            is_governance_copy = row["original_uri"] is not None and row["did"] == gov_did
+
+            if is_governance_copy:
+                # Approved governance copy: post under governance account
+                token = await get_governance_token(client)
+                repo_did = gov_did
+            else:
+                # Preliminary or user-submitted: post under author's account
+                token = await _get_user_token(client, row["did"])
+                if not token:
+                    logger.warning(f"No credentials for {row['did']}, skipping argument cross-post")
+                    continue
+                repo_did = row["did"]
 
             prefix = "PRO" if row["type"] == "PRO" else "CONTRA"
             title = row["title"] or ""
             body = row["body"] or ""
-            text = f"[{prefix}] {title}\n\n{body}"[:300]
+
+            if is_governance_copy:
+                text = f"[{prefix}] {title}\n\n{body}"[:300]
+            elif peer_review_on:
+                text = f"[Preliminary] [{prefix}] {title}\n\n{body}"[:300]
+            else:
+                text = f"[{prefix}] {title}\n\n{body}"[:300]
 
             post_record = {
                 "$type": "app.bsky.feed.post",
@@ -290,7 +235,7 @@ async def _crosspost_arguments(client: httpx.AsyncClient):
                     "Authorization": f"Bearer {token}",
                 },
                 json={
-                    "repo": row["did"],
+                    "repo": repo_did,
                     "collection": "app.bsky.feed.post",
                     "record": post_record,
                 },

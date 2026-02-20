@@ -1,4 +1,4 @@
-import type { BallotWithMetadata, ArgumentWithMetadata } from '../types/ballots';
+import type { BallotWithMetadata, ArgumentWithMetadata, ReviewCriterion, ReviewInvitation, ReviewStatus, ReviewCriterionRating } from '../types/ballots';
 import { Agent } from '@atproto/api';
 
 /**
@@ -187,5 +187,50 @@ export async function initiateEidVerification(): Promise<{
     const error = await res.json().catch(() => ({ message: 'Unknown error' }));
     throw new Error(error.message || 'Failed to initiate verification');
   }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Peer-review API
+// ---------------------------------------------------------------------------
+
+export async function getReviewCriteria(): Promise<ReviewCriterion[]> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.review.criteria`);
+  if (!res.ok) throw new Error(await res.text());
+  const content = await res.json();
+  return content.criteria;
+}
+
+export async function getPendingReviews(): Promise<ReviewInvitation[]> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.review.pending`);
+  if (!res.ok) throw new Error(await res.text());
+  const content = await res.json();
+  return content.invitations;
+}
+
+export async function submitReview(
+  argumentUri: string,
+  criteria: ReviewCriterionRating[],
+  vote: 'APPROVE' | 'REJECT',
+  justification?: string,
+): Promise<{ uri: string }> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.review.submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ argumentUri, criteria, vote, justification }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getReviewStatus(argumentUri: string): Promise<ReviewStatus> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  const res = await authenticatedFetch(
+    `/api/xrpc/app.ch.poltr.review.status?argumentUri=${encodeURIComponent(argumentUri)}`
+  );
+  if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

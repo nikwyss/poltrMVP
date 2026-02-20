@@ -10,12 +10,18 @@ import {
   markArgumentDeleted,
   upsertProfileDb,
   deleteProfile,
+  upsertReviewInvitationDb,
+  markReviewInvitationDeleted,
+  upsertReviewResponseDb,
+  markReviewResponseDeleted,
 } from "./db.js";
 
 const COLLECTION_BALLOT = "app.ch.poltr.ballot.entry";
 const COLLECTION_ARGUMENT = "app.ch.poltr.ballot.argument";
 const COLLECTION_RATING = "app.ch.poltr.content.rating";
 const COLLECTION_PSEUDONYM = "app.ch.poltr.actor.pseudonym";
+const COLLECTION_REVIEW_INVITATION = "app.ch.poltr.review.invitation";
+const COLLECTION_REVIEW_RESPONSE = "app.ch.poltr.review.response";
 
 export const handleEvent = async (evt) => {
   const collection = evt.collection;
@@ -27,7 +33,9 @@ export const handleEvent = async (evt) => {
     collection !== COLLECTION_BALLOT &&
     collection !== COLLECTION_ARGUMENT &&
     collection !== COLLECTION_RATING &&
-    collection !== COLLECTION_PSEUDONYM
+    collection !== COLLECTION_PSEUDONYM &&
+    collection !== COLLECTION_REVIEW_INVITATION &&
+    collection !== COLLECTION_REVIEW_RESPONSE
   )
     return;
 
@@ -82,6 +90,30 @@ export const handleEvent = async (evt) => {
       const record = evt.record;
       if (!record) return;
       await upsertProfileDb(pool, { did, record });
+    }
+  }
+
+  if (collection === COLLECTION_REVIEW_INVITATION) {
+    if (action === "delete") {
+      await markReviewInvitationDeleted(uri);
+      return;
+    }
+    if (action === "create" || action === "update") {
+      const record = evt.record;
+      if (!record) return;
+      await upsertReviewInvitationDb(pool, { uri, cid: cidString, did, rkey, record });
+    }
+  }
+
+  if (collection === COLLECTION_REVIEW_RESPONSE) {
+    if (action === "delete") {
+      await markReviewResponseDeleted(uri);
+      return;
+    }
+    if (action === "create" || action === "update") {
+      const record = evt.record;
+      if (!record) return;
+      await upsertReviewResponseDb(pool, { uri, cid: cidString, did, rkey, record });
     }
   }
 };

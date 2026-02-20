@@ -200,26 +200,34 @@ export async function upsertArgumentDb(clientOrPool, params) {
   const ballotUri = record.ballot ?? null;
   const ballotRkey = ballotUri ? ballotUri.split("/").pop() : null;
   const createdAt = record.createdAt ? new Date(record.createdAt) : new Date();
+  const originalUri = record.originalUri ?? null;
+  // Governance copies (have originalUri) are approved; user-submitted are preliminary
+  const reviewStatus = originalUri ? "approved" : "preliminary";
 
   await dbQuery(
     clientOrPool,
     `
     INSERT INTO app_arguments
-      (uri, cid, did, rkey, title, body, type, ballot_uri, ballot_rkey, created_at, deleted)
+      (uri, cid, did, rkey, title, body, type, ballot_uri, ballot_rkey,
+       review_status, original_uri, created_at, deleted)
     VALUES
-      ($1,  $2,  $3,  $4,  $5,    $6,   $7,   $8,         $9,          $10,       false)
+      ($1,  $2,  $3,  $4,  $5,    $6,   $7,   $8,         $9,
+       $10, $11, $12, false)
     ON CONFLICT (uri) DO UPDATE SET
-      cid         = EXCLUDED.cid,
-      title       = EXCLUDED.title,
-      body        = EXCLUDED.body,
-      type        = EXCLUDED.type,
-      ballot_uri  = EXCLUDED.ballot_uri,
-      ballot_rkey = EXCLUDED.ballot_rkey,
-      created_at  = EXCLUDED.created_at,
-      deleted     = false,
-      indexed_at  = now()
+      cid           = EXCLUDED.cid,
+      title         = EXCLUDED.title,
+      body          = EXCLUDED.body,
+      type          = EXCLUDED.type,
+      ballot_uri    = EXCLUDED.ballot_uri,
+      ballot_rkey   = EXCLUDED.ballot_rkey,
+      review_status = EXCLUDED.review_status,
+      original_uri  = EXCLUDED.original_uri,
+      created_at    = EXCLUDED.created_at,
+      deleted       = false,
+      indexed_at    = now()
     `,
-    [uri, cid, did, rkey, title, body, type, ballotUri, ballotRkey, createdAt],
+    [uri, cid, did, rkey, title, body, type, ballotUri, ballotRkey,
+     reviewStatus, originalUri, createdAt],
   );
 }
 
@@ -307,5 +315,147 @@ export async function refreshLikeCount(clientOrPool, subjectUri) {
     WHERE uri = $1
     `,
     [subjectUri],
+  );
+}
+
+/**
+ * Upsert a review invitation into app_review_invitations.
+ */
+export async function upsertReviewInvitationDb(clientOrPool, params) {
+  const { uri, cid, did, rkey, record } = params;
+
+  const argumentUri = record.argument ?? null;
+  const inviteeDid = record.invitee ?? null;
+  const createdAt = record.createdAt ? new Date(record.createdAt) : new Date();
+
+  await dbQuery(
+    clientOrPool,
+    `
+    INSERT INTO app_review_invitations
+      (uri, cid, argument_uri, invitee_did, created_at, deleted)
+    VALUES
+      ($1,  $2,  $3,           $4,          $5,         false)
+    ON CONFLICT (uri) DO UPDATE SET
+      cid          = EXCLUDED.cid,
+      argument_uri = EXCLUDED.argument_uri,
+      invitee_did  = EXCLUDED.invitee_did,
+      created_at   = EXCLUDED.created_at,
+      deleted      = false,
+      indexed_at   = now()
+    `,
+    [uri, cid, argumentUri, inviteeDid, createdAt],
+  );
+}
+
+/**
+ * Soft-delete a review invitation.
+ */
+export async function markReviewInvitationDeleted(uri) {
+  await pool.query(
+    `UPDATE app_review_invitations
+     SET deleted = true, indexed_at = now()
+     WHERE uri = $1`,
+    [uri],
+  );
+}
+
+/**
+ * Upsert a review response into app_review_responses.
+ * After indexing, runs a quorum check and updates review_status if a decision is reached.
+ */
+export async function upsertReviewResponseDb(clientOrPool, params) {
+  const { uri, cid, did, rkey, record } = params;
+
+  const argumentUri = record.argument ?? null;
+  const reviewerDid = record.reviewer ?? null;
+  const criteria = record.criteria ? JSON.stringify(record.criteria) : null;
+  const vote = record.vote ?? null;
+  const justification = record.justification ?? null;
+  const createdAt = record.createdAt ? new Date(record.createdAt) : new Date();
+
+  await dbQuery(
+    clientOrPool,
+    `
+    INSERT INTO app_review_responses
+      (uri, cid, argument_uri, reviewer_did, criteria, vote, justification, created_at, deleted)
+    VALUES
+      ($1,  $2,  $3,           $4,           $5,       $6,   $7,            $8,         false)
+    ON CONFLICT (uri) DO UPDATE SET
+      cid           = EXCLUDED.cid,
+      argument_uri  = EXCLUDED.argument_uri,
+      reviewer_did  = EXCLUDED.reviewer_did,
+      criteria      = EXCLUDED.criteria,
+      vote          = EXCLUDED.vote,
+      justification = EXCLUDED.justification,
+      created_at    = EXCLUDED.created_at,
+      deleted       = false,
+      indexed_at    = now()
+    `,
+    [uri, cid, argumentUri, reviewerDid, criteria, vote, justification, createdAt],
+  );
+
+  // Post-index quorum check
+  if (argumentUri) {
+    await checkReviewQuorum(clientOrPool, argumentUri);
+  }
+}
+
+/**
+ * Check if a peer-review quorum has been reached for an argument.
+ * If so, update review_status to 'approved' or 'rejected'.
+ * The actual governance PDS copy is created by the appview background loop.
+ */
+async function checkReviewQuorum(clientOrPool, argumentUri) {
+  const quorum = parseInt(process.env.PEER_REVIEW_QUORUM || "10", 10);
+
+  const counts = await dbQuery(
+    clientOrPool,
+    `
+    SELECT
+      COUNT(*) FILTER (WHERE vote = 'APPROVE') AS approvals,
+      COUNT(*) FILTER (WHERE vote = 'REJECT') AS rejections,
+      COUNT(*) AS total
+    FROM app_review_responses
+    WHERE argument_uri = $1 AND NOT deleted
+    `,
+    [argumentUri],
+  );
+
+  const row = counts.rows[0];
+  if (!row) return;
+
+  const approvals = parseInt(row.approvals, 10);
+  const total = parseInt(row.total, 10);
+  const remaining = quorum - total;
+  const threshold = quorum / 2;
+
+  if (approvals > threshold) {
+    await dbQuery(
+      clientOrPool,
+      `UPDATE app_arguments SET review_status = 'approved', indexed_at = now()
+       WHERE uri = $1 AND review_status = 'preliminary'`,
+      [argumentUri],
+    );
+    console.log(`Argument approved by quorum: ${argumentUri}`);
+  } else if (approvals + remaining <= threshold) {
+    await dbQuery(
+      clientOrPool,
+      `UPDATE app_arguments SET review_status = 'rejected', indexed_at = now()
+       WHERE uri = $1 AND review_status = 'preliminary'`,
+      [argumentUri],
+    );
+    console.log(`Argument rejected by quorum: ${argumentUri}`);
+  }
+}
+
+/**
+ * Soft-delete a review response.
+ */
+export async function markReviewResponseDeleted(uri) {
+  await pool.query(
+    `UPDATE app_review_responses
+     SET deleted = true, indexed_at = now()
+     WHERE uri = $1`,
+    [uri],
   );
 }

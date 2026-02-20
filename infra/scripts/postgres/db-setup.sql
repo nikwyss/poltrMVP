@@ -68,6 +68,9 @@ CREATE TABLE app_arguments (
   bsky_post_cid text,                -- CID of the cross-posted app.bsky.feed.post
   like_count    integer NOT NULL DEFAULT 0,
   comment_count integer NOT NULL DEFAULT 0,
+  review_status text NOT NULL DEFAULT 'preliminary' CHECK (review_status IN ('preliminary', 'approved', 'rejected')),
+  original_uri  text,               -- governance copies point back to user's original
+  governance_uri text,              -- user's originals point to governance copy once approved
   created_at    timestamptz NOT NULL,
   indexed_at    timestamptz NOT NULL DEFAULT now(),
   deleted       boolean NOT NULL DEFAULT false
@@ -77,6 +80,40 @@ CREATE INDEX app_arguments_ballot_uri_idx  ON app_arguments (ballot_uri);
 CREATE INDEX app_arguments_ballot_rkey_idx ON app_arguments (ballot_rkey);
 CREATE INDEX app_arguments_did_idx         ON app_arguments (did);
 CREATE INDEX app_arguments_type_idx        ON app_arguments (type);
+CREATE INDEX app_arguments_review_status_idx ON app_arguments (review_status);
+
+CREATE TABLE app_review_invitations (
+  uri           text PRIMARY KEY,
+  cid           text NOT NULL,
+  argument_uri  text NOT NULL,
+  invitee_did   text NOT NULL,
+  created_at    timestamptz NOT NULL,
+  indexed_at    timestamptz NOT NULL DEFAULT now(),
+  deleted       boolean NOT NULL DEFAULT false
+);
+
+CREATE UNIQUE INDEX app_review_invitations_arg_invitee_uniq
+  ON app_review_invitations (argument_uri, invitee_did) WHERE NOT deleted;
+CREATE INDEX app_review_invitations_argument_uri_idx ON app_review_invitations (argument_uri);
+CREATE INDEX app_review_invitations_invitee_did_idx  ON app_review_invitations (invitee_did);
+
+CREATE TABLE app_review_responses (
+  uri           text PRIMARY KEY,
+  cid           text NOT NULL,
+  argument_uri  text NOT NULL,
+  reviewer_did  text NOT NULL,
+  criteria      jsonb,
+  vote          text NOT NULL CHECK (vote IN ('APPROVE', 'REJECT')),
+  justification text,
+  created_at    timestamptz NOT NULL,
+  indexed_at    timestamptz NOT NULL DEFAULT now(),
+  deleted       boolean NOT NULL DEFAULT false
+);
+
+CREATE UNIQUE INDEX app_review_responses_arg_reviewer_uniq
+  ON app_review_responses (argument_uri, reviewer_did) WHERE NOT deleted;
+CREATE INDEX app_review_responses_argument_uri_idx ON app_review_responses (argument_uri);
+CREATE INDEX app_review_responses_reviewer_did_idx ON app_review_responses (reviewer_did);
 
 CREATE TABLE app_comments (
   uri               text PRIMARY KEY,
