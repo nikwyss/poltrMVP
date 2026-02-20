@@ -2,9 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const APPVIEW_URL = process.env.APPVIEW_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
+const EID_VERIFICATION_ENABLED = process.env.NEXT_PUBLIC_EID_VERIFICATION_ENABLED === 'true';
+
 async function proxyRequest(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
   const xrpcPath = path.join('/');
+
+  if (!EID_VERIFICATION_ENABLED && xrpcPath === 'ch.poltr.auth.initiateEidVerification') {
+    return NextResponse.json(
+      { error: 'feature_disabled', message: 'E-ID verification is not enabled' },
+      { status: 403 },
+    );
+  }
   const url = new URL(`${APPVIEW_URL}/xrpc/${xrpcPath}`);
 
   // Forward query parameters
