@@ -8,6 +8,8 @@ import {
   markLikeDeleted,
   upsertArgumentDb,
   markArgumentDeleted,
+  upsertCommentDb,
+  markCommentDeleted,
   upsertProfileDb,
   deleteProfile,
   upsertReviewInvitationDb,
@@ -20,6 +22,7 @@ const COLLECTION_BALLOT = "app.ch.poltr.ballot.entry";
 const COLLECTION_ARGUMENT = "app.ch.poltr.ballot.argument";
 const COLLECTION_RATING = "app.ch.poltr.content.rating";
 const COLLECTION_PSEUDONYM = "app.ch.poltr.actor.pseudonym";
+const COLLECTION_COMMENT = "app.ch.poltr.comment";
 const COLLECTION_REVIEW_INVITATION = "app.ch.poltr.review.invitation";
 const COLLECTION_REVIEW_RESPONSE = "app.ch.poltr.review.response";
 
@@ -34,6 +37,7 @@ export const handleEvent = async (evt) => {
     collection !== COLLECTION_ARGUMENT &&
     collection !== COLLECTION_RATING &&
     collection !== COLLECTION_PSEUDONYM &&
+    collection !== COLLECTION_COMMENT &&
     collection !== COLLECTION_REVIEW_INVITATION &&
     collection !== COLLECTION_REVIEW_RESPONSE
   )
@@ -66,6 +70,18 @@ export const handleEvent = async (evt) => {
       const record = evt.record;
       if (!record) return;
       await upsertArgumentDb(pool, { uri, cid: cidString, did, rkey, record });
+    }
+  }
+
+  if (collection === COLLECTION_COMMENT) {
+    if (action === "delete") {
+      await markCommentDeleted(uri);
+      return;
+    }
+    if (action === "create" || action === "update") {
+      const record = evt.record;
+      if (!record) return;
+      await upsertCommentDb(pool, { uri, cid: cidString, did, rkey, record });
     }
   }
 

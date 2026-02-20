@@ -1,0 +1,28 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.comment",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A comment on an argument in a Swiss ballot discussion",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "body": { "type": "string" },
+          "argument": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "AT URI of the argument this comment refers to"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        },
+        "required": ["title", "body", "argument", "createdAt"]
+      }
+    }
+  }
+}

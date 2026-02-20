@@ -121,6 +121,7 @@ CREATE TABLE app_comments (
   did               text NOT NULL,
   rkey              text NOT NULL,
   origin            text NOT NULL,          -- 'intern' or 'extern'
+  title             text,
   text              text,
   ballot_uri        text NOT NULL,
   ballot_rkey       text NOT NULL,
