@@ -107,11 +107,6 @@ async def _get_ballots_handler(
     params = []
     where = ["b.deleted = false"]
 
-    governance_id = os.getenv("PDS_GOVERNANCE_ACCOUNT_DID")
-    if governance_id:
-        params.append(governance_id)
-        where.append(f"b.did = ${len(params)}")
-
     if since:
         try:
             since_date = datetime.fromisoformat(since.replace("Z", "+00:00"))
@@ -193,11 +188,6 @@ async def get_ballot(
     """Get a single ballot by rkey."""
     params = [rkey]
     where = ["b.deleted = false", "b.rkey = $1"]
-
-    governance_id = os.getenv("PDS_GOVERNANCE_ACCOUNT_DID")
-    if governance_id:
-        params.append(governance_id)
-        where.append(f"b.did = ${len(params)}")
 
     viewer_did = session.did if session else None
     if viewer_did:
