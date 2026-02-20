@@ -215,16 +215,11 @@ spec:
             - secretRef:
                 name: indexer-secrets
           env:
-            - name: PDS_INTERNAL_URL
+            - name: PDS_HOSTNAME
               valueFrom:
                 secretKeyRef:
                   name: pds-secrets
-                  key: PDS_INTERNAL_URL
-            - name: PDS_GOVERNANCE_ACCOUNT_DID
-              valueFrom:
-                secretKeyRef:
-                  name: pds-secrets
-                  key: PDS_GOVERNANCE_ACCOUNT_DID
+                  key: PDS_HOSTNAME
           ports:
             - containerPort: 3000
               protocol: TCP
@@ -301,6 +296,11 @@ spec:
                 secretKeyRef:
                   name: pds-secrets
                   key: PDS_GOVERNANCE_ACCOUNT_DID
+            - name: PDS_GOVERNANCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_GOVERNANCE_PASSWORD
           ports:
             - name: http
               containerPort: 3000

@@ -205,11 +205,4 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO indexer;
 REVOKE ALL ON SCHEMA auth FROM indexer;
 
-
--- Allow indexer to read user PDS credentials for Bluesky cross-likes
--- TODO: look into this
-GRANT USAGE ON SCHEMA auth TO indexer;
-GRANT SELECT ON auth.auth_creds TO indexer;
-
-
 -- ALTER ROLE indexer WITH PASSWORD 'CHANGE_ME';

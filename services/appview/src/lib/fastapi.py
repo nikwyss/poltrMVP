@@ -10,6 +10,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import src.lib.db as db
+from src.lib.crosspost import start_crosspost_loop, stop_crosspost_loop
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
@@ -32,8 +33,10 @@ async def lifespan(app: FastAPI):
     if not success:
         logger.warning("Database connection failed, but continuing...")
     logger.info("API listening on :3000")
+    start_crosspost_loop()
     yield
     # Shutdown
+    stop_crosspost_loop()
     await db.close_pool()
     logger.info("=== Application Shutdown ===")
 
