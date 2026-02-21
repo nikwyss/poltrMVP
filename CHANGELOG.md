@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-02-21
+
+### Comments on Arguments (`services/front`, `services/indexer`, `infra/scripts`)
+- **Added lexicon** (`services/front/src/lexicons/app.ch.poltr.comment.json`): New `app.ch.poltr.comment` record type with `title`, `body`, `argument` (AT-URI reference to parent argument), and `createdAt`
+- **Added `title` column** to `app_comments` table (`infra/scripts/postgres/db-setup.sql`)
+- **Added indexer support** (`services/indexer/src/record_handler.js`, `services/indexer/src/db.js`): Handles `app.ch.poltr.comment` create/update/delete events from firehose — `upsertCommentDb()` (derives `ballot_uri`/`ballot_rkey` from parent argument, origin `'intern'`), `markCommentDeleted()`; both refresh `comment_count` on the parent `app_arguments` row via `refreshCommentCount()`
+- **Added `import_comments.py`** (`infra/scripts/`): Imports COMMENT entries from `dump/content.xlsx` into PDS as `app.ch.poltr.comment` records
+  - Scans existing arguments to resolve `parent_id` (xlsx) → argument AT URI
+  - Assigns comments to random non-admin PDS users; reuses same account on re-import
+  - Uses `putRecord` with deterministic rkeys (xlsx row id) for idempotent re-imports
+  - Same env vars as `import_arguments.py`: `PDS_HOST`, `PDS_ADMIN_PASSWORD`, `BALLOT_URI`, `MAX_IMPORTS`, `XLSX_PATH`, `INDEXER_POSTGRES_URL`, `APPVIEW_PDS_CREDS_MASTER_KEY_B64`
+- **Updated docs** (`doc/LEXICONS.md`): Added `app.ch.poltr.comment` record documentation; updated data hierarchy diagram
+
 ## 2026-02-20 (Peer Review)
 
 ### Peer-Review System for Arguments (`services/appview`, `services/indexer`, `services/front`, `infra`)

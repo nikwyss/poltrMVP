@@ -257,7 +257,8 @@ class CommentImporter:
             if response.status_code in (200, 201):
                 data = response.json()
                 if "uri" in data:
-                    print(f"  Synced by {user.handle}: {comment.title[:40]} -> {data['uri']}")
+                    arg_rkey = argument_uri.split("/")[-1]
+                    print(f"  Synced by {user.handle}: {comment.title[:40]} -> {data['uri']} (arg:{arg_rkey})")
                     return True
 
             try:

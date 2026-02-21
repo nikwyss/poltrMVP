@@ -11,21 +11,16 @@ Schema files: `services/front/src/lexicons/`
 ```
 Ballot (app.ch.poltr.ballot.entry)
   │
-  ├── Comment (app.bsky.feed.post)          ← direct reply to ballot cross-post
-  │     └── Comment (app.bsky.feed.post)    ← nested replies
-  │
   └── Argument (app.ch.poltr.ballot.argument)
         │
-        ├── Comment (app.bsky.feed.post)    ← reply to argument cross-post
-        │     └── Comment (app.bsky.feed.post)
-        └── ...
+        └── Comment (app.ch.poltr.comment)
 ```
 
 **Ballots** are the top-level discussion topics (Swiss referendum items). Each ballot is a custom poltr record (`app.ch.poltr.ballot.entry`) created by the governance account and cross-posted to Bluesky as `app.bsky.feed.post`.
 
 **Arguments** are structured positions on a ballot (pro/contra). They use a dedicated poltr lexicon (`app.ch.poltr.ballot.argument`) and are cross-posted as `app.bsky.feed.post` replies to the ballot cross-post. Arguments are posted under the author's repo (not governance).
 
-**Comments** use the standard Bluesky post lexicon (`app.bsky.feed.post`). They are replies to either a ballot or an argument cross-post. This means comments are native Bluesky posts — no custom lexicon needed. Comments are stored in `app_comments` with `argument_uri` linking them to their ancestor argument (null if replying directly to the ballot).
+**Comments** are reactions to arguments. They use a custom poltr lexicon (`app.ch.poltr.comment`) with a `title` and `body` field, and reference their parent argument via `argument` (AT URI). Comments are stored in `app_comments` with `argument_uri` linking them to their parent argument. The `comment_count` on `app_arguments` is kept in sync by the indexer.
 
 ---
 
@@ -73,6 +68,21 @@ A structured argument for or against a Swiss ballot entry. Cross-posted to Blues
 - **Key:** `tid` (deterministic rkeys from import use xlsx row id)
 - **Cross-post:** Posted as `app.bsky.feed.post` reply to the ballot's Bluesky post. On delete, the cross-post is also removed.
 - **DB table:** `app_arguments` (indexed by `ballot_uri`, `ballot_rkey`, `did`, `type`)
+
+### `app.ch.poltr.comment`
+
+A comment on an argument in a Swiss ballot discussion.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| title | string | yes | Comment title |
+| body | string | yes | Comment body text |
+| argument | string (at-uri) | yes | AT-URI of the parent argument |
+| createdAt | string (datetime) | yes | Timestamp |
+
+- **Key:** `tid` (deterministic rkeys from import use xlsx row id)
+- **DB table:** `app_comments` (indexed by `argument_uri`, `ballot_uri`, `ballot_rkey`, `did`)
+- **Side effect:** Indexer refreshes `comment_count` on the parent `app_arguments` row on create/delete.
 
 ### `app.ch.poltr.actor.pseudonym`
 Pseudonymous identity for a POLTR user, derived from a Swiss mountain.

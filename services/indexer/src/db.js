@@ -352,17 +352,45 @@ export async function upsertCommentDb(clientOrPool, params) {
     `,
     [uri, cid, did, rkey, title, body, ballotUri, ballotRkey, argumentUri, createdAt],
   );
+
+  if (argumentUri) {
+    await refreshCommentCount(clientOrPool, argumentUri);
+  }
 }
 
 /**
- * Soft-delete a comment.
+ * Soft-delete a comment and refresh the parent argument's comment_count.
  */
 export async function markCommentDeleted(uri) {
-  await pool.query(
+  const res = await pool.query(
     `UPDATE app_comments
      SET deleted = true, indexed_at = now()
-     WHERE uri = $1`,
+     WHERE uri = $1
+     RETURNING argument_uri`,
     [uri],
+  );
+
+  const argumentUri = res.rows?.[0]?.argument_uri;
+  if (argumentUri) {
+    await refreshCommentCount(pool, argumentUri);
+  }
+}
+
+/**
+ * Recount non-deleted comments and update app_arguments.comment_count.
+ */
+async function refreshCommentCount(clientOrPool, argumentUri) {
+  await dbQuery(
+    clientOrPool,
+    `
+    UPDATE app_arguments
+    SET comment_count = (
+      SELECT count(*) FROM app_comments
+      WHERE argument_uri = $1 AND NOT deleted
+    )
+    WHERE uri = $1
+    `,
+    [argumentUri],
   );
 }
 
