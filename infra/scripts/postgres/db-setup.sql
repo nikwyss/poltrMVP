@@ -19,7 +19,9 @@ CREATE TABLE app_ballots (
   title       text,
   description text,
   vote_date   timestamptz,
-  like_count  integer NOT NULL DEFAULT 0,
+  like_count      integer NOT NULL DEFAULT 0,
+  argument_count  integer NOT NULL DEFAULT 0,
+  comment_count   integer NOT NULL DEFAULT 0,
   bsky_post_uri text,               -- URI of the cross-posted app.bsky.feed.post
   bsky_post_cid text,               -- CID of the cross-posted app.bsky.feed.post
   active      integer NOT NULL DEFAULT 0,  -- 0=disabled, 1=active (enables REVERSE mirroring from Bluesky)

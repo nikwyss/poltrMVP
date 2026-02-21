@@ -13,6 +13,10 @@
   - Same env vars as `import_arguments.py`: `PDS_HOST`, `PDS_ADMIN_PASSWORD`, `BALLOT_URI`, `MAX_IMPORTS`, `XLSX_PATH`, `INDEXER_POSTGRES_URL`, `APPVIEW_PDS_CREDS_MASTER_KEY_B64`
 - **Updated docs** (`doc/LEXICONS.md`): Added `app.ch.poltr.comment` record documentation; updated data hierarchy diagram
 
+### Ballot-level Counts (`services/indexer`, `infra/scripts`)
+- **Added `argument_count` and `comment_count` columns** to `app_ballots` table (`infra/scripts/postgres/db-setup.sql`)
+- **Added indexer refresh functions** (`services/indexer/src/db.js`): `refreshBallotArgumentCount()` called on argument create/delete; `refreshBallotCommentCount()` called on comment create/delete
+
 ## 2026-02-20 (Peer Review)
 
 ### Peer-Review System for Arguments (`services/appview`, `services/indexer`, `services/front`, `infra`)

@@ -229,6 +229,10 @@ export async function upsertArgumentDb(clientOrPool, params) {
     [uri, cid, did, rkey, title, body, type, ballotUri, ballotRkey,
      reviewStatus, originalUri, createdAt],
   );
+
+  if (ballotUri) {
+    await refreshBallotArgumentCount(clientOrPool, ballotUri);
+  }
 }
 
 /**
@@ -239,9 +243,15 @@ export async function markArgumentDeleted(uri) {
     `UPDATE app_arguments
      SET deleted = true, indexed_at = now()
      WHERE uri = $1
-     RETURNING bsky_post_uri`,
+     RETURNING bsky_post_uri, ballot_uri`,
     [uri],
   );
+
+  const ballotUri = res.rows?.[0]?.ballot_uri;
+  if (ballotUri) {
+    await refreshBallotArgumentCount(pool, ballotUri);
+  }
+
   return res.rows?.[0]?.bsky_post_uri ?? null;
 }
 
@@ -356,23 +366,30 @@ export async function upsertCommentDb(clientOrPool, params) {
   if (argumentUri) {
     await refreshCommentCount(clientOrPool, argumentUri);
   }
+  if (ballotUri) {
+    await refreshBallotCommentCount(clientOrPool, ballotUri);
+  }
 }
 
 /**
- * Soft-delete a comment and refresh the parent argument's comment_count.
+ * Soft-delete a comment and refresh counts on parent argument and ballot.
  */
 export async function markCommentDeleted(uri) {
   const res = await pool.query(
     `UPDATE app_comments
      SET deleted = true, indexed_at = now()
      WHERE uri = $1
-     RETURNING argument_uri`,
+     RETURNING argument_uri, ballot_uri`,
     [uri],
   );
 
   const argumentUri = res.rows?.[0]?.argument_uri;
+  const ballotUri = res.rows?.[0]?.ballot_uri;
   if (argumentUri) {
     await refreshCommentCount(pool, argumentUri);
+  }
+  if (ballotUri) {
+    await refreshBallotCommentCount(pool, ballotUri);
   }
 }
 
@@ -391,6 +408,42 @@ async function refreshCommentCount(clientOrPool, argumentUri) {
     WHERE uri = $1
     `,
     [argumentUri],
+  );
+}
+
+/**
+ * Recount non-deleted arguments and update app_ballots.argument_count.
+ */
+async function refreshBallotArgumentCount(clientOrPool, ballotUri) {
+  await dbQuery(
+    clientOrPool,
+    `
+    UPDATE app_ballots
+    SET argument_count = (
+      SELECT count(*) FROM app_arguments
+      WHERE ballot_uri = $1 AND NOT deleted
+    )
+    WHERE uri = $1
+    `,
+    [ballotUri],
+  );
+}
+
+/**
+ * Recount non-deleted comments and update app_ballots.comment_count.
+ */
+async function refreshBallotCommentCount(clientOrPool, ballotUri) {
+  await dbQuery(
+    clientOrPool,
+    `
+    UPDATE app_ballots
+    SET comment_count = (
+      SELECT count(*) FROM app_comments
+      WHERE ballot_uri = $1 AND NOT deleted
+    )
+    WHERE uri = $1
+    `,
+    [ballotUri],
   );
 }
 
