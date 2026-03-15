@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/AuthContext';
 import { getPendingReviews, getReviewCriteria, submitReview } from '@/lib/agent';
 import type { ReviewInvitation, ReviewCriterion, ReviewCriterionRating } from '@/types/ballots';
@@ -22,6 +23,8 @@ interface ReviewFormState {
 export default function ReviewDashboard() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
+  const t = useTranslations('review');
+  const tc = useTranslations('common');
 
   const [invitations, setInvitations] = useState<ReviewInvitation[]>([]);
   const [criteriaTemplate, setCriteriaTemplate] = useState<ReviewCriterion[]>([]);
@@ -100,7 +103,7 @@ export default function ReviewDashboard() {
     if (!form || !form.vote) return;
 
     if (form.vote === 'REJECT' && !form.justification.trim()) {
-      setError('Justification is required for rejection.');
+      setError(t('justificationRequired'));
       return;
     }
 
@@ -115,7 +118,7 @@ export default function ReviewDashboard() {
       );
       setSubmitResult(prev => ({
         ...prev,
-        [argumentUri]: 'Review submitted. The result will appear once enough reviews are collected.',
+        [argumentUri]: t('submitSuccess'),
       }));
       setInvitations(prev => prev.filter(inv => inv.argumentUri !== argumentUri));
     } catch (err) {
@@ -130,7 +133,7 @@ export default function ReviewDashboard() {
     return (
       <div className="flex items-center justify-center min-h-[50vh] gap-3">
         <Spinner />
-        <span className="text-muted-foreground">Restoring session...</span>
+        <span className="text-muted-foreground">{tc('restoringSession')}</span>
       </div>
     );
   }
@@ -138,7 +141,7 @@ export default function ReviewDashboard() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight pt-5">Peer Review</h1>
+      <h1 className="text-2xl font-bold tracking-tight pt-5">{t('title')}</h1>
 
       {error && (
         <Alert variant="destructive">
@@ -156,7 +159,7 @@ export default function ReviewDashboard() {
         <Card>
           <CardContent className="flex items-center justify-center py-10 gap-3">
             <Spinner />
-            <span className="text-muted-foreground">Loading pending reviews...</span>
+            <span className="text-muted-foreground">{t('loadingReviews')}</span>
           </CardContent>
         </Card>
       )}
@@ -164,7 +167,7 @@ export default function ReviewDashboard() {
       {!loading && invitations.length === 0 && (
         <Card>
           <CardContent className="py-10 text-center text-muted-foreground">
-            No pending reviews. Check back later.
+            {t('noReviews')}
           </CardContent>
         </Card>
       )}
@@ -185,7 +188,7 @@ export default function ReviewDashboard() {
                 <div className="flex items-center gap-2 mb-2">
                   <ProContraBadge type={inv.argument.type?.toLowerCase()} variant="soft" />
                   <span className="text-xs text-muted-foreground">
-                    Ballot: {inv.argument.ballotRkey}
+                    {t('ballot', { rkey: inv.argument.ballotRkey })}
                   </span>
                 </div>
                 <h3 className="m-0 mb-2 font-medium">{inv.argument.title}</h3>
@@ -194,12 +197,12 @@ export default function ReviewDashboard() {
 
               {/* Criteria sliders */}
               <div>
-                <h4 className="text-sm font-medium mb-3">Criteria Assessment</h4>
+                <h4 className="text-sm font-medium mb-3">{t('criteriaAssessment')}</h4>
                 {form.criteria.map((criterion) => (
                   <div key={criterion.key} className="mb-4">
                     <div className="flex justify-between mb-2">
                       <label className="text-xs text-muted-foreground">{criterion.label}</label>
-                      <span className="text-xs font-semibold">{criterion.rating}/5</span>
+                      <span className="text-xs font-semibold">{t('ratingValue', { rating: criterion.rating })}</span>
                     </div>
                     <Slider
                       min={1}
@@ -214,7 +217,7 @@ export default function ReviewDashboard() {
 
               {/* Vote toggle */}
               <div>
-                <h4 className="text-sm font-medium mb-2">Decision</h4>
+                <h4 className="text-sm font-medium mb-2">{t('decision')}</h4>
                 <div className="flex gap-3">
                   <Button
                     type="button"
@@ -222,7 +225,7 @@ export default function ReviewDashboard() {
                     className={`flex-1 ${form.vote === 'APPROVE' ? 'bg-green-600 hover:bg-green-700' : ''}`}
                     onClick={() => updateVote(inv.argumentUri, 'APPROVE')}
                   >
-                    Approve
+                    {t('approve')}
                   </Button>
                   <Button
                     type="button"
@@ -230,7 +233,7 @@ export default function ReviewDashboard() {
                     className={`flex-1 ${form.vote === 'REJECT' ? 'bg-red-600 hover:bg-red-700' : ''}`}
                     onClick={() => updateVote(inv.argumentUri, 'REJECT')}
                   >
-                    Reject
+                    {t('reject')}
                   </Button>
                 </div>
               </div>
@@ -238,12 +241,12 @@ export default function ReviewDashboard() {
               {/* Justification */}
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">
-                  Justification {form.vote === 'REJECT' ? '(required)' : '(optional)'}
+                  {form.vote === 'REJECT' ? t('justificationRequiredLabel') : t('justificationOptionalLabel')}
                 </label>
                 <Textarea
                   value={form.justification}
                   onChange={(e) => updateJustification(inv.argumentUri, e.target.value)}
-                  placeholder="Explain your decision..."
+                  placeholder={t('justificationPlaceholder')}
                   rows={3}
                 />
               </div>
@@ -254,7 +257,7 @@ export default function ReviewDashboard() {
                 onClick={() => handleSubmit(inv.argumentUri)}
                 disabled={!form.vote || isSubmitting}
               >
-                {isSubmitting ? 'Submitting...' : 'Submit Review'}
+                {isSubmitting ? t('submitting') : t('submitReview')}
               </Button>
             </CardContent>
           </Card>

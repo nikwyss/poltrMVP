@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import { listBallots } from "@/lib/agent";
 import { likeBallot, unlikeBallot } from "@/lib/ballots";
@@ -22,6 +23,7 @@ function BallotCard({
   onLike: (b: BallotWithMetadata) => void;
   onClick: () => void;
 }) {
+  const t = useTranslations('ballots');
   return (
     <div
       className="bg-card border border-border rounded-[var(--r)] p-5 cursor-pointer card-hover"
@@ -60,7 +62,7 @@ function BallotCard({
         <span className="label">{formatDate(ballot.record.voteDate)}</span>
         <div className="flex gap-1.5">
           {(ballot.argumentCount ?? 0) > 0 && (
-            <span className="tag">{ballot.argumentCount} Argumente</span>
+            <span className="tag">{t('arguments', { count: ballot.argumentCount ?? 0 })}</span>
           )}
           {(ballot.commentCount ?? 0) > 0 && (
             <span className="tag">
@@ -109,6 +111,8 @@ function BallotGrid({
 export default function BallotSearch() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
+  const t = useTranslations('ballots');
+  const tc = useTranslations('common');
   const [ballots, setBallots] = useState<BallotWithMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -190,7 +194,7 @@ export default function BallotSearch() {
     return (
       <div className="flex items-center justify-center min-h-[50vh] gap-3">
         <Spinner />
-        <span className="text-muted-foreground">Restoring session...</span>
+        <span className="text-muted-foreground">{tc('restoringSession')}</span>
       </div>
     );
   }
@@ -209,13 +213,13 @@ export default function BallotSearch() {
         gap: "calc(var(--gap) * 2)",
       }}
     >
-      <h1 className="text-2xl font-bold tracking-tight pt-5">Abstimmungen</h1>
+      <h1 className="text-2xl font-bold tracking-tight pt-5">{t('title')}</h1>
 
       {loading && (
         <Card>
           <CardContent className="flex items-center justify-center py-10 gap-3">
             <Spinner />
-            <span className="text-muted-foreground">Lade Abstimmungen...</span>
+            <span className="text-muted-foreground">{t('loading')}</span>
           </CardContent>
         </Card>
       )}
@@ -224,10 +228,10 @@ export default function BallotSearch() {
         <Alert variant="destructive">
           <AlertDescription className="flex items-center justify-between">
             <span>
-              <strong>Error:</strong> {error}
+              <strong>{tc('error')}:</strong> {error}
             </span>
             <Button variant="destructive" size="sm" onClick={loadBallots}>
-              Retry
+              {tc('retry')}
             </Button>
           </AlertDescription>
         </Alert>
@@ -237,7 +241,7 @@ export default function BallotSearch() {
         <Card>
           <CardContent className="py-10 text-center">
             <p className="text-muted-foreground text-lg">
-              Keine Abstimmungen gefunden.
+              {t('noneFound')}
             </p>
           </CardContent>
         </Card>
@@ -249,7 +253,7 @@ export default function BallotSearch() {
           <section>
             <div className="section-bar">
               <h2>
-                Aktuell
+                {t('current')}
                 {upcoming.length > 0 && (
                   <span className="text-[var(--text-faint)] font-normal ml-2 text-sm">
                     ({upcoming.length})
@@ -272,19 +276,17 @@ export default function BallotSearch() {
                 }}
               >
                 <p className="text-sm text-[var(--text-mid)] py-10">
-                  Keine aktuellen Abstimmungen.
+                  {t('noCurrent')}
                 </p>
               </div>
             )}
           </section>
 
-          {/* <div className="border-b border-border" /> */}
-
           {/* Archived */}
           <section>
             <div className="section-bar">
               <h2>
-                Archiviert
+                {t('archived')}
                 {archived.length > 0 && (
                   <span className="text-[var(--text-faint)] font-normal ml-2 text-sm">
                     ({archived.length})
@@ -300,7 +302,7 @@ export default function BallotSearch() {
               />
             ) : (
               <p className="text-sm text-[var(--text-mid)]">
-                Keine archivierten Abstimmungen.
+                {t('noArchived')}
               </p>
             )}
           </section>

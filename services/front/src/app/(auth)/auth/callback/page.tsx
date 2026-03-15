@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/AuthContext';
 import { getOAuthClient } from '@/lib/oauthClient';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import { Spinner } from '@/components/spinner';
 export default function Callback() {
   const router = useRouter();
   const { login } = useAuth();
+  const t = useTranslations('callback');
   const [error, setError] = useState('');
   const hasProcessed = useRef(false);
 
@@ -30,7 +32,7 @@ export default function Callback() {
         const result = await client.callback(params);
 
         if (!result) {
-          throw new Error('No session returned from callback');
+          throw new Error(t('noSession'));
         }
 
         const session = result.session;
@@ -72,10 +74,10 @@ export default function Callback() {
         <Card className="w-full max-w-sm text-center">
           <CardContent className="pt-6 space-y-4">
             <div className="text-5xl">&#10060;</div>
-            <h2 className="text-lg font-semibold">Authentication Error</h2>
+            <h2 className="text-lg font-semibold">{t('authError')}</h2>
             <p className="text-destructive">{error}</p>
             <Button onClick={() => router.push('/')}>
-              Try Again
+              {t('tryAgain')}
             </Button>
           </CardContent>
         </Card>
@@ -86,7 +88,7 @@ export default function Callback() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-4">
       <Spinner size="lg" />
-      <h2 className="text-lg font-semibold">Authenticating...</h2>
+      <h2 className="text-lg font-semibold">{t('authenticating')}</h2>
     </div>
   );
 }

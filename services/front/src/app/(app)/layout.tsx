@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
+import { useTranslations } from "next-intl"
 import { useAuth } from "@/lib/AuthContext"
 import { AppNav } from "@/components/app-nav"
 import { Spinner } from "@/components/spinner"
@@ -9,6 +10,7 @@ import { Spinner } from "@/components/spinner"
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth()
   const router = useRouter()
+  const tc = useTranslations("common")
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -37,7 +39,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <footer className="border-t border-border py-6 text-center label">
         <div className="mx-auto" style={{ maxWidth: 'var(--page-max)', padding: '0 var(--page-px)' }}>
           <a href="/impressum" className="hover:text-foreground transition-colors">
-            Impressum
+            {tc("impressum")}
           </a>
         </div>
       </footer>

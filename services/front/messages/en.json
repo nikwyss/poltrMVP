@@ -1,0 +1,192 @@
+{
+  "metadata": {
+    "title": "POLTR | PoC Platform",
+    "description": "ATProto-based civic-tech platform for Swiss referenda"
+  },
+  "common": {
+    "error": "Error",
+    "retry": "Retry",
+    "restoringSession": "Restoring session...",
+    "send": "Send",
+    "submitting": "...",
+    "pro": "Pro",
+    "contra": "Contra",
+    "anonymous": "Anonymous",
+    "reply": "Reply",
+    "impressum": "Legal Notice",
+    "copied": "Copied!",
+    "copy": "Copy {label}",
+    "bluesky": "Bluesky",
+    "backToLogin": "Back to Login",
+    "helpful": "Helpful",
+    "voted": "voted",
+    "loading": "Loading..."
+  },
+  "nav": {
+    "home": "Home",
+    "ballots": "Ballots",
+    "review": "Review",
+    "logOut": "Log out"
+  },
+  "login": {
+    "title": "Login to POLTR",
+    "description": "Enter your email to login to poltr.",
+    "emailLabel": "Email address",
+    "emailPlaceholder": "your@email.com",
+    "sending": "Sending...",
+    "sendMagicLink": "Send Magic Link",
+    "noAccount": "Don't have an account? Register",
+    "serverError": "Server error — please try again later",
+    "failedToSend": "Failed to send magic link"
+  },
+  "register": {
+    "title": "Create POLTR Account",
+    "description": "Your credentials are randomly generated for security",
+    "emailLabel": "Email",
+    "emailPlaceholder": "your@email.com",
+    "creating": "Creating Account...",
+    "createAccount": "Create Account",
+    "hasAccount": "Already have an account? Login",
+    "failed": "Registration failed",
+    "failedGeneric": "Failed to create account"
+  },
+  "magicLink": {
+    "checkEmail": "Check your email!",
+    "sentConfirmation": "We've sent a confirmation link to:",
+    "sentMagic": "We've sent a magic link to:",
+    "clickToRegister": "Click the link in the email to complete your registration. The link will expire in 30 minutes.",
+    "clickToLogin": "Click the link in the email to log in. The link will expire in 15 minutes."
+  },
+  "verifyLogin": {
+    "invalidToken": "Invalid or missing token",
+    "verificationFailed": "Verification failed",
+    "verifying": "Verifying your magic link...",
+    "success": "Success!",
+    "redirecting": "Redirecting you to the app...",
+    "failed": "Verification Failed"
+  },
+  "verifyRegistration": {
+    "invalidToken": "Invalid or missing token",
+    "verificationFailed": "Verification failed",
+    "verifying": "Verifying your registration...",
+    "success": "Registration Complete!",
+    "redirecting": "Redirecting you to the app...",
+    "failed": "Verification Failed"
+  },
+  "callback": {
+    "noSession": "No session returned from callback",
+    "authError": "Authentication Error",
+    "tryAgain": "Try Again",
+    "authenticating": "Authenticating..."
+  },
+  "home": {
+    "hello": "Hello {name}!",
+    "did": "DID",
+    "handle": "Handle",
+    "seeBallots": "See Ballots",
+    "swiyuVerification": "swiyu-Verification",
+    "starting": "Starting...",
+    "createAppPassword": "Create App Password",
+    "creatingPassword": "Creating...",
+    "verificationSuccess": "E-ID verification successful! Your account is now verified.",
+    "verificationFailed": "E-ID verification failed. Please try again.",
+    "appPasswordCreated": "App Password Created!",
+    "pds": "PDS",
+    "password": "Password"
+  },
+  "ballots": {
+    "title": "Ballots",
+    "loading": "Loading ballots...",
+    "noneFound": "No ballots found.",
+    "current": "Current",
+    "noCurrent": "No current ballots.",
+    "archived": "Archived",
+    "noArchived": "No archived ballots.",
+    "arguments": "{count} arguments",
+    "comments": "{count} comments"
+  },
+  "ballotDetail": {
+    "breadcrumbBallots": "Ballots",
+    "arguments": "Arguments",
+    "proArguments": "{count} arguments",
+    "addArgument": "+ Add argument",
+    "noProArguments": "No pro arguments yet.",
+    "noContraArguments": "No contra arguments yet.",
+    "noArguments": "No arguments have been submitted yet.",
+    "loadingBallot": "Loading ballot..."
+  },
+  "argumentDetail": {
+    "backToBallot": "Back to Ballot",
+    "comments": "Comments",
+    "noComments": "No comments yet. Be the first!",
+    "addComment": "Add a comment:",
+    "commentPlaceholder": "Write a comment...",
+    "loadingArgument": "Loading argument..."
+  },
+  "feed": {
+    "addArgument": "Add argument",
+    "titlePlaceholder": "Title",
+    "yourArgument": "Your argument...",
+    "cancel": "Cancel",
+    "create": "Create",
+    "creating": "Creating...",
+    "replyingTo": "Replying to {name}",
+    "viewFullThread": "View full thread",
+    "communityApproved": "Community approved",
+    "topic": "Topic:",
+    "voteDate": "Vote Date:",
+    "ref": "Ref:",
+    "arguments": "{count} arguments",
+    "comments": "{count} comments",
+    "allActivity": "All Activity",
+    "argumentsFilter": "Arguments",
+    "commentsFilter": "Comments",
+    "plusArgument": "+ Argument",
+    "loadingActivity": "Loading activity...",
+    "loadingBallot": "Loading ballot...",
+    "noActivity": "No activity yet for this ballot.",
+    "noCommentActivity": "No comment activity yet.",
+    "noArgumentActivity": "No argument activity yet.",
+    "loadMore": "Load More"
+  },
+  "commentDetail": {
+    "backToFeed": "Back to Activity Feed",
+    "thread": "Thread",
+    "replyToComment": "Reply to this comment:",
+    "replyPlaceholder": "Write a reply...",
+    "loadingComment": "Loading comment..."
+  },
+  "review": {
+    "title": "Peer Review",
+    "justificationRequired": "Justification is required for rejection.",
+    "submitSuccess": "Review submitted. The result will appear once enough reviews are collected.",
+    "criteriaAssessment": "Criteria Assessment",
+    "ratingValue": "{rating}/5",
+    "decision": "Decision",
+    "approve": "Approve",
+    "reject": "Reject",
+    "justificationRequiredLabel": "Justification (required)",
+    "justificationOptionalLabel": "Justification (optional)",
+    "justificationPlaceholder": "Explain your decision...",
+    "submitting": "Submitting...",
+    "submitReview": "Submit Review",
+    "loadingReviews": "Loading pending reviews...",
+    "noReviews": "No pending reviews. Check back later.",
+    "ballot": "Ballot: {rkey}"
+  },
+  "reviewStatus": {
+    "preliminary": "Preliminary",
+    "peerReviewed": "Peer-reviewed",
+    "rejected": "Rejected"
+  },
+  "viewToggle": {
+    "dualColumn": "Dual Column",
+    "feed": "Feed",
+    "argumentTree": "Argument Tree"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "message": "The requested page does not exist.",
+    "backHome": "Back to home page"
+  }
+}

@@ -1,6 +1,8 @@
+import { useTranslations } from "next-intl"
 import { Badge } from "@/components/ui/badge"
 
 export function ProContraBadge({ type, variant = "solid" }: { type?: string; variant?: "solid" | "soft" }) {
+  const tc = useTranslations('common')
   if (!type) return null
   const isPro = type === "pro"
 
@@ -13,7 +15,7 @@ export function ProContraBadge({ type, variant = "solid" }: { type?: string; var
           color: isPro ? '#2e7d32' : '#c62828',
         }}
       >
-        {isPro ? 'Pro' : 'Contra'}
+        {isPro ? tc('pro') : tc('contra')}
       </Badge>
     )
   }
@@ -23,18 +25,19 @@ export function ProContraBadge({ type, variant = "solid" }: { type?: string; var
       className="text-xs font-bold text-white"
       style={{ backgroundColor: isPro ? '#16a34a' : '#dc2626' }}
     >
-      {isPro ? 'Pro' : 'Contra'}
+      {isPro ? tc('pro') : tc('contra')}
     </Badge>
   )
 }
 
 export function ReviewStatusBadge({ status }: { status?: string }) {
+  const t = useTranslations('reviewStatus')
   if (!status) return null
 
-  const config: Record<string, { bg: string; text: string; label: string }> = {
-    preliminary: { bg: 'bg-orange-50', text: 'text-orange-800', label: 'Preliminary' },
-    approved: { bg: 'bg-green-50', text: 'text-green-800', label: 'Peer-reviewed' },
-    rejected: { bg: 'bg-red-50', text: 'text-red-800', label: 'Rejected' },
+  const config: Record<string, { bg: string; text: string; key: string }> = {
+    preliminary: { bg: 'bg-orange-50', text: 'text-orange-800', key: 'preliminary' },
+    approved: { bg: 'bg-green-50', text: 'text-green-800', key: 'peerReviewed' },
+    rejected: { bg: 'bg-red-50', text: 'text-red-800', key: 'rejected' },
   }
 
   const c = config[status]
@@ -42,7 +45,7 @@ export function ReviewStatusBadge({ status }: { status?: string }) {
 
   return (
     <Badge variant="outline" className={`text-xs ${c.bg} ${c.text} border-0`}>
-      {c.label}
+      {t(c.key)}
     </Badge>
   )
 }

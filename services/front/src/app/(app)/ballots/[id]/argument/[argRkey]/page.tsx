@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/AuthContext';
 import { listArguments, listComments, createComment } from '@/lib/agent';
 import { likeContent, unlikeContent } from '@/lib/ballots';
@@ -33,6 +34,7 @@ function CommentNode({
   onReply: (parentUri: string) => void;
   onNavigate: (uri: string) => void;
 }) {
+  const tc = useTranslations('common');
   const indent = typeof window !== 'undefined' && window.innerWidth < 640 ? 16 : 24;
   const isExtern = comment.origin === 'extern';
   const liked = !!comment.viewer?.like;
@@ -55,11 +57,11 @@ function CommentNode({
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">
               {isExtern
-                ? (comment.author.handle || comment.author.displayName || 'Bluesky')
-                : (comment.author.displayName || 'Anonym')}
+                ? (comment.author.handle || comment.author.displayName || tc('bluesky'))
+                : (comment.author.displayName || tc('anonymous'))}
             </span>
             {isExtern && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Bluesky</Badge>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{tc('bluesky')}</Badge>
             )}
             <span>{comment.record.createdAt ? formatRelativeTime(comment.record.createdAt) : ''}</span>
           </div>
@@ -79,7 +81,7 @@ function CommentNode({
                 onClick={(e) => { e.stopPropagation(); onReply(comment.uri); }}
                 className="bg-transparent border-none p-0 cursor-pointer text-xs text-muted-foreground"
               >
-                {'\ud83d\udcac'} Reply
+                {'\ud83d\udcac'} {tc('reply')}
               </button>
             )}
           </div>
@@ -113,6 +115,8 @@ export default function ArgumentDetailPage() {
   const params = useParams();
   const ballotRkey = params.id as string;
   const argRkey = params.argRkey as string;
+  const t = useTranslations('argumentDetail');
+  const tc = useTranslations('common');
 
   const [argument, setArgument] = useState<ArgumentWithMetadata | null>(null);
   const [comments, setComments] = useState<CommentWithMetadata[]>([]);
@@ -210,7 +214,7 @@ export default function ArgumentDetailPage() {
     return (
       <div className="flex items-center justify-center min-h-[50vh] gap-3">
         <Spinner />
-        <span className="text-muted-foreground">Restoring session...</span>
+        <span className="text-muted-foreground">{tc('restoringSession')}</span>
       </div>
     );
   }
@@ -221,12 +225,12 @@ export default function ArgumentDetailPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <Button variant="outline" size="sm" onClick={() => router.push(`/ballots/${ballotRkey}`)}>
-        &larr; Back to Ballot
+        &larr; {t('backToBallot')}
       </Button>
 
       {error && (
         <Alert variant="destructive">
-          <AlertDescription><strong>Error:</strong> {error}</AlertDescription>
+          <AlertDescription><strong>{tc('error')}:</strong> {error}</AlertDescription>
         </Alert>
       )}
 
@@ -234,7 +238,7 @@ export default function ArgumentDetailPage() {
         <Card>
           <CardContent className="flex items-center justify-center py-10 gap-3">
             <Spinner />
-            <span className="text-muted-foreground">Loading argument...</span>
+            <span className="text-muted-foreground">{t('loadingArgument')}</span>
           </CardContent>
         </Card>
       )}
@@ -271,12 +275,12 @@ export default function ArgumentDetailPage() {
           <Card>
             <CardContent className="pt-5">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 border-b pb-2">
-                Comments {comments.length > 0 ? `(${comments.length})` : ''}
+                {t('comments')} {comments.length > 0 ? `(${comments.length})` : ''}
               </div>
 
               {comments.length === 0 ? (
                 <p className="text-muted-foreground text-sm m-0">
-                  No comments yet. Be the first!
+                  {t('noComments')}
                 </p>
               ) : (
                 comments.map((c) => (
@@ -296,14 +300,14 @@ export default function ArgumentDetailPage() {
           {/* Comment input */}
           <Card>
             <CardContent className="pt-4 pb-3">
-              <div className="text-xs text-muted-foreground mb-1.5">Add a comment:</div>
+              <div className="text-xs text-muted-foreground mb-1.5">{t('addComment')}</div>
               <ReplyInput
                 ref={replyInputRef}
                 value={replyText}
                 onChange={setReplyText}
                 onSubmit={handleSubmitComment}
                 submitting={submitting}
-                placeholder="Write a comment..."
+                placeholder={t('commentPlaceholder')}
               />
             </CardContent>
           </Card>

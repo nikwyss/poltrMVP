@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 export default function Login() {
   const router = useRouter();
   const { isAuthenticated, loading: authLoading } = useAuth();
+  const t = useTranslations('login');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -40,16 +42,16 @@ export default function Login() {
       try {
         data = JSON.parse(text);
       } catch {
-        throw new Error('Server error — please try again later');
+        throw new Error(t('serverError'));
       }
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to send magic link');
+        throw new Error(data.message || t('failedToSend'));
       }
 
       router.push(`/auth/magic-link-sent?email=${encodeURIComponent(email)}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send magic link');
+      setError(err instanceof Error ? err.message : t('failedToSend'));
       setLoading(false);
     }
   };
@@ -66,23 +68,23 @@ export default function Login() {
         <img src="/logo5.svg" alt="Poltr" className="w-32 h-32 mb-6 md:hidden" />
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Login to POLTR</CardTitle>
+            <CardTitle className="text-2xl">{t('title')}</CardTitle>
             <CardDescription>
-              Enter your email to login to poltr.
+              {t('description')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-medium">
-                  Email address
+                  {t('emailLabel')}
                 </label>
                 <Input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
+                  placeholder={t('emailPlaceholder')}
                   required
                   disabled={loading}
                 />
@@ -93,7 +95,7 @@ export default function Login() {
                 </Alert>
               )}
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Sending...' : 'Send Magic Link'}
+                {loading ? t('sending') : t('sendMagicLink')}
               </Button>
               <div className="text-center">
                 <Button
@@ -102,7 +104,7 @@ export default function Login() {
                   onClick={() => router.push('/auth/register')}
                   disabled={loading}
                 >
-                  Don&apos;t have an account? Register
+                  {t('noAccount')}
                 </Button>
               </div>
             </form>

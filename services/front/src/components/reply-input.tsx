@@ -1,6 +1,7 @@
 "use client"
 
 import { forwardRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -12,6 +13,7 @@ export const ReplyInput = forwardRef<HTMLTextAreaElement, {
   placeholder: string;
 }>(function ReplyInput({ value, onChange, onSubmit, submitting, placeholder }, ref) {
   const [focused, setFocused] = useState(false);
+  const tc = useTranslations('common');
 
   return (
     <div className="flex gap-2 items-end py-1.5">
@@ -34,7 +36,7 @@ export const ReplyInput = forwardRef<HTMLTextAreaElement, {
           onClick={onSubmit}
           disabled={!value.trim() || submitting}
         >
-          {submitting ? '...' : 'Send'}
+          {submitting ? tc('submitting') : tc('send')}
         </Button>
       )}
     </div>

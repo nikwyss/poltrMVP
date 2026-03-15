@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/spinner';
@@ -9,6 +10,8 @@ import { Spinner } from '@/components/spinner';
 function MagicLinkSentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations('magicLink');
+  const tc = useTranslations('common');
   const email = searchParams.get('email') || 'your email';
   const purpose = searchParams.get('purpose');
   const isRegistration = purpose === 'registration';
@@ -18,20 +21,20 @@ function MagicLinkSentContent() {
       <Card className="w-full max-w-lg text-center">
         <CardHeader>
           <div className="text-5xl mb-2">&#9993;</div>
-          <CardTitle className="text-2xl">Check your email!</CardTitle>
+          <CardTitle className="text-2xl">{t('checkEmail')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-muted-foreground">
-            We&apos;ve sent a {isRegistration ? 'confirmation' : 'magic'} link to:
+            {isRegistration ? t('sentConfirmation') : t('sentMagic')}
           </p>
           <p className="text-lg font-bold text-primary">
             {email}
           </p>
           <p className="text-sm text-muted-foreground">
-            Click the link in the email to {isRegistration ? 'complete your registration' : 'log in'}. The link will expire in {isRegistration ? '30' : '15'} minutes.
+            {isRegistration ? t('clickToRegister') : t('clickToLogin')}
           </p>
           <Button variant="outline" onClick={() => router.push('/')}>
-            Back to Login
+            {tc('backToLogin')}
           </Button>
         </CardContent>
       </Card>

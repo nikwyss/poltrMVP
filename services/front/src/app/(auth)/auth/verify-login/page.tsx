@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,6 +12,8 @@ function VerifyLoginContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { login } = useAuth();
+  const t = useTranslations('verifyLogin');
+  const tc = useTranslations('common');
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [error, setError] = useState('');
   const hasVerified = useRef(false);
@@ -24,7 +27,7 @@ function VerifyLoginContent() {
 
       if (!token) {
         setStatus('error');
-        setError('Invalid or missing token');
+        setError(t('invalidToken'));
         return;
       }
 
@@ -38,7 +41,7 @@ function VerifyLoginContent() {
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.message || 'Verification failed');
+          throw new Error(data.message || t('verificationFailed'));
         }
 
         login({
@@ -51,7 +54,7 @@ function VerifyLoginContent() {
         setTimeout(() => router.push('/home'), 2000);
       } catch (err) {
         setStatus('error');
-        setError(err instanceof Error ? err.message : 'Verification failed');
+        setError(err instanceof Error ? err.message : t('verificationFailed'));
       }
     };
 
@@ -65,16 +68,16 @@ function VerifyLoginContent() {
           {status === 'verifying' && (
             <>
               <Spinner className="mx-auto" size="lg" />
-              <h2 className="text-lg font-semibold">Verifying your magic link...</h2>
+              <h2 className="text-lg font-semibold">{t('verifying')}</h2>
             </>
           )}
 
           {status === 'success' && (
             <>
               <div className="text-5xl">&#9989;</div>
-              <h2 className="text-lg font-semibold text-primary">Success!</h2>
+              <h2 className="text-lg font-semibold text-primary">{t('success')}</h2>
               <p className="text-muted-foreground">
-                Redirecting you to the app...
+                {t('redirecting')}
               </p>
             </>
           )}
@@ -82,10 +85,10 @@ function VerifyLoginContent() {
           {status === 'error' && (
             <>
               <div className="text-5xl">&#10060;</div>
-              <h2 className="text-lg font-semibold text-destructive">Verification Failed</h2>
+              <h2 className="text-lg font-semibold text-destructive">{t('failed')}</h2>
               <p className="text-muted-foreground">{error}</p>
               <Button onClick={() => router.push('/')}>
-                Back to Login
+                {tc('backToLogin')}
               </Button>
             </>
           )}

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import { cn } from "@/lib/utils";
 import { LogOut, Menu, X } from "lucide-react";
@@ -12,17 +13,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 
-const navItems = [
-  { title: "Home", href: "/home" },
-  { title: "Ballots", href: "/ballots" },
-  { title: "Review", href: "/review" },
+const navKeys = [
+  { key: "home" as const, href: "/home" },
+  { key: "ballots" as const, href: "/ballots" },
+  { key: "review" as const, href: "/review" },
 ];
 
 export function AppNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const t = useTranslations("nav");
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleLogout = () => {
@@ -45,14 +48,13 @@ export function AppNav() {
           <Link href="/home" className="flex items-center gap-1.5 no-underline">
             <img src="/logo5.svg" alt="Poltr" className="h-9 w-9 shrink-0" />
             <span className="font-extrabold text-base tracking-tight hidden sm:inline ">
-              {/* text-[#F29400] */}
               Poltr
             </span>
           </Link>
 
           {/* Desktop nav links */}
           <div className="hidden sm:flex items-center gap-0.5">
-            {navItems.map((item) => {
+            {navKeys.map((item) => {
               const isActive =
                 pathname === item.href || pathname.startsWith(item.href + "/");
               return (
@@ -66,14 +68,16 @@ export function AppNav() {
                       : "text-[var(--text-mid)] hover:bg-accent hover:text-[var(--text)]",
                   )}
                 >
-                  {item.title}
+                  {t(item.key)}
                 </Link>
               );
             })}
           </div>
 
-          {/* Right side: user pill + mobile toggle */}
+          {/* Right side: locale switcher + user pill + mobile toggle */}
           <div className="flex items-center gap-2">
+            <LocaleSwitcher />
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -91,7 +95,7 @@ export function AppNav() {
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />
-                  Log out
+                  {t("logOut")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -116,7 +120,7 @@ export function AppNav() {
       {mobileOpen && (
         <div className="sm:hidden border-b bg-[var(--bg)]">
           <div className="flex flex-col py-2 px-4 gap-1">
-            {navItems.map((item) => {
+            {navKeys.map((item) => {
               const isActive =
                 pathname === item.href || pathname.startsWith(item.href + "/");
               return (
@@ -131,7 +135,7 @@ export function AppNav() {
                       : "text-[var(--text-mid)] hover:bg-accent hover:text-[var(--text)]",
                   )}
                 >
-                  {item.title}
+                  {t(item.key)}
                 </Link>
               );
             })}

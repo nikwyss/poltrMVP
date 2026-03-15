@@ -1,0 +1,192 @@
+{
+  "metadata": {
+    "title": "POLTR | PoC-Plattform",
+    "description": "ATProto-basierte Civic-Tech-Plattform für Schweizer Abstimmungen"
+  },
+  "common": {
+    "error": "Fehler",
+    "retry": "Erneut versuchen",
+    "restoringSession": "Sitzung wird wiederhergestellt...",
+    "send": "Senden",
+    "submitting": "...",
+    "pro": "Pro",
+    "contra": "Contra",
+    "anonymous": "Anonym",
+    "reply": "Antworten",
+    "impressum": "Impressum",
+    "copied": "Kopiert!",
+    "copy": "{label} kopieren",
+    "bluesky": "Bluesky",
+    "backToLogin": "Zurück zum Login",
+    "helpful": "Hilfreich",
+    "voted": "abgestimmt",
+    "loading": "Laden..."
+  },
+  "nav": {
+    "home": "Start",
+    "ballots": "Abstimmungen",
+    "review": "Begutachtung",
+    "logOut": "Abmelden"
+  },
+  "login": {
+    "title": "Bei POLTR anmelden",
+    "description": "Gib deine E-Mail-Adresse ein, um dich bei POLTR anzumelden.",
+    "emailLabel": "E-Mail-Adresse",
+    "emailPlaceholder": "deine@email.com",
+    "sending": "Wird gesendet...",
+    "sendMagicLink": "Magic Link senden",
+    "noAccount": "Noch kein Konto? Registrieren",
+    "serverError": "Serverfehler — bitte versuche es später erneut",
+    "failedToSend": "Magic Link konnte nicht gesendet werden"
+  },
+  "register": {
+    "title": "POLTR-Konto erstellen",
+    "description": "Deine Zugangsdaten werden aus Sicherheitsgründen zufällig generiert",
+    "emailLabel": "E-Mail",
+    "emailPlaceholder": "deine@email.com",
+    "creating": "Konto wird erstellt...",
+    "createAccount": "Konto erstellen",
+    "hasAccount": "Bereits ein Konto? Anmelden",
+    "failed": "Registrierung fehlgeschlagen",
+    "failedGeneric": "Konto konnte nicht erstellt werden"
+  },
+  "magicLink": {
+    "checkEmail": "Prüfe deine E-Mails!",
+    "sentConfirmation": "Wir haben einen Bestätigungslink gesendet an:",
+    "sentMagic": "Wir haben einen Magic Link gesendet an:",
+    "clickToRegister": "Klicke auf den Link in der E-Mail, um deine Registrierung abzuschliessen. Der Link ist 30 Minuten gültig.",
+    "clickToLogin": "Klicke auf den Link in der E-Mail, um dich anzumelden. Der Link ist 15 Minuten gültig."
+  },
+  "verifyLogin": {
+    "invalidToken": "Ungültiger oder fehlender Token",
+    "verificationFailed": "Verifizierung fehlgeschlagen",
+    "verifying": "Dein Magic Link wird verifiziert...",
+    "success": "Erfolgreich!",
+    "redirecting": "Du wirst zur App weitergeleitet...",
+    "failed": "Verifizierung fehlgeschlagen"
+  },
+  "verifyRegistration": {
+    "invalidToken": "Ungültiger oder fehlender Token",
+    "verificationFailed": "Verifizierung fehlgeschlagen",
+    "verifying": "Deine Registrierung wird verifiziert...",
+    "success": "Registrierung abgeschlossen!",
+    "redirecting": "Du wirst zur App weitergeleitet...",
+    "failed": "Verifizierung fehlgeschlagen"
+  },
+  "callback": {
+    "noSession": "Keine Sitzung vom Callback erhalten",
+    "authError": "Authentifizierungsfehler",
+    "tryAgain": "Erneut versuchen",
+    "authenticating": "Authentifizierung..."
+  },
+  "home": {
+    "hello": "Hallo {name}!",
+    "did": "DID",
+    "handle": "Handle",
+    "seeBallots": "Abstimmungen ansehen",
+    "swiyuVerification": "swiyu-Verifizierung",
+    "starting": "Wird gestartet...",
+    "createAppPassword": "App-Passwort erstellen",
+    "creatingPassword": "Wird erstellt...",
+    "verificationSuccess": "E-ID-Verifizierung erfolgreich! Dein Konto ist jetzt verifiziert.",
+    "verificationFailed": "E-ID-Verifizierung fehlgeschlagen. Bitte versuche es erneut.",
+    "appPasswordCreated": "App-Passwort erstellt!",
+    "pds": "PDS",
+    "password": "Passwort"
+  },
+  "ballots": {
+    "title": "Abstimmungen",
+    "loading": "Lade Abstimmungen...",
+    "noneFound": "Keine Abstimmungen gefunden.",
+    "current": "Aktuell",
+    "noCurrent": "Keine aktuellen Abstimmungen.",
+    "archived": "Archiviert",
+    "noArchived": "Keine archivierten Abstimmungen.",
+    "arguments": "{count} Argumente",
+    "comments": "{count} Kommentare"
+  },
+  "ballotDetail": {
+    "breadcrumbBallots": "Abstimmungen",
+    "arguments": "Argumente",
+    "proArguments": "{count} Argumente",
+    "addArgument": "+ Argument hinzufügen",
+    "noProArguments": "Noch keine Pro-Argumente.",
+    "noContraArguments": "Noch keine Contra-Argumente.",
+    "noArguments": "Es wurden noch keine Argumente eingereicht.",
+    "loadingBallot": "Lade Abstimmung..."
+  },
+  "argumentDetail": {
+    "backToBallot": "Zurück zur Abstimmung",
+    "comments": "Kommentare",
+    "noComments": "Noch keine Kommentare. Sei der Erste!",
+    "addComment": "Kommentar hinzufügen:",
+    "commentPlaceholder": "Schreibe einen Kommentar...",
+    "loadingArgument": "Lade Argument..."
+  },
+  "feed": {
+    "addArgument": "Argument hinzufügen",
+    "titlePlaceholder": "Titel",
+    "yourArgument": "Dein Argument...",
+    "cancel": "Abbrechen",
+    "create": "Erstellen",
+    "creating": "Erstellen...",
+    "replyingTo": "Antwort auf {name}",
+    "viewFullThread": "Vollständigen Thread ansehen",
+    "communityApproved": "Community-bestätigt",
+    "topic": "Thema:",
+    "voteDate": "Abstimmungsdatum:",
+    "ref": "Ref:",
+    "arguments": "{count} Argumente",
+    "comments": "{count} Kommentare",
+    "allActivity": "Alle Aktivitäten",
+    "argumentsFilter": "Argumente",
+    "commentsFilter": "Kommentare",
+    "plusArgument": "+ Argument",
+    "loadingActivity": "Lade Aktivitäten...",
+    "loadingBallot": "Lade Abstimmung...",
+    "noActivity": "Noch keine Aktivitäten für diese Abstimmung.",
+    "noCommentActivity": "Noch keine Kommentar-Aktivitäten.",
+    "noArgumentActivity": "Noch keine Argument-Aktivitäten.",
+    "loadMore": "Mehr laden"
+  },
+  "commentDetail": {
+    "backToFeed": "Zurück zum Aktivitäts-Feed",
+    "thread": "Thread",
+    "replyToComment": "Auf diesen Kommentar antworten:",
+    "replyPlaceholder": "Schreibe eine Antwort...",
+    "loadingComment": "Lade Kommentar..."
+  },
+  "review": {
+    "title": "Peer Review",
+    "justificationRequired": "Eine Begründung ist bei Ablehnung erforderlich.",
+    "submitSuccess": "Review eingereicht. Das Ergebnis wird angezeigt, sobald genügend Reviews vorliegen.",
+    "criteriaAssessment": "Kriterienbewertung",
+    "ratingValue": "{rating}/5",
+    "decision": "Entscheidung",
+    "approve": "Genehmigen",
+    "reject": "Ablehnen",
+    "justificationRequiredLabel": "Begründung (erforderlich)",
+    "justificationOptionalLabel": "Begründung (optional)",
+    "justificationPlaceholder": "Erkläre deine Entscheidung...",
+    "submitting": "Wird eingereicht...",
+    "submitReview": "Review einreichen",
+    "loadingReviews": "Lade ausstehende Reviews...",
+    "noReviews": "Keine ausstehenden Reviews. Schau später nochmal vorbei.",
+    "ballot": "Abstimmung: {rkey}"
+  },
+  "reviewStatus": {
+    "preliminary": "Vorläufig",
+    "peerReviewed": "Begutachtet",
+    "rejected": "Abgelehnt"
+  },
+  "viewToggle": {
+    "dualColumn": "Zwei Spalten",
+    "feed": "Feed",
+    "argumentTree": "Argumentbaum"
+  },
+  "notFound": {
+    "title": "Seite nicht gefunden",
+    "message": "Die angeforderte Seite existiert nicht.",
+    "backHome": "Zurück zur Startseite"
+  }
+}

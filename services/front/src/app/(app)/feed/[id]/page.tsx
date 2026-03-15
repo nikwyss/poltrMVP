@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/AuthContext';
 import { getBallot, listActivity, markActivitySeen, createArgument } from '@/lib/agent';
 import { likeBallot, unlikeBallot } from '@/lib/ballots';
@@ -48,6 +49,8 @@ function AddArgumentModal({
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
 }) {
+  const t = useTranslations('feed');
+  const tc = useTranslations('common');
   const [argType, setArgType] = useState<'PRO' | 'CONTRA'>('PRO');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -73,23 +76,23 @@ function AddArgumentModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Argument hinzuf&uuml;gen</DialogTitle>
+          <DialogTitle>{t('addArgument')}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="flex gap-2">
-            {(['PRO', 'CONTRA'] as const).map((t) => {
-              const selected = argType === t;
-              const isPro = t === 'PRO';
+            {(['PRO', 'CONTRA'] as const).map((typ) => {
+              const selected = argType === typ;
+              const isPro = typ === 'PRO';
               return (
                 <Button
-                  key={t}
+                  key={typ}
                   type="button"
                   variant={selected ? 'default' : 'outline'}
                   className={`flex-1 ${selected ? (isPro ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700') : ''}`}
-                  onClick={() => setArgType(t)}
+                  onClick={() => setArgType(typ)}
                 >
-                  {isPro ? 'Pro' : 'Contra'}
+                  {isPro ? tc('pro') : tc('contra')}
                 </Button>
               );
             })}
@@ -98,13 +101,13 @@ function AddArgumentModal({
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Titel"
+            placeholder={t('titlePlaceholder')}
           />
 
           <Textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="Dein Argument..."
+            placeholder={t('yourArgument')}
             rows={5}
           />
 
@@ -115,13 +118,13 @@ function AddArgumentModal({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Abbrechen
+            {t('cancel')}
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={!title.trim() || !body.trim() || submitting}
           >
-            {submitting ? 'Erstellen...' : 'Erstellen'}
+            {submitting ? t('creating') : t('create')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -185,19 +188,21 @@ function ArgumentHeader({ title, type, approved }: { title: string; type?: 'PRO'
 }
 
 function ThreadSkippedRow() {
+  const t = useTranslations('feed');
   return (
     <div className="px-4 py-0 flex gap-3">
       <div className="w-10 shrink-0 flex flex-col items-center">
         <div className="flex-1 ml-px" style={{ borderLeft: '2px dashed #d1d5db' }} />
       </div>
       <div className="text-xs text-muted-foreground self-center pt-3 pb-3">
-        &middot;&middot;&middot; <span className="text-blue-600 hover:underline">Vollst&auml;ndiger Thread ansehen</span>
+        &middot;&middot;&middot; <span className="text-blue-600 hover:underline">{t('viewFullThread')}</span>
       </div>
     </div>
   );
 }
 
 function ThreadContextRow({ displayName, text, likeCount, replyCount }: { displayName?: string; text: string; likeCount?: number; replyCount?: number }) {
+  const tc = useTranslations('common');
   return (
     <div className="px-4 py-0 flex gap-3">
       <div className="w-10 shrink-0 relative flex flex-col items-center">
@@ -209,7 +214,7 @@ function ThreadContextRow({ displayName, text, likeCount, replyCount }: { displa
       </div>
       <div className="flex-1 min-w-0">
         <div className="font-semibold text-sm text-muted-foreground mb-0.5">
-          {displayName || 'Anonym'}
+          {displayName || tc('anonymous')}
         </div>
         <div className="text-sm text-muted-foreground leading-normal break-words pb-1.5">
           {text}
@@ -240,12 +245,14 @@ function FocalRow({
   replyTo?: string;
   unseen?: boolean;
 }) {
+  const t = useTranslations('feed');
+  const tc = useTranslations('common');
   return (
     <div className="px-4 py-0 flex gap-3">
       <FocalAvatar canton={actor.canton} color={actor.color} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: replyTo ? 4 : 6 }}>
-          <span className="font-bold text-sm">{actor.displayName || 'Anonym'}</span>
+          <span className="font-bold text-sm">{actor.displayName || tc('anonymous')}</span>
           <span className="text-xs text-muted-foreground">{formatRelativeTime(timestamp)}</span>
           {unseen && (
             <span className="inline-block rounded-full shrink-0 bg-blue-500" style={{ width: 7, height: 7 }} />
@@ -253,7 +260,7 @@ function FocalRow({
         </div>
         {replyTo && (
           <div className="text-xs text-blue-600 mb-1.5 font-medium">
-            Replying to {replyTo}
+            {t('replyingTo', { name: replyTo })}
           </div>
         )}
         <div className="text-sm leading-normal break-words pb-1.5">{text}</div>
@@ -267,6 +274,7 @@ function ActionBar({ likeCount, commentCount, argumentLike }: {
   commentCount?: number;
   argumentLike?: string;
 }) {
+  const tc = useTranslations('common');
   return (
     <div className="mb-3 flex items-center gap-5" style={{ paddingLeft: 68, paddingRight: 16 }}>
       <span className="text-xs text-muted-foreground">
@@ -276,7 +284,7 @@ function ActionBar({ likeCount, commentCount, argumentLike }: {
         {argumentLike ? '\u2764' : '\u2661'} {likeCount ?? 0}
       </span>
       {argumentLike && (
-        <span className="text-xs text-green-800 font-semibold">{'\u2713'} voted</span>
+        <span className="text-xs text-green-800 font-semibold">{'\u2713'} {tc('voted')}</span>
       )}
     </div>
   );
@@ -317,6 +325,7 @@ function ReplyActivityCard({ item, onNavigate }: ActivityCardProps) {
 }
 
 function NewArgumentActivityCard({ item, onNavigate }: ActivityCardProps) {
+  const tc = useTranslations('common');
   const unseen = !item.viewer?.seen;
   const isPro = item.argument.type === 'PRO';
   const preview = item.argument.body
@@ -332,7 +341,7 @@ function NewArgumentActivityCard({ item, onNavigate }: ActivityCardProps) {
         <FocalAvatar canton={item.actor.canton} color={item.actor.color} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <span className="font-bold text-sm">{item.actor.displayName || 'Anonym'}</span>
+            <span className="font-bold text-sm">{item.actor.displayName || tc('anonymous')}</span>
             <span className="text-xs text-muted-foreground">{formatRelativeTime(item.activityAt)}</span>
             {unseen && (
               <span className="inline-block rounded-full shrink-0" style={{ width: 7, height: 7, backgroundColor: '#0277bd' }} />
@@ -354,6 +363,7 @@ function NewArgumentActivityCard({ item, onNavigate }: ActivityCardProps) {
 }
 
 function MilestoneActivityCard({ item, onNavigate }: ActivityCardProps) {
+  const t = useTranslations('feed');
   const unseen = !item.viewer?.seen;
   return (
     <div
@@ -365,7 +375,7 @@ function MilestoneActivityCard({ item, onNavigate }: ActivityCardProps) {
         <div className="w-10 shrink-0" />
         <div className="flex-1 flex items-center gap-3">
           <span className="text-xs font-semibold text-green-800">
-            {'\ud83c\udf89'} Community approved
+            {'\ud83c\udf89'} {t('communityApproved')}
           </span>
         </div>
         <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
@@ -418,6 +428,8 @@ export default function BallotFeed() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
+  const t = useTranslations('feed');
+  const tc = useTranslations('common');
 
   const [ballot, setBallot] = useState<BallotWithMetadata | null>(null);
   const [ballotLoading, setBallotLoading] = useState(true);
@@ -541,16 +553,16 @@ export default function BallotFeed() {
     return (
       <div className="flex items-center justify-center min-h-[50vh] gap-3">
         <Spinner />
-        <span className="text-muted-foreground">Restoring session...</span>
+        <span className="text-muted-foreground">{tc('restoringSession')}</span>
       </div>
     );
   }
   if (!isAuthenticated || !user) return null;
 
   const emptyMessage: Record<string, string> = {
-    all: 'No activity yet for this ballot.',
-    comments: 'No comment activity yet.',
-    arguments: 'No argument activity yet.',
+    all: t('noActivity'),
+    comments: t('noCommentActivity'),
+    arguments: t('noArgumentActivity'),
   };
 
   return (
@@ -572,7 +584,7 @@ export default function BallotFeed() {
         <Card>
           <CardContent className="flex items-center justify-center py-10 gap-3">
             <Spinner />
-            <span className="text-muted-foreground">Loading ballot...</span>
+            <span className="text-muted-foreground">{t('loadingBallot')}</span>
           </CardContent>
         </Card>
       )}
@@ -580,8 +592,8 @@ export default function BallotFeed() {
       {ballotError && (
         <Alert variant="destructive">
           <AlertDescription className="flex items-center justify-between">
-            <span><strong>Error:</strong> {ballotError}</span>
-            <Button variant="destructive" size="sm" onClick={loadBallot}>Retry</Button>
+            <span><strong>{tc('error')}:</strong> {ballotError}</span>
+            <Button variant="destructive" size="sm" onClick={loadBallot}>{tc('retry')}</Button>
           </AlertDescription>
         </Alert>
       )}
@@ -600,7 +612,6 @@ export default function BallotFeed() {
                   <button
                     type="button"
                     onClick={handleToggleLike}
-                    title={ballot.viewer?.like ? 'Unlike' : 'Like'}
                     className="bg-transparent border-none p-0.5 text-xl cursor-pointer transition-colors duration-200"
                     style={{ color: ballot.viewer?.like ? 'var(--brand)' : '#b0bec5' }}
                   >
@@ -614,7 +625,7 @@ export default function BallotFeed() {
 
               {ballot.record.topic && (
                 <p className="text-sm text-muted-foreground mb-2">
-                  <strong>Topic:</strong> {ballot.record.topic}
+                  <strong>{t('topic')}</strong> {ballot.record.topic}
                 </p>
               )}
 
@@ -628,19 +639,19 @@ export default function BallotFeed() {
 
               <div className="flex justify-between items-center">
                 <div className="text-sm text-muted-foreground">
-                  <strong>Vote Date:</strong> {formatDate(ballot.record.voteDate)}
+                  <strong>{t('voteDate')}</strong> {formatDate(ballot.record.voteDate)}
                 </div>
                 {ballot.record.officialRef && (
-                  <span className="text-xs text-muted-foreground">Ref: {ballot.record.officialRef}</span>
+                  <span className="text-xs text-muted-foreground">{t('ref')} {ballot.record.officialRef}</span>
                 )}
               </div>
 
               <div className="flex gap-4 mt-3 text-xs text-muted-foreground">
                 {(ballot.argumentCount ?? 0) > 0 && (
-                  <span>{ballot.argumentCount} argument{ballot.argumentCount !== 1 ? 's' : ''}</span>
+                  <span>{t('arguments', { count: ballot.argumentCount ?? 0 })}</span>
                 )}
                 {(ballot.commentCount ?? 0) > 0 && (
-                  <span>{ballot.commentCount} comment{ballot.commentCount !== 1 ? 's' : ''}</span>
+                  <span>{t('comments', { count: ballot.commentCount ?? 0 })}</span>
                 )}
               </div>
             </CardContent>
@@ -655,14 +666,14 @@ export default function BallotFeed() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Activity</SelectItem>
-                <SelectItem value="arguments">Arguments</SelectItem>
-                <SelectItem value="comments">Comments</SelectItem>
+                <SelectItem value="all">{t('allActivity')}</SelectItem>
+                <SelectItem value="arguments">{t('argumentsFilter')}</SelectItem>
+                <SelectItem value="comments">{t('commentsFilter')}</SelectItem>
               </SelectContent>
             </Select>
 
             <Button size="sm" className="hidden sm:inline-flex" onClick={() => setShowAddModal(true)}>
-              + Argument
+              {t('plusArgument')}
             </Button>
           </div>
 
@@ -679,7 +690,7 @@ export default function BallotFeed() {
               <Card>
                 <CardContent className="flex items-center justify-center py-10 gap-3">
                   <Spinner />
-                  <span className="text-muted-foreground">Loading activity...</span>
+                  <span className="text-muted-foreground">{t('loadingActivity')}</span>
                 </CardContent>
               </Card>
             ) : activities.length === 0 ? (
@@ -698,7 +709,7 @@ export default function BallotFeed() {
                       onClick={() => loadActivities(filter, false)}
                       disabled={loadingMore}
                     >
-                      {loadingMore ? 'Loading...' : 'Load More'}
+                      {loadingMore ? tc('loading') : t('loadMore')}
                     </Button>
                   </div>
                 )}

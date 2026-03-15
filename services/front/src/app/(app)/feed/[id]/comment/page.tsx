@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/AuthContext';
 import { getComment, listComments, createComment } from '@/lib/agent';
 import { likeContent, unlikeContent } from '@/lib/ballots';
@@ -52,6 +53,7 @@ function CommentNode({
   onReply: (parentUri: string) => void;
   onNavigate: (uri: string) => void;
 }) {
+  const tc = useTranslations('common');
   const indent = typeof window !== 'undefined' && window.innerWidth < 640 ? 16 : 24;
   const isExtern = comment.origin === 'extern';
   const liked = !!comment.viewer?.like;
@@ -74,11 +76,11 @@ function CommentNode({
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground">
               {isExtern
-                ? (comment.author.handle || comment.author.displayName || 'Bluesky')
-                : (comment.author.displayName || 'Anonym')}
+                ? (comment.author.handle || comment.author.displayName || tc('bluesky'))
+                : (comment.author.displayName || tc('anonymous'))}
             </span>
             {isExtern && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Bluesky</Badge>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{tc('bluesky')}</Badge>
             )}
             <span>{comment.record.createdAt ? formatRelativeTime(comment.record.createdAt) : ''}</span>
           </div>
@@ -98,7 +100,7 @@ function CommentNode({
                 onClick={(e) => { e.stopPropagation(); onReply(comment.uri); }}
                 className="bg-transparent border-none p-0 cursor-pointer text-xs text-muted-foreground"
               >
-                {'\ud83d\udcac'} Reply
+                {'\ud83d\udcac'} {tc('reply')}
               </button>
             )}
           </div>
@@ -156,6 +158,7 @@ function ArgumentContextBox({
 // ---------------------------------------------------------------------------
 
 function AncestorStrip({ comment, indent, onNavigate }: { comment: CommentWithMetadata; indent: number; onNavigate: (uri: string) => void }) {
+  const tc = useTranslations('common');
   const isExtern = comment.origin === 'extern';
   const truncated = comment.record.body.length > 80
     ? comment.record.body.slice(0, 80) + '...'
@@ -173,8 +176,8 @@ function AncestorStrip({ comment, indent, onNavigate }: { comment: CommentWithMe
         }
         <span className="font-semibold text-foreground whitespace-nowrap">
           {isExtern
-            ? (comment.author.handle || comment.author.displayName || 'Bluesky')
-            : (comment.author.displayName || 'Anonym')}:
+            ? (comment.author.handle || comment.author.displayName || tc('bluesky'))
+            : (comment.author.displayName || tc('anonymous'))}:
         </span>
         <span className="overflow-hidden text-ellipsis whitespace-nowrap flex-1">
           {truncated}
@@ -211,6 +214,8 @@ export default function CommentDetailPage() {
   const searchParams = useSearchParams();
   const id = params.id as string;
   const commentUri = searchParams.get('uri') ?? '';
+  const t = useTranslations('commentDetail');
+  const tc = useTranslations('common');
 
   const [focalComment, setFocalComment] = useState<CommentWithMetadata | null>(null);
   const [argument, setArgument] = useState<ArgumentInfo | null>(null);
@@ -358,7 +363,7 @@ export default function CommentDetailPage() {
     return (
       <div className="flex items-center justify-center min-h-[50vh] gap-3">
         <Spinner />
-        <span className="text-muted-foreground">Restoring session...</span>
+        <span className="text-muted-foreground">{tc('restoringSession')}</span>
       </div>
     );
   }
@@ -367,12 +372,12 @@ export default function CommentDetailPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <Button variant="outline" size="sm" onClick={() => router.push(`/feed/${id}`)}>
-        &larr; Back to Activity Feed
+        &larr; {t('backToFeed')}
       </Button>
 
       {error && (
         <Alert variant="destructive">
-          <AlertDescription><strong>Error:</strong> {error}</AlertDescription>
+          <AlertDescription><strong>{tc('error')}:</strong> {error}</AlertDescription>
         </Alert>
       )}
 
@@ -380,7 +385,7 @@ export default function CommentDetailPage() {
         <Card>
           <CardContent className="flex items-center justify-center py-10 gap-3">
             <Spinner />
-            <span className="text-muted-foreground">Loading comment...</span>
+            <span className="text-muted-foreground">{t('loadingComment')}</span>
           </CardContent>
         </Card>
       )}
@@ -397,7 +402,7 @@ export default function CommentDetailPage() {
           <Card>
             <CardContent className="pt-5">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 border-b pb-2">
-                Thread
+                {t('thread')}
               </div>
 
               {ancestors.map((ancestor, idx) => (
@@ -417,8 +422,8 @@ export default function CommentDetailPage() {
                     <div>
                       <div className="font-semibold text-sm">
                         {focalComment.origin === 'extern'
-                          ? (focalComment.author.handle || focalComment.author.displayName || 'Bluesky')
-                          : (focalComment.author.displayName || 'Anonym')}
+                          ? (focalComment.author.handle || focalComment.author.displayName || tc('bluesky'))
+                          : (focalComment.author.displayName || tc('anonymous'))}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {focalComment.record.createdAt ? formatRelativeTime(focalComment.record.createdAt) : ''}
@@ -441,7 +446,7 @@ export default function CommentDetailPage() {
                       onClick={handleReply}
                       className="bg-transparent border-none p-0 cursor-pointer text-xs text-primary font-semibold"
                     >
-                      {'\ud83d\udcac'} Reply
+                      {'\ud83d\udcac'} {tc('reply')}
                     </button>
                   </div>
                 </div>
@@ -466,14 +471,14 @@ export default function CommentDetailPage() {
 
           <Card>
             <CardContent className="pt-4 pb-3">
-              <div className="text-xs text-muted-foreground mb-1.5">Reply to this comment:</div>
+              <div className="text-xs text-muted-foreground mb-1.5">{t('replyToComment')}</div>
               <ReplyInput
                 ref={replyInputRef}
                 value={replyText}
                 onChange={setReplyText}
                 onSubmit={handleSubmitReply}
                 submitting={submitting}
-                placeholder="Write a reply..."
+                placeholder={t('replyPlaceholder')}
               />
             </CardContent>
           </Card>

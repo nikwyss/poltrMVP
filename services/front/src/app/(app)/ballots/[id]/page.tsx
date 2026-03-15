@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/AuthContext';
 import { getBallot, listArguments } from '@/lib/agent';
 import { likeBallot, unlikeBallot } from '@/lib/ballots';
@@ -26,6 +27,7 @@ function ArgumentCard({
   type: 'PRO' | 'CONTRA';
   onClick: () => void;
 }) {
+  const tc = useTranslations('common');
   const borderColor = type === 'PRO' ? 'var(--green)' : 'var(--red)';
   return (
     <div
@@ -52,7 +54,7 @@ function ArgumentCard({
         )}
         <ReviewStatusBadge status={arg.reviewStatus} />
         <span className="ml-auto text-[11.5px] text-[var(--text-faint)] rounded-[var(--r-full)] px-2.5 py-0.5 font-medium border border-transparent hover:border-[var(--line)] hover:bg-[var(--surface-up)] hover:text-[var(--text-mid)] transition-all cursor-pointer">
-          {'\u2191'} Hilfreich
+          {'\u2191'} {tc('helpful')}
         </span>
       </div>
     </div>
@@ -64,6 +66,9 @@ export default function BallotDetail() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
+  const t = useTranslations('ballotDetail');
+  const tb = useTranslations('ballots');
+  const tc = useTranslations('common');
 
   const [ballot, setBallot] = useState<BallotWithMetadata | null>(null);
   const [arguments_, setArguments] = useState<ArgumentWithMetadata[]>([]);
@@ -139,7 +144,7 @@ export default function BallotDetail() {
     return (
       <div className="flex items-center justify-center min-h-[50vh] gap-3">
         <Spinner />
-        <span className="text-muted-foreground">Restoring session...</span>
+        <span className="text-muted-foreground">{tc('restoringSession')}</span>
       </div>
     );
   }
@@ -155,7 +160,7 @@ export default function BallotDetail() {
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 pt-5 text-xs label">
         <a href="/ballots" onClick={(e) => { e.preventDefault(); router.push('/ballots'); }} className="text-[var(--text-mid)] hover:text-[var(--text)] transition-colors no-underline">
-          Ballots
+          {t('breadcrumbBallots')}
         </a>
         <span className="opacity-35">/</span>
         <span className="text-[var(--text)] font-semibold truncate">{ballot?.record.title ?? '...'}</span>
@@ -168,7 +173,7 @@ export default function BallotDetail() {
         <Card>
           <CardContent className="flex items-center justify-center py-10 gap-3">
             <Spinner />
-            <span className="text-muted-foreground">Loading ballot...</span>
+            <span className="text-muted-foreground">{t('loadingBallot')}</span>
           </CardContent>
         </Card>
       )}
@@ -176,8 +181,8 @@ export default function BallotDetail() {
       {error && (
         <Alert variant="destructive">
           <AlertDescription className="flex items-center justify-between">
-            <span><strong>Error:</strong> {error}</span>
-            <Button variant="destructive" size="sm" onClick={loadData}>Retry</Button>
+            <span><strong>{tc('error')}:</strong> {error}</span>
+            <Button variant="destructive" size="sm" onClick={loadData}>{tc('retry')}</Button>
           </AlertDescription>
         </Alert>
       )}
@@ -210,10 +215,10 @@ export default function BallotDetail() {
                 </button>
                 <div className="flex gap-1.5">
                   {(ballot.argumentCount ?? 0) > 0 && (
-                    <span className="tag">{ballot.argumentCount} Argumente</span>
+                    <span className="tag">{tb('arguments', { count: ballot.argumentCount ?? 0 })}</span>
                   )}
                   {(ballot.commentCount ?? 0) > 0 && (
-                    <span className="tag">{ballot.commentCount} Kommentare</span>
+                    <span className="tag">{tb('comments', { count: ballot.commentCount ?? 0 })}</span>
                   )}
                 </div>
               </div>
@@ -231,10 +236,10 @@ export default function BallotDetail() {
                 <div className="flex justify-between mb-2">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--green)]">
                     <span className="inline-block size-[7px] rounded-sm bg-[var(--green)]" />
-                    Pro — {proArgs.length}
+                    {tc('pro')} — {proArgs.length}
                   </div>
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--red)]">
-                    Contra — {contraArgs.length}
+                    {tc('contra')} — {contraArgs.length}
                     <span className="inline-block size-[7px] rounded-sm bg-[var(--red)]" />
                   </div>
                 </div>
@@ -254,15 +259,15 @@ export default function BallotDetail() {
 
           {/* Section bar */}
           <div className="section-bar animate-fade-up" style={{ animationDelay: '0.1s' }}>
-            <h2>Argumente</h2>
+            <h2>{t('arguments')}</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 animate-fade-up" style={{ gap: 'var(--gap)', animationDelay: '0.15s' }}>
             {/* Pro column */}
             <div className="flex flex-col" style={{ gap: 'calc(var(--gap) - 6px)' }}>
               <div className="col-pill pro">
-                <span className="eyebrow text-[var(--green)]">Pro</span>
-                <span className="text-[11px] font-medium text-[var(--green)] opacity-60">{proArgs.length} Argumente</span>
+                <span className="eyebrow text-[var(--green)]">{tc('pro')}</span>
+                <span className="text-[11px] font-medium text-[var(--green)] opacity-60">{t('proArguments', { count: proArgs.length })}</span>
               </div>
               {proArgs.map((arg, i) => (
                 <ArgumentCard
@@ -274,16 +279,16 @@ export default function BallotDetail() {
                 />
               ))}
               {proArgs.length === 0 && (
-                <p className="text-sm text-[var(--text-mid)] px-1 py-4">Noch keine Pro-Argumente.</p>
+                <p className="text-sm text-[var(--text-mid)] px-1 py-4">{t('noProArguments')}</p>
               )}
-              <button type="button" className="btn-dashed">+ Argument hinzufügen</button>
+              <button type="button" className="btn-dashed">{t('addArgument')}</button>
             </div>
 
             {/* Contra column */}
             <div className="flex flex-col" style={{ gap: 'calc(var(--gap) - 6px)' }}>
               <div className="col-pill contra">
-                <span className="eyebrow text-[var(--red)]">Contra</span>
-                <span className="text-[11px] font-medium text-[var(--red)] opacity-60">{contraArgs.length} Argumente</span>
+                <span className="eyebrow text-[var(--red)]">{tc('contra')}</span>
+                <span className="text-[11px] font-medium text-[var(--red)] opacity-60">{t('proArguments', { count: contraArgs.length })}</span>
               </div>
               {contraArgs.map((arg, i) => (
                 <ArgumentCard
@@ -295,16 +300,16 @@ export default function BallotDetail() {
                 />
               ))}
               {contraArgs.length === 0 && (
-                <p className="text-sm text-[var(--text-mid)] px-1 py-4">Noch keine Contra-Argumente.</p>
+                <p className="text-sm text-[var(--text-mid)] px-1 py-4">{t('noContraArguments')}</p>
               )}
-              <button type="button" className="btn-dashed">+ Argument hinzufügen</button>
+              <button type="button" className="btn-dashed">{t('addArgument')}</button>
             </div>
           </div>
 
           {arguments_.length === 0 && !loading && (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground">
-                Es wurden noch keine Argumente eingereicht.
+                {t('noArguments')}
               </CardContent>
             </Card>
           )}
