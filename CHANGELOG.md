@@ -2,6 +2,13 @@
 
 ## 2026-03-15
 
+### Short code authentication (`services/appview`, `services/front`, `infra`)
+- **Short code alongside magic link**: users now receive a 6-character code in the login/registration email as an alternative to clicking the magic link
+- **New endpoint `ch.poltr.auth.verifyShortCode`**: accepts `{email, code, purpose}`, with atomic failed-attempt tracking (max 5), constant-time comparison, and rate limiting
+- **Updated email template**: shows short code in large monospaced font alongside the existing magic link
+- **Frontend code input UI**: added to the "check your email" page with character filtering (no ambiguous chars 0/O/1/I/L), error display with remaining attempts
+- **DB schema**: added `short_code` and `failed_attempts` columns to `auth_pending_logins` and `auth_pending_registrations`
+
 ### Frontend translations (`services/front`)
 - Added multilingual translation support to the frontend
 

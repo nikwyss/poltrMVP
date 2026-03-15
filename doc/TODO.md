@@ -5,6 +5,7 @@
 - [ ] Implement argument posting functionality
 - [ ] Arguments / Peer review
 - [ ] Testing
+- [ ] Missing: per-email rate limit on code requests
 
 ## VISION
 - [ ] Translations: translations only in the appviev

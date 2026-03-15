@@ -55,7 +55,14 @@
     "sentConfirmation": "We've sent a confirmation link to:",
     "sentMagic": "We've sent a magic link to:",
     "clickToRegister": "Click the link in the email to complete your registration. The link will expire in 30 minutes.",
-    "clickToLogin": "Click the link in the email to log in. The link will expire in 15 minutes."
+    "clickToLogin": "Click the link in the email to log in. The link will expire in 15 minutes.",
+    "orEnterCode": "Or enter your 6-character code:",
+    "codePlaceholder": "e.g. A3B7KM",
+    "verifyCode": "Verify Code",
+    "verifying": "Verifying...",
+    "invalidCode": "Invalid code. {remaining} attempts remaining.",
+    "invalidCodeGeneric": "Invalid or expired code.",
+    "tooManyAttempts": "Too many failed attempts. Please request a new code."
   },
   "verifyLogin": {
     "invalidToken": "Invalid or missing token",

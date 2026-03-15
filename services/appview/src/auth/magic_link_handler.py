@@ -1,11 +1,22 @@
+import hmac
 import secrets
 import json
 import os
 from datetime import datetime, timedelta
+from typing import Literal
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 import src.lib.db as db
 from src.lib.email_service import email_service
+
+# Short code config: no ambiguous chars (0/O, 1/I/L)
+SHORT_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+SHORT_CODE_LENGTH = 6
+MAX_FAILED_ATTEMPTS = 5
+
+
+def generate_short_code() -> str:
+    return "".join(secrets.choice(SHORT_CODE_ALPHABET) for _ in range(SHORT_CODE_LENGTH))
 
 
 class SendMagicLinkData(BaseModel):
@@ -18,6 +29,12 @@ class VerifyLoginMagicLinkData(BaseModel):
 
 class VerifyRegistrationMagicLinkData(BaseModel):
     token: str
+
+
+class VerifyShortCodeData(BaseModel):
+    email: EmailStr
+    code: str
+    purpose: Literal["login", "registration"] = "login"
 
 
 async def send_magic_link_handler(data: SendMagicLinkData):
@@ -44,8 +61,9 @@ async def send_magic_link_handler(data: SendMagicLinkData):
                     },
                 )
 
-        # Generate secure random token
+        # Generate secure random token and short code
         token = secrets.token_urlsafe(32)
+        short_code = generate_short_code()
 
         # Set expiration to 15 minutes from now
         expires_at = datetime.utcnow() + timedelta(minutes=15)
@@ -54,18 +72,19 @@ async def send_magic_link_handler(data: SendMagicLinkData):
         async with db.pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO auth_pending_logins (email, token, expires_at)
-                VALUES ($1, $2, $3)
+                INSERT INTO auth_pending_logins (email, token, short_code, expires_at)
+                VALUES ($1, $2, $3, $4)
                 """,
                 email,
                 token,
+                short_code,
                 expires_at,
             )
 
-        # Send email
-        # success = email_service.send_magic_link(email, token)
-
-        success = email_service.send_confirmation_link(email, token, purpose="login")
+        # Send email with magic link and short code
+        success = email_service.send_confirmation_link(
+            email, token, purpose="login", short_code=short_code
+        )
 
         # send_magic_link
 
@@ -176,3 +195,61 @@ async def verify_registration_magic_link_handler(
         await conn.execute("DELETE FROM auth_pending_registrations WHERE id = $1", row["id"])
 
         return email
+
+
+async def verify_short_code_handler(
+    data: VerifyShortCodeData,
+) -> JSONResponse | str | None:
+    """Verify a 6-character short code for login or registration."""
+    if db.pool is None:
+        await db.init_pool()
+
+    code = data.code.upper().strip()
+    email = data.email.lower()
+    table = "auth_pending_logins" if data.purpose == "login" else "auth_pending_registrations"
+
+    async with db.pool.acquire() as conn:
+        # Atomic increment and return — prevents race conditions
+        row = await conn.fetchrow(
+            f"""
+            UPDATE {table}
+            SET failed_attempts = failed_attempts + 1
+            WHERE email = $1 AND short_code IS NOT NULL AND expires_at > now()
+            RETURNING id, short_code, failed_attempts
+            """,
+            email,
+        )
+
+        if not row:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "invalid_code", "message": "Invalid or expired code"},
+            )
+
+        # Check if too many attempts (already incremented)
+        if row["failed_attempts"] > MAX_FAILED_ATTEMPTS:
+            await conn.execute(f"DELETE FROM {table} WHERE id = $1", row["id"])
+            return JSONResponse(
+                status_code=400,
+                content={"error": "too_many_attempts", "message": "Too many failed attempts. Please request a new code."},
+            )
+
+        # Constant-time comparison
+        if not hmac.compare_digest(row["short_code"].upper(), code):
+            remaining = MAX_FAILED_ATTEMPTS - row["failed_attempts"]
+            if remaining <= 0:
+                await conn.execute(f"DELETE FROM {table} WHERE id = $1", row["id"])
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "invalid_code",
+                    "message": "Invalid code",
+                    "remaining_attempts": max(remaining, 0),
+                },
+            )
+
+        # Success — delete row (invalidates both magic link and short code)
+        result = await conn.fetchrow(
+            f"DELETE FROM {table} WHERE id = $1 RETURNING email", row["id"]
+        )
+        return result["email"] if result else None

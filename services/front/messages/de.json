@@ -55,7 +55,14 @@
     "sentConfirmation": "Wir haben einen Bestätigungslink gesendet an:",
     "sentMagic": "Wir haben einen Magic Link gesendet an:",
     "clickToRegister": "Klicke auf den Link in der E-Mail, um deine Registrierung abzuschliessen. Der Link ist 30 Minuten gültig.",
-    "clickToLogin": "Klicke auf den Link in der E-Mail, um dich anzumelden. Der Link ist 15 Minuten gültig."
+    "clickToLogin": "Klicke auf den Link in der E-Mail, um dich anzumelden. Der Link ist 15 Minuten gültig.",
+    "orEnterCode": "Oder gib deinen 6-stelligen Code ein:",
+    "codePlaceholder": "z.B. A3B7KM",
+    "verifyCode": "Code bestätigen",
+    "verifying": "Wird überprüft...",
+    "invalidCode": "Ungültiger Code. {remaining} Versuche übrig.",
+    "invalidCodeGeneric": "Ungültiger oder abgelaufener Code.",
+    "tooManyAttempts": "Zu viele Fehlversuche. Bitte fordere einen neuen Code an."
   },
   "verifyLogin": {
     "invalidToken": "Ungültiger oder fehlender Token",

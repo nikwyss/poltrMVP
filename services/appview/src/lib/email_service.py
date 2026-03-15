@@ -20,8 +20,9 @@ class EmailService:
         to_email: str,
         token: str,
         purpose: Literal["registration", "login"] = "registration",
+        short_code: str | None = None,
     ) -> bool:
-        """Send a confirmation link for registration or other purposes"""
+        """Send a confirmation link (and optional short code) for registration or login"""
         try:
             if purpose == "registration":
                 link = f"{self.frontend_url}/auth/verify-registration?token={token}"
@@ -36,6 +37,20 @@ class EmailService:
             else:
                 raise ValueError("Invalid purpose for confirmation link")
 
+            short_code_html = ""
+            short_code_text = ""
+            if short_code:
+                spaced = " ".join(short_code)
+                short_code_html = f"""
+                    <p style="margin-top: 24px; color: #666;">Or enter this code on the login page:</p>
+                    <p style="font-size: 32px; font-family: monospace; letter-spacing: 8px;
+                              font-weight: bold; text-align: center; padding: 16px;
+                              background: #f5f5f5; border-radius: 8px; margin: 8px 0;">
+                        {spaced}
+                    </p>
+                """
+                short_code_text = f"\n            Or enter this code: {short_code}\n"
+
             html_body = f"""
             <html>
                 <body>
@@ -44,6 +59,7 @@ class EmailService:
                     <p><a href="{link}" style="background-color: #0085ff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">{action_text}</a></p>
                     <p>Or copy and paste this link in your browser:</p>
                     <p>{link}</p>
+                    {short_code_html}
                     <p>This link will expire in {expiry_text}.</p>
                     <p>If you didn't request this, you can safely ignore this email.</p>
                 </body>
@@ -55,7 +71,7 @@ class EmailService:
 
             Click the link below to {action_text.lower()}:
             {link}
-
+            {short_code_text}
             This link will expire in {expiry_text}.
             If you didn't request this, you can safely ignore this email.
             """
@@ -88,6 +104,8 @@ class EmailService:
                 print(f"EMAIL LINK (dev mode - localhost or no SMTP configured):")
                 print(f"Email: {to_email}")
                 print(f"Link: {link}")
+                if short_code:
+                    print(f"Short Code: {short_code}")
                 print(f"{'='*60}\n")
 
             return True

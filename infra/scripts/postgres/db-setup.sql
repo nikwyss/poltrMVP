@@ -201,28 +201,34 @@ CREATE INDEX idx_auth_sessions_did ON auth.auth_sessions (did);
 CREATE INDEX idx_auth_sessions_expires_at ON auth.auth_sessions (expires_at);
 
 CREATE TABLE auth.auth_pending_logins (
-  id         serial PRIMARY KEY,
-  email      varchar(255) NOT NULL,
-  token      varchar(64) NOT NULL UNIQUE,
-  expires_at timestamp NOT NULL,
-  created_at timestamp DEFAULT now()
+  id              serial PRIMARY KEY,
+  email           varchar(255) NOT NULL,
+  token           varchar(64) NOT NULL UNIQUE,
+  short_code      varchar(6),
+  failed_attempts integer NOT NULL DEFAULT 0,
+  expires_at      timestamp NOT NULL,
+  created_at      timestamp DEFAULT now()
 );
 
 CREATE INDEX idx_auth_pending_logins_token ON auth.auth_pending_logins (token);
 CREATE INDEX idx_auth_pending_logins_email ON auth.auth_pending_logins (email);
 CREATE INDEX idx_auth_pending_logins_expires_at ON auth.auth_pending_logins (expires_at);
+CREATE UNIQUE INDEX idx_auth_pending_logins_short_code ON auth.auth_pending_logins (short_code) WHERE short_code IS NOT NULL;
 
 CREATE TABLE auth.auth_pending_registrations (
-  id         serial PRIMARY KEY,
-  email      varchar(255) NOT NULL UNIQUE,
-  token      varchar(64) NOT NULL UNIQUE,
-  expires_at timestamp NOT NULL,
-  created_at timestamp DEFAULT now()
+  id              serial PRIMARY KEY,
+  email           varchar(255) NOT NULL UNIQUE,
+  token           varchar(64) NOT NULL UNIQUE,
+  short_code      varchar(6),
+  failed_attempts integer NOT NULL DEFAULT 0,
+  expires_at      timestamp NOT NULL,
+  created_at      timestamp DEFAULT now()
 );
 
 CREATE INDEX idx_auth_pending_registrations_token ON auth.auth_pending_registrations (token);
 CREATE INDEX idx_auth_pending_registrations_email ON auth.auth_pending_registrations (email);
 CREATE INDEX idx_auth_pending_registrations_expires_at ON auth.auth_pending_registrations (expires_at);
+CREATE UNIQUE INDEX idx_auth_pending_registrations_short_code ON auth.auth_pending_registrations (short_code) WHERE short_code IS NOT NULL;
 
 CREATE TABLE auth.mountain_templates (
   id        serial PRIMARY KEY,

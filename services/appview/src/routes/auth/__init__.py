@@ -17,10 +17,13 @@ import src.lib.db as db
 from src.auth.magic_link_handler import (
     VerifyLoginMagicLinkData,
     VerifyRegistrationMagicLinkData,
+    VerifyShortCodeData,
     send_magic_link_handler,
     verify_login_magic_link_handler,
     SendMagicLinkData,
     verify_registration_magic_link_handler,
+    verify_short_code_handler,
+    generate_short_code,
 )
 from src.lib.atproto_api import pds_create_app_password, pds_set_birthdate
 from src.lib.fastapi import limiter
@@ -71,6 +74,7 @@ async def register(request: Request):
     from datetime import datetime, timedelta
 
     token = secrets.token_urlsafe(32)
+    short_code = generate_short_code()
     expires_at = datetime.utcnow() + timedelta(minutes=30)
 
     if not await check_email_availability(email=email):
@@ -92,12 +96,13 @@ async def register(request: Request):
         async with db.pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO auth_pending_registrations (email, token, expires_at)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (email) DO UPDATE SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at
+                INSERT INTO auth_pending_registrations (email, token, short_code, expires_at)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (email) DO UPDATE SET token = EXCLUDED.token, short_code = EXCLUDED.short_code, failed_attempts = 0, expires_at = EXCLUDED.expires_at
                 """,
                 email,
                 token,
+                short_code,
                 expires_at,
             )
     except Exception as e:
@@ -110,7 +115,7 @@ async def register(request: Request):
         from src.lib.email_service import email_service
 
         success = email_service.send_confirmation_link(
-            email, token, purpose="registration"
+            email, token, purpose="registration", short_code=short_code
         )
         if not success:
             return JSONResponse(
@@ -154,6 +159,35 @@ async def confirm_registration(request: Request, data: VerifyRegistrationMagicLi
         )
 
     return await create_account(user_email=response)
+
+
+@router.post("/ch.poltr.auth.verifyShortCode")
+@limiter.limit("10/minute")
+async def verify_short_code(request: Request, data: VerifyShortCodeData):
+    """Verify a 6-character short code for login or registration."""
+    response = await verify_short_code_handler(data)
+
+    if isinstance(response, JSONResponse):
+        return response
+
+    if response is None:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "invalid_code", "message": "Invalid code"},
+        )
+
+    if data.purpose == "registration":
+        if not await check_email_availability(email=response):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "email_taken",
+                    "message": "An account with this email already exists",
+                },
+            )
+        return await create_account(user_email=response)
+    else:
+        return await login_pds_account(user_email=response)
 
 
 @router.get("/ch.poltr.auth.session")
