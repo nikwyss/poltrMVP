@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-03-15
+
+### Frontend translations (`services/front`)
+- Added multilingual translation support to the frontend
+
 ## 2026-03-08
 
 ### Argument reimport to governance repo (`infra`)
