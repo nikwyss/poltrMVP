@@ -2,7 +2,7 @@
 
 import { useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
-import { Globe } from "lucide-react";
+import { LanguageIcon } from "@/components/icons/language-icon";
 import { locales, localeLabels, type Locale } from "@/i18n/config";
 import {
   DropdownMenu,
@@ -28,7 +28,7 @@ export function LocaleSwitcher() {
           type="button"
           className="flex items-center justify-center size-[28px] rounded-[var(--r-sm)] border border-[var(--line)] bg-[var(--surface)] text-[var(--text-mid)] hover:bg-accent hover:border-[var(--line-mid)] transition-colors cursor-pointer"
         >
-          <Globe className="h-3.5 w-3.5" />
+          <LanguageIcon className="h-3.5 w-3.5" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[140px]">
