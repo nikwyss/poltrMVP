@@ -23,8 +23,8 @@ async def verify_session_token(
 ) -> TSession:
     """Verify session token from Cookie or Authorization header"""
 
-    print(f"Auth header: {authorization}")
-    print(f"Session cookie: {session_token}")
+    # print(f"Auth header: {authorization}")
+    # print(f"Session cookie: {session_token}")
 
     # Try cookie first (more secure), then Authorization header (for API clients)
     token = session_token or (
@@ -56,7 +56,9 @@ async def verify_session_token(
         # Check if session expired
         if datetime.utcnow() > row["expires_at"]:
             # Clean up expired session
-            await conn.execute("DELETE FROM auth_sessions WHERE session_token = $1", token)
+            await conn.execute(
+                "DELETE FROM auth_sessions WHERE session_token = $1", token
+            )
             raise HTTPException(status_code=401, detail="Session expired")
 
         # Update last accessed time and extend session (sliding window)

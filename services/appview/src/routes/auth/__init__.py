@@ -164,7 +164,7 @@ async def check_session(
     return JSONResponse(content={
         "authenticated": True,
         "did": session.did,
-        "handle": session.user_data.get("handle", "") if session.user_data else "",
+        "handle": session.user.get("handle", "") if session.user else "",
     })
 
 
