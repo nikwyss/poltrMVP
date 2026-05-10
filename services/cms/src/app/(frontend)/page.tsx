@@ -1,4 +1,5 @@
 import React from 'react'
+import Link from 'next/link'
 import './styles.css'
 
 export default function HomePage() {
@@ -10,9 +11,9 @@ export default function HomePage() {
           This is an internal content management system.
         </p>
         <div className="links">
-          <a className="admin" href="/admin">
+          <Link className="admin" href="/admin">
             Admin Panel
-          </a>
+          </Link>
         </div>
       </div>
     </div>
