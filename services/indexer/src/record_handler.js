@@ -16,14 +16,31 @@ import {
   markReviewResponseDeleted,
 } from "./db.js";
 
-const GOVERNANCE_DID = process.env.PDS_GOVERNANCE_ACCOUNT_DID || "";
-
 const COLLECTION_BALLOT = "app.ch.poltr.ballot.entry";
 const COLLECTION_ARGUMENT = "app.ch.poltr.ballot.argument";
 const COLLECTION_RATING = "app.ch.poltr.content.rating";
 const COLLECTION_COMMENT = "app.ch.poltr.comment";
 const COLLECTION_REVIEW_INVITATION = "app.ch.poltr.review.invitation";
 const COLLECTION_REVIEW_RESPONSE = "app.ch.poltr.review.response";
+
+// Per-ballot governance accounts: loaded from DB
+let governanceDids = new Set();
+
+export async function refreshGovernanceDids() {
+  try {
+    const res = await pool.query("SELECT did FROM governance_accounts");
+    governanceDids = new Set(res.rows.map((r) => r.did));
+    console.log(
+      `Refreshed governance DIDs: ${governanceDids.size} account(s)`,
+    );
+  } catch (err) {
+    console.error("Failed to refresh governance DIDs:", err.message);
+  }
+}
+
+function isGovernanceDid(did) {
+  return governanceDids.has(did);
+}
 
 export const handleEvent = async (evt) => {
   const collection = evt.collection;
@@ -48,7 +65,7 @@ export const handleEvent = async (evt) => {
   const action = evt.event;
 
   if (collection === COLLECTION_BALLOT) {
-    if (GOVERNANCE_DID && did !== GOVERNANCE_DID) {
+    if (!isGovernanceDid(did)) {
       console.log(`Ignoring ballots from non-governance repo: ${did}`);
       return;
     }
@@ -64,7 +81,7 @@ export const handleEvent = async (evt) => {
   }
 
   if (collection === COLLECTION_ARGUMENT) {
-    if (GOVERNANCE_DID && did !== GOVERNANCE_DID) {
+    if (!isGovernanceDid(did)) {
       console.log(`Ignoring argument from non-governance repo: ${did}`);
       return;
     }
@@ -104,7 +121,7 @@ export const handleEvent = async (evt) => {
   }
 
   if (collection === COLLECTION_REVIEW_INVITATION) {
-    if (GOVERNANCE_DID && did !== GOVERNANCE_DID) {
+    if (!isGovernanceDid(did)) {
       console.log(
         `Ignoring review invitation from non-governance repo: ${did}`,
       );

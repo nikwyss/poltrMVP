@@ -192,7 +192,6 @@ CREATE TABLE auth.auth_sessions (
   created_at       timestamp DEFAULT now(),
   last_accessed_at timestamp DEFAULT now(),
   access_token     text,
-  refresh_token    text,
   did              varchar(255)
 );
 
@@ -236,6 +235,20 @@ CREATE TABLE auth.mountain_templates (
   fullname  varchar(250),
   canton    varchar(20) NOT NULL,
   height    numeric(7,1) NOT NULL
+);
+
+-- =============================================================================
+-- Governance accounts: per-ballot PDS accounts (appview r/w, indexer read)
+-- =============================================================================
+
+CREATE TABLE governance_accounts (
+  did               text PRIMARY KEY,
+  handle            text NOT NULL,
+  ballot_rkey       text UNIQUE,
+  ballot_uri        text UNIQUE,
+  pw_ciphertext     bytea NOT NULL,        -- encrypted with APPVIEW_PDS_CREDS_MASTER_KEY_B64
+  pw_nonce          bytea NOT NULL,
+  created_at        timestamptz NOT NULL DEFAULT now()
 );
 
 -- =============================================================================

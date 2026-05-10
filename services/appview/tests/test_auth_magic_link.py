@@ -26,7 +26,7 @@ async def test_send_magic_link_success():
     pool = FakePool(store)
 
     with (
-        patch("src.lib.db.pool", pool),
+        patch("src.core.db.pool", pool),
         patch("src.auth.magic_link_handler.email_service") as mock_email,
     ):
         mock_email.send_confirmation_link = MagicMock(return_value=True)
@@ -50,7 +50,7 @@ async def test_send_magic_link_unknown_email():
     """Should return 404 when no account exists for the email."""
     pool = FakePool({"auth_creds": []})
 
-    with patch("src.lib.db.pool", pool):
+    with patch("src.core.db.pool", pool):
         from src.auth.magic_link_handler import (
             SendMagicLinkData,
             send_magic_link_handler,
@@ -72,7 +72,7 @@ async def test_send_magic_link_email_failure():
     pool = FakePool(store)
 
     with (
-        patch("src.lib.db.pool", pool),
+        patch("src.core.db.pool", pool),
         patch("src.auth.magic_link_handler.email_service") as mock_email,
     ):
         mock_email.send_confirmation_link = MagicMock(return_value=False)
@@ -99,7 +99,7 @@ async def test_verify_login_valid_token():
     row = make_pending_login_row(email="user@test.com", token="good-token")
     pool = FakePool({"auth_pending_logins": [row]})
 
-    with patch("src.lib.db.pool", pool):
+    with patch("src.core.db.pool", pool):
         from src.auth.magic_link_handler import (
             VerifyLoginMagicLinkData,
             verify_login_magic_link_handler,
@@ -124,7 +124,7 @@ async def test_verify_login_invalid_token():
     """Unknown token should return 400."""
     pool = FakePool({"auth_pending_logins": []})
 
-    with patch("src.lib.db.pool", pool):
+    with patch("src.core.db.pool", pool):
         from src.auth.magic_link_handler import (
             VerifyLoginMagicLinkData,
             verify_login_magic_link_handler,
@@ -144,7 +144,7 @@ async def test_verify_login_expired_token():
     row = make_pending_login_row(token="expired-token", expired=True)
     pool = FakePool({"auth_pending_logins": [row]})
 
-    with patch("src.lib.db.pool", pool):
+    with patch("src.core.db.pool", pool):
         from src.auth.magic_link_handler import (
             VerifyLoginMagicLinkData,
             verify_login_magic_link_handler,
@@ -170,7 +170,7 @@ async def test_verify_registration_valid_token():
     row = make_pending_registration_row(email="new@test.com", token="reg-token")
     pool = FakePool({"auth_pending_registrations": [row]})
 
-    with patch("src.lib.db.pool", pool):
+    with patch("src.core.db.pool", pool):
         from src.auth.magic_link_handler import (
             VerifyRegistrationMagicLinkData,
             verify_registration_magic_link_handler,
@@ -193,7 +193,7 @@ async def test_verify_registration_invalid_token():
     """Unknown registration token should return 400."""
     pool = FakePool({"auth_pending_registrations": []})
 
-    with patch("src.lib.db.pool", pool):
+    with patch("src.core.db.pool", pool):
         from src.auth.magic_link_handler import (
             VerifyRegistrationMagicLinkData,
             verify_registration_magic_link_handler,
@@ -213,7 +213,7 @@ async def test_verify_registration_expired_token():
     row = make_pending_registration_row(token="old-token", expired=True)
     pool = FakePool({"auth_pending_registrations": [row]})
 
-    with patch("src.lib.db.pool", pool):
+    with patch("src.core.db.pool", pool):
         from src.auth.magic_link_handler import (
             VerifyRegistrationMagicLinkData,
             verify_registration_magic_link_handler,

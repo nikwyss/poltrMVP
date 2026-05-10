@@ -30,7 +30,7 @@ async def test_valid_session_from_cookie():
     row = make_session_row(token="good-token")
     pool = FakePool({"auth_sessions": [row]})
 
-    with patch("src.lib.db.pool", pool):
+    with patch("src.core.db.pool", pool):
         from src.auth.middleware import verify_session_token
 
         session = await verify_session_token(
@@ -55,7 +55,7 @@ async def test_valid_session_from_bearer():
     row = make_session_row(token="bearer-token")
     pool = FakePool({"auth_sessions": [row]})
 
-    with patch("src.lib.db.pool", pool):
+    with patch("src.core.db.pool", pool):
         from src.auth.middleware import verify_session_token
 
         session = await verify_session_token(
@@ -85,7 +85,7 @@ async def test_invalid_token_raises_401():
 
     pool = FakePool({"auth_sessions": []})
 
-    with patch("src.lib.db.pool", pool):
+    with patch("src.core.db.pool", pool):
         from src.auth.middleware import verify_session_token
 
         with pytest.raises(HTTPException) as exc_info:
@@ -105,7 +105,7 @@ async def test_expired_session_raises_401_and_deletes():
     row = make_session_row(token="old-token", expired=True)
     pool = FakePool({"auth_sessions": [row]})
 
-    with patch("src.lib.db.pool", pool):
+    with patch("src.core.db.pool", pool):
         from src.auth.middleware import verify_session_token
 
         with pytest.raises(HTTPException) as exc_info:

@@ -11,9 +11,10 @@ import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
-from src.auth.login import check_email_availability, create_account, login_pds_account
+from src.auth.login import check_email_availability, login_account
+from src.auth.register import create_account
 from src.auth.middleware import TSession, verify_session_token
-import src.lib.db as db
+import src.core.db as db
 from src.auth.magic_link_handler import (
     VerifyLoginMagicLinkData,
     VerifyRegistrationMagicLinkData,
@@ -25,8 +26,8 @@ from src.auth.magic_link_handler import (
     verify_short_code_handler,
     generate_short_code,
 )
-from src.lib.atproto_api import pds_create_app_password, pds_set_birthdate
-from src.lib.fastapi import limiter
+from src.participation.atproto_api import pds_create_app_password, pds_set_birthdate
+from src.core.fastapi import limiter
 
 EIDPROTO_URL = os.getenv("EIDPROTO_URL", "https://eidproto.poltr.info")
 FRONTEND_URL = os.getenv("APPVIEW_FRONTEND_URL", "https://poltr.ch")
@@ -58,7 +59,7 @@ async def verify_magic_link_get(request: Request, data: VerifyLoginMagicLinkData
             content={"error": "invalid_token", "message": "Invalid token"},
         )
 
-    return await login_pds_account(user_email=response)
+    return await login_account(user_email=response)
 
 
 @router.post("/ch.poltr.auth.register")
@@ -112,7 +113,7 @@ async def register(request: Request):
         )
 
     try:
-        from src.lib.email_service import email_service
+        from src.core.email_service import email_service
 
         success = email_service.send_confirmation_link(
             email, token, purpose="registration", short_code=short_code
@@ -187,7 +188,7 @@ async def verify_short_code(request: Request, data: VerifyShortCodeData):
             )
         return await create_account(user_email=response)
     else:
-        return await login_pds_account(user_email=response)
+        return await login_account(user_email=response)
 
 
 @router.get("/ch.poltr.auth.session")
@@ -240,11 +241,15 @@ async def initiate_eid_verification(
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
+            # Get a fresh access token before sending to eidproto
+            from src.participation.atproto_api import _relogin_from_stored_creds
+            fresh = await _relogin_from_stored_creds(session.did, client, pds_url)
+            fresh_access_token = fresh["accessJwt"]
+
             response = await client.post(
                 f"{EIDPROTO_URL}/api/verify/create-session",
                 json={
-                    "access_token": session.access_token,
-                    "refresh_token": session.refresh_token,
+                    "access_token": fresh_access_token,
                     "pds_url": pds_url,
                     "success_url": f"{FRONTEND_URL}/home?verified=true",
                     "error_url": f"{FRONTEND_URL}/home?error=verification_failed",

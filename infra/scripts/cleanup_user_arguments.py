@@ -15,7 +15,7 @@ Usage:
 Requires:
     - PDS port-forwarded to localhost:2583  (kubectl port-forward -n poltr svc/pds 2583:80)
     - PDS_ADMIN_PASSWORD env var set
-    - PDS_GOVERNANCE_ACCOUNT_DID env var set (to skip governance repo)
+    - GOVERNANCE_DIDS env var set (comma-separated DIDs to skip, i.e. governance repos)
 """
 
 import argparse
@@ -28,7 +28,9 @@ import urllib.error
 
 PDS_HOST = os.getenv("PDS_HOST", "http://localhost:2583")
 ADMIN_PASSWORD = os.getenv("PDS_ADMIN_PASSWORD", "")
-GOVERNANCE_DID = os.getenv("PDS_GOVERNANCE_ACCOUNT_DID", "")
+GOVERNANCE_DIDS = set(
+    d.strip() for d in os.getenv("GOVERNANCE_DIDS", "").split(",") if d.strip()
+)
 COLLECTION = "app.ch.poltr.ballot.argument"
 
 
@@ -140,7 +142,7 @@ def main():
         sys.exit(1)
 
     print(f"PDS: {PDS_HOST}")
-    print(f"Governance DID: {GOVERNANCE_DID or '(not set — will process ALL repos)'}")
+    print(f"Governance DIDs: {GOVERNANCE_DIDS or '(not set — will process ALL repos)'}")
     print(f"Mode: {'EXECUTE' if args.execute else 'DRY RUN'}")
     print()
 
@@ -152,7 +154,7 @@ def main():
     temp_password = "TempCleanup!2026x"
 
     for did in accounts:
-        if did == GOVERNANCE_DID:
+        if did in GOVERNANCE_DIDS:
             print(f"  Skipping governance account {did}")
             continue
 

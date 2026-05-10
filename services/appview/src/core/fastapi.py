@@ -9,9 +9,8 @@ from dotenv import load_dotenv
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-import src.lib.db as db
-from src.lib.crosspost import start_crosspost_loop, stop_crosspost_loop
-from src.lib.peer_review import start_peer_review_loop, stop_peer_review_loop
+import src.core.db as db
+from src.participation import start_participation_loops, stop_participation_loops
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
 
@@ -34,12 +33,10 @@ async def lifespan(app: FastAPI):
     if not success:
         logger.warning("Database connection failed, but continuing...")
     logger.info("API listening on :3000")
-    start_crosspost_loop()
-    start_peer_review_loop()
+    start_participation_loops()
     yield
     # Shutdown
-    stop_peer_review_loop()
-    stop_crosspost_loop()
+    stop_participation_loops()
     await db.close_pool()
     logger.info("=== Application Shutdown ===")
 

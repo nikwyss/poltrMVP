@@ -70,38 +70,15 @@ export async function verifyPdsToken(
 }
 
 /**
- * Refresh an expired access token using the refresh token.
- */
-export async function refreshPdsSession(
-  refreshToken: string,
-  pdsUrl: string
-): Promise<{ accessJwt: string; refreshJwt: string }> {
-  const response = await fetch(`https://${pdsUrl}/xrpc/com.atproto.server.refreshSession`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${refreshToken}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.message || `Token refresh failed: ${response.status}`);
-  }
-
-  return await response.json();
-}
-
-/**
  * Write the eID verification record to the user's PDS.
+ * The access token is expected to be fresh (obtained just before eID verification).
  */
 export async function writeEidRecord(
   accessToken: string,
-  refreshToken: string,
   did: string,
   pdsUrl: string,
   eidHash: string
-): Promise<{ success: boolean; newAccessToken?: string; newRefreshToken?: string }> {
+): Promise<{ success: boolean }> {
   const eidIssuer = env.EID_TRUSTED_ISSUER_DID;
   const verifiedBy = env.SERVER_DID;
   const verifiedAt = new Date().toISOString().replace('+00:00', 'Z');
@@ -117,37 +94,10 @@ export async function writeEidRecord(
     signature,
   };
 
-  let currentAccessToken = accessToken;
-  let currentRefreshToken = refreshToken;
-
-  // First, check if token is valid
-  const checkResponse = await fetch(`https://${pdsUrl}/xrpc/com.atproto.server.getSession`, {
-    headers: {
-      Authorization: `Bearer ${currentAccessToken}`,
-    },
-  });
-
-  if (!checkResponse.ok) {
-    const error = await checkResponse.json().catch(() => ({}));
-    if (error.error === 'ExpiredToken') {
-      // Try to refresh
-      try {
-        const refreshed = await refreshPdsSession(currentRefreshToken, pdsUrl);
-        currentAccessToken = refreshed.accessJwt;
-        currentRefreshToken = refreshed.refreshJwt;
-      } catch {
-        return { success: false };
-      }
-    } else {
-      return { success: false };
-    }
-  }
-
-  // Write the record
   const response = await fetch(`https://${pdsUrl}/xrpc/com.atproto.repo.putRecord`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${currentAccessToken}`,
+      Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -163,9 +113,5 @@ export async function writeEidRecord(
     return { success: false };
   }
 
-  return {
-    success: true,
-    newAccessToken: currentAccessToken !== accessToken ? currentAccessToken : undefined,
-    newRefreshToken: currentRefreshToken !== refreshToken ? currentRefreshToken : undefined,
-  };
+  return { success: true };
 }

@@ -12,8 +12,8 @@ import httpx
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse, Response
 
-from src.lib.db import get_pool
-from src.lib.fastapi import logger
+from src.core.db import get_pool
+from src.core.fastapi import logger
 from src.config import (
     BLUESKY_APPVIEW_URL,
     FORWARD_REQUEST_HEADERS,
@@ -23,8 +23,8 @@ from src.config import (
 router = APIRouter(prefix="/xrpc", tags=["feed"])
 
 FEED_GENERATOR_DID = os.getenv("FEED_GENERATOR_DID", "did:web:app.poltr.info")
-GOVERNANCE_DID = os.getenv("PDS_GOVERNANCE_ACCOUNT_DID", "")
-FEED_URI = f"at://{GOVERNANCE_DID}/app.bsky.feed.generator/poltr"
+FEED_ACCOUNT_DID = os.getenv("FEED_ACCOUNT_DID", FEED_GENERATOR_DID)
+FEED_URI = f"at://{FEED_ACCOUNT_DID}/app.bsky.feed.generator/poltr"
 
 
 # -----------------------------------------------------------------------------

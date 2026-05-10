@@ -7,22 +7,26 @@ Reads two xlsx files:
   - content_peerreview.xlsx: 99 INSERT procedures (aggregated outcomes)
   - content_peerreview_progression.xlsx: 2,562 individual invitation/response rows
 
-Records are written to the governance account's PDS repo using createRecord with
-composed rkeys ({content_id}-{mapped_did_suffix}), making duplicates
-structurally impossible. Re-runs skip already-existing records.
+Records are written to a ballot-specific governance account's PDS repo using
+createRecord with composed rkeys ({content_id}-{mapped_did_suffix}), making
+duplicates structurally impossible. Re-runs skip already-existing records.
+
+Each ballot has its own governance account (per-ballot governance model).
+Credentials are loaded from the governance_accounts table in the DB.
 
 Environment variables:
-  PDS_HOST        PDS endpoint (default: http://localhost:2583)
-  GOV_HANDLE      Governance account handle (for session creation)
-  GOV_PASSWORD    Governance account password
-  BALLOT_URI      AT URI of the ballot to scope arguments to
-  MAX_RESPONSES   Max number of responses to import (default: 0 = all)
-  DRY_RUN         Set to "true" to inspect records without writing (default: false)
-  PEERREVIEW_XLSX Path to content_peerreview.xlsx (default: dump/content_peerreview.xlsx)
+  PDS_HOST         PDS endpoint (default: http://localhost:2583)
+  DB_URL           PostgreSQL connection URL (for governance_accounts lookup)
+  BALLOT_RKEY      Ballot rkey — credentials are loaded from governance_accounts table
+  MASTER_KEY_B64   APPVIEW_PDS_CREDS_MASTER_KEY_B64 (for decrypting governance password)
+  MAX_RESPONSES    Max number of responses to import (default: 0 = all)
+  DRY_RUN          Set to "true" to inspect records without writing (default: false)
+  PEERREVIEW_XLSX  Path to content_peerreview.xlsx (default: dump/content_peerreview.xlsx)
   PROGRESSION_XLSX Path to content_peerreview_progression.xlsx
-                   (default: dump/content_peerreview_progression.xlsx)
+                    (default: dump/content_peerreview_progression.xlsx)
 """
 
+import base64
 import os
 import sys
 import time
@@ -31,7 +35,9 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import openpyxl
+import psycopg2
 import requests
+from nacl import secret as nacl_secret
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +112,40 @@ def _criteria_to_rating(val: Optional[int]) -> int:
     if val is not None and int(val) == 1:
         return 5
     return 1
+
+
+# ---------------------------------------------------------------------------
+# DB credential loading
+# ---------------------------------------------------------------------------
+
+
+def load_governance_creds(db_url: str, ballot_rkey: str, master_key_b64: str) -> tuple[str, str, str]:
+    """Load governance account DID, handle and decrypted password from DB.
+    Returns (did, handle, password)."""
+    conn = psycopg2.connect(db_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT did, handle, pw_ciphertext, pw_nonce FROM governance_accounts WHERE ballot_rkey = %s",
+                (ballot_rkey,),
+            )
+            row = cur.fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        print(f"ERROR: No governance account found for ballot_rkey={ballot_rkey}")
+        sys.exit(1)
+
+    did, handle, pw_ct, pw_nonce = row
+    pw_ct = bytes(pw_ct)
+    pw_nonce = bytes(pw_nonce)
+
+    key = base64.b64decode(master_key_b64)
+    box = nacl_secret.SecretBox(key)
+    password = box.decrypt(pw_ct, pw_nonce).decode("utf-8")
+
+    return did, handle, password
 
 
 # ---------------------------------------------------------------------------
@@ -408,26 +448,28 @@ class PeerReviewImporter:
 
 def main():
     pds_host = os.getenv("PDS_HOST", "http://localhost:2583")
-    gov_handle = os.getenv("GOV_HANDLE", "")
-    gov_password = os.getenv("GOV_PASSWORD", "")
-    ballot_uri = os.getenv("BALLOT_URI", "")
+    db_url = os.getenv("DB_URL", "")
+    ballot_rkey = os.getenv("BALLOT_RKEY", "")
+    master_key_b64 = os.getenv("MASTER_KEY_B64", "")
     max_responses = int(os.getenv("MAX_RESPONSES", "0"))
     dry_run = os.getenv("DRY_RUN", "false").lower() == "true"
     peerreview_path = os.getenv("PEERREVIEW_XLSX", "dump/content_peerreview.xlsx")
     progression_path = os.getenv("PROGRESSION_XLSX", "dump/content_peerreview_progression.xlsx")
 
-    if not gov_handle or not gov_password:
-        print("ERROR: GOV_HANDLE and GOV_PASSWORD required")
+    if not db_url or not ballot_rkey or not master_key_b64:
+        print("ERROR: DB_URL, BALLOT_RKEY, and MASTER_KEY_B64 required")
+        print("  DB_URL:          PostgreSQL connection URL")
+        print("  BALLOT_RKEY:     Ballot rkey (e.g. '663')")
+        print("  MASTER_KEY_B64:  APPVIEW_PDS_CREDS_MASTER_KEY_B64")
         sys.exit(1)
 
-    if not ballot_uri:
-        print("ERROR: BALLOT_URI required (AT URI of the ballot)")
-        print("  e.g. BALLOT_URI='at://did:plc:.../app.ch.poltr.ballot.entry/663'")
-        sys.exit(1)
+    # Load credentials from governance_accounts table
+    gov_did, gov_handle, gov_password = load_governance_creds(db_url, ballot_rkey, master_key_b64)
+    ballot_uri = f"at://{gov_did}/app.ch.poltr.ballot.entry/{ballot_rkey}"
 
     print("=== AT Protocol Peer Review Import ===")
     print(f"PDS Host:        {pds_host}")
-    print(f"Gov Handle:      {gov_handle}")
+    print(f"Gov Account:     {gov_handle} ({gov_did})")
     print(f"Ballot URI:      {ballot_uri}")
     print(f"Max Responses:   {max_responses if max_responses > 0 else 'all'}")
     print(f"Dry Run:         {dry_run}")

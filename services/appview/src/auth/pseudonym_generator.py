@@ -1,7 +1,7 @@
 import random
 import string
 
-import src.lib.db as db
+import src.core.db as db
 
 
 def get_random_color():

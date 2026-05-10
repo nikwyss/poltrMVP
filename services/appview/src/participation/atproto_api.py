@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timezone
 import httpx
 from pydantic import BaseModel
-from src.lib import db
+from src.core import db
 from src.auth.middleware import TSession
 from src.config import DUMMY_BIRTHDATE
 
@@ -355,52 +355,30 @@ async def pds_login(did: str, password: str) -> TLoginAccountResponse:
 
 
 async def _ensure_fresh_token(session: TSession, client: httpx.AsyncClient, pds_url: str):
-    """Check if the PDS access token is still valid; refresh, or re-login if needed."""
-    headers = {
-        "Authorization": f"Bearer {session.access_token}",
-        "Content-Type": "application/json",
-    }
+    """Check if the PDS access token is still valid; re-login if expired or missing."""
+    if session.access_token:
+        res = await client.get(
+            f"https://{pds_url}/xrpc/com.atproto.server.getSession",
+            headers={"Authorization": f"Bearer {session.access_token}"},
+        )
+        if res.status_code == 200:
+            return  # token is still valid
 
-    res = await client.get(
-        f"https://{pds_url}/xrpc/com.atproto.server.getSession",
-        headers=headers,
-    )
+    # Token missing or expired — re-login using stored app password
+    logger.info(f"Access token missing or expired, re-logging in for {session.did}")
+    session_data = await _relogin_from_stored_creds(session.did, client, pds_url)
+    session.access_token = session_data["accessJwt"]
 
-    if res.status_code == 200:
-        return  # token is still valid
-
-    error_data = res.json() if res.text else {}
-    if error_data.get("error") != "ExpiredToken":
-        raise RuntimeError(f"PDS session check failed: {res.text}")
-
-    # Try refreshing the session first
-    res_refresh = await client.post(
-        f"https://{pds_url}/xrpc/com.atproto.server.refreshSession",
-        headers={"Authorization": f"Bearer {session.refresh_token}", "Content-Type": "application/json"},
-    )
-
-    if res_refresh.status_code == 200:
-        refresh_data = res_refresh.json()
-        session.access_token = refresh_data.get("accessJwt")
-        session.refresh_token = refresh_data.get("refreshJwt")
-    else:
-        # Refresh failed — fall back to re-login using stored PDS credentials
-        logger.warning(f"Refresh failed ({res_refresh.status_code}), attempting re-login for {session.did}")
-        session_data = await _relogin_from_stored_creds(session.did, client, pds_url)
-        session.access_token = session_data["accessJwt"]
-        session.refresh_token = session_data["refreshJwt"]
-
-    # Update tokens in database
+    # Update token in database
     db_pool = await db.get_pool()
     async with db_pool.acquire() as conn:
         await conn.execute(
             """
             UPDATE auth_sessions
-            SET access_token = $1, refresh_token = $2
-            WHERE session_token = $3 AND did = $4
+            SET access_token = $1
+            WHERE session_token = $2 AND did = $3
             """,
             session.access_token,
-            session.refresh_token,
             session.token,
             session.did,
         )
@@ -408,7 +386,7 @@ async def _ensure_fresh_token(session: TSession, client: httpx.AsyncClient, pds_
 
 async def _relogin_from_stored_creds(did: str, client: httpx.AsyncClient, pds_url: str) -> dict:
     """Re-authenticate with the PDS using the encrypted password stored in auth_creds."""
-    from src.lib.pds_creds import decrypt_app_password
+    from src.participation.pds_creds import decrypt_app_password
 
     db_pool = await db.get_pool()
     async with db_pool.acquire() as conn:

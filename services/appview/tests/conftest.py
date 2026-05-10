@@ -104,10 +104,10 @@ def fake_pool():
 
 @pytest.fixture
 def patch_db(fake_pool):
-    """Patch src.lib.db.pool with a FakePool. Returns the pool so tests can
+    """Patch src.core.db.pool with a FakePool. Returns the pool so tests can
     pre-populate its store and inspect executed queries."""
     pool = fake_pool()
-    with patch("src.lib.db.pool", pool):
+    with patch("src.core.db.pool", pool):
         yield pool
 
 
@@ -135,11 +135,11 @@ def patch_email_routes():
 @pytest_asyncio.fixture
 async def client(patch_db):
     """HTTPX async client talking to the FastAPI app with DB mocked."""
-    from src.lib.fastapi import app
+    from src.core.fastapi import app
     from src.main import app as _  # noqa: ensure routers are mounted
 
     # Disable rate limiting in tests
-    from src.lib.fastapi import limiter
+    from src.core.fastapi import limiter
     limiter.enabled = False
 
     transport = ASGITransport(app=app)

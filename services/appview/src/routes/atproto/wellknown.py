@@ -1,12 +1,16 @@
+"""
+.well-known/did.json — ATProto DID Document for the AppView.
+"""
+
 import os
-from src.lib.fastapi import app
+from fastapi import APIRouter
+
+router = APIRouter(tags=["atproto"])
 
 
-@app.get("/.well-known/did.json")
+@router.get("/.well-known/did.json")
 async def get_did_document():
-    """DID Document
-    e.g. did:web:app.poltr.info
-    """
+    """DID Document, e.g. did:web:app.poltr.info"""
     server_did = os.getenv("APPVIEW_SERVER_DID")
     assert server_did is not None, "APPVIEW_SERVER_DID is not set"
 

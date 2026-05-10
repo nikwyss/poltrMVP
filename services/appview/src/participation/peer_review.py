@@ -17,8 +17,8 @@ from datetime import datetime, timezone
 
 import httpx
 
-from src.lib.db import get_pool
-from src.lib.governance_pds import put_governance_record, compose_review_rkey
+from src.core.db import get_pool
+from src.participation.governance import put_governance_record, compose_review_rkey
 
 logger = logging.getLogger("peer_review")
 
@@ -43,7 +43,7 @@ async def _process_pending_invitations():
         # Find preliminary arguments that haven't reached quorum of invitations yet
         pending_args = await conn.fetch(
             """
-            SELECT a.uri, a.author_did
+            SELECT a.uri, a.author_did, a.did AS gov_did
             FROM app_arguments a
             WHERE a.review_status = 'preliminary'
               AND NOT a.deleted
@@ -70,6 +70,7 @@ async def _process_pending_invitations():
                     pool,
                     arg["uri"],
                     arg["author_did"],
+                    arg["gov_did"],
                     quorum,
                     probability,
                 )
@@ -82,6 +83,7 @@ async def _invite_for_argument(
     pool,
     argument_uri: str,
     author_did: str,
+    gov_did: str,
     quorum: int,
     probability: float,
 ):
@@ -149,7 +151,7 @@ async def _invite_for_argument(
 
         try:
             result = await put_governance_record(
-                client, "app.ch.poltr.review.invitation", rkey, invitation_record
+                client, gov_did, "app.ch.poltr.review.invitation", rkey, invitation_record
             )
             if selected:
                 logger.info(

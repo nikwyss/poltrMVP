@@ -11,18 +11,11 @@ import { env } from '@/lib/env';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const { access_token, refresh_token, pds_url, success_url, error_url } = body;
+    const { access_token, pds_url, success_url, error_url } = body;
 
     if (!access_token) {
       return NextResponse.json(
         { error: 'access_token is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!refresh_token) {
-      return NextResponse.json(
-        { error: 'refresh_token is required' },
         { status: 400 }
       );
     }
@@ -59,7 +52,6 @@ export async function POST(request: NextRequest) {
       did: sessionInfo.did,
       handle: sessionInfo.handle,
       accessToken: access_token,
-      refreshToken: refresh_token,
       pdsUrl: pds_url,
       successUrl: success_url,
       errorUrl: error_url,

@@ -2,13 +2,13 @@
 
 ## Next
 
-- [ ] Implement argument posting functionality
-- [ ] Arguments / Peer review
+- [ ] Ballot creation endpoint: wire up `create_ballot_account()` in AppView (currently only DB + governance_pds.py ready)
+- [ ] Create governance accounts for remaining existing ballots (other than rkey 663)
 - [ ] Testing
 - [ ] Missing: per-email rate limit on code requests
 
 ## VISION
-- [ ] Translations: translations only in the appviev
+- [ ] Translations: translations only in the appviev. a) Originalsprache im PDS speichern. b). Auch in "einfache Sprache" übersetzbar? (Inclusion)
 
 
 ## CHECK LATER
@@ -20,6 +20,7 @@
 
 ## Done
 
+- Per-ballot governance accounts: each ballot gets its own PDS account (`ballot-{rkey}.id.poltr.ch`), credentials in `governance_accounts` table, removed `PDS_GOVERNANCE_ACCOUNT_DID`/`PDS_GOVERNANCE_PASSWORD` env vars
 - Consolidate cross-posting from indexer to appview (revoke indexer auth.auth_creds access)
 - Design and implement user profile pages on bluesky
 - Create pseudonym system: Swiss mountain names table (Bergnamen)

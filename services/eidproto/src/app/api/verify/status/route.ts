@@ -68,11 +68,10 @@ export async function GET(request: NextRequest) {
 
       const eidHash = hashAhv(ahv);
 
-      // If we have tokens, write to PDS server-side
-      if (state.accessToken && state.refreshToken) {
+      // If we have a token, write to PDS server-side
+      if (state.accessToken) {
         const result = await writeEidRecord(
           state.accessToken,
-          state.refreshToken,
           state.did,
           state.pdsUrl,
           eidHash

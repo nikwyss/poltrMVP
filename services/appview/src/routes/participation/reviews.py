@@ -19,8 +19,8 @@ from fastapi.responses import JSONResponse
 import httpx
 
 from src.auth.middleware import TSession, verify_session_token
-from src.lib.db import get_pool
-from src.lib.governance_pds import put_governance_record, compose_review_rkey, _governance_did
+from src.core.db import get_pool
+from src.participation.governance import put_governance_record, compose_review_rkey
 
 logger = logging.getLogger("review")
 
@@ -174,6 +174,18 @@ async def submit_review(
                 content={"error": "already_reviewed", "message": "You have already reviewed this argument"},
             )
 
+    # Look up governance DID for this argument's ballot
+    async with pool.acquire() as conn:
+        gov_did = await conn.fetchval(
+            "SELECT did FROM app_arguments WHERE uri = $1",
+            argument_uri,
+        )
+    if not gov_did:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "not_found", "message": "Argument not found"},
+        )
+
     # Write review response to governance PDS
     rkey = compose_review_rkey(argument_uri, session.did)
     review_record = {
@@ -191,7 +203,7 @@ async def submit_review(
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             result = await put_governance_record(
-                client, "app.ch.poltr.review.response", rkey, review_record
+                client, gov_did, "app.ch.poltr.review.response", rkey, review_record
             )
     except Exception as err:
         logger.error(f"Failed to write review to governance PDS: {err}")

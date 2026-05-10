@@ -136,6 +136,37 @@ goat resolve <handle>
 
 **Note:** `goat record delete` requires being authenticated as the account owner (via `goat account login`). For bulk admin operations, use the XRPC approach above.
 
+## Governance Model: Per-Ballot Accounts
+
+Each ballot (Abstimmungsvorlage) has its own PDS governance account. The account's repo is a self-contained archive of one ballot: ballot entry, all arguments, all review invitations/responses, and Bluesky cross-posts.
+
+- **Handle schema:** `ballot-{rkey}.id.poltr.ch`
+- **Credentials:** Encrypted in `governance_accounts` table (using `APPVIEW_PDS_CREDS_MASTER_KEY_B64`)
+- **No legacy env vars:** `PDS_GOVERNANCE_ACCOUNT_DID` and `PDS_GOVERNANCE_PASSWORD` are removed. All governance credentials come from the DB.
+
+### Key files
+
+| File | Role |
+|------|------|
+| `services/appview/src/lib/governance_pds.py` | Session management, `create_ballot_account()`, record creation per DID |
+| `services/indexer/src/record_handler.js` | `isGovernanceDid()` — loads governance DIDs from DB, refreshes every 60s |
+| `infra/scripts/postgres/db-setup.sql` | `governance_accounts` table definition |
+
+### How records are routed
+
+All governance functions (`create_governance_record`, `put_governance_record`) require an explicit `did` parameter. The caller resolves the governance DID via:
+- `get_did_for_ballot_uri(ballot_uri)` — for argument creation
+- `app_arguments.did` column — for review submission
+- `app_ballots.did` column — for crossposting
+
+### Creating a new ballot
+
+`create_ballot_account(ballot_rkey)` in `governance_pds.py`:
+1. Generates handle `ballot-{rkey}.id.poltr.ch`
+2. Creates PDS account via admin API
+3. Encrypts and stores password in `governance_accounts`
+4. Waits for PLC directory resolution
+
 ## Architecture
 
 ```
@@ -146,9 +177,10 @@ Frontend/eID Proto
        │
        ▼
    PostgreSQL ◄── Indexer ◄── PDS (firehose)
-       │
-       ▼
-    Verifier (Swiss eID)
+       │                       │
+       ▼                       ▼
+    Verifier              Per-ballot governance
+    (Swiss eID)           accounts (one per Vorlage)
 ```
 
 
@@ -181,20 +213,20 @@ The Bluesky relay (`bsky.network`) permanently throttles accounts if it sees an 
 
 Script: `infra/scripts/import_peerreviews.py`
 
-Imports historical peer-review data from Demokratiefabrik xlsx dumps into the governance PDS as `app.ch.poltr.review.invitation` and `app.ch.poltr.review.response` records. The indexer picks these up from the firehose and runs the quorum check.
+Imports historical peer-review data from Demokratiefabrik xlsx dumps into a ballot-specific governance account as `app.ch.poltr.review.invitation` and `app.ch.poltr.review.response` records. Credentials are loaded from the `governance_accounts` table.
 
 **Prerequisites:**
 - Port-forward PDS: `kubectl port-forward -n poltr svc/pds 2583:80`
+- Port-forward PostgreSQL: `kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432`
 - xlsx files in `dump/`: `content_peerreview.xlsx`, `content_peerreview_progression.xlsx`
-- Python deps: `openpyxl`, `requests`
-- Governance account password must be set (reset via admin API if needed, see [Obtaining a User Session via Admin](#obtaining-a-user-session-via-admin))
+- Python deps: `openpyxl`, `requests`, `psycopg2`, `pynacl`
 
 **Usage:**
 ```bash
 PDS_HOST=http://localhost:2583 \
-GOV_HANDLE=did:plc:3ch7iwf6od4szklpolupbv7o \
-GOV_PASSWORD=TempPass12345678 \
-BALLOT_URI="at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.entry/663" \
+DB_URL=postgresql://allforone:<pw>@localhost:5432/appview \
+BALLOT_RKEY=663 \
+MASTER_KEY_B64=<APPVIEW_PDS_CREDS_MASTER_KEY_B64> \
 MAX_RESPONSES=1 \
 python3 infra/scripts/import_peerreviews.py
 ```
@@ -202,13 +234,13 @@ python3 infra/scripts/import_peerreviews.py
 | Env var | Description | Default |
 |---------|-------------|---------|
 | `PDS_HOST` | PDS endpoint | `http://localhost:2583` |
-| `GOV_HANDLE` | Governance account DID or handle | — |
-| `GOV_PASSWORD` | Governance account password | — |
-| `BALLOT_URI` | AT URI of the ballot to scope arguments to | — |
+| `DB_URL` | PostgreSQL connection URL | — |
+| `BALLOT_RKEY` | Ballot rkey (credentials loaded from `governance_accounts`) | — |
+| `MASTER_KEY_B64` | `APPVIEW_PDS_CREDS_MASTER_KEY_B64` for decryption | — |
 | `MAX_RESPONSES` | Limit responses imported (0 = all) | `0` |
 | `DRY_RUN` | `true` to inspect without writing | `false` |
 
-Uses `putRecord` with composed rkeys (`{content_id}-{did_suffix}`), so re-runs are idempotent.
+Uses `createRecord` with composed rkeys (`{content_id}-{did_suffix}`), so re-runs are idempotent.
 
 # DB Setup Script
 Keep ./scripts/postgres/db-setup.sql file up to date. (it should entail an all setup script for an empty postgres DB.)

@@ -10,8 +10,8 @@ import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
-from src.lib.fastapi import logger
-from src.lib.db import get_pool
+from src.core.fastapi import logger
+from src.core.db import get_pool
 from src.config import (
     PDS_URL,
     FORWARD_REQUEST_HEADERS,

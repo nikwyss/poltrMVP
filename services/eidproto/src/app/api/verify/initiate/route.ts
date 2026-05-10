@@ -21,14 +21,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json().catch(() => ({}));
-    const { refresh_token, pds_url, success_url, error_url } = body;
-
-    if (!refresh_token) {
-      return NextResponse.json(
-        { error: 'refresh_token is required in request body' },
-        { status: 400 }
-      );
-    }
+    const { pds_url, success_url, error_url } = body;
 
     if (!pds_url) {
       return NextResponse.json(
@@ -71,7 +64,6 @@ export async function POST(request: NextRequest) {
     const stateToken = await createStateToken({
       verificationId: swiyuResponse.id,
       accessToken,
-      refreshToken: refresh_token,
       did: sessionInfo.did,
       pdsUrl: pds_url,
       successUrl: success_url,

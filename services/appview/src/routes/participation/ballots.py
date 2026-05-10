@@ -14,12 +14,12 @@ from fastapi import APIRouter, Query, Request, Depends
 from fastapi.responses import JSONResponse
 
 from src.auth.middleware import TSession, verify_session_token
-from src.lib.fastapi import logger
-from src.lib.db import get_pool
-from src.lib.cursor import encode_cursor
-from src.lib.lib import get_string, get_date_iso, get_number, get_array, get_object
-from src.lib.atproto_api import pds_create_record, pds_delete_record
-from src.lib.governance_pds import create_governance_record
+from src.core.fastapi import logger
+from src.core.db import get_pool
+from src.core.cursor import encode_cursor
+from src.core.lib import get_string, get_date_iso, get_number, get_array, get_object
+from src.participation.atproto_api import pds_create_record, pds_delete_record
+from src.participation.governance import create_governance_record, get_did_for_ballot_uri
 
 router = APIRouter(prefix="/xrpc", tags=["poltr"])
 
@@ -702,6 +702,14 @@ async def create_argument(
             content={"error": "internal_error", "details": str(err)},
         )
 
+    # Look up the governance DID for this ballot
+    gov_did = await get_did_for_ballot_uri(ballot_uri)
+    if not gov_did:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "not_found", "message": "No governance account for this ballot"},
+        )
+
     record = {
         "$type": "app.ch.poltr.ballot.argument",
         "title": title,
@@ -715,7 +723,7 @@ async def create_argument(
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             result = await create_governance_record(
-                client, "app.ch.poltr.ballot.argument", record
+                client, gov_did, "app.ch.poltr.ballot.argument", record
             )
     except Exception as err:
         logger.error(f"Failed to create argument: {err}")

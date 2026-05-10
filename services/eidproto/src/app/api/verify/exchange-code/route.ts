@@ -7,7 +7,6 @@ interface SessionPayload {
   did: string;
   handle: string;
   accessToken: string;
-  refreshToken: string;
   pdsUrl: string;
   successUrl: string;
   errorUrl: string;
@@ -54,7 +53,6 @@ export async function POST(request: NextRequest) {
       did: payload.did,
       handle: payload.handle,
       access_token: payload.accessToken,
-      refresh_token: payload.refreshToken,
       pds_url: payload.pdsUrl,
       success_url: payload.successUrl,
       error_url: payload.errorUrl,

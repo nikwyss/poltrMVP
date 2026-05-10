@@ -4,7 +4,6 @@ import { env } from './env';
 export interface VerificationState {
   verificationId: string;
   accessToken: string;
-  refreshToken: string;
   did: string;
   pdsUrl: string;
   successUrl: string;
@@ -44,7 +43,6 @@ export async function verifyStateToken(token: string): Promise<VerificationState
   return {
     verificationId: payload.verificationId as string,
     accessToken: payload.accessToken as string,
-    refreshToken: payload.refreshToken as string,
     did: payload.did as string,
     pdsUrl: payload.pdsUrl as string,
     successUrl: payload.successUrl as string,

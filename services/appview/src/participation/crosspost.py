@@ -1,7 +1,7 @@
 """
 Background cross-posting loop: mirrors ballots and arguments to Bluesky.
 
-Ballots and arguments are posted under the governance account.
+Each ballot's cross-posts are made under its own governance account.
 
 Controlled by CROSSPOST_ENABLED env var (checked at runtime each iteration).
 Poll interval configurable via CROSSPOST_POLL_INTERVAL_SECONDS (default 30).
@@ -14,8 +14,8 @@ from datetime import datetime, timezone
 
 import httpx
 
-from src.lib.db import get_pool
-from src.lib.governance_pds import get_governance_token, _pds_internal_url, _governance_did
+from src.core.db import get_pool
+from src.participation.governance import get_governance_token, _pds_internal_url
 
 logger = logging.getLogger("crosspost")
 
@@ -33,30 +33,28 @@ def _frontend_url() -> str:
 
 async def _crosspost_ballots(client: httpx.AsyncClient):
     """Find ballots without a bsky cross-post and create them."""
-    gov_did = _governance_did()
-    if not gov_did:
-        return
-
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT uri, rkey, title, description
-            FROM app_ballots
-            WHERE bsky_post_uri IS NULL AND NOT deleted AND did = $1
-            ORDER BY created_at ASC
+            SELECT b.uri, b.rkey, b.did, b.title, b.description
+            FROM app_ballots b
+            JOIN governance_accounts ga ON ga.did = b.did
+            WHERE b.bsky_post_uri IS NULL AND NOT b.deleted
+            ORDER BY b.created_at ASC
             """,
-            gov_did,
         )
 
     if not rows:
         return
 
     logger.info(f"Found {len(rows)} pending ballot(s) to cross-post")
-    token = await get_governance_token(client)
 
     for row in rows:
+        gov_did = row["did"]
         try:
+            token = await get_governance_token(client, gov_did)
+
             title = row["title"] or "New ballot"
             description = row["description"] or ""
             rkey = row["rkey"]
@@ -128,18 +126,13 @@ async def _crosspost_ballots(client: httpx.AsyncClient):
 async def _crosspost_arguments(client: httpx.AsyncClient):
     """Find arguments without a bsky cross-post and create them as replies.
 
-    All arguments are stored in the governance repo, so cross-posts are made
-    under the governance account.
+    Each argument is cross-posted under its ballot's governance account.
     """
-    gov_did = _governance_did()
-    if not gov_did:
-        return
-
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT a.uri, a.title, a.body, a.type, a.review_status,
+            SELECT a.uri, a.did AS gov_did, a.title, a.body, a.type, a.review_status,
                    b.bsky_post_uri AS ballot_bsky_uri, b.bsky_post_cid AS ballot_bsky_cid
             FROM app_arguments a
             JOIN app_ballots b ON a.ballot_uri = b.uri
@@ -154,10 +147,12 @@ async def _crosspost_arguments(client: httpx.AsyncClient):
 
     logger.info(f"Found {len(rows)} pending argument(s) to cross-post")
     peer_review_on = os.getenv("PEER_REVIEW_ENABLED", "false").lower() == "true"
-    token = await get_governance_token(client)
 
     for row in rows:
+        gov_did = row["gov_did"]
         try:
+            token = await get_governance_token(client, gov_did)
+
             prefix = "PRO" if row["type"] == "PRO" else "CONTRA"
             title = row["title"] or ""
             body = row["body"] or ""
@@ -202,7 +197,7 @@ async def _crosspost_arguments(client: httpx.AsyncClient):
                     data.get("cid"),
                     row["uri"],
                 )
-            logger.info(f"Argument cross-posted under governance: {data['uri']}")
+            logger.info(f"Argument cross-posted: {data['uri']}")
 
         except Exception as err:
             logger.error(f"Argument cross-post failed for {row['uri']}: {err}")

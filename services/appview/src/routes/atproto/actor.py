@@ -9,7 +9,7 @@ import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
-from src.lib.fastapi import logger
+from src.core.fastapi import logger
 from src.config import (
     BLUESKY_APPVIEW_URL,
     OZONE_URL,

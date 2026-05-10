@@ -7,7 +7,7 @@ import Fastify from "fastify";
 import { getCursor, setCursor } from "./indexer_cursor.js";
 import { runBackfill } from "./backfill_handler.js";
 import { FIREHOSE_SERVICE } from "./service.js";
-import { handleEvent } from "./record_handler.js";
+import { handleEvent, refreshGovernanceDids } from "./record_handler.js";
 import { startBskyPoller } from "./bsky_poller.js";
 
 const idResolver = new IdResolver();
@@ -30,6 +30,11 @@ async function main() {
     if (m) return Number(m[1]);
     return null;
   }
+
+  // Load governance DIDs from DB
+  await refreshGovernanceDids();
+  // Refresh periodically (every 60s) to pick up new ballot accounts
+  setInterval(refreshGovernanceDids, 60_000);
 
   // Load initial cursor for MemoryRunner
   const row = await getCursor("firehose:subscription");

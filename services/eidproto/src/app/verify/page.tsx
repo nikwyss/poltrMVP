@@ -9,7 +9,6 @@ interface SessionData {
   did: string;
   handle: string;
   access_token: string;
-  refresh_token: string;
   pds_url: string;
   success_url: string;
   error_url: string;
@@ -85,7 +84,6 @@ function VerifyContent() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          refresh_token: sessionData.refresh_token,
           pds_url: sessionData.pds_url,
           success_url: sessionData.success_url,
           error_url: sessionData.error_url,

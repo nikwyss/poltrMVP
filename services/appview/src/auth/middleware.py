@@ -5,7 +5,7 @@ from fastapi import Header, HTTPException, Cookie
 from typing import Optional
 
 from pydantic import BaseModel
-import src.lib.db as db
+import src.core.db as db
 
 
 class TSession(BaseModel):
@@ -13,8 +13,6 @@ class TSession(BaseModel):
     did: str
     user: dict
     access_token: str
-    refresh_token: str
-    pass
 
 
 async def verify_session_token(
@@ -43,7 +41,7 @@ async def verify_session_token(
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT session_token, did, user_data, expires_at, last_accessed_at, access_token, refresh_token
+            SELECT session_token, did, user_data, expires_at, last_accessed_at, access_token
             FROM auth_sessions
             WHERE session_token = $1
             """,
@@ -86,7 +84,6 @@ async def verify_session_token(
                 "token": token,
                 "did": row["did"],
                 "user": user_data,
-                "access_token": row["access_token"],
-                "refresh_token": row["refresh_token"],
+                "access_token": row["access_token"] or "",
             }
         )

@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 from typing import Literal
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
-import src.lib.db as db
-from src.lib.email_service import email_service
+import src.core.db as db
+from src.core.email_service import email_service
 
 # Short code config: no ambiguous chars (0/O, 1/I/L)
 SHORT_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"

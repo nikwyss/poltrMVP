@@ -53,7 +53,6 @@ export async function POST(request: NextRequest) {
     const stateToken = await createStateToken({
       verificationId: swiyuResponse.id,
       accessToken: '', // Not needed for session-based flow
-      refreshToken: '', // Not needed for session-based flow
       did: did,
       pdsUrl: pds_url,
       successUrl: success_url,

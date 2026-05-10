@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-05-10
+
+### Login/Registration separation and AppView restructure (`services/appview`, `services/eidproto`)
+- **Login without PDS**: `login_account()` is now a pure AppView operation — no PDS call needed. PDS access token is obtained lazily on first record write via stored app password
+- **Registration split into 3 phases**: (1) Prepare handle/password/pseudonym, (2) PDS provisioning (`provision_pds_account()` in `participation/provisioning.py`), (3) DB writes + session
+- **Removed refresh tokens**: `refresh_token` column dropped from `auth_sessions`. `_ensure_fresh_token()` re-logs in via app password instead of refreshing. Simpler, no long-lived tokens in DB
+- **eID verification**: gets a fresh access token before sending to eidproto, no refresh token needed
+- **eidproto cleanup**: removed `refresh_token` from API contract, JWT state, and `writeEidRecord()`
+- **Renamed**: `login_pds_account()` → `login_account()`, `login.py` split into `login.py` (session) + `register.py` (registration)
+- **AppView restructure**: `src/lib/` split into `src/core/` (shared: db, config, email) and `src/participation/` (ATProto: governance, crosspost, peer review, PDS API, provisioning)
+- **Routes restructure**: `routes/poltr/` + `routes/review/` merged into `routes/participation/` (ballots.py, reviews.py). `routes/actor/` + `routes/feed/` + `routes/ozone/` merged into `routes/atproto/` (actor.py, feed.py, ozone.py, wellknown.py). Deleted `routes/bluesky/` (dead code). Background loops (`crosspost`, `peer_review`) started via `participation/__init__.py` instead of directly from `core/fastapi.py`
+
+## 2026-05-09
+
+### Per-ballot governance accounts (`services/appview`, `services/indexer`, `infra`)
+- **One PDS account per ballot**: Each ballot (Abstimmungsvorlage) now gets its own governance account on the PDS. The account's repo is a self-contained archive: ballot entry, arguments, review invitations/responses, and Bluesky cross-posts
+- **Handle schema**: `ballot-{rkey}.id.poltr.ch`
+- **New `governance_accounts` table**: Stores DID, handle, ballot_rkey, and encrypted password (using `APPVIEW_PDS_CREDS_MASTER_KEY_B64`) per ballot account
+- **`governance_pds.py` rewritten**: All functions (`create_governance_record`, `put_governance_record`) now require an explicit `did` parameter. Password loaded from DB on-demand. New functions: `create_ballot_account()`, `get_did_for_ballot()`, `get_did_for_ballot_uri()`, `is_governance_did()`
+- **Argument creation**: Looks up governance DID from ballot before writing to PDS
+- **Review system**: `submit_review` and peer-review invitation loop resolve governance DID from the argument's `did` column
+- **Crossposting**: Each ballot's Bluesky cross-posts are made from its own governance account
+- **Indexer multi-DID support**: Replaced single `GOVERNANCE_DID` env var with `isGovernanceDid()` set loaded from `governance_accounts` table (refreshed every 60s)
+- **Import script updated**: `import_peerreviews.py` now loads credentials from DB via `BALLOT_RKEY` + `DB_URL` + `MASTER_KEY_B64` instead of `GOV_HANDLE`/`GOV_PASSWORD`
+- **Removed env vars**: `PDS_GOVERNANCE_ACCOUNT_DID` and `PDS_GOVERNANCE_PASSWORD` removed from K8s secrets, poltr.yaml, and all code
+- **Portability**: Ballots can be independently exported, deleted, or moved between PDS instances
+
 ## 2026-03-15
 
 ### Short code authentication (`services/appview`, `services/front`, `infra`)
