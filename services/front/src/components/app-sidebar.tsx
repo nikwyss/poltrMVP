@@ -3,10 +3,10 @@
 import {
   Vote,
   Home,
-  Newspaper,
   ClipboardCheck,
   LogOut,
   ChevronUp,
+  User,
 } from "lucide-react"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/AuthContext"
@@ -27,6 +27,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -130,6 +131,11 @@ export function AppSidebar() {
                 align="end"
                 sideOffset={4}
               >
+                <DropdownMenuItem onClick={() => router.push("/profile")}>
+                  <User />
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut />
                   Log out

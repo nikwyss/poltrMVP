@@ -26,7 +26,8 @@
     "home": "Start",
     "ballots": "Abstimmungen",
     "review": "Begutachtung",
-    "logOut": "Abmelden"
+    "logOut": "Abmelden",
+    "profile": "Profil"
   },
   "login": {
     "title": "Bei POLTR anmelden",
@@ -88,9 +89,17 @@
   },
   "home": {
     "hello": "Hallo {name}!",
+    "noBallots": "Aktuell sind keine Abstimmungen eingestellt. Schau bald wieder vorbei!",
+    "viewArchived": "Archivierte Abstimmungen ansehen"
+  },
+  "profile": {
+    "hello": "Hallo {name}!",
+    "pseudonym": "Dein Pseudonym",
+    "pseudonymExplanation": "Dein Pseudonym ist ein zufällig gewählter Schweizer Bergname. Er schützt deine Identität und bleibt immer gleich.",
+    "displayName": "Anzeigename",
+    "identity": "Technische Identität",
     "did": "DID",
     "handle": "Handle",
-    "seeBallots": "Abstimmungen ansehen",
     "swiyuVerification": "swiyu-Verifizierung",
     "starting": "Wird gestartet...",
     "createAppPassword": "App-Passwort erstellen",

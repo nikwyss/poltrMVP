@@ -26,7 +26,8 @@
     "home": "Home",
     "ballots": "Ballots",
     "review": "Review",
-    "logOut": "Log out"
+    "logOut": "Log out",
+    "profile": "Profile"
   },
   "login": {
     "title": "Login to POLTR",
@@ -88,9 +89,17 @@
   },
   "home": {
     "hello": "Hello {name}!",
+    "noBallots": "No ballots are currently available. Check back soon!",
+    "viewArchived": "View archived ballots"
+  },
+  "profile": {
+    "hello": "Hello {name}!",
+    "pseudonym": "Your Pseudonym",
+    "pseudonymExplanation": "Your pseudonym is a randomly chosen Swiss mountain name. It protects your identity and stays the same forever.",
+    "displayName": "Display Name",
+    "identity": "Technical Identity",
     "did": "DID",
     "handle": "Handle",
-    "seeBallots": "See Ballots",
     "swiyuVerification": "swiyu-Verification",
     "starting": "Starting...",
     "createAppPassword": "Create App Password",
