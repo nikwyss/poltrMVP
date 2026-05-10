@@ -97,7 +97,7 @@ export const Ballots: CollectionConfig = {
   ],
   hooks: {
     afterChange: [
-      async ({ doc, previousDoc, operation, req }) => {
+      async ({ doc, req }) => {
         const isPublishing =
           doc.status === 'published' && !doc.governanceDid
 
