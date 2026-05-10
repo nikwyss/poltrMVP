@@ -15,6 +15,16 @@ from tests.conftest import (
     make_creds_row,
 )
 
+# Pre-import so patch targets are resolvable
+from src.auth.magic_link_handler import (  # noqa: E402
+    SendMagicLinkData,
+    send_magic_link_handler,
+    VerifyLoginMagicLinkData,
+    verify_login_magic_link_handler,
+    VerifyRegistrationMagicLinkData,
+    verify_registration_magic_link_handler,
+)
+
 
 # ── send_magic_link_handler ──────────────────────────────────────────────
 

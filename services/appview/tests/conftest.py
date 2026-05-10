@@ -163,9 +163,10 @@ def make_pending_registration_row(email="new@test.com", token="reg-token", expir
     return {"id": 1, "email": email, "expires_at": exp, "token": token}
 
 
-def make_creds_row(email="user@test.com", did="did:plc:abc123"):
+def make_creds_row(email="user@test.com", did="did:plc:abc123", handle="user123.id.poltr.ch"):
     return {
         "did": did,
+        "handle": handle,
         "email": email,
         "app_pw_ciphertext": b"fake-ct",
         "app_pw_nonce": b"fake-nonce-24-bytes!",

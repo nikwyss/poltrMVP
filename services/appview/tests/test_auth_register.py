@@ -10,6 +10,16 @@ import pytest
 from tests.conftest import FakePool
 from src.participation.provisioning import ProvisioningError
 
+FAKE_PSEUDONYM = {
+    "displayName": "TestBerg A",
+    "mountainName": "TestBerg",
+    "mountainFullname": "TestBerg (BE)",
+    "canton": "BE",
+    "height": 2000.0,
+    "color": "blue",
+    "templateId": 1,
+}
+
 
 # ── create_account ───────────────────────────────────────────────────────
 
@@ -21,7 +31,9 @@ async def test_create_account_success():
 
     with (
         patch("src.core.db.pool", pool),
+        patch("src.auth.register._gen_handle", return_value="usertest1.id.poltr.ch"),
         patch("src.auth.register.encrypt_app_password", return_value=(b"ct", b"nonce")),
+        patch("src.auth.register.generate_pseudonym", new_callable=AsyncMock, return_value=FAKE_PSEUDONYM),
         patch(
             "src.auth.register.provision_pds_account",
             new_callable=AsyncMock,
@@ -47,7 +59,9 @@ async def test_create_account_pds_failure():
 
     with (
         patch("src.core.db.pool", pool),
+        patch("src.auth.register._gen_handle", return_value="usertest1.id.poltr.ch"),
         patch("src.auth.register.encrypt_app_password", return_value=(b"ct", b"nonce")),
+        patch("src.auth.register.generate_pseudonym", new_callable=AsyncMock, return_value=FAKE_PSEUDONYM),
         patch(
             "src.auth.register.provision_pds_account",
             new_callable=AsyncMock,
@@ -70,7 +84,9 @@ async def test_create_account_email_taken():
 
     with (
         patch("src.core.db.pool", pool),
+        patch("src.auth.register._gen_handle", return_value="usertest1.id.poltr.ch"),
         patch("src.auth.register.encrypt_app_password", return_value=(b"ct", b"nonce")),
+        patch("src.auth.register.generate_pseudonym", new_callable=AsyncMock, return_value=FAKE_PSEUDONYM),
         patch(
             "src.auth.register.provision_pds_account",
             new_callable=AsyncMock,

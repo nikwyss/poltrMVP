@@ -20,7 +20,6 @@ def make_session_row(token="valid-token", did="did:plc:abc", expired=False):
         "expires_at": exp,
         "last_accessed_at": datetime.utcnow(),
         "access_token": "at-jwt",
-        "refresh_token": "rt-jwt",
     }
 
 
