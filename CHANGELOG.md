@@ -12,6 +12,23 @@
 - **AppView restructure**: `src/lib/` split into `src/core/` (shared: db, config, email) and `src/participation/` (ATProto: governance, crosspost, peer review, PDS API, provisioning)
 - **Routes restructure**: `routes/poltr/` + `routes/review/` merged into `routes/participation/` (ballots.py, reviews.py). `routes/actor/` + `routes/feed/` + `routes/ozone/` merged into `routes/atproto/` (actor.py, feed.py, ozone.py, wellknown.py). Deleted `routes/bluesky/` (dead code). Background loops (`crosspost`, `peer_review`) started via `participation/__init__.py` instead of directly from `core/fastapi.py`
 
+### Ballots moved to CMS (`services/cms`, `services/appview`, `services/indexer`)
+- **Ballots are CMS content**: No longer ATProto records. Created and managed in Payload CMS admin UI. New `Ballots` collection with title, description, topic, voteDate, officialRef, language, status
+- **Governance account on publish**: `afterChange` hook creates a PDS governance account (`ballot-{id}.id.poltr.ch`) when ballot status changes to "published". Credentials encrypted and stored in AppView `governance_accounts` table
+- **AppView proxies CMS**: `ballot.list` and `ballot.get` endpoints now fetch from CMS REST API (`/api/ballots`) and enrich with argument/comment counts from AppView DB
+- **Indexer**: Removed `COLLECTION_BALLOT` handler and `app_ballots` DB functions — ballots no longer come from the PDS firehose
+- **Bluesky poller rewritten**: Now polls cross-posted **argument** threads instead of ballot threads. Imports external Bluesky replies as comments (`origin = 'extern'`) linked to the argument. Removed ballot-level polling, `getActiveBallots`, `updateBallotBskyCounts`. Optimized: batch-checks reply counts via `getPosts` (25/call) before fetching full threads — only fetches when reply count changed. Age-based frequency: fresh arguments (<48h) polled every cycle, stale arguments every 6th cycle. New `bsky_reply_count` column on `app_arguments`
+- **Crosspost simplified**: Removed ballot crossposting (`_crosspost_ballots`). Arguments are cross-posted as standalone Bluesky posts (no longer as replies to a ballot post). Removed `_create_bsky_cross_like`
+- **`governance_accounts` moved to `auth` schema**: Table contains encrypted credentials, belongs with `auth_creds`. Indexer gets column-level `SELECT` on `did`, `handle`, `ballot_rkey` only (no access to passwords)
+- **CMS new dependencies**: `pg` (PostgreSQL client), `tweetnacl` (NaCl encryption for password storage)
+- **CMS new env vars**: `APPVIEW_POSTGRES_URL`, `PDS_INTERNAL_URL`, `PDS_ADMIN_PASSWORD`, `APPVIEW_PDS_CREDS_MASTER_KEY_B64`, `PDS_PUBLIC_HANDLE`
+
+### Frontend: Home shows ballots, new Profile page (`services/front`)
+- **Home page**: Shows current ballots (no archived). Empty state with link to archived ballots
+- **Profile page** (`/profile`): Moved from home — pseudonym explanation, DID, handle, eID verification, app password
+- **Navigation**: Profile link added to user dropdown menu
+- **Default locale**: Changed from `en` to `de`
+
 ## 2026-05-09
 
 ### Per-ballot governance accounts (`services/appview`, `services/indexer`, `infra`)

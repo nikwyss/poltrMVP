@@ -136,40 +136,52 @@ goat resolve <handle>
 
 **Note:** `goat record delete` requires being authenticated as the account owner (via `goat account login`). For bulk admin operations, use the XRPC approach above.
 
-## Governance Model: Per-Ballot Accounts
+## Ballot Management
 
-Each ballot (Abstimmungsvorlage) has its own PDS governance account. The account's repo is a self-contained archive of one ballot: ballot entry, all arguments, all review invitations/responses, and Bluesky cross-posts.
+Ballots are managed in **Payload CMS** (`services/cms`), not as ATProto records. The CMS is the single source of truth for ballot content.
 
-- **Handle schema:** `ballot-{rkey}.id.poltr.ch`
-- **Credentials:** Encrypted in `governance_accounts` table (using `APPVIEW_PDS_CREDS_MASTER_KEY_B64`)
-- **No legacy env vars:** `PDS_GOVERNANCE_ACCOUNT_DID` and `PDS_GOVERNANCE_PASSWORD` are removed. All governance credentials come from the DB.
+### Flow
+
+1. Admin creates/edits ballot in CMS (`/admin/collections/ballots`)
+2. Admin sets status to "published" → `afterChange` hook creates a PDS governance account
+3. AppView reads ballots from CMS API, enriches with argument/comment counts from DB
+4. Users write arguments/comments → stored in the ballot's governance account on PDS
 
 ### Key files
 
 | File | Role |
 |------|------|
-| `services/appview/src/lib/governance_pds.py` | Session management, `create_ballot_account()`, record creation per DID |
-| `services/indexer/src/record_handler.js` | `isGovernanceDid()` — loads governance DIDs from DB, refreshes every 60s |
-| `infra/scripts/postgres/db-setup.sql` | `governance_accounts` table definition |
+| `services/cms/src/collections/Ballots.ts` | Ballot collection + publish hook |
+| `services/cms/src/lib/atproto-publish.ts` | Governance account creation (PDS + DB) |
+| `services/appview/src/routes/participation/ballots.py` | Ballot endpoints (proxy CMS + enrich counts) |
+
+## Governance Model: Per-Ballot Accounts
+
+Each ballot has its own PDS governance account. The account holds all arguments, review invitations/responses, and Bluesky cross-posts for that ballot.
+
+- **Handle schema:** `ballot-{id}.id.poltr.ch` (id = CMS ballot ID)
+- **Credentials:** Encrypted in `auth.governance_accounts` table (using `APPVIEW_PDS_CREDS_MASTER_KEY_B64`). Indexer has column-level SELECT on `did`, `handle`, `ballot_rkey` only
+- **Created by:** CMS publish hook (TypeScript) or AppView `create_ballot_account()` (Python)
 
 ### How records are routed
 
 All governance functions (`create_governance_record`, `put_governance_record`) require an explicit `did` parameter. The caller resolves the governance DID via:
-- `get_did_for_ballot_uri(ballot_uri)` — for argument creation
+- `get_did_for_ballot(ballot_id)` — for argument creation (ballot_id = CMS ID)
 - `app_arguments.did` column — for review submission
-- `app_ballots.did` column — for crossposting
+- `governance_accounts` table — for crossposting
 
-### Creating a new ballot
+### Bluesky Integration
 
-`create_ballot_account(ballot_rkey)` in `governance_pds.py`:
-1. Generates handle `ballot-{rkey}.id.poltr.ch`
-2. Creates PDS account via admin API
-3. Encrypts and stores password in `governance_accounts`
-4. Waits for PLC directory resolution
+- **Argument crossposting:** Arguments are cross-posted as standalone Bluesky posts under their governance account (`services/appview/src/participation/crosspost.py`)
+- **External comment import:** The Bluesky poller (`services/indexer/src/bsky_poller.js`) polls cross-posted argument threads for replies and imports them as external comments (`origin = 'extern'` in `app_comments`). Controlled by `BSKY_POLL_ENABLED` env var
+- **No ballot crossposting:** Ballots are CMS content and are not posted to Bluesky
 
 ## Architecture
 
 ```
+CMS (Ballot content)
+       │
+       ▼
 Frontend/eID Proto
        │
        ▼
@@ -213,7 +225,7 @@ The Bluesky relay (`bsky.network`) permanently throttles accounts if it sees an 
 
 Script: `infra/scripts/import_peerreviews.py`
 
-Imports historical peer-review data from Demokratiefabrik xlsx dumps into a ballot-specific governance account as `app.ch.poltr.review.invitation` and `app.ch.poltr.review.response` records. Credentials are loaded from the `governance_accounts` table.
+Imports historical peer-review data from Demokratiefabrik xlsx dumps into a ballot-specific governance account as `app.ch.poltr.review.invitation` and `app.ch.poltr.review.response` records. Credentials are loaded from the `auth.governance_accounts` table.
 
 **Prerequisites:**
 - Port-forward PDS: `kubectl port-forward -n poltr svc/pds 2583:80`
@@ -235,7 +247,7 @@ python3 infra/scripts/import_peerreviews.py
 |---------|-------------|---------|
 | `PDS_HOST` | PDS endpoint | `http://localhost:2583` |
 | `DB_URL` | PostgreSQL connection URL | — |
-| `BALLOT_RKEY` | Ballot rkey (credentials loaded from `governance_accounts`) | — |
+| `BALLOT_RKEY` | Ballot rkey (credentials loaded from `auth.governance_accounts`) | — |
 | `MASTER_KEY_B64` | `APPVIEW_PDS_CREDS_MASTER_KEY_B64` for decryption | — |
 | `MAX_RESPONSES` | Limit responses imported (0 = all) | `0` |
 | `DRY_RUN` | `true` to inspect without writing | `false` |

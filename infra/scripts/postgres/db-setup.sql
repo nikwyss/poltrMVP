@@ -69,8 +69,9 @@ CREATE TABLE app_arguments (
   ballot_rkey   text NOT NULL,          -- rkey of the ballot (for fast lookups)
   bsky_post_uri text,                -- URI of the cross-posted app.bsky.feed.post
   bsky_post_cid text,                -- CID of the cross-posted app.bsky.feed.post
-  like_count    integer NOT NULL DEFAULT 0,
-  comment_count integer NOT NULL DEFAULT 0,
+  like_count       integer NOT NULL DEFAULT 0,
+  comment_count    integer NOT NULL DEFAULT 0,
+  bsky_reply_count integer NOT NULL DEFAULT 0,
   review_status text NOT NULL DEFAULT 'preliminary' CHECK (review_status IN ('preliminary', 'approved', 'rejected')),
   created_at    timestamptz NOT NULL,
   indexed_at    timestamptz NOT NULL DEFAULT now(),
@@ -172,6 +173,16 @@ CREATE TABLE app_profiles (
 -- auth schema: auth tables (appview only, no indexer access)
 -- =============================================================================
 
+CREATE TABLE auth.governance_accounts (
+  did               text PRIMARY KEY,
+  handle            text NOT NULL,
+  ballot_rkey       text UNIQUE,
+  ballot_uri        text UNIQUE,
+  pw_ciphertext     bytea NOT NULL,        -- encrypted with APPVIEW_PDS_CREDS_MASTER_KEY_B64
+  pw_nonce          bytea NOT NULL,
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE auth.auth_creds (
   did                    text PRIMARY KEY,
   handle                 text NOT NULL,
@@ -238,20 +249,6 @@ CREATE TABLE auth.mountain_templates (
 );
 
 -- =============================================================================
--- Governance accounts: per-ballot PDS accounts (appview r/w, indexer read)
--- =============================================================================
-
-CREATE TABLE governance_accounts (
-  did               text PRIMARY KEY,
-  handle            text NOT NULL,
-  ballot_rkey       text UNIQUE,
-  ballot_uri        text UNIQUE,
-  pw_ciphertext     bytea NOT NULL,        -- encrypted with APPVIEW_PDS_CREDS_MASTER_KEY_B64
-  pw_nonce          bytea NOT NULL,
-  created_at        timestamptz NOT NULL DEFAULT now()
-);
-
--- =============================================================================
 -- Roles & Grants
 -- =============================================================================
 
@@ -271,5 +268,8 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO indexer;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO indexer;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO indexer;
 REVOKE ALL ON SCHEMA auth FROM indexer;
+-- Indexer needs to read governance DIDs (but not credentials)
+GRANT USAGE ON SCHEMA auth TO indexer;
+GRANT SELECT (did, handle, ballot_rkey) ON auth.governance_accounts TO indexer;
 
 -- ALTER ROLE indexer WITH PASSWORD 'CHANGE_ME';

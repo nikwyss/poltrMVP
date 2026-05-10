@@ -71,6 +71,7 @@ export interface Config {
     media: Media;
     pages: Page;
     blocks: Block;
+    ballots: Ballot;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -82,6 +83,7 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
     blocks: BlocksSelect<false> | BlocksSelect<true>;
+    ballots: BallotsSelect<false> | BallotsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -258,6 +260,53 @@ export interface Block {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ballots".
+ */
+export interface Ballot {
+  id: number;
+  title: string;
+  description?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  /**
+   * Themenbereich (z.B. Umwelt, Soziales)
+   */
+  topic?: string | null;
+  /**
+   * Abstimmungsdatum
+   */
+  voteDate: string;
+  /**
+   * Referenz auf offizielle Unterlagen (URL)
+   */
+  officialRef?: string | null;
+  language?: ('de' | 'fr' | 'it' | 'en') | null;
+  status: 'draft' | 'published';
+  /**
+   * ATProto Governance Account DID (auto-created on publish)
+   */
+  governanceDid?: string | null;
+  /**
+   * ATProto Governance Account Handle
+   */
+  governanceHandle?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -295,6 +344,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'blocks';
         value: number | Block;
+      } | null)
+    | ({
+        relationTo: 'ballots';
+        value: number | Ballot;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -410,6 +463,23 @@ export interface BlocksSelect<T extends boolean = true> {
   placement?: T;
   active?: T;
   priority?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "ballots_select".
+ */
+export interface BallotsSelect<T extends boolean = true> {
+  title?: T;
+  description?: T;
+  topic?: T;
+  voteDate?: T;
+  officialRef?: T;
+  language?: T;
+  status?: T;
+  governanceDid?: T;
+  governanceHandle?: T;
   updatedAt?: T;
   createdAt?: T;
 }

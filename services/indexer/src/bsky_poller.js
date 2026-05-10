@@ -1,13 +1,23 @@
 import process from 'node:process'
-import { getActiveBallots, getArgumentUrisForBallot, updateBallotBskyCounts, upsertBskyThreadPost } from './db.js'
+import { pool, upsertBskyThreadPost } from './db.js'
 
 const BSKY_PUBLIC_API = 'https://public.api.bsky.app'
 const POLL_ENABLED = (process.env.BSKY_POLL_ENABLED ?? 'false') === 'true'
 const POLL_INTERVAL_MS = Number(process.env.BSKY_POLL_INTERVAL_MS ?? 600_000) // 10 min
-const DELAY_BETWEEN_BALLOTS_MS = 2000
+const DELAY_BETWEEN_THREADS_MS = 2000
+
+// Arguments older than this get polled less frequently
+const FRESH_THRESHOLD_HOURS = 48
+const STALE_POLL_EVERY_N = 6 // poll stale args every Nth cycle
+
+let pollCycleCount = 0
+
+// ---------------------------------------------------------------------------
+// Bluesky API
+// ---------------------------------------------------------------------------
 
 /**
- * Fetch a thread from the Bluesky public API.
+ * Fetch a single thread from the Bluesky public API.
  */
 async function fetchThread(uri) {
   const url = `${BSKY_PUBLIC_API}/xrpc/app.bsky.feed.getPostThread?uri=${encodeURIComponent(uri)}&depth=10`
@@ -20,23 +30,82 @@ async function fetchThread(uri) {
 }
 
 /**
- * Extract ballot rkey from a ballot AT-URI.
- * e.g. "at://did:plc:xxx/app.ch.poltr.ballot.entry/682.3" -> "682.3"
+ * Batch-fetch post metadata (up to 25 per call).
+ * Returns a Map of uri -> { replyCount, likeCount, repostCount }.
  */
+async function batchGetPosts(uris) {
+  const result = new Map()
+  if (uris.length === 0) return result
+
+  // API accepts max 25 URIs per call
+  for (let i = 0; i < uris.length; i += 25) {
+    const batch = uris.slice(i, i + 25)
+    const params = batch.map((u) => `uris=${encodeURIComponent(u)}`).join('&')
+    const url = `${BSKY_PUBLIC_API}/xrpc/app.bsky.feed.getPosts?${params}`
+
+    try {
+      const res = await fetch(url)
+      if (!res.ok) continue
+      const data = await res.json()
+      for (const post of data.posts ?? []) {
+        result.set(post.uri, {
+          replyCount: post.replyCount ?? 0,
+          likeCount: post.likeCount ?? 0,
+          repostCount: post.repostCount ?? 0,
+        })
+      }
+    } catch (err) {
+      console.error(`batchGetPosts failed for batch at offset ${i}:`, err.message)
+    }
+
+    // Small delay between batch calls
+    if (i + 25 < uris.length) {
+      await new Promise((r) => setTimeout(r, 500))
+    }
+  }
+
+  return result
+}
+
+// ---------------------------------------------------------------------------
+// DB
+// ---------------------------------------------------------------------------
+
 function extractRkey(uri) {
   return uri.split('/').pop()
 }
 
 /**
- * Recursively walk thread replies and upsert each into app_comments.
- * @param {Array} replies - Thread reply nodes
- * @param {string} ballotUri - The poltr ballot AT-URI
- * @param {string} ballotRkey - The ballot record key
- * @param {string} rootUri - The root Bluesky post URI
- * @param {Set<string>} knownArgumentUris - Set of Bluesky URIs that are cross-posted arguments
- * @param {string|null} argumentUri - Inherited argument URI from ancestor (propagated down)
+ * Get all cross-posted arguments with their known Bluesky reply count.
  */
-async function walkReplies(replies, ballotUri, ballotRkey, rootUri, knownArgumentUris, argumentUri) {
+async function getCrosspostedArguments() {
+  const res = await pool.query(
+    `SELECT uri, bsky_post_uri, ballot_rkey, bsky_reply_count, created_at
+     FROM app_arguments
+     WHERE bsky_post_uri IS NOT NULL AND NOT deleted
+     ORDER BY created_at DESC`,
+  )
+  return res.rows
+}
+
+/**
+ * Update the cached Bluesky reply count on an argument.
+ */
+async function updateArgumentBskyReplyCount(uri, replyCount) {
+  await pool.query(
+    `UPDATE app_arguments SET bsky_reply_count = $1 WHERE uri = $2`,
+    [replyCount, uri],
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Thread walking
+// ---------------------------------------------------------------------------
+
+/**
+ * Recursively walk thread replies and upsert each into app_comments as extern.
+ */
+async function walkReplies(replies, ballotRkey, argumentUri, rootUri, parentUri) {
   if (!replies || !Array.isArray(replies)) return
 
   for (const reply of replies) {
@@ -48,9 +117,6 @@ async function walkReplies(replies, ballotUri, ballotRkey, rootUri, knownArgumen
     const post = reply.post
     if (!post || !post.uri) continue
 
-    // If this post is a known argument, it becomes the argumentUri for all descendants
-    const currentArgumentUri = knownArgumentUris.has(post.uri) ? post.uri : argumentUri
-
     try {
       await upsertBskyThreadPost({
         uri: post.uri,
@@ -58,10 +124,10 @@ async function walkReplies(replies, ballotUri, ballotRkey, rootUri, knownArgumen
         did: post.author?.did,
         rkey: extractRkey(post.uri),
         text: post.record?.text ?? null,
-        ballotUri,
+        ballotUri: null,
         ballotRkey,
-        parentUri: post.record?.reply?.parent?.uri ?? rootUri,
-        argumentUri: currentArgumentUri,
+        parentUri,
+        argumentUri,
         bskyPostUri: post.uri,
         bskyPostCid: post.cid,
         handle: post.author?.handle ?? null,
@@ -75,74 +141,106 @@ async function walkReplies(replies, ballotUri, ballotRkey, rootUri, knownArgumen
       console.error(`Failed to upsert thread post ${post.uri}:`, err.message)
     }
 
-    // Recurse into nested replies, propagating argumentUri
     if (reply.replies) {
-      await walkReplies(reply.replies, ballotUri, ballotRkey, rootUri, knownArgumentUris, currentArgumentUri)
+      await walkReplies(reply.replies, ballotRkey, argumentUri, rootUri, post.uri)
     }
   }
 }
 
 /**
- * Poll a single ballot's Bluesky thread and import replies + counts.
+ * Poll a single argument's Bluesky thread and import replies.
  */
-async function pollBallotThread(ballot) {
-  const { uri: ballotUri, bsky_post_uri: bskyPostUri } = ballot
-  const ballotRkey = extractRkey(ballotUri)
+async function pollArgumentThread(arg) {
+  const { uri: argumentUri, bsky_post_uri: bskyPostUri, ballot_rkey: ballotRkey } = arg
 
   const data = await fetchThread(bskyPostUri)
   const thread = data.thread
 
   if (!thread || thread.$type === 'app.bsky.feed.defs#blockedPost' ||
       thread.$type === 'app.bsky.feed.defs#notFoundPost') {
-    console.warn(`Thread not available for ballot ${ballotUri}`)
     return
   }
 
-  // Update ballot engagement counts from the root post
-  const rootPost = thread.post
-  if (rootPost) {
-    await updateBallotBskyCounts(ballotUri, {
-      likeCount: rootPost.likeCount ?? 0,
-      repostCount: rootPost.repostCount ?? 0,
-      replyCount: rootPost.replyCount ?? 0,
-    })
-  }
-
-  // Build set of known argument URIs for this ballot
-  const argumentRows = await getArgumentUrisForBallot(ballotUri)
-  const knownArgumentUris = new Set(argumentRows.map((r) => r.bsky_post_uri))
-
-  // Walk and import all replies, tagging each with its ancestor argument
   if (thread.replies) {
-    await walkReplies(thread.replies, ballotUri, ballotRkey, bskyPostUri, knownArgumentUris, null)
+    await walkReplies(thread.replies, ballotRkey, argumentUri, bskyPostUri, bskyPostUri)
   }
 }
+
+// ---------------------------------------------------------------------------
+// Main poll cycle
+// ---------------------------------------------------------------------------
 
 /**
- * Poll all active ballots.
+ * Poll cross-posted arguments for Bluesky thread replies.
+ *
+ * Optimizations:
+ * - Batch-checks reply counts via getPosts (25 per call) before fetching threads
+ * - Only fetches full thread if reply count changed since last poll
+ * - Fresh arguments (<48h) are polled every cycle
+ * - Stale arguments (>48h) are polled every Nth cycle
  */
-async function pollActiveBallots() {
-  const ballots = await getActiveBallots()
-  if (ballots.length === 0) return
+async function pollCrosspostedArguments() {
+  pollCycleCount++
+  const isStaleRound = pollCycleCount % STALE_POLL_EVERY_N === 0
 
-  console.log(`Polling ${ballots.length} active ballot(s) for Bluesky threads`)
+  const allArgs = await getCrosspostedArguments()
+  if (allArgs.length === 0) return
 
-  for (let i = 0; i < ballots.length; i++) {
+  const freshCutoff = new Date(Date.now() - FRESH_THRESHOLD_HOURS * 60 * 60 * 1000)
+
+  // Split into fresh and stale
+  const fresh = allArgs.filter((a) => new Date(a.created_at) >= freshCutoff)
+  const stale = allArgs.filter((a) => new Date(a.created_at) < freshCutoff)
+
+  // This cycle: always poll fresh, poll stale only every Nth cycle
+  const toPoll = isStaleRound ? allArgs : fresh
+
+  if (toPoll.length === 0) return
+
+  console.log(
+    `Bsky poll cycle #${pollCycleCount}: ${fresh.length} fresh, ${stale.length} stale` +
+    (isStaleRound ? ' (stale round — polling all)' : ' (polling fresh only)'),
+  )
+
+  // Batch-check current reply counts on Bluesky
+  const bskyUris = toPoll.map((a) => a.bsky_post_uri)
+  const postMeta = await batchGetPosts(bskyUris)
+
+  // Only fetch full thread for arguments with new replies
+  let polledCount = 0
+  for (const arg of toPoll) {
+    const meta = postMeta.get(arg.bsky_post_uri)
+    if (!meta) continue
+
+    const knownReplyCount = arg.bsky_reply_count ?? 0
+    const currentReplyCount = meta.replyCount
+
+    if (currentReplyCount <= knownReplyCount) continue
+
+    // New replies detected — fetch full thread
     try {
-      await pollBallotThread(ballots[i])
+      await pollArgumentThread(arg)
+      await updateArgumentBskyReplyCount(arg.uri, currentReplyCount)
+      polledCount++
     } catch (err) {
-      console.error(`Poller error for ballot ${ballots[i].uri}:`, err.message)
+      console.error(`Poller error for argument ${arg.uri}:`, err.message)
     }
 
-    // Delay between requests to avoid hammering the API
-    if (i < ballots.length - 1) {
-      await new Promise((r) => setTimeout(r, DELAY_BETWEEN_BALLOTS_MS))
-    }
+    await new Promise((r) => setTimeout(r, DELAY_BETWEEN_THREADS_MS))
+  }
+
+  if (polledCount > 0) {
+    console.log(`Imported threads for ${polledCount} argument(s) with new replies`)
   }
 }
+
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
 
 /**
  * Start the Bluesky thread poller.
+ * Polls cross-posted arguments for external Bluesky replies and imports them.
  * Returns a cleanup function to stop the interval.
  */
 export function startBskyPoller() {
@@ -153,13 +251,12 @@ export function startBskyPoller() {
 
   console.log(`Bluesky poller enabled, interval=${POLL_INTERVAL_MS}ms`)
 
-  // Run once immediately, then on interval
-  pollActiveBallots().catch((err) => {
+  pollCrosspostedArguments().catch((err) => {
     console.error('Initial poll failed:', err.message)
   })
 
   const intervalId = setInterval(() => {
-    pollActiveBallots().catch((err) => {
+    pollCrosspostedArguments().catch((err) => {
       console.error('Poll cycle failed:', err.message)
     })
   }, POLL_INTERVAL_MS)

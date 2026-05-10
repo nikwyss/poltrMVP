@@ -2,8 +2,6 @@ import { CID } from "multiformats/cid";
 import "dotenv/config";
 import {
   pool,
-  upsertBallotDb,
-  markDeleted,
   upsertLikeDb,
   markLikeDeleted,
   upsertArgumentDb,
@@ -16,7 +14,6 @@ import {
   markReviewResponseDeleted,
 } from "./db.js";
 
-const COLLECTION_BALLOT = "app.ch.poltr.ballot.entry";
 const COLLECTION_ARGUMENT = "app.ch.poltr.ballot.argument";
 const COLLECTION_RATING = "app.ch.poltr.content.rating";
 const COLLECTION_COMMENT = "app.ch.poltr.comment";
@@ -28,7 +25,7 @@ let governanceDids = new Set();
 
 export async function refreshGovernanceDids() {
   try {
-    const res = await pool.query("SELECT did FROM governance_accounts");
+    const res = await pool.query("SELECT did FROM auth.governance_accounts");
     governanceDids = new Set(res.rows.map((r) => r.did));
     console.log(
       `Refreshed governance DIDs: ${governanceDids.size} account(s)`,
@@ -49,7 +46,6 @@ export const handleEvent = async (evt) => {
     console.log("Handling event for collection:", collection);
   }
   if (
-    collection !== COLLECTION_BALLOT &&
     collection !== COLLECTION_ARGUMENT &&
     collection !== COLLECTION_RATING &&
     collection !== COLLECTION_COMMENT &&
@@ -63,22 +59,6 @@ export const handleEvent = async (evt) => {
   const uri = evt.uri.toString();
   const rkey = evt.rkey;
   const action = evt.event;
-
-  if (collection === COLLECTION_BALLOT) {
-    if (!isGovernanceDid(did)) {
-      console.log(`Ignoring ballots from non-governance repo: ${did}`);
-      return;
-    }
-    if (action === "delete") {
-      await markDeleted(uri);
-      return;
-    }
-    if (action === "create" || action === "update") {
-      const record = evt.record;
-      if (!record) return;
-      await upsertBallotDb(pool, { uri, cid: cidString, did, rkey, record });
-    }
-  }
 
   if (collection === COLLECTION_ARGUMENT) {
     if (!isGovernanceDid(did)) {

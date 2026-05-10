@@ -662,6 +662,33 @@ spec:
           envFrom:
             - secretRef:
                 name: cms-secrets
+          env:
+            - name: APPVIEW_PDS_CREDS_MASTER_KEY_B64
+              valueFrom:
+                secretKeyRef:
+                  name: appview-secrets
+                  key: APPVIEW_PDS_CREDS_MASTER_KEY_B64
+            - name: APPVIEW_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: appview-secrets
+                  key: APPVIEW_POSTGRES_URL
+            - name: PDS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_ADMIN_PASSWORD
+            - name: PDS_PUBLIC_HANDLE
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_PUBLIC_HANDLE
+            - name: PDS_INTERNAL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_INTERNAL_URL
+
           ports:
             - name: http
               containerPort: 3000

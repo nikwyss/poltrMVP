@@ -19,47 +19,6 @@ export async function dbQuery(clientOrPool, text, params = []) {
 }
 
 /**
- * Upsert a ballot record into app_ballots.
- * Uses the given client (transactional) or pool.
- */
-export async function upsertBallotDb(clientOrPool, params) {
-  const { uri, cid, did, rkey, record } = params;
-
-  const title = record.title ?? null;
-  const description = record.description ?? null;
-  const voteDate = record.voteDate ? new Date(record.voteDate) : null;
-  const createdAt = record.createdAt ? new Date(record.createdAt) : new Date();
-
-  await dbQuery(
-    clientOrPool,
-    `
-    INSERT INTO app_ballots
-      (uri, cid, did, rkey, title, description, vote_date, created_at, deleted)
-    VALUES
-      ($1,  $2,  $3,  $4,  $5,    $6,          $7,        $8,        false)
-    ON CONFLICT (uri) DO UPDATE SET
-      cid         = EXCLUDED.cid,
-      title       = EXCLUDED.title,
-      description = EXCLUDED.description,
-      vote_date   = EXCLUDED.vote_date,
-      created_at  = EXCLUDED.created_at,
-      deleted     = false,
-      indexed_at  = now()
-    `,
-    [uri, cid, did, rkey, title, description, voteDate, createdAt],
-  );
-}
-
-export async function markDeleted(uri) {
-  await pool.query(
-    `UPDATE app_ballots
-     SET deleted = true, indexed_at = now()
-     WHERE uri = $1`,
-    [uri],
-  );
-}
-
-/**
  * Upsert a like record into app_likes.
  */
 export async function upsertLikeDb(clientOrPool, params) {
@@ -113,36 +72,6 @@ export async function markLikeDeleted(uri) {
 }
 
 /**
- * Recount non-deleted likes and update app_ballots.like_count.
- */
-/**
- * Get all active ballots that have a Bluesky cross-post.
- */
-export async function getActiveBallots() {
-  const res = await pool.query(
-    `SELECT uri, bsky_post_uri
-     FROM app_ballots
-     WHERE active = 1
-       AND bsky_post_uri IS NOT NULL
-       AND NOT deleted`,
-  );
-  return res.rows;
-}
-
-/**
- * Get cross-posted Bluesky URIs for arguments belonging to a ballot.
- * Returns rows with { bsky_post_uri }.
- */
-export async function getArgumentUrisForBallot(ballotUri) {
-  const res = await pool.query(
-    `SELECT bsky_post_uri FROM app_arguments
-     WHERE ballot_uri = $1 AND bsky_post_uri IS NOT NULL AND NOT deleted`,
-    [ballotUri],
-  );
-  return res.rows;
-}
-
-/**
  * Upsert an argument record into app_arguments.
  */
 export async function upsertArgumentDb(clientOrPool, params) {
@@ -192,9 +121,6 @@ export async function upsertArgumentDb(clientOrPool, params) {
     ],
   );
 
-  if (ballotUri) {
-    await refreshBallotArgumentCount(clientOrPool, ballotUri);
-  }
 }
 
 /**
@@ -205,34 +131,11 @@ export async function markArgumentDeleted(uri) {
     `UPDATE app_arguments
      SET deleted = true, indexed_at = now()
      WHERE uri = $1
-     RETURNING bsky_post_uri, ballot_uri`,
+     RETURNING bsky_post_uri`,
     [uri],
   );
 
-  const ballotUri = res.rows?.[0]?.ballot_uri;
-  if (ballotUri) {
-    await refreshBallotArgumentCount(pool, ballotUri);
-  }
-
   return res.rows?.[0]?.bsky_post_uri ?? null;
-}
-
-/**
- * Update Bluesky engagement counts on a ballot.
- */
-export async function updateBallotBskyCounts(
-  ballotUri,
-  { likeCount, repostCount, replyCount },
-) {
-  await pool.query(
-    `UPDATE app_ballots
-     SET bsky_like_count   = $1,
-         bsky_repost_count = $2,
-         bsky_reply_count  = $3,
-         indexed_at        = now()
-     WHERE uri = $4`,
-    [likeCount ?? 0, repostCount ?? 0, replyCount ?? 0, ballotUri],
-  );
 }
 
 /**
@@ -371,30 +274,23 @@ export async function upsertCommentDb(clientOrPool, params) {
   if (argumentUri) {
     await refreshCommentCount(clientOrPool, argumentUri);
   }
-  if (ballotUri) {
-    await refreshBallotCommentCount(clientOrPool, ballotUri);
-  }
 }
 
 /**
- * Soft-delete a comment and refresh counts on parent argument and ballot.
+ * Soft-delete a comment and refresh counts on parent argument.
  */
 export async function markCommentDeleted(uri) {
   const res = await pool.query(
     `UPDATE app_comments
      SET deleted = true, indexed_at = now()
      WHERE uri = $1
-     RETURNING argument_uri, ballot_uri`,
+     RETURNING argument_uri`,
     [uri],
   );
 
   const argumentUri = res.rows?.[0]?.argument_uri;
-  const ballotUri = res.rows?.[0]?.ballot_uri;
   if (argumentUri) {
     await refreshCommentCount(pool, argumentUri);
-  }
-  if (ballotUri) {
-    await refreshBallotCommentCount(pool, ballotUri);
   }
 }
 
@@ -416,49 +312,8 @@ async function refreshCommentCount(clientOrPool, argumentUri) {
   );
 }
 
-/**
- * Recount non-deleted arguments and update app_ballots.argument_count.
- */
-async function refreshBallotArgumentCount(clientOrPool, ballotUri) {
-  await dbQuery(
-    clientOrPool,
-    `
-    UPDATE app_ballots
-    SET argument_count = (
-      SELECT count(*) FROM app_arguments
-      WHERE ballot_uri = $1 AND NOT deleted
-    )
-    WHERE uri = $1
-    `,
-    [ballotUri],
-  );
-}
-
-/**
- * Recount non-deleted comments and update app_ballots.comment_count.
- */
-async function refreshBallotCommentCount(clientOrPool, ballotUri) {
-  await dbQuery(
-    clientOrPool,
-    `
-    UPDATE app_ballots
-    SET comment_count = (
-      SELECT count(*) FROM app_comments
-      WHERE ballot_uri = $1 AND NOT deleted
-    )
-    WHERE uri = $1
-    `,
-    [ballotUri],
-  );
-}
-
 export async function refreshLikeCount(clientOrPool, subjectUri) {
   const countSql = `(SELECT count(*) FROM app_likes WHERE subject_uri = $1 AND NOT deleted)`;
-  await dbQuery(
-    clientOrPool,
-    `UPDATE app_ballots SET like_count = ${countSql} WHERE uri = $1`,
-    [subjectUri],
-  );
   await dbQuery(
     clientOrPool,
     `UPDATE app_arguments SET like_count = ${countSql} WHERE uri = $1`,

@@ -32,7 +32,7 @@ async def _get_governance_password(did: str) -> str:
     pool = await db.get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT pw_ciphertext, pw_nonce FROM governance_accounts WHERE did = $1",
+            "SELECT pw_ciphertext, pw_nonce FROM auth.governance_accounts WHERE did = $1",
             did,
         )
     if not row:
@@ -177,7 +177,7 @@ async def create_ballot_account(ballot_rkey: str) -> str:
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO governance_accounts (did, handle, ballot_rkey, pw_ciphertext, pw_nonce)
+            INSERT INTO auth.governance_accounts (did, handle, ballot_rkey, pw_ciphertext, pw_nonce)
             VALUES ($1, $2, $3, $4, $5)
             """,
             did, handle, ballot_rkey, pw_ct, pw_nonce,
@@ -194,7 +194,7 @@ async def get_did_for_ballot(ballot_rkey: str) -> str | None:
     pool = await db.get_pool()
     async with pool.acquire() as conn:
         return await conn.fetchval(
-            "SELECT did FROM governance_accounts WHERE ballot_rkey = $1",
+            "SELECT did FROM auth.governance_accounts WHERE ballot_rkey = $1",
             ballot_rkey,
         )
 
@@ -203,16 +203,8 @@ async def get_did_for_ballot_uri(ballot_uri: str) -> str | None:
     """Look up the governance DID for a ballot AT URI."""
     pool = await db.get_pool()
     async with pool.acquire() as conn:
-        # Try governance_accounts first
-        did = await conn.fetchval(
-            "SELECT did FROM governance_accounts WHERE ballot_uri = $1",
-            ballot_uri,
-        )
-        if did:
-            return did
-        # Fall back to app_ballots table
         return await conn.fetchval(
-            "SELECT did FROM app_ballots WHERE uri = $1",
+            "SELECT did FROM auth.governance_accounts WHERE ballot_uri = $1",
             ballot_uri,
         )
 
@@ -222,6 +214,6 @@ async def is_governance_did(did: str) -> bool:
     pool = await db.get_pool()
     async with pool.acquire() as conn:
         return await conn.fetchval(
-            "SELECT EXISTS(SELECT 1 FROM governance_accounts WHERE did = $1)",
+            "SELECT EXISTS(SELECT 1 FROM auth.governance_accounts WHERE did = $1)",
             did,
         )

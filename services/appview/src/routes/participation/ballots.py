@@ -1,7 +1,8 @@
 """
-app.ch.poltr.* endpoints
+Participation endpoints: ballots, arguments, comments, likes, activity.
 
-Poltr-specific endpoints for Swiss civic tech features.
+Ballots are sourced from the CMS (Payload) and enriched with counts from
+the AppView database. Arguments/comments/reviews are ATProto records.
 """
 
 import json
@@ -19,152 +20,134 @@ from src.core.db import get_pool
 from src.core.cursor import encode_cursor
 from src.core.lib import get_string, get_date_iso, get_number, get_array, get_object
 from src.participation.atproto_api import pds_create_record, pds_delete_record
-from src.participation.governance import create_governance_record, get_did_for_ballot_uri
+from src.participation.governance import create_governance_record, get_did_for_ballot
 
 router = APIRouter(prefix="/xrpc", tags=["poltr"])
 
+CMS_URL = os.getenv("CMS_URL", "http://cms.poltr.svc.cluster.local:3000")
+
 
 # -----------------------------------------------------------------------------
-# Shared helpers
+# CMS helpers
 # -----------------------------------------------------------------------------
 
 
-def _serialize_ballot(row: dict) -> dict:
-    """Serialize a DB row from app_ballots into the API ballot shape."""
-    # Parse record
-    record = {}
-    raw_record = get_object(row, "record")
-    if raw_record:
-        record = raw_record
-    elif isinstance(row.get("record"), str):
-        try:
-            record = json.loads(row["record"])
-        except Exception:
-            record = {}
-    else:
-        raw_record_dict = {
-            "$type": get_string(row, "record_type")
-            or get_string(row, "type")
-            or "app.ch.poltr.ballot.entry",
-            "title": get_string(row, "title"),
-            "description": get_string(row, "description"),
-            "voteDate": get_date_iso(row, "vote_date"),
-            "createdAt": get_date_iso(row, "created_at"),
-            "deleted": bool(row.get("deleted")),
-        }
-        record = {k: v for k, v in raw_record_dict.items() if v is not None}
+async def _fetch_cms_ballots(status: str = "published") -> list[dict]:
+    """Fetch published ballots from CMS REST API."""
+    url = f"{CMS_URL}/api/ballots?where[status][equals]={status}&sort=-voteDate&limit=100"
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(url)
+        if resp.status_code != 200:
+            logger.error(f"CMS ballot fetch failed ({resp.status_code}): {resp.text[:200]}")
+            return []
+        return resp.json().get("docs", [])
 
-    # Parse author
-    author_obj = get_object(row, "author")
-    author_raw = {
-        "did": get_string(row, "author_did")
-        or get_string(row, "did")
-        or (get_string(author_obj, "did") if author_obj else None),
-        "handle": get_string(row, "author_handle")
-        or get_string(row, "handle")
-        or (get_string(author_obj, "handle") if author_obj else None),
-        "displayName": (
-            get_string(author_obj, "displayName") if author_obj else None
-        )
-        or get_string(row, "author_display_name"),
-        "avatar": (get_string(author_obj, "avatar") if author_obj else None)
-        or get_string(row, "author_avatar"),
-        "labels": get_array(row, "author_labels")
-        or (author_obj.get("labels", []) if author_obj else []),
-        "viewer": (author_obj.get("viewer") if author_obj else None),
+
+async def _fetch_cms_ballot(ballot_id: str) -> dict | None:
+    """Fetch a single ballot from CMS by ID."""
+    url = f"{CMS_URL}/api/ballots/{ballot_id}"
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(url)
+        if resp.status_code != 200:
+            return None
+        return resp.json()
+
+
+def _serialize_cms_ballot(doc: dict, counts: dict | None = None, viewer_like: str | None = None) -> dict:
+    """Convert a CMS ballot document to the API ballot shape."""
+    ballot_id = str(doc.get("id", ""))
+
+    record = {
+        "$type": "app.ch.poltr.ballot.entry",
+        "title": doc.get("title", ""),
+        "voteDate": doc.get("voteDate", ""),
+        "createdAt": doc.get("createdAt", ""),
     }
-    author = {k: v for k, v in author_raw.items() if v is not None}
+    if doc.get("topic"):
+        record["topic"] = doc["topic"]
+    if doc.get("description"):
+        # Rich text from CMS — extract plain text for preview
+        desc = doc["description"]
+        if isinstance(desc, dict):
+            # Lexical JSON — extract text from root children
+            texts = []
+            for node in desc.get("root", {}).get("children", []):
+                for child in node.get("children", []):
+                    if child.get("text"):
+                        texts.append(child["text"])
+            record["text"] = " ".join(texts)
+        elif isinstance(desc, str):
+            record["text"] = desc
+    if doc.get("officialRef"):
+        record["officialRef"] = doc["officialRef"]
+    if doc.get("language"):
+        record["language"] = doc["language"]
 
-    # Build viewer object
-    viewer_obj = {}
-    if row.get("viewer_like"):
-        viewer_obj["like"] = row["viewer_like"]
-    if not viewer_obj:
-        viewer_obj = None
+    c = counts or {}
+    viewer_obj = {"like": viewer_like} if viewer_like else None
 
-    # Build ballot entry
     ballot_raw = {
-        "uri": get_string(row, "uri") or get_string(row, "row_uri") or "",
-        "cid": get_string(row, "cid") or "",
-        "author": author,
+        "uri": f"cms://ballots/{ballot_id}",
+        "cid": "",
         "record": record,
-        "indexedAt": get_date_iso(row, "indexed_at"),
-        "likeCount": get_number(row, "like_count"),
-        "argumentCount": get_number(row, "argument_count"),
-        "commentCount": get_number(row, "comment_count"),
-        "replyCount": get_number(row, "reply_count"),
-        "bookmarkCount": get_number(row, "bookmark_count"),
-        "labels": get_array(row, "labels"),
+        "indexedAt": doc.get("updatedAt") or doc.get("createdAt"),
+        "likeCount": c.get("like_count", 0),
+        "argumentCount": c.get("argument_count", 0),
+        "commentCount": c.get("comment_count", 0),
         "viewer": viewer_obj,
+        "governanceDid": doc.get("governanceDid"),
     }
     return {k: v for k, v in ballot_raw.items() if v is not None}
+
+
+async def _get_ballot_counts(ballot_ids: list[str], viewer_did: str | None = None) -> dict:
+    """Get argument/comment/like counts for ballots from AppView DB.
+    Returns {ballot_id: {argument_count, comment_count, like_count, viewer_like}}."""
+    if not ballot_ids:
+        return {}
+
+    db_pool = await get_pool()
+    async with db_pool.acquire() as conn:
+        # Argument counts per governance DID
+        arg_rows = await conn.fetch(
+            """
+            SELECT ga.ballot_rkey, COUNT(*) AS cnt
+            FROM app_arguments a
+            JOIN auth.governance_accounts ga ON ga.did = a.did
+            WHERE ga.ballot_rkey = ANY($1) AND NOT a.deleted
+            GROUP BY ga.ballot_rkey
+            """,
+            ballot_ids,
+        )
+
+        # Comment counts per ballot_rkey
+        comment_rows = await conn.fetch(
+            """
+            SELECT ga.ballot_rkey, COUNT(*) AS cnt
+            FROM app_comments c
+            JOIN app_arguments a ON a.uri = c.argument_uri
+            JOIN auth.governance_accounts ga ON ga.did = a.did
+            WHERE ga.ballot_rkey = ANY($1) AND NOT c.deleted
+            GROUP BY ga.ballot_rkey
+            """,
+            ballot_ids,
+        )
+
+    result = {}
+    for bid in ballot_ids:
+        result[bid] = {"argument_count": 0, "comment_count": 0, "like_count": 0}
+
+    for row in arg_rows:
+        result[row["ballot_rkey"]]["argument_count"] = row["cnt"]
+    for row in comment_rows:
+        result[row["ballot_rkey"]]["comment_count"] = row["cnt"]
+
+    return result
 
 
 # -----------------------------------------------------------------------------
 # app.ch.poltr.ballot.list
 # -----------------------------------------------------------------------------
-
-
-async def _get_ballots_handler(
-    session: TSession, since: Optional[str] = None, limit: int = 50
-):
-    params = []
-    where = ["b.deleted = false"]
-
-    if since:
-        try:
-            since_date = datetime.fromisoformat(since.replace("Z", "+00:00"))
-            params.append(since_date)
-            where.append(f"b.vote_date >= ${len(params)}")
-        except Exception:
-            pass
-
-    # viewer DID for the like subquery – return the like URI so the
-    # frontend can delete it (unlike) without an extra round-trip.
-    viewer_did = session.did if session else None
-    if viewer_did:
-        params.append(viewer_did)
-        viewer_param = f"${len(params)}"
-        viewer_select = f""",
-            (
-                SELECT uri FROM app_likes
-                WHERE subject_uri = b.uri AND did = {viewer_param} AND NOT deleted
-                LIMIT 1
-            ) AS viewer_like"""
-    else:
-        viewer_select = ",\n            NULL AS viewer_like"
-
-    params.append(limit)
-    sql = f"""
-        SELECT b.*{viewer_select}
-        FROM app_ballots b
-        WHERE {' AND '.join(where)}
-        ORDER BY b.vote_date DESC NULLS LAST, b.created_at DESC
-        LIMIT ${len(params)};
-    """
-
-    try:
-        db_pool = await get_pool()
-        async with db_pool.acquire() as conn:
-            rows = await conn.fetch(sql, *params)
-
-        ballots = [_serialize_ballot(dict(r)) for r in rows]
-
-        last_indexed = ballots[-1].get("indexedAt", "") if ballots else ""
-        cursor = (
-            encode_cursor({"sort": "newest", "p": last_indexed, "r": ""})
-            if ballots
-            else None
-        )
-
-        return JSONResponse(
-            status_code=200, content={"cursor": cursor, "ballots": ballots}
-        )
-    except Exception as err:
-        logger.error(f"DB query failed: {err}")
-        return JSONResponse(
-            status_code=500, content={"error": "internal_error", "details": str(err)}
-        )
 
 
 @router.get("/app.ch.poltr.ballot.list")
@@ -174,8 +157,33 @@ async def list_ballots(
     limit: int = Query(50),
     session: TSession = Depends(verify_session_token),
 ):
-    """List ballot entries."""
-    return await _get_ballots_handler(session=session, since=since, limit=limit)
+    """List published ballots from CMS, enriched with argument/comment counts."""
+    try:
+        cms_ballots = await _fetch_cms_ballots()
+    except Exception as err:
+        logger.error(f"CMS fetch failed: {err}")
+        return JSONResponse(
+            status_code=502, content={"error": "cms_error", "details": str(err)}
+        )
+
+    if not cms_ballots:
+        return JSONResponse(status_code=200, content={"cursor": None, "ballots": []})
+
+    ballot_ids = [str(b["id"]) for b in cms_ballots]
+    viewer_did = session.did if session else None
+
+    try:
+        counts = await _get_ballot_counts(ballot_ids, viewer_did)
+    except Exception as err:
+        logger.warning(f"Failed to get ballot counts: {err}")
+        counts = {}
+
+    ballots = [
+        _serialize_cms_ballot(b, counts.get(str(b["id"])))
+        for b in cms_ballots
+    ]
+
+    return JSONResponse(status_code=200, content={"cursor": None, "ballots": ballots})
 
 
 # -----------------------------------------------------------------------------
@@ -189,48 +197,29 @@ async def get_ballot(
     rkey: str = Query(...),
     session: TSession = Depends(verify_session_token),
 ):
-    """Get a single ballot by rkey."""
-    params = [rkey]
-    where = ["b.deleted = false", "b.rkey = $1"]
+    """Get a single ballot from CMS by ID."""
+    try:
+        doc = await _fetch_cms_ballot(rkey)
+    except Exception as err:
+        logger.error(f"CMS fetch failed: {err}")
+        return JSONResponse(
+            status_code=502, content={"error": "cms_error", "details": str(err)}
+        )
 
-    viewer_did = session.did if session else None
-    if viewer_did:
-        params.append(viewer_did)
-        viewer_param = f"${len(params)}"
-        viewer_select = f""",
-            (
-                SELECT uri FROM app_likes
-                WHERE subject_uri = b.uri AND did = {viewer_param} AND NOT deleted
-                LIMIT 1
-            ) AS viewer_like"""
-    else:
-        viewer_select = ",\n            NULL AS viewer_like"
-
-    sql = f"""
-        SELECT b.*{viewer_select}
-        FROM app_ballots b
-        WHERE {' AND '.join(where)}
-        LIMIT 1;
-    """
+    if not doc or doc.get("status") != "published":
+        return JSONResponse(
+            status_code=404,
+            content={"error": "not_found", "message": "Ballot not found"},
+        )
 
     try:
-        db_pool = await get_pool()
-        async with db_pool.acquire() as conn:
-            row = await conn.fetchrow(sql, *params)
+        counts = await _get_ballot_counts([str(doc["id"])])
+        ballot_counts = counts.get(str(doc["id"]))
+    except Exception:
+        ballot_counts = None
 
-        if not row:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "not_found", "message": "Ballot not found"},
-            )
-
-        ballot = _serialize_ballot(dict(row))
-        return JSONResponse(status_code=200, content={"ballot": ballot})
-    except Exception as err:
-        logger.error(f"DB query failed: {err}")
-        return JSONResponse(
-            status_code=500, content={"error": "internal_error", "details": str(err)}
-        )
+    ballot = _serialize_cms_ballot(doc, ballot_counts)
+    return JSONResponse(status_code=200, content={"ballot": ballot})
 
 
 # -----------------------------------------------------------------------------
@@ -661,15 +650,15 @@ async def create_argument(
 ):
     """Create an argument record on the PDS."""
     body = await request.json()
-    ballot_uri = body.get("ballot")
+    ballot_id = body.get("ballot")
     title = body.get("title", "")
     arg_body = body.get("body", "")
     arg_type = body.get("type")
 
-    if not ballot_uri:
+    if not ballot_id:
         return JSONResponse(
             status_code=400,
-            content={"error": "invalid_request", "message": "ballot URI required"},
+            content={"error": "invalid_request", "message": "ballot ID required"},
         )
     if arg_type not in ("PRO", "CONTRA"):
         return JSONResponse(
@@ -682,28 +671,8 @@ async def create_argument(
             content={"error": "invalid_request", "message": "title and body required"},
         )
 
-    # Validate ballot exists
-    try:
-        db_pool = await get_pool()
-        async with db_pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT uri FROM app_ballots WHERE uri = $1 AND NOT deleted",
-                ballot_uri,
-            )
-        if not row:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "not_found", "message": "Ballot not found"},
-            )
-    except Exception as err:
-        logger.error(f"DB lookup failed: {err}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": "internal_error", "details": str(err)},
-        )
-
-    # Look up the governance DID for this ballot
-    gov_did = await get_did_for_ballot_uri(ballot_uri)
+    # Look up the governance DID for this ballot (via ballot_rkey = CMS ID)
+    gov_did = await get_did_for_ballot(str(ballot_id))
     if not gov_did:
         return JSONResponse(
             status_code=404,
@@ -715,7 +684,7 @@ async def create_argument(
         "title": title,
         "body": arg_body,
         "type": arg_type,
-        "ballot": ballot_uri,
+        "ballot": ballot_id,
         "authorDid": session.did,
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
@@ -740,55 +709,6 @@ async def create_argument(
 # -----------------------------------------------------------------------------
 
 
-async def _create_bsky_cross_like(session: TSession, ballot_uri: str):
-    """Best-effort: create an app.bsky.feed.like on the Bluesky cross-post.
-
-    Returns the bsky like URI on success, None on skip/failure.
-    """
-    try:
-        db_pool = await get_pool()
-        async with db_pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT bsky_post_uri, bsky_post_cid FROM app_ballots WHERE uri = $1",
-                ballot_uri,
-            )
-
-        if not row or not row["bsky_post_uri"] or not row["bsky_post_cid"]:
-            return None
-
-        bsky_like_record = {
-            "$type": "app.bsky.feed.like",
-            "subject": {
-                "uri": row["bsky_post_uri"],
-                "cid": row["bsky_post_cid"],
-            },
-            "createdAt": datetime.now(timezone.utc).isoformat(),
-        }
-
-        result = await pds_create_record(session, "app.bsky.feed.like", bsky_like_record)
-        bsky_like_uri = result.get("uri")
-
-        if bsky_like_uri:
-            # Pre-populate bsky_like_uri so delete_like can find it later.
-            # The indexer's upsert doesn't mention bsky_like_uri, so it won't overwrite.
-            async with db_pool.acquire() as conn:
-                await conn.execute(
-                    """
-                    INSERT INTO app_likes (uri, cid, did, rkey, subject_uri, subject_cid, bsky_like_uri, created_at)
-                    VALUES ($1, '', $2, '', $3, '', $4, now())
-                    ON CONFLICT (uri) DO UPDATE SET bsky_like_uri = $4
-                    """,
-                    f"pending:{session.did}:{ballot_uri}",
-                    session.did,
-                    ballot_uri,
-                    bsky_like_uri,
-                )
-
-        logger.info(f"Bsky cross-like created: {bsky_like_uri}")
-        return bsky_like_uri
-    except Exception as err:
-        logger.warning(f"Bsky cross-like failed (non-blocking): {err}")
-        return None
 
 
 @router.post("/app.ch.poltr.content.rating")
@@ -821,9 +741,6 @@ async def create_like(
             status_code=500,
             content={"error": "pds_error", "message": str(err)},
         )
-
-    # Best-effort cross-like to Bluesky
-    await _create_bsky_cross_like(session, subject["uri"])
 
     return JSONResponse(status_code=200, content=result)
 
