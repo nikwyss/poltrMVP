@@ -2,27 +2,27 @@
   "folders": [
     {
       "name": "poltr (root)",
-      "path": "."
+      "path": ".",
     },
     {
       "name": "frontend",
-      "path": "services/front"
+      "path": "services/front",
     },
     {
       "name": "appview",
-      "path": "services/appview"
+      "path": "services/appview",
     },
     {
       "name": "indexer",
-      "path": "services/indexer"
-    }
+      "path": "services/indexer",
+    },
   ],
   "settings": {
     "files.exclude": {
       "**/node_modules": true,
       "**/__pycache__": true,
       "**/*.pyc": true,
-      "**/.git": true
+      "**/.git": true,
     },
     "editor.formatOnSave": true,
     "python.defaultInterpreterPath": "${workspaceFolder:appview}/venv/bin/python",
@@ -31,33 +31,33 @@
     "[python]": {
       "editor.defaultFormatter": "ms-python.black-formatter",
       "editor.codeActionsOnSave": {
-        "source.organizeImports": "explicit"
-      }
+        "source.organizeImports": "explicit",
+      },
     },
     "[typescript]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode",
       "editor.codeActionsOnSave": {
-        "source.fixAll.eslint": "explicit"
-      }
+        "source.fixAll.eslint": "explicit",
+      },
     },
     "[typescriptreact]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode",
       "editor.codeActionsOnSave": {
-        "source.fixAll.eslint": "explicit"
-      }
+        "source.fixAll.eslint": "explicit",
+      },
     },
     "[javascript]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode",
       "editor.codeActionsOnSave": {
-        "source.fixAll.eslint": "explicit"
-      }
+        "source.fixAll.eslint": "explicit",
+      },
     },
     "[json]": {
-      "editor.defaultFormatter": "esbenp.prettier-vscode"
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
     },
     "[jsonc]": {
-      "editor.defaultFormatter": "esbenp.prettier-vscode"
-    }
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+    },
   },
   "extensions": {
     "recommendations": [
@@ -66,8 +66,8 @@
       "ms-python.black-formatter",
       "ms-python.debugpy",
       "dbaeumer.vscode-eslint",
-      "esbenp.prettier-vscode"
-    ]
+      "esbenp.prettier-vscode",
+    ],
   },
   "tasks": {
     "version": "2.0.0",
@@ -77,123 +77,123 @@
         "type": "shell",
         "command": "kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432",
         "isBackground": true,
-        "problemMatcher": []
+        "problemMatcher": [],
       },
       {
         "label": "Port Forward: PDS",
         "type": "shell",
         "command": "kubectl port-forward -n poltr deployment/pds 2583:2583",
         "isBackground": true,
-        "problemMatcher": []
+        "problemMatcher": [],
       },
       {
         "label": "AppView: Install Dependencies",
         "type": "shell",
         "command": "source ${workspaceFolder:appview}/venv/bin/activate && pip install -r requirements.txt",
         "options": {
-          "cwd": "${workspaceFolder:appview}"
+          "cwd": "${workspaceFolder:appview}",
         },
         "group": "build",
-        "problemMatcher": []
+        "problemMatcher": [],
       },
       {
         "label": "Indexer: Lint",
         "type": "shell",
         "command": "npm run lint",
         "options": {
-          "cwd": "${workspaceFolder:indexer}"
+          "cwd": "${workspaceFolder:indexer}",
         },
-        "problemMatcher": ["$eslint-stylish"]
-      }
-    ]
+        "problemMatcher": ["$eslint-stylish"],
+      },
+    ],
   },
   "launch": {
     "version": "0.2.0",
     "configurations": [
-      {
-        "name": "AppView: FastAPI",
-        "type": "debugpy",
-        "request": "launch",
-        "program": "${workspaceFolder:appview}/venv/bin/uvicorn",
-        "args": [
-          "src.main:app",
-          "--reload",
-          "--host", "0.0.0.0",
-          "--port", "3000",
-          "--reload-exclude", "venv",
-          "--reload-exclude", ".venv",
-          "--reload-exclude", "__pycache__"
-        ],
-        "cwd": "${workspaceFolder:appview}",
-        "python": "${workspaceFolder:appview}/venv/bin/python",
-        "envFile": "${workspaceFolder:appview}/.env",
-        "env": {
-          "VIRTUAL_ENV": "${workspaceFolder:appview}/venv",
-          "PATH": "${workspaceFolder:appview}/venv/bin:${env:PATH}"
-        }
-      },
-      {
-        "name": "AppView: Debug Current File",
-        "type": "debugpy",
-        "request": "launch",
-        "program": "${file}",
-        "console": "integratedTerminal",
-        "cwd": "${workspaceFolder:appview}",
-        "envFile": "${workspaceFolder:appview}/.env"
-      },
-      {
-        "name": "AppView: Tests",
-        "type": "debugpy",
-        "request": "launch",
-        "module": "pytest",
-        "args": ["tests/", "-v"],
-        "cwd": "${workspaceFolder:appview}",
-        "python": "${workspaceFolder:appview}/venv/bin/python",
-        "envFile": "${workspaceFolder:appview}/.env",
-        "justMyCode": false
-      },
-      {
-        "name": "Frontend: Dev Server",
-        "type": "node-terminal",
-        "request": "launch",
-        "command": "npx next dev -p 5173 -H 127.0.0.1",
-        "cwd": "${workspaceFolder:frontend}"
-      },
-      {
-        "name": "Frontend: Debug",
-        "type": "node",
-        "request": "launch",
-        "runtimeExecutable": "${workspaceFolder:frontend}/node_modules/.bin/next",
-        "cwd": "${workspaceFolder:frontend}",
-        "runtimeArgs": ["dev", "-p", "5173", "-H", "127.0.0.1"],
-        "env": { "NODE_OPTIONS": "--inspect" },
-        "skipFiles": ["<node_internals>/**"],
-        "console": "integratedTerminal"
-      },
-      {
-        "name": "Indexer: Node.js",
-        "type": "pwa-node",
-        "request": "launch",
-        "program": "${workspaceFolder:indexer}/src/main.js",
-        "cwd": "${workspaceFolder:indexer}",
-        "console": "integratedTerminal",
-        "env": {
-          "NODE_ENV": "development"
-        }
-      },
+      // {
+      //   "name": "AppView: FastAPI",
+      //   "type": "debugpy",
+      //   "request": "launch",
+      //   "program": "${workspaceFolder:appview}/venv/bin/uvicorn",
+      //   "args": [
+      //     "src.main:app",
+      //     "--reload",
+      //     "--host", "0.0.0.0",
+      //     "--port", "3000",
+      //     "--reload-exclude", "venv",
+      //     "--reload-exclude", ".venv",
+      //     "--reload-exclude", "__pycache__"
+      //   ],
+      //   "cwd": "${workspaceFolder:appview}",
+      //   "python": "${workspaceFolder:appview}/venv/bin/python",
+      //   "envFile": "${workspaceFolder:appview}/.env",
+      //   "env": {
+      //     "VIRTUAL_ENV": "${workspaceFolder:appview}/venv",
+      //     "PATH": "${workspaceFolder:appview}/venv/bin:${env:PATH}"
+      //   }
+      // },
+      // {
+      //   "name": "AppView: Debug Current File",
+      //   "type": "debugpy",
+      //   "request": "launch",
+      //   "program": "${file}",
+      //   "console": "integratedTerminal",
+      //   "cwd": "${workspaceFolder:appview}",
+      //   "envFile": "${workspaceFolder:appview}/.env"
+      // },
+      // {
+      //   "name": "AppView: Tests",
+      //   "type": "debugpy",
+      //   "request": "launch",
+      //   "module": "pytest",
+      //   "args": ["tests/", "-v"],
+      //   "cwd": "${workspaceFolder:appview}",
+      //   "python": "${workspaceFolder:appview}/venv/bin/python",
+      //   "envFile": "${workspaceFolder:appview}/.env",
+      //   "justMyCode": false
+      // },
+      // {
+      //   "name": "Frontend: Dev Server",
+      //   "type": "node-terminal",
+      //   "request": "launch",
+      //   "command": "npx next dev -p 5173 -H 127.0.0.1",
+      //   "cwd": "${workspaceFolder:frontend}"
+      // },
+      // {
+      //   "name": "Frontend: Debug",
+      //   "type": "node",
+      //   "request": "launch",
+      //   "runtimeExecutable": "${workspaceFolder:frontend}/node_modules/.bin/next",
+      //   "cwd": "${workspaceFolder:frontend}",
+      //   "runtimeArgs": ["dev", "-p", "5173", "-H", "127.0.0.1"],
+      //   "env": { "NODE_OPTIONS": "--inspect" },
+      //   "skipFiles": ["<node_internals>/**"],
+      //   "console": "integratedTerminal"
+      // },
+      // {
+      //   "name": "Indexer: Node.js",
+      //   "type": "pwa-node",
+      //   "request": "launch",
+      //   "program": "${workspaceFolder:indexer}/src/main.js",
+      //   "cwd": "${workspaceFolder:indexer}",
+      //   "console": "integratedTerminal",
+      //   "env": {
+      //     "NODE_ENV": "development"
+      //   }
+      // },
       {
         "name": "Port Forward: PostgreSQL",
         "type": "node-terminal",
         "request": "launch",
-        "command": "kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432"
+        "command": "kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432",
       },
       {
         "name": "Port Forward: PDS",
         "type": "node-terminal",
         "request": "launch",
-        "command": "kubectl port-forward -n poltr deployment/pds 2583:2583"
-      }
+        "command": "kubectl port-forward -n poltr deployment/pds 2583:2583",
+      },
     ],
-    "compounds": []
-  }
+    "compounds": [],
+  },
 }

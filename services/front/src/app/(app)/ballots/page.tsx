@@ -23,7 +23,7 @@ function BallotCard({
   onLike: (b: BallotWithMetadata) => void;
   onClick: () => void;
 }) {
-  const t = useTranslations('ballots');
+  const t = useTranslations("ballots");
   return (
     <div
       className="bg-card border border-border rounded-[var(--r)] p-5 cursor-pointer card-hover"
@@ -62,7 +62,9 @@ function BallotCard({
         <span className="label">{formatDate(ballot.record.voteDate)}</span>
         <div className="flex gap-1.5">
           {(ballot.argumentCount ?? 0) > 0 && (
-            <span className="tag">{t('arguments', { count: ballot.argumentCount ?? 0 })}</span>
+            <span className="tag">
+              {t("arguments", { count: ballot.argumentCount ?? 0 })}
+            </span>
           )}
           {(ballot.commentCount ?? 0) > 0 && (
             <span className="tag">
@@ -100,7 +102,7 @@ function BallotGrid({
             key={ballot.uri}
             ballot={ballot}
             onLike={onLike}
-            onClick={() => rkey && router.push(`/ballots/${rkey}`)}
+            onClick={() => rkey && router.push(`/ballot/${rkey}/arguments`)}
           />
         );
       })}
@@ -111,8 +113,8 @@ function BallotGrid({
 export default function BallotSearch() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
-  const t = useTranslations('ballots');
-  const tc = useTranslations('common');
+  const t = useTranslations("ballots");
+  const tc = useTranslations("common");
   const [ballots, setBallots] = useState<BallotWithMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -194,7 +196,7 @@ export default function BallotSearch() {
     return (
       <div className="flex items-center justify-center min-h-[50vh] gap-3">
         <Spinner />
-        <span className="text-muted-foreground">{tc('restoringSession')}</span>
+        <span className="text-muted-foreground">{tc("restoringSession")}</span>
       </div>
     );
   }
@@ -213,13 +215,13 @@ export default function BallotSearch() {
         gap: "calc(var(--gap) * 2)",
       }}
     >
-      <h1 className="text-2xl font-bold tracking-tight pt-5">{t('title')}</h1>
+      <h1 className="text-2xl font-bold tracking-tight pt-5">{t("title")}</h1>
 
       {loading && (
         <Card>
           <CardContent className="flex items-center justify-center py-10 gap-3">
             <Spinner />
-            <span className="text-muted-foreground">{t('loading')}</span>
+            <span className="text-muted-foreground">{t("loading")}</span>
           </CardContent>
         </Card>
       )}
@@ -228,10 +230,10 @@ export default function BallotSearch() {
         <Alert variant="destructive">
           <AlertDescription className="flex items-center justify-between">
             <span>
-              <strong>{tc('error')}:</strong> {error}
+              <strong>{tc("error")}:</strong> {error}
             </span>
             <Button variant="destructive" size="sm" onClick={loadBallots}>
-              {tc('retry')}
+              {tc("retry")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -240,9 +242,7 @@ export default function BallotSearch() {
       {!loading && !error && ballots.length === 0 && (
         <Card>
           <CardContent className="py-10 text-center">
-            <p className="text-muted-foreground text-lg">
-              {t('noneFound')}
-            </p>
+            <p className="text-muted-foreground text-lg">{t("noneFound")}</p>
           </CardContent>
         </Card>
       )}
@@ -253,7 +253,7 @@ export default function BallotSearch() {
           <section>
             <div className="section-bar">
               <h2>
-                {t('current')}
+                {t("current")}
                 {upcoming.length > 0 && (
                   <span className="text-[var(--text-faint)] font-normal ml-2 text-sm">
                     ({upcoming.length})
@@ -276,7 +276,7 @@ export default function BallotSearch() {
                 }}
               >
                 <p className="text-sm text-[var(--text-mid)] py-10">
-                  {t('noCurrent')}
+                  {t("noCurrent")}
                 </p>
               </div>
             )}
@@ -286,7 +286,7 @@ export default function BallotSearch() {
           <section>
             <div className="section-bar">
               <h2>
-                {t('archived')}
+                {t("archived")}
                 {archived.length > 0 && (
                   <span className="text-[var(--text-faint)] font-normal ml-2 text-sm">
                     ({archived.length})
@@ -302,7 +302,7 @@ export default function BallotSearch() {
               />
             ) : (
               <p className="text-sm text-[var(--text-mid)]">
-                {t('noArchived')}
+                {t("noArchived")}
               </p>
             )}
           </section>

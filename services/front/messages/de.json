@@ -200,6 +200,14 @@
     "feed": "Feed",
     "argumentTree": "Argumentbaum"
   },
+  "vorlage": {
+    "backToHome": "Vorlagen",
+    "info": "Infos",
+    "chat": "Chatbot",
+    "arguments": "Argumente",
+    "review": "Begutachtung",
+    "comingSoon": "Dieser Bereich wird bald verfügbar sein."
+  },
   "notFound": {
     "title": "Seite nicht gefunden",
     "message": "Die angeforderte Seite existiert nicht.",

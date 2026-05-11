@@ -200,6 +200,14 @@
     "feed": "Feed",
     "argumentTree": "Argument Tree"
   },
+  "vorlage": {
+    "backToHome": "Ballots",
+    "info": "Info",
+    "chat": "Chatbot",
+    "arguments": "Arguments",
+    "review": "Review",
+    "comingSoon": "This section will be available soon."
+  },
   "notFound": {
     "title": "Page not found",
     "message": "The requested page does not exist.",

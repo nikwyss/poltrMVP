@@ -16,11 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 
-const navKeys = [
-  { key: "home" as const, href: "/home" },
-  { key: "ballots" as const, href: "/ballots" },
-  { key: "review" as const, href: "/review" },
-];
+const navKeys = [{ key: "home" as const, href: "/home" }];
 
 export function AppNav() {
   const pathname = usePathname();
@@ -28,6 +24,7 @@ export function AppNav() {
   const { user, logout } = useAuth();
   const t = useTranslations("nav");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const isVorlagePage = pathname.startsWith("/ballot/");
 
   const handleLogout = () => {
     logout();
@@ -53,27 +50,30 @@ export function AppNav() {
             </span>
           </Link>
 
-          {/* Desktop nav links */}
-          <div className="hidden sm:flex items-center gap-0.5">
-            {navKeys.map((item) => {
-              const isActive =
-                pathname === item.href || pathname.startsWith(item.href + "/");
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "px-3.5 py-1 text-[13px] font-medium rounded-[var(--r-sm)] no-underline transition-all duration-150",
-                    isActive
-                      ? "bg-[var(--text)] text-[var(--bg)]"
-                      : "text-[var(--text-mid)] hover:bg-accent hover:text-[var(--text)]",
-                  )}
-                >
-                  {t(item.key)}
-                </Link>
-              );
-            })}
-          </div>
+          {/* Desktop nav links — hidden when inside a vorlage (sub-nav handles it) */}
+          {!isVorlagePage && (
+            <div className="hidden sm:flex items-center gap-0.5">
+              {navKeys.map((item) => {
+                const isActive =
+                  pathname === item.href ||
+                  pathname.startsWith(item.href + "/");
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "px-3.5 py-1 text-[13px] font-medium rounded-[var(--r-sm)] no-underline transition-all duration-150",
+                      isActive
+                        ? "bg-[var(--text)] text-[var(--bg)]"
+                        : "text-[var(--text-mid)] hover:bg-accent hover:text-[var(--text)]",
+                    )}
+                  >
+                    {t(item.key)}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
 
           {/* Right side: locale switcher + user pill + mobile toggle */}
           <div className="flex items-center gap-2">
@@ -106,24 +106,26 @@ export function AppNav() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Mobile hamburger */}
-            <button
-              type="button"
-              className="sm:hidden flex items-center justify-center size-[30px] rounded-[var(--r-sm)] border border-[var(--line)] bg-[var(--surface)] text-[var(--text-mid)] hover:bg-accent hover:border-[var(--line-mid)] transition-colors cursor-pointer"
-              onClick={() => setMobileOpen(!mobileOpen)}
-            >
-              {mobileOpen ? (
-                <X className="h-4 w-4" />
-              ) : (
-                <Menu className="h-4 w-4" />
-              )}
-            </button>
+            {/* Mobile hamburger — hidden when inside a vorlage */}
+            {!isVorlagePage && (
+              <button
+                type="button"
+                className="sm:hidden flex items-center justify-center size-[30px] rounded-[var(--r-sm)] border border-[var(--line)] bg-[var(--surface)] text-[var(--text-mid)] hover:bg-accent hover:border-[var(--line-mid)] transition-colors cursor-pointer"
+                onClick={() => setMobileOpen(!mobileOpen)}
+              >
+                {mobileOpen ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <Menu className="h-4 w-4" />
+                )}
+              </button>
+            )}
           </div>
         </nav>
       </div>
 
       {/* Mobile nav dropdown */}
-      {mobileOpen && (
+      {mobileOpen && !isVorlagePage && (
         <div className="sm:hidden border-b bg-[var(--bg)]">
           <div className="flex flex-col py-2 px-4 gap-1">
             {navKeys.map((item) => {

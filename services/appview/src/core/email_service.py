@@ -40,13 +40,12 @@ class EmailService:
             short_code_html = ""
             short_code_text = ""
             if short_code:
-                spaced = " ".join(short_code)
                 short_code_html = f"""
                     <p style="margin-top: 24px; color: #666;">Or enter this code on the login page:</p>
                     <p style="font-size: 32px; font-family: monospace; letter-spacing: 8px;
                               font-weight: bold; text-align: center; padding: 16px;
                               background: #f5f5f5; border-radius: 8px; margin: 8px 0;">
-                        {spaced}
+                        {short_code}
                     </p>
                 """
                 short_code_text = f"\n            Or enter this code: {short_code}\n"

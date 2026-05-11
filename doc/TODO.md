@@ -3,8 +3,6 @@
 ## Next
 
 - [ ] Ballot creation endpoint: wire up `create_ballot_account()` in AppView (currently only DB + governance_pds.py ready)
-- [ ] Create governance accounts for remaining existing ballots (other than rkey 663)
-- [ ] Testing
 - [ ] Missing: per-email rate limit on code requests
 
 ## VISION
@@ -13,10 +11,10 @@
 
 ## CHECK LATER
 
+- Finalize lexicon setup: Poltr-specific version + Bluesky fallback (embedded entries)
+
 ## ONGOING
-- [ ] Interoperability: Content on Bluesky
-- [ ] Interoperability: Bluesky content in the app
-- [ ] Finalize lexicon setup: Poltr-specific version + Bluesky fallback (embedded entries)
+
 
 ## Done
 
@@ -37,3 +35,5 @@
 - Backfill cronjob (hourly)
 - GitHub Actions CI/CD workflow
 - Load balancer removal (hostPort setup for dev/test)
+- Interoperability: Content on Bluesky
+- Interoperability: Bluesky content in the app

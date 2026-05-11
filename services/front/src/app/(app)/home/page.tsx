@@ -102,7 +102,7 @@ function BallotGrid({
             key={ballot.uri}
             ballot={ballot}
             onLike={onLike}
-            onClick={() => rkey && router.push(`/ballots/${rkey}`)}
+            onClick={() => rkey && router.push(`/ballot/${rkey}/arguments`)}
           />
         );
       })}
@@ -144,57 +144,52 @@ export default function Home() {
     }
   };
 
-  const handleToggleLike = useCallback(
-    async (ballot: BallotWithMetadata) => {
-      const isLiked = !!ballot.viewer?.like;
+  const handleToggleLike = useCallback(async (ballot: BallotWithMetadata) => {
+    const isLiked = !!ballot.viewer?.like;
 
+    setBallots((prev) =>
+      prev.map((b) =>
+        b.uri === ballot.uri
+          ? {
+              ...b,
+              likeCount: (b.likeCount ?? 0) + (isLiked ? -1 : 1),
+              viewer: isLiked ? undefined : { like: "__pending__" },
+            }
+          : b,
+      ),
+    );
+
+    try {
+      if (isLiked) {
+        await unlikeBallot(ballot.viewer!.like!);
+        setBallots((prev) =>
+          prev.map((b) =>
+            b.uri === ballot.uri ? { ...b, viewer: undefined } : b,
+          ),
+        );
+      } else {
+        const likeUri = await likeBallot(ballot.uri, ballot.cid);
+        setBallots((prev) =>
+          prev.map((b) =>
+            b.uri === ballot.uri ? { ...b, viewer: { like: likeUri } } : b,
+          ),
+        );
+      }
+    } catch (err) {
+      console.error("Failed to toggle like:", err);
       setBallots((prev) =>
         prev.map((b) =>
           b.uri === ballot.uri
             ? {
                 ...b,
-                likeCount: (b.likeCount ?? 0) + (isLiked ? -1 : 1),
-                viewer: isLiked ? undefined : { like: "__pending__" },
+                likeCount: (b.likeCount ?? 0) + (isLiked ? 1 : -1),
+                viewer: isLiked ? { like: ballot.viewer!.like! } : undefined,
               }
-            : b
-        )
+            : b,
+        ),
       );
-
-      try {
-        if (isLiked) {
-          await unlikeBallot(ballot.viewer!.like!);
-          setBallots((prev) =>
-            prev.map((b) =>
-              b.uri === ballot.uri ? { ...b, viewer: undefined } : b
-            )
-          );
-        } else {
-          const likeUri = await likeBallot(ballot.uri, ballot.cid);
-          setBallots((prev) =>
-            prev.map((b) =>
-              b.uri === ballot.uri ? { ...b, viewer: { like: likeUri } } : b
-            )
-          );
-        }
-      } catch (err) {
-        console.error("Failed to toggle like:", err);
-        setBallots((prev) =>
-          prev.map((b) =>
-            b.uri === ballot.uri
-              ? {
-                  ...b,
-                  likeCount: (b.likeCount ?? 0) + (isLiked ? 1 : -1),
-                  viewer: isLiked
-                    ? { like: ballot.viewer!.like! }
-                    : undefined,
-                }
-              : b
-          )
-        );
-      }
-    },
-    []
-  );
+    }
+  }, []);
 
   if (authLoading) {
     return (
@@ -246,9 +241,7 @@ export default function Home() {
       {!loading && !error && upcoming.length === 0 && (
         <Card>
           <CardContent className="py-16 text-center space-y-3">
-            <p className="text-muted-foreground text-lg">
-              {th("noBallots")}
-            </p>
+            <p className="text-muted-foreground text-lg">{th("noBallots")}</p>
             <Button variant="link" onClick={() => router.push("/ballots")}>
               {th("viewArchived")}
             </Button>
