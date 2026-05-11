@@ -15,6 +15,22 @@ export const Ballots: CollectionConfig = {
   },
   fields: [
     {
+      name: 'rkey',
+      type: 'text',
+      required: true,
+      unique: true,
+      admin: {
+        description: 'Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for governance account handle (ballot-{rkey}.id.poltr.ch).',
+      },
+      validate: (value: unknown) => {
+        if (typeof value !== 'string') return 'rkey is required'
+        if (!/^[0-9]+(\.[0-9]+)?$/.test(value)) {
+          return 'rkey must be a BK number (e.g. "663" or "133.3")'
+        }
+        return true
+      },
+    },
+    {
       name: 'title',
       type: 'text',
       required: true,
@@ -105,7 +121,7 @@ export const Ballots: CollectionConfig = {
 
         try {
           const { publishGovernanceAccount } = await import('../lib/atproto-publish')
-          const { did, handle } = await publishGovernanceAccount(String(doc.id))
+          const { did, handle } = await publishGovernanceAccount(doc.rkey)
 
           // Update the document with governance account info
           await req.payload.update({

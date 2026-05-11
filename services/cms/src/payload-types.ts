@@ -264,6 +264,10 @@ export interface Block {
  */
 export interface Ballot {
   id: number;
+  /**
+   * Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for governance account handle (ballot-{rkey}.id.poltr.ch).
+   */
+  rkey: string;
   title: string;
   description?: {
     root: {
@@ -471,6 +475,7 @@ export interface BlocksSelect<T extends boolean = true> {
  * via the `definition` "ballots_select".
  */
 export interface BallotsSelect<T extends boolean = true> {
+  rkey?: T;
   title?: T;
   description?: T;
   topic?: T;

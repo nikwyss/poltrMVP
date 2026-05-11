@@ -45,21 +45,22 @@ async def _fetch_cms_ballots(status: str = "published") -> list[dict]:
         return resp.json().get("docs", [])
 
 
-async def _fetch_cms_ballot(ballot_id: str) -> dict | None:
-    """Fetch a single ballot from CMS by ID."""
-    url = f"{CMS_INTERNAL_SERVER_URL}/api/ballots/{ballot_id}"
+async def _fetch_cms_ballot(rkey: str) -> dict | None:
+    """Fetch a single ballot from CMS by rkey."""
+    url = f"{CMS_INTERNAL_SERVER_URL}/api/ballots?where[rkey][equals]={rkey}&limit=1"
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(url)
         if resp.status_code != 200:
             return None
-        return resp.json()
+        docs = resp.json().get("docs", [])
+        return docs[0] if docs else None
 
 
 def _serialize_cms_ballot(
     doc: dict, counts: dict | None = None, viewer_like: str | None = None
 ) -> dict:
     """Convert a CMS ballot document to the API ballot shape."""
-    ballot_id = str(doc.get("id", ""))
+    ballot_rkey = doc.get("rkey", str(doc.get("id", "")))
 
     record = {
         "$type": "app.ch.poltr.ballot.entry",
@@ -91,7 +92,7 @@ def _serialize_cms_ballot(
     viewer_obj = {"like": viewer_like} if viewer_like else None
 
     ballot_raw = {
-        "uri": f"cms://ballots/{ballot_id}",
+        "uri": f"cms://ballots/{ballot_rkey}",
         "cid": "",
         "record": record,
         "indexedAt": doc.get("updatedAt") or doc.get("createdAt"),
@@ -175,16 +176,16 @@ async def list_ballots(
     if not cms_ballots:
         return JSONResponse(status_code=200, content={"cursor": None, "ballots": []})
 
-    ballot_ids = [str(b["id"]) for b in cms_ballots]
+    ballot_rkeys = [b.get("rkey", str(b["id"])) for b in cms_ballots]
     viewer_did = session.did if session else None
 
     try:
-        counts = await _get_ballot_counts(ballot_ids, viewer_did)
+        counts = await _get_ballot_counts(ballot_rkeys, viewer_did)
     except Exception as err:
         logger.warning(f"Failed to get ballot counts: {err}")
         counts = {}
 
-    ballots = [_serialize_cms_ballot(b, counts.get(str(b["id"]))) for b in cms_ballots]
+    ballots = [_serialize_cms_ballot(b, counts.get(b.get("rkey", str(b["id"])))) for b in cms_ballots]
 
     return JSONResponse(status_code=200, content={"cursor": None, "ballots": ballots})
 
@@ -216,8 +217,9 @@ async def get_ballot(
         )
 
     try:
-        counts = await _get_ballot_counts([str(doc["id"])])
-        ballot_counts = counts.get(str(doc["id"]))
+        ballot_rkey = doc.get("rkey", str(doc["id"]))
+        counts = await _get_ballot_counts([ballot_rkey])
+        ballot_counts = counts.get(ballot_rkey)
     except Exception:
         ballot_counts = None
 
