@@ -9,17 +9,18 @@ from unittest.mock import patch
 import pytest
 
 from tests.conftest import FakePool
+from src.auth.middleware import hash_token
 
 
 def make_session_row(token="valid-token", did="did:plc:abc", expired=False):
+    """Create a session row with hashed token (as stored in DB)."""
     exp = datetime.utcnow() + (timedelta(days=-1) if expired else timedelta(days=7))
     return {
-        "session_token": token,
+        "session_token": hash_token(token),
         "did": did,
         "user_data": json.dumps({"did": did, "handle": "user.poltr.info", "displayName": "user"}),
         "expires_at": exp,
         "last_accessed_at": datetime.utcnow(),
-        "access_token": "at-jwt",
     }
 
 
@@ -39,7 +40,7 @@ async def test_valid_session_from_cookie():
 
         assert session.did == "did:plc:abc"
         assert session.token == "good-token"
-        assert session.access_token == "at-jwt"
+        assert session.access_token == ""
 
         # Should have updated last_accessed_at
         conn = pool.last_conn

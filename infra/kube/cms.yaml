@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cms
+  namespace: poltr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: cms
+  template:
+    metadata:
+      labels:
+        app: cms
+    spec:
+      imagePullSecrets:
+        - name: ghcr-registry
+      containers:
+        - name: cms
+          image: ghcr.io/nikwyss/poltr-cms:latest
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: cms-secrets
+          env:
+            - name: APPVIEW_PDS_CREDS_MASTER_KEY_B64
+              valueFrom:
+                secretKeyRef:
+                  name: appview-secrets
+                  key: APPVIEW_PDS_CREDS_MASTER_KEY_B64
+            - name: APPVIEW_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: appview-secrets
+                  key: APPVIEW_POSTGRES_URL
+            - name: PDS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_ADMIN_PASSWORD
+            - name: PDS_PUBLIC_HANDLE
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_PUBLIC_HANDLE
+            - name: PDS_INTERNAL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_INTERNAL_URL
+
+          ports:
+            - name: http
+              containerPort: 3000
+          volumeMounts:
+            - name: cms-media
+              mountPath: /app/media
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /admin
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /admin
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: cms-media
+          persistentVolumeClaim:
+            claimName: cms-media
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cms
+  namespace: poltr
+spec:
+  selector:
+    app: cms
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000

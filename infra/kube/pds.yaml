@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pds
+  namespace: poltr
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pds
+  template:
+    metadata:
+      labels:
+        app: pds
+    spec:
+      containers:
+        - name: pds
+          image: ghcr.io/bluesky-social/pds:latest
+          command: ["/bin/sh"]
+          args: ["-c", "cd /data && exec node /app/index.js"]
+          envFrom:
+            - secretRef:
+                name: pds-secrets
+          ports:
+            - containerPort: 2583
+          volumeMounts:
+            - name: pds-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          livenessProbe:
+            httpGet:
+              path: /xrpc/_health
+              port: 2583
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /xrpc/_health
+              port: 2583
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: pds-data
+          persistentVolumeClaim:
+            claimName: pds-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pds
+  namespace: poltr
+spec:
+  selector:
+    app: pds
+  ports:
+    - port: 80
+      targetPort: 2583

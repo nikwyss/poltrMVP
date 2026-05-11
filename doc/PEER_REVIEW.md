@@ -65,9 +65,9 @@ The full review history (invitations, individual reviews with criteria scores an
 
 ---
 
-## Feature Flag: `PEER_REVIEW_ENABLED`
+## Feature Flag: `APPVIEW_PEER_REVIEW_ENABLED`
 
-When `PEER_REVIEW_ENABLED=false` (the default):
+When `APPVIEW_PEER_REVIEW_ENABLED=false` (the default):
 
 - The background loop sleeps without creating invitations
 - The argument listing endpoint **omits `reviewStatus`** from responses — no badges shown
@@ -87,7 +87,7 @@ All **active users** on the platform are potential reviewers, **except the autho
 
 ### Probability
 
-The appview background loop (poll interval: `PEER_REVIEW_POLL_INTERVAL_SECONDS`, default 60s) iterates over preliminary arguments that haven't yet reached quorum invitations. For each eligible active user, it rolls a dice with configurable probability (default: **35%**).
+The appview background loop (poll interval: `APPVIEW_PEER_REVIEW_POLL_INTERVAL_SECONDS`, default 60s) iterates over preliminary arguments that haven't yet reached quorum invitations. For each eligible active user, it rolls a dice with configurable probability (default: **35%**).
 
 **Rationale:** The probabilistic invitation diminishes the chance of manipulation. An attacker would need approximately 3x the number of users to dominate a peer-review compared to a system where all users are invited.
 
@@ -131,7 +131,7 @@ The reviewer evaluates the argument on **multiple criteria** and then makes a fi
 
 ### Review Criteria
 
-Criteria are **configurable** via `PEER_REVIEW_CRITERIA` env var (JSON array). The initial set:
+Criteria are **configurable** via `APPVIEW_PEER_REVIEW_CRITERIA` env var (JSON array). The initial set:
 
 | Criterion | Description |
 |-----------|-------------|
@@ -195,8 +195,8 @@ All values below are configurable and stored in secrets.
 
 | Parameter | Default | Where | Description |
 |-----------|---------|-------|-------------|
-| `PEER_REVIEW_QUORUM` | 10 | appview-secrets, indexer-secrets | Number of reviews required |
-| `PEER_REVIEW_INVITE_PROBABILITY` | 0.35 | appview-secrets | Probability of inviting an active user |
+| `APPVIEW_PEER_REVIEW_QUORUM` | 10 | appview-secrets, indexer-secrets | Number of reviews required |
+| `APPVIEW_PEER_REVIEW_INVITE_PROBABILITY` | 0.35 | appview-secrets | Probability of inviting an active user |
 
 - **Approval:** A majority of the quorum must approve. With quorum = 10, this means **6 or more approvals**.
 - **Early rejection:** The argument is rejected as soon as it becomes **mathematically impossible** for the remaining reviews to produce a majority approval. For example, with quorum = 10: if 5 reviews are rejections, even if all 5 remaining are approvals, the result would be 5-5 (no majority) → reject immediately.
@@ -251,7 +251,7 @@ All argument cross-posts are made under the **governance account** on Bluesky.
 | Approved | Yes | Under governance account, no prefix |
 | Rejected | No new cross-post | The preliminary cross-post remains |
 
-When `PEER_REVIEW_ENABLED=false`, the `[Preliminary]` prefix is omitted.
+When `APPVIEW_PEER_REVIEW_ENABLED=false`, the `[Preliminary]` prefix is omitted.
 
 ---
 
@@ -388,23 +388,23 @@ Unique constraint: `UNIQUE(argument_uri, reviewer_did)` — unconditional, immut
 **appview-secrets:**
 
 ```yaml
-PEER_REVIEW_ENABLED: "false"          # Feature flag
-PEER_REVIEW_QUORUM: "10"              # Reviews required for decision
-PEER_REVIEW_INVITE_PROBABILITY: "0.35" # Dice roll per eligible user
-PEER_REVIEW_POLL_INTERVAL_SECONDS: "60" # Background loop interval
-PEER_REVIEW_CRITERIA: '[...]'          # JSON array of {key, label}
+APPVIEW_PEER_REVIEW_ENABLED: "false"          # Feature flag
+APPVIEW_PEER_REVIEW_QUORUM: "10"              # Reviews required for decision
+APPVIEW_PEER_REVIEW_INVITE_PROBABILITY: "0.35" # Dice roll per eligible user
+APPVIEW_PEER_REVIEW_POLL_INTERVAL_SECONDS: "60" # Background loop interval
+APPVIEW_PEER_REVIEW_CRITERIA: '[...]'          # JSON array of {key, label}
 ```
 
 **indexer-secrets:**
 
 ```yaml
-PEER_REVIEW_QUORUM: "10"              # Must match appview value
+APPVIEW_PEER_REVIEW_QUORUM: "10"              # Must match appview value
 PDS_GOVERNANCE_ACCOUNT_DID: "did:plc:..." # Required for governance-only filtering
 ```
 
 ### Review Criteria
 
-Stored as `PEER_REVIEW_CRITERIA` env var (JSON). Initial set:
+Stored as `APPVIEW_PEER_REVIEW_CRITERIA` env var (JSON). Initial set:
 
 ```json
 [

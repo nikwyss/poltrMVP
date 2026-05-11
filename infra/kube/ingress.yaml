@@ -1,0 +1,156 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: poltr-ingress
+  namespace: poltr
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod-dns"
+spec:
+  ingressClassName: nginx
+  tls:
+    # Wildcard certificate for all *.poltr.info subdomains
+    - hosts:
+        - "*.poltr.info"
+      secretName: poltr-wildcard-tls
+    # Wildcard certificate for handle domain *.id.poltr.ch
+    - hosts:
+        - "*.id.poltr.ch"
+      secretName: poltr-handle-tls
+    # Separate cert for poltr.ch (different domain)
+    - hosts:
+        - poltr.ch
+        - www.poltr.ch
+      secretName: poltr-ch-tls
+  rules:
+    - host: poltr.ch
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+    - host: www.poltr.ch
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+    - host: indexer.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: indexer
+                port:
+                  number: 80
+    - host: app.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: appview
+                port:
+                  number: 80
+    - host: verifier.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: verifier-service
+                port:
+                  number: 80
+    - host: eidproto.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: eidproto
+                port:
+                  number: 80
+    - host: ozone.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ozone
+                port:
+                  number: 80
+    - host: cms.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cms
+                port:
+                  number: 80
+    # Handle domain: any <handle>.id.poltr.ch routes to PDS
+    - host: "*.id.poltr.ch"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pds
+                port:
+                  number: 80
+    # Wildcard host rule so any <handle>.poltr.info routes to the PDS
+    - host: "*.poltr.info"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pds
+                port:
+                  number: 80
+---
+# Separate Ingress for PDS main host — needs long WebSocket timeouts
+# so the Bluesky relay can maintain a persistent firehose subscription.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pds-ingress
+  namespace: poltr
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod-dns"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - "*.poltr.info"
+      secretName: poltr-wildcard-tls
+  rules:
+    - host: pds2.poltr.info
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pds
+                port:
+                  number: 80

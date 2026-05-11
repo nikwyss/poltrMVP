@@ -28,12 +28,12 @@ router = APIRouter(prefix="/xrpc", tags=["review"])
 
 
 def _get_quorum() -> int:
-    return int(os.getenv("PEER_REVIEW_QUORUM", "10"))
+    return int(os.getenv("APPVIEW_PEER_REVIEW_QUORUM", "10"))
 
 
 def _get_criteria() -> list[dict]:
     raw = os.getenv(
-        "PEER_REVIEW_CRITERIA",
+        "APPVIEW_PEER_REVIEW_CRITERIA",
         '[{"key":"factual_accuracy","label":"Factual Accuracy"},'
         '{"key":"relevance","label":"Relevance to Ballot"},'
         '{"key":"clarity","label":"Clarity"},'
@@ -95,19 +95,23 @@ async def get_pending_reviews(
     invitations = []
     for r in rows:
         row = dict(r)
-        invitations.append({
-            "invitationUri": row["invitation_uri"],
-            "argumentUri": row["argument_uri"],
-            "invitedAt": row["invited_at"].isoformat() if row["invited_at"] else None,
-            "argument": {
-                "title": row["title"],
-                "body": row["body"],
-                "type": row["type"],
-                "ballotUri": row["ballot_uri"],
-                "ballotRkey": row["ballot_rkey"],
-                "authorDid": row["author_did"],
-            },
-        })
+        invitations.append(
+            {
+                "invitationUri": row["invitation_uri"],
+                "argumentUri": row["argument_uri"],
+                "invitedAt": (
+                    row["invited_at"].isoformat() if row["invited_at"] else None
+                ),
+                "argument": {
+                    "title": row["title"],
+                    "body": row["body"],
+                    "type": row["type"],
+                    "ballotUri": row["ballot_uri"],
+                    "ballotRkey": row["ballot_rkey"],
+                    "authorDid": row["author_did"],
+                },
+            }
+        )
 
     return JSONResponse(status_code=200, content={"invitations": invitations})
 
@@ -133,13 +137,19 @@ async def submit_review(
     if not argument_uri or not criteria or vote not in ("APPROVE", "REJECT"):
         return JSONResponse(
             status_code=400,
-            content={"error": "invalid_request", "message": "argumentUri, criteria, and valid vote required"},
+            content={
+                "error": "invalid_request",
+                "message": "argumentUri, criteria, and valid vote required",
+            },
         )
 
     if vote == "REJECT" and not justification:
         return JSONResponse(
             status_code=400,
-            content={"error": "invalid_request", "message": "Justification required for REJECT vote"},
+            content={
+                "error": "invalid_request",
+                "message": "Justification required for REJECT vote",
+            },
         )
 
     pool = await get_pool()
@@ -156,7 +166,10 @@ async def submit_review(
         if not invitation:
             return JSONResponse(
                 status_code=403,
-                content={"error": "not_invited", "message": "No invitation found for this argument"},
+                content={
+                    "error": "not_invited",
+                    "message": "No invitation found for this argument",
+                },
             )
 
         # Check not already reviewed
@@ -171,7 +184,10 @@ async def submit_review(
         if existing:
             return JSONResponse(
                 status_code=409,
-                content={"error": "already_reviewed", "message": "You have already reviewed this argument"},
+                content={
+                    "error": "already_reviewed",
+                    "message": "You have already reviewed this argument",
+                },
             )
 
     # Look up governance DID for this argument's ballot
@@ -278,13 +294,17 @@ async def get_review_status(
             )
             for r in review_rows:
                 row = dict(r)
-                reviews.append({
-                    "reviewerDid": row["reviewer_did"],
-                    "criteria": row["criteria"],
-                    "vote": row["vote"],
-                    "justification": row["justification"],
-                    "createdAt": row["created_at"].isoformat() if row["created_at"] else None,
-                })
+                reviews.append(
+                    {
+                        "reviewerDid": row["reviewer_did"],
+                        "criteria": row["criteria"],
+                        "vote": row["vote"],
+                        "justification": row["justification"],
+                        "createdAt": (
+                            row["created_at"].isoformat() if row["created_at"] else None
+                        ),
+                    }
+                )
 
     status_data = {
         "argumentUri": argument_uri,

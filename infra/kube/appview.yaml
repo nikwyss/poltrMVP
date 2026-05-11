@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appview
+  namespace: poltr
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appview
+  template:
+    metadata:
+      labels:
+        app: appview
+    spec:
+      imagePullSecrets:
+        - name: ghcr-registry
+      containers:
+        - name: appview
+          image: ghcr.io/nikwyss/poltr-appview:latest
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: appview-secrets
+          env:
+            - name: CMS_INTERNAL_SERVER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cms-secrets
+                  key: CMS_INTERNAL_SERVER_URL
+            - name: PDS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_ADMIN_PASSWORD
+            - name: PDS_HOSTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_HOSTNAME
+            - name: PDS_PUBLIC_HANDLE
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_PUBLIC_HANDLE
+            - name: PDS_INTERNAL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_INTERNAL_URL
+          ports:
+            - name: http
+              containerPort: 3000
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: appview
+  namespace: poltr
+spec:
+  selector:
+    app: appview
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000

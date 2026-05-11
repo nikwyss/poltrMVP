@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: poltr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/nikwyss/poltr-front:latest
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: front-secrets
+          env:
+            - name: CMS_INTERNAL_SERVER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cms-secrets
+                  key: CMS_INTERNAL_SERVER_URL
+            - name: APPVIEW_HOSTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: appview-secrets
+                  key: APPVIEW_HOSTNAME
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+      imagePullSecrets:
+        - name: ghcr-registry
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: poltr
+spec:
+  selector:
+    app: frontend
+  ports:
+    - port: 80
+      targetPort: 3000

@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: allforone-postgres
+  namespace: poltr
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: allforone-postgres
+  template:
+    metadata:
+      labels:
+        app: allforone-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          envFrom:
+            - secretRef:
+                name: allforone-postgres-secret
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: allforone-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: allforone-postgres
+  namespace: poltr
+spec:
+  selector:
+    app: allforone-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

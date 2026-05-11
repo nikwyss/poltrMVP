@@ -9,11 +9,6 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@atproto/api": "^0.18.0",
-    "@atproto/lexicon": "^0.5.1",
-    "@atproto/oauth-client-browser": "^0.3.34",
-    "@oslojs/encoding": "^1.1.0",
-    "@pilcrowjs/object-parser": "^0.0.4",
     "@tailwindcss/postcss": "^4.2.1",
     "@tanstack/react-virtual": "^3.13.18",
     "@types/qrcode": "^1.5.6",

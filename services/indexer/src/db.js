@@ -120,7 +120,6 @@ export async function upsertArgumentDb(clientOrPool, params) {
       createdAt,
     ],
   );
-
 }
 
 /**
@@ -407,7 +406,7 @@ export async function upsertReviewResponseDb(clientOrPool, params) {
  * If so, update review_status to 'approved' or 'rejected'.
  */
 async function checkReviewQuorum(clientOrPool, argumentUri) {
-  const quorum = parseInt(process.env.PEER_REVIEW_QUORUM || "10", 10);
+  const quorum = parseInt(process.env.APPVIEW_PEER_REVIEW_QUORUM || "10", 10);
 
   const counts = await dbQuery(
     clientOrPool,

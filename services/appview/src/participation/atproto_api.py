@@ -354,34 +354,27 @@ async def pds_login(did: str, password: str) -> TLoginAccountResponse:
     return TLoginAccountResponse(**resp.json())
 
 
+# In-memory cache for PDS access tokens: did -> (access_jwt, expires_at)
+import time as _time
+_pds_token_cache: dict[str, tuple[str, float]] = {}
+_PDS_TOKEN_TTL = 3600  # 1 hour
+
+
 async def _ensure_fresh_token(session: TSession, client: httpx.AsyncClient, pds_url: str):
     """Check if the PDS access token is still valid; re-login if expired or missing."""
-    if session.access_token:
-        res = await client.get(
-            f"https://{pds_url}/xrpc/com.atproto.server.getSession",
-            headers={"Authorization": f"Bearer {session.access_token}"},
-        )
-        if res.status_code == 200:
-            return  # token is still valid
+    # Check in-memory cache first
+    cached = _pds_token_cache.get(session.did)
+    if cached and _time.monotonic() < cached[1]:
+        session.access_token = cached[0]
+        return
 
-    # Token missing or expired — re-login using stored app password
-    logger.info(f"Access token missing or expired, re-logging in for {session.did}")
+    # Cache miss or expired — re-login using stored app password
+    logger.info(f"PDS token cache miss, re-logging in for {session.did}")
     session_data = await _relogin_from_stored_creds(session.did, client, pds_url)
     session.access_token = session_data["accessJwt"]
 
-    # Update token in database
-    db_pool = await db.get_pool()
-    async with db_pool.acquire() as conn:
-        await conn.execute(
-            """
-            UPDATE auth_sessions
-            SET access_token = $1
-            WHERE session_token = $2 AND did = $3
-            """,
-            session.access_token,
-            session.token,
-            session.did,
-        )
+    # Cache the new token
+    _pds_token_cache[session.did] = (session.access_token, _time.monotonic() + _PDS_TOKEN_TTL)
 
 
 async def _relogin_from_stored_creds(did: str, client: httpx.AsyncClient, pds_url: str) -> dict:

@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Login to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -30,7 +30,7 @@ jobs:
           TAG=${{ github.sha }}
           BUILD_ARGS=""
           if [ "${{ matrix.service }}" = "front" ]; then
-            BUILD_ARGS="--build-arg NEXT_PUBLIC_REDIRECT_URI=https://poltr.ch/auth/callback --build-arg NEXT_PUBLIC_CLIENT_ID_BASE=https://poltr.ch --build-arg NEXT_PUBLIC_PDS_URL=https://pds2.poltr.info --build-arg NEXT_PUBLIC_HANDLE_RESOLVER=https://bsky.social --build-arg NEXT_PUBLIC_EID_VERIFICATION_ENABLED=false"
+            BUILD_ARGS="--build-arg NEXT_PUBLIC_EID_VERIFICATION_ENABLED=false"
           fi
           docker build --no-cache $BUILD_ARGS -t ${IMAGE}:${TAG} -t ${IMAGE}:latest ./services/${{ matrix.service }}
           docker push ${IMAGE}:${TAG}
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (for kubectl config)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up kubeconfig file
         run: |

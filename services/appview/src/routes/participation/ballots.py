@@ -24,7 +24,7 @@ from src.participation.governance import create_governance_record, get_did_for_b
 
 router = APIRouter(prefix="/xrpc", tags=["poltr"])
 
-CMS_URL = os.getenv("CMS_URL", "http://cms.poltr.svc.cluster.local:3000")
+CMS_INTERNAL_SERVER_URL = os.getenv("CMS_INTERNAL_SERVER_URL")
 
 
 # -----------------------------------------------------------------------------
@@ -34,18 +34,20 @@ CMS_URL = os.getenv("CMS_URL", "http://cms.poltr.svc.cluster.local:3000")
 
 async def _fetch_cms_ballots(status: str = "published") -> list[dict]:
     """Fetch published ballots from CMS REST API."""
-    url = f"{CMS_URL}/api/ballots?where[status][equals]={status}&sort=-voteDate&limit=100"
+    url = f"{CMS_INTERNAL_SERVER_URL}/api/ballots?where[status][equals]={status}&sort=-voteDate&limit=100"
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(url)
         if resp.status_code != 200:
-            logger.error(f"CMS ballot fetch failed ({resp.status_code}): {resp.text[:200]}")
+            logger.error(
+                f"CMS ballot fetch failed ({resp.status_code}): {resp.text[:200]}"
+            )
             return []
         return resp.json().get("docs", [])
 
 
 async def _fetch_cms_ballot(ballot_id: str) -> dict | None:
     """Fetch a single ballot from CMS by ID."""
-    url = f"{CMS_URL}/api/ballots/{ballot_id}"
+    url = f"{CMS_INTERNAL_SERVER_URL}/api/ballots/{ballot_id}"
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(url)
         if resp.status_code != 200:
@@ -53,7 +55,9 @@ async def _fetch_cms_ballot(ballot_id: str) -> dict | None:
         return resp.json()
 
 
-def _serialize_cms_ballot(doc: dict, counts: dict | None = None, viewer_like: str | None = None) -> dict:
+def _serialize_cms_ballot(
+    doc: dict, counts: dict | None = None, viewer_like: str | None = None
+) -> dict:
     """Convert a CMS ballot document to the API ballot shape."""
     ballot_id = str(doc.get("id", ""))
 
@@ -100,7 +104,9 @@ def _serialize_cms_ballot(doc: dict, counts: dict | None = None, viewer_like: st
     return {k: v for k, v in ballot_raw.items() if v is not None}
 
 
-async def _get_ballot_counts(ballot_ids: list[str], viewer_did: str | None = None) -> dict:
+async def _get_ballot_counts(
+    ballot_ids: list[str], viewer_did: str | None = None
+) -> dict:
     """Get argument/comment/like counts for ballots from AppView DB.
     Returns {ballot_id: {argument_count, comment_count, like_count, viewer_like}}."""
     if not ballot_ids:
@@ -178,10 +184,7 @@ async def list_ballots(
         logger.warning(f"Failed to get ballot counts: {err}")
         counts = {}
 
-    ballots = [
-        _serialize_cms_ballot(b, counts.get(str(b["id"])))
-        for b in cms_ballots
-    ]
+    ballots = [_serialize_cms_ballot(b, counts.get(str(b["id"]))) for b in cms_ballots]
 
     return JSONResponse(status_code=200, content={"cursor": None, "ballots": ballots})
 
@@ -240,7 +243,7 @@ async def list_arguments(
     params = [ballot_rkey]
 
     viewer_did = session.did if session else None
-    peer_review_on = os.getenv("PEER_REVIEW_ENABLED", "false").lower() == "true"
+    peer_review_on = os.getenv("APPVIEW_PEER_REVIEW_ENABLED", "false").lower() == "true"
 
     # Type filter
     type_filter = ""
@@ -333,7 +336,9 @@ async def list_arguments(
                 "author": author,
                 "likeCount": get_number(row, "like_count"),
                 "commentCount": get_number(row, "comment_count"),
-                "reviewStatus": get_string(row, "review_status") if peer_review_on else None,
+                "reviewStatus": (
+                    get_string(row, "review_status") if peer_review_on else None
+                ),
                 "indexedAt": get_date_iso(row, "indexed_at"),
                 "viewer": viewer_obj if viewer_obj else None,
             }
@@ -663,7 +668,10 @@ async def create_argument(
     if arg_type not in ("PRO", "CONTRA"):
         return JSONResponse(
             status_code=400,
-            content={"error": "invalid_request", "message": "type must be PRO or CONTRA"},
+            content={
+                "error": "invalid_request",
+                "message": "type must be PRO or CONTRA",
+            },
         )
     if not title or not arg_body:
         return JSONResponse(
@@ -676,7 +684,10 @@ async def create_argument(
     if not gov_did:
         return JSONResponse(
             status_code=404,
-            content={"error": "not_found", "message": "No governance account for this ballot"},
+            content={
+                "error": "not_found",
+                "message": "No governance account for this ballot",
+            },
         )
 
     record = {
@@ -709,8 +720,6 @@ async def create_argument(
 # -----------------------------------------------------------------------------
 
 
-
-
 @router.post("/app.ch.poltr.content.rating")
 async def create_like(
     request: Request,
@@ -723,7 +732,10 @@ async def create_like(
     if not subject or not subject.get("uri") or not subject.get("cid"):
         return JSONResponse(
             status_code=400,
-            content={"error": "invalid_request", "message": "subject.uri and subject.cid required"},
+            content={
+                "error": "invalid_request",
+                "message": "subject.uri and subject.cid required",
+            },
         )
 
     record = {
@@ -766,7 +778,10 @@ async def delete_like(
     if not rkey:
         return JSONResponse(
             status_code=400,
-            content={"error": "invalid_request", "message": "Could not extract rkey from likeUri"},
+            content={
+                "error": "invalid_request",
+                "message": "Could not extract rkey from likeUri",
+            },
         )
 
     # Look up the bsky cross-like URI before deleting
@@ -855,7 +870,9 @@ async def list_activity(
     elif filter == "arguments":
         outer_conditions.append("act.activity_type IN ('new_argument', 'milestone')")
 
-    outer_where = ("WHERE " + " AND ".join(outer_conditions)) if outer_conditions else ""
+    outer_where = (
+        ("WHERE " + " AND ".join(outer_conditions)) if outer_conditions else ""
+    )
 
     params.append(limit)
     limit_param = f"${len(params)}"
@@ -1001,9 +1018,7 @@ async def list_activity(
             row = dict(r)
             activity_type = row.get("activity_type")
             activity_at_val = row.get("activity_at")
-            activity_at_str = (
-                activity_at_val.isoformat() if activity_at_val else None
-            )
+            activity_at_str = activity_at_val.isoformat() if activity_at_val else None
 
             actor_raw = {
                 "did": get_string(row, "actor_did") or "",

@@ -1,4 +1,4 @@
-import { postgresAdapter } from '@payloadcms/db-postgres';
+import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
 import { buildConfig } from 'payload'
@@ -15,23 +15,23 @@ const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
 export default buildConfig({
-    admin: {
-        user: Users.slug,
-        importMap: {
-            baseDir: path.resolve(dirname),
-        },
+  admin: {
+    user: Users.slug,
+    importMap: {
+      baseDir: path.resolve(dirname),
     },
-    collections: [Users, Media, Pages, Blocks, Ballots],
-    editor: lexicalEditor(),
-    secret: process.env.PAYLOAD_SECRET || '',
-    typescript: {
-        outputFile: path.resolve(dirname, 'payload-types.ts'),
+  },
+  collections: [Users, Media, Pages, Blocks, Ballots],
+  editor: lexicalEditor(),
+  secret: process.env.CMS_SECRET || '',
+  typescript: {
+    outputFile: path.resolve(dirname, 'payload-types.ts'),
+  },
+  db: postgresAdapter({
+    pool: {
+      connectionString: process.env.DATABASE_URI || process.env.CMS_DATABASE_URL || '',
     },
-    db: postgresAdapter({
-        pool: {
-            connectionString: process.env.DATABASE_URI || process.env.DATABASE_URL || '',
-        },
-    }),
-    sharp,
-    plugins: [],
+  }),
+  sharp,
+  plugins: [],
 })

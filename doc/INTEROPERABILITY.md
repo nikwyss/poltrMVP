@@ -74,7 +74,7 @@ These configurations are implemented or at least implementable.
 <br />Enable it with <code>NEXT_PUBLIC_APP_PASSWORD_ENABLED</code>
 
 
-- **`MIRROR (ENABLED)`** — Poltr content is mirrored to Bluesky as `app.bsky.feed.post`. All crossposting is handled by the **AppView** (`services/appview/src/lib/crosspost.py`) as a background asyncio task. Ballots are posted under the governance account; arguments are posted under the argument author's account (as replies to the ballot post). Comments (`app.ch.poltr.comment`) are not yet cross-posted to Bluesky — this is a known gap (see Gaps summary below). This enables: a) Bluesky users can subscribe to a poltr feed, b) Bluesky users can comment/like/repost ballots and arguments. Controlled by `CROSSPOST_ENABLED` and `CROSSPOST_POLL_INTERVAL_SECONDS` (default 30s) env vars on the AppView.
+- **`MIRROR (ENABLED)`** — Poltr content is mirrored to Bluesky as `app.bsky.feed.post`. All crossposting is handled by the **AppView** (`services/appview/src/lib/crosspost.py`) as a background asyncio task. Ballots are posted under the governance account; arguments are posted under the argument author's account (as replies to the ballot post). Comments (`app.ch.poltr.comment`) are not yet cross-posted to Bluesky — this is a known gap (see Gaps summary below). This enables: a) Bluesky users can subscribe to a poltr feed, b) Bluesky users can comment/like/repost ballots and arguments. Controlled by `APPVIEW_CROSSPOST_ENABLED` and `APPVIEW_CROSSPOST_POLL_INTERVAL_SECONDS` (default 30s) env vars on the AppView.
 
 - **`REVERSE (ENABLED)`** — Bluesky posts are  periodically imported back into poltr. Limit: Only enabled for **active ballots** (`app_ballots.active = 1`). The indexer polls the Bluesky public API (`app.bsky.feed.getPostThread`) for each active ballot's cross-post URI on a configurable interval (default 10 min). The full reply thread tree (up to depth 10) is walked recursively and upserted into `app_comments` (origin = `extern`). Engagement counts (likes, reposts, replies) are updated on the ballot row.
 
@@ -82,7 +82,7 @@ Hence: No auth path for Bluesky-native users to interact on poltr.ch. Would requ
 
 ```
 MIRROR — AppView (crosspost.py)
-  │  every CROSSPOST_POLL_INTERVAL_SECONDS (default 30s)
+  │  every APPVIEW_CROSSPOST_POLL_INTERVAL_SECONDS (default 30s)
   │
   ├─ SELECT ballots without bsky_post_uri
   │    → createRecord(app.bsky.feed.post) under governance account
@@ -113,7 +113,7 @@ REVERSE — Indexer (bsky_poller.js)
 ```
 
 Controlled by environment variables:
-- **MIRROR:** `CROSSPOST_ENABLED` (default `false`), `CROSSPOST_POLL_INTERVAL_SECONDS` (default `30`) — on the AppView.
+- **MIRROR:** `APPVIEW_CROSSPOST_ENABLED` (default `false`), `APPVIEW_CROSSPOST_POLL_INTERVAL_SECONDS` (default `30`) — on the AppView.
 - **REVERSE:** `BSKY_POLL_ENABLED` (default `false`), `BSKY_POLL_INTERVAL_MS` (default `600000`) — on the Indexer.
 
 ### What `REVERSE` does NOT capture

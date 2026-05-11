@@ -14,8 +14,9 @@ from datetime import datetime, timedelta
 from fastapi.responses import JSONResponse
 
 import src.core.db as db
+from src.auth.middleware import hash_token
 
-SESSION_LIFETIME_DAYS = int(os.getenv("SESSION_LIFETIME_DAYS", "7"))
+APPVIEW_SESSION_LIFETIME_DAYS = int(os.getenv("APPVIEW_SESSION_LIFETIME_DAYS", "7"))
 
 logger = logging.getLogger(__name__)
 
@@ -51,15 +52,11 @@ async def create_session_cookie(
     did: str,
     handle: str,
     display_name: str | None = None,
-    access_token: str | None = None,
 ) -> JSONResponse:
-    """Create a session and set the httpOnly cookie.
-
-    access_token is optional — if not provided, the first PDS operation
-    will trigger a re-login via the stored app password.
-    """
+    """Create a session and set the httpOnly cookie."""
     session_token = secrets.token_urlsafe(48)
-    session_expires = datetime.utcnow() + timedelta(days=SESSION_LIFETIME_DAYS)
+    session_token_hash = hash_token(session_token)
+    session_expires = datetime.utcnow() + timedelta(days=APPVIEW_SESSION_LIFETIME_DAYS)
 
     user_data = {
         "did": did,
@@ -67,17 +64,17 @@ async def create_session_cookie(
         "displayName": display_name or handle.split(".")[0],
     }
 
+    # Store the hash in DB, send the original in the cookie
     async with db.pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO auth_sessions (session_token, did, user_data, expires_at, access_token)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO auth_sessions (session_token, did, user_data, expires_at)
+            VALUES ($1, $2, $3, $4)
             """,
-            session_token,
+            session_token_hash,
             did,
             json.dumps(user_data),
             session_expires,
-            access_token or "",
         )
 
     response = JSONResponse(
@@ -97,7 +94,7 @@ async def create_session_cookie(
         httponly=True,
         secure=is_production,
         samesite="lax",
-        max_age=SESSION_LIFETIME_DAYS * 24 * 60 * 60,
+        max_age=APPVIEW_SESSION_LIFETIME_DAYS * 24 * 60 * 60,
         path="/",
     )
 

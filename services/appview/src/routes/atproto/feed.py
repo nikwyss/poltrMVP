@@ -22,8 +22,10 @@ from src.config import (
 
 router = APIRouter(prefix="/xrpc", tags=["feed"])
 
-FEED_GENERATOR_DID = os.getenv("FEED_GENERATOR_DID", "did:web:app.poltr.info")
-FEED_ACCOUNT_DID = os.getenv("FEED_ACCOUNT_DID", FEED_GENERATOR_DID)
+APPVIEW_FEED_GENERATOR_DID = os.getenv(
+    "APPVIEW_FEED_GENERATOR_DID", "did:web:app.poltr.info"
+)
+FEED_ACCOUNT_DID = os.getenv("FEED_ACCOUNT_DID", APPVIEW_FEED_GENERATOR_DID)
 FEED_URI = f"at://{FEED_ACCOUNT_DID}/app.bsky.feed.generator/poltr"
 
 
@@ -35,7 +37,7 @@ FEED_URI = f"at://{FEED_ACCOUNT_DID}/app.bsky.feed.generator/poltr"
 @router.get("/app.bsky.feed.describeFeedGenerator")
 async def describe_feed_generator():
     """Describe available feeds served by this generator."""
-    return {"did": FEED_GENERATOR_DID, "feeds": [{"uri": FEED_URI}]}
+    return {"did": APPVIEW_FEED_GENERATOR_DID, "feeds": [{"uri": FEED_URI}]}
 
 
 @router.get("/app.bsky.feed.getFeedSkeleton")

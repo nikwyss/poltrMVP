@@ -13,7 +13,6 @@ export default function Register() {
   const t = useTranslations('register');
   const [formData, setFormData] = useState({
     email: '',
-    pdsUrl: process.env.NEXT_PUBLIC_PDS_URL || 'https://pds2.poltr.info',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

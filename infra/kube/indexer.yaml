@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexer
+  namespace: poltr
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: indexer
+  template:
+    metadata:
+      labels:
+        app: indexer
+    spec:
+      containers:
+        - name: indexer
+          image: ghcr.io/nikwyss/poltr-indexer:latest
+          envFrom:
+            - secretRef:
+                name: indexer-secrets
+          env:
+            - name: PDS_HOSTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_HOSTNAME
+            - name: APPVIEW_CROSSPOST_ENABLED
+              valueFrom:
+                secretKeyRef:
+                  name: appview-secrets
+                  key: APPVIEW_CROSSPOST_ENABLED
+
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: indexer
+  namespace: poltr
+spec:
+  selector:
+    app: indexer
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000

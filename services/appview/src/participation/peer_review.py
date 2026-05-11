@@ -5,8 +5,8 @@ Periodically finds preliminary arguments that need more reviewers,
 selects eligible active users with a configurable probability,
 and writes invitation records to the governance PDS.
 
-Controlled by PEER_REVIEW_ENABLED env var (checked each iteration).
-Poll interval configurable via PEER_REVIEW_POLL_INTERVAL_SECONDS (default 60).
+Controlled by APPVIEW_PEER_REVIEW_ENABLED env var (checked each iteration).
+Poll interval configurable via APPVIEW_PEER_REVIEW_POLL_INTERVAL_SECONDS (default 60).
 """
 
 import asyncio
@@ -26,11 +26,11 @@ _task: asyncio.Task | None = None
 
 
 def _get_quorum() -> int:
-    return int(os.getenv("PEER_REVIEW_QUORUM", "10"))
+    return int(os.getenv("APPVIEW_PEER_REVIEW_QUORUM", "10"))
 
 
 def _get_invite_probability() -> float:
-    return float(os.getenv("PEER_REVIEW_INVITE_PROBABILITY", "0.35"))
+    return float(os.getenv("APPVIEW_PEER_REVIEW_INVITE_PROBABILITY", "0.35"))
 
 
 async def _process_pending_invitations():
@@ -151,7 +151,11 @@ async def _invite_for_argument(
 
         try:
             result = await put_governance_record(
-                client, gov_did, "app.ch.poltr.review.invitation", rkey, invitation_record
+                client,
+                gov_did,
+                "app.ch.poltr.review.invitation",
+                rkey,
+                invitation_record,
             )
             if selected:
                 logger.info(
@@ -176,9 +180,9 @@ async def _poll_loop():
     logger.info("Peer-review poll loop started")
 
     while True:
-        interval = int(os.getenv("PEER_REVIEW_POLL_INTERVAL_SECONDS", "60"))
+        interval = int(os.getenv("APPVIEW_PEER_REVIEW_POLL_INTERVAL_SECONDS", "60"))
 
-        if os.getenv("PEER_REVIEW_ENABLED", "false").lower() != "true":
+        if os.getenv("APPVIEW_PEER_REVIEW_ENABLED", "false").lower() != "true":
             logger.debug("Peer-review disabled, sleeping")
             await asyncio.sleep(interval)
             continue

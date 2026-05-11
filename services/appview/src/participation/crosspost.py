@@ -4,8 +4,8 @@ Background cross-posting loop: mirrors arguments to Bluesky.
 Arguments are posted as standalone posts under their governance account.
 Ballots are CMS content and not cross-posted as ATProto records.
 
-Controlled by CROSSPOST_ENABLED env var (checked at runtime each iteration).
-Poll interval configurable via CROSSPOST_POLL_INTERVAL_SECONDS (default 30).
+Controlled by APPVIEW_CROSSPOST_ENABLED env var (checked at runtime each iteration).
+Poll interval configurable via APPVIEW_CROSSPOST_POLL_INTERVAL_SECONDS (default 30).
 """
 
 import asyncio
@@ -49,7 +49,7 @@ async def _crosspost_arguments(client: httpx.AsyncClient):
         return
 
     logger.info(f"Found {len(rows)} pending argument(s) to cross-post")
-    peer_review_on = os.getenv("PEER_REVIEW_ENABLED", "false").lower() == "true"
+    peer_review_on = os.getenv("APPVIEW_PEER_REVIEW_ENABLED", "false").lower() == "true"
 
     for row in rows:
         gov_did = row["gov_did"]
@@ -85,7 +85,9 @@ async def _crosspost_arguments(client: httpx.AsyncClient):
             )
 
             if resp.status_code != 200:
-                logger.error(f"Argument cross-post failed for {row['uri']} ({resp.status_code}): {resp.text}")
+                logger.error(
+                    f"Argument cross-post failed for {row['uri']} ({resp.status_code}): {resp.text}"
+                )
                 continue
 
             data = resp.json()
@@ -112,9 +114,9 @@ async def _poll_loop():
     logger.info("Crosspost poll loop started")
 
     while True:
-        interval = int(os.getenv("CROSSPOST_POLL_INTERVAL_SECONDS", "30"))
+        interval = int(os.getenv("APPVIEW_CROSSPOST_POLL_INTERVAL_SECONDS", "30"))
 
-        if os.getenv("CROSSPOST_ENABLED", "false").lower() != "true":
+        if os.getenv("APPVIEW_CROSSPOST_ENABLED", "false").lower() != "true":
             logger.debug("Crosspost disabled, sleeping")
             await asyncio.sleep(interval)
             continue

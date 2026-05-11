@@ -18,7 +18,7 @@ ATProto-based civic-tech platform for Swiss referenda. Monorepo with custom serv
 ## Kubernetes
 
 - **Namespace:** `poltr`
-- **Main manifest:** `infra/kube/poltr.yaml`
+- **Manifests:** `infra/kube/` (one file per service: appview.yaml, cms.yaml, frontend.yaml, indexer.yaml, pds.yaml, postgres.yaml, ozone.yaml, verifier.yaml, eidproto.yaml, ingress.yaml, namespace.yaml)
 - **Cronjobs:** `infra/kube/cronjobs.yaml`
 - **Secrets template:** `infra/kube/secrets.yaml.dist`
 
@@ -175,6 +175,16 @@ All governance functions (`create_governance_record`, `put_governance_record`) r
 - **Argument crossposting:** Arguments are cross-posted as standalone Bluesky posts under their governance account (`services/appview/src/participation/crosspost.py`)
 - **External comment import:** The Bluesky poller (`services/indexer/src/bsky_poller.js`) polls cross-posted argument threads for replies and imports them as external comments (`origin = 'extern'` in `app_comments`). Controlled by `BSKY_POLL_ENABLED` env var
 - **No ballot crossposting:** Ballots are CMS content and are not posted to Bluesky
+
+## Session & Security Model
+
+- **Passwordless auth:** Magic Link via email (+ 6-digit short code as alternative)
+- **Session token:** 48 bytes random, stored as **SHA-256 hash** in `auth.auth_sessions`. Cookie has the original. DB leak = useless hashes
+- **PDS access tokens:** Not in DB. Cached in-memory only (1h TTL). Re-login via encrypted app password on cache miss
+- **Encrypted credentials:** User app passwords (`auth.auth_creds`) and governance passwords (`auth.governance_accounts`) encrypted with NaCl SecretBox using `APPVIEW_PDS_CREDS_MASTER_KEY_B64`
+- **Logout:** Deletes all sessions for the user's DID (all devices). Endpoint: `ch.poltr.auth.logout`
+- **Frontend:** No ATProto libraries, no PDS access. Communicates only with AppView via XRPC proxy
+- **Cookie:** `httpOnly`, `secure` (prod), `samesite=lax`
 
 ## Architecture
 

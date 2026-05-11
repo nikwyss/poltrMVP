@@ -23,6 +23,13 @@
 - **CMS new dependencies**: `pg` (PostgreSQL client), `tweetnacl` (NaCl encryption for password storage)
 - **CMS new env vars**: `APPVIEW_POSTGRES_URL`, `PDS_INTERNAL_URL`, `PDS_ADMIN_PASSWORD`, `APPVIEW_PDS_CREDS_MASTER_KEY_B64`, `PDS_PUBLIC_HANDLE`
 
+### Security hardening (`services/appview`, `services/front`)
+- **Session token hashing**: DB stores `SHA-256(session_token)` instead of plaintext. Cookie has the original. DB leak no longer exposes usable session tokens
+- **PDS access token removed from DB**: `access_token` column dropped from `auth_sessions`. Tokens live only in an in-memory cache (1h TTL). DB leak no longer exposes PDS bearer tokens
+- **Logout invalidates all sessions**: New `ch.poltr.auth.logout` endpoint deletes all sessions for the user's DID (`DELETE WHERE did = $1`). Logging out on one device logs out all devices
+- **Frontend ATProto removal**: Removed `@atproto/api`, `@atproto/oauth-client-browser`, `@atproto/lexicon` dependencies. Deleted OAuth callback, lexicon validation, direct PDS calls. Frontend only communicates with AppView via proxy
+- **Removed env vars**: `NEXT_PUBLIC_PDS_URL`, `NEXT_PUBLIC_REDIRECT_URI`, `NEXT_PUBLIC_CLIENT_ID_BASE`, `NEXT_PUBLIC_HANDLE_RESOLVER` — frontend no longer knows about PDS
+
 ### Frontend: Home shows ballots, new Profile page (`services/front`)
 - **Home page**: Shows current ballots (no archived). Empty state with link to archived ballots
 - **Profile page** (`/profile`): Moved from home — pseudonym explanation, DID, handle, eID verification, app password
@@ -117,7 +124,7 @@
 ## 2026-02-25
 
 ### Sliding Window Session Expiry (`services/appview`)
-- **Session now extends on every request** (`src/auth/middleware.py`): Changed from fixed 7-day expiry to sliding window — `expires_at` is reset to `NOW() + SESSION_LIFETIME_DAYS` on each authenticated request. Users stay logged in as long as they are active within any 7-day window; inactive sessions still expire and require magic-link re-auth
+- **Session now extends on every request** (`src/auth/middleware.py`): Changed from fixed 7-day expiry to sliding window — `expires_at` is reset to `NOW() + APPVIEW_SESSION_LIFETIME_DAYS` on each authenticated request. Users stay logged in as long as they are active within any 7-day window; inactive sessions still expire and require magic-link re-auth
 
 ## 2026-02-23
 
@@ -192,16 +199,16 @@
 
 ### Peer-Review System for Arguments (`services/appview`, `services/indexer`, `services/front`, `infra`)
 
-Community-driven quality gate for user-submitted arguments. Arguments start as "preliminary", undergo probabilistic peer-review by active users, and if approved, get republished as exact copies to the governance account's PDS. Controlled by `PEER_REVIEW_ENABLED` feature flag (default: off). See `doc/PEER_REVIEW.md` for the full design.
+Community-driven quality gate for user-submitted arguments. Arguments start as "preliminary", undergo probabilistic peer-review by active users, and if approved, get republished as exact copies to the governance account's PDS. Controlled by `APPVIEW_PEER_REVIEW_ENABLED` feature flag (default: off). See `doc/PEER_REVIEW.md` for the full design.
 
 - **Database schema** (`infra/scripts/postgres/db-setup.sql`): Added `review_status`, `original_uri`, `governance_uri` columns to `app_arguments`; created `app_review_invitations` and `app_review_responses` tables with unique constraints and indexes
 - **Lexicons** (`services/front/src/lexicons/`): Added `app.ch.poltr.review.invitation` and `app.ch.poltr.review.response` record schemas
-- **Secrets** (`infra/kube/secrets.yaml.dist`): Added `PEER_REVIEW_ENABLED`, `PEER_REVIEW_QUORUM`, `PEER_REVIEW_INVITE_PROBABILITY`, `PEER_REVIEW_POLL_INTERVAL_SECONDS`, `PEER_REVIEW_CRITERIA` to appview-secrets; added `PEER_REVIEW_QUORUM` to indexer-secrets
+- **Secrets** (`infra/kube/secrets.yaml.dist`): Added `APPVIEW_PEER_REVIEW_ENABLED`, `APPVIEW_PEER_REVIEW_QUORUM`, `APPVIEW_PEER_REVIEW_INVITE_PROBABILITY`, `APPVIEW_PEER_REVIEW_POLL_INTERVAL_SECONDS`, `APPVIEW_PEER_REVIEW_CRITERIA` to appview-secrets; added `APPVIEW_PEER_REVIEW_QUORUM` to indexer-secrets
 - **Indexer** (`services/indexer/src/`): Added firehose handlers for `review.invitation` and `review.response` collections; modified `upsertArgumentDb` to derive initial `review_status` from `originalUri` field; added post-index quorum check in `upsertReviewResponseDb` — updates `review_status` to `approved`/`rejected` when decision formula is met
 - **Governance PDS helper** (`services/appview/src/lib/governance_pds.py`): Extracted shared governance session management from crosspost.py; added `create_governance_record()` helper used by crosspost, peer-review invitations, and governance copy creation
 - **Peer-review background loop** (`services/appview/src/lib/peer_review.py`): Two responsibilities per poll cycle: (1) invite eligible active users for preliminary arguments with configurable probability, (2) create governance PDS copies for newly approved arguments (where indexer set `review_status = 'approved'` but `governance_uri` is not yet set)
 - **Review endpoints** (`services/appview/src/routes/review/__init__.py`): 4 XRPC endpoints — `review.pending` (list invitations for user), `review.submit` (write review to governance PDS; quorum check happens in indexer via firehose), `review.status` (vote counts + quorum progress; author sees individual feedback), `review.criteria` (configurable criteria list from env)
-- **Modified argument listing** (`services/appview/src/routes/poltr/__init__.py`): Added `reviewStatus` to response when peer review is enabled; filters rejected arguments to author-only visibility; when `PEER_REVIEW_ENABLED=false`, omits `reviewStatus` and shows all arguments without filtering
+- **Modified argument listing** (`services/appview/src/routes/poltr/__init__.py`): Added `reviewStatus` to response when peer review is enabled; filters rejected arguments to author-only visibility; when `APPVIEW_PEER_REVIEW_ENABLED=false`, omits `reviewStatus` and shows all arguments without filtering
 - **Modified crosspost** (`services/appview/src/lib/crosspost.py`): Refactored to use shared `governance_pds.py`; preliminary arguments cross-posted with `[Preliminary]` prefix under author (only when peer review enabled); approved governance copies cross-posted under governance account
 - **Frontend types** (`services/front/src/types/ballots.ts`): Added `ReviewCriterion`, `ReviewCriterionRating`, `ReviewInvitation`, `ReviewStatus`, `ReviewResponse` interfaces; added `reviewStatus` to `ArgumentWithMetadata`
 - **Frontend API** (`services/front/src/lib/agent.ts`): Added `getReviewCriteria()`, `getPendingReviews()`, `submitReview()`, `getReviewStatus()`
@@ -238,7 +245,7 @@ Community-driven quality gate for user-submitted arguments. Arguments start as "
 - **Added `app.bsky.feed.getFeedSkeleton` endpoint** (`src/routes/feed/__init__.py`): Returns a skeleton of cross-posted ballot post URIs for the poltr feed. Queries `app_ballots` for rows with `bsky_post_uri IS NOT NULL AND NOT deleted`, ordered by `created_at DESC`. Uses composite `created_at::rkey` cursor for stable pagination. Validates feed URI, supports `limit` (1–100, default 50) and `cursor` params.
 - **Added `app.bsky.feed.describeFeedGenerator` endpoint** (`src/routes/feed/__init__.py`): Returns the feed generator DID (`did:web:app.poltr.info`) and the poltr feed URI
 - **Updated `/.well-known/did.json`** (`src/wellknown.py`): Added `BskyFeedGenerator` service entry so Bluesky can discover the feed generator at `https://app.poltr.info`
-- **Added `FEED_GENERATOR_DID`** to `appview-secrets` (`infra/kube/secrets.yaml`): Defaults to `did:web:app.poltr.info`
+- **Added `APPVIEW_FEED_GENERATOR_DID`** to `appview-secrets` (`infra/kube/secrets.yaml`): Defaults to `did:web:app.poltr.info`
 - **Manual step required**: Create `app.bsky.feed.generator` record (rkey `poltr`) in governance account repo on PDS — see `doc/BLUESKY_FEED.md`
 
 ## 2026-02-15b
@@ -407,7 +414,7 @@ Community-driven quality gate for user-submitted arguments. Arguments start as "
 
 ### services/front
 - **Fixed RichText build error**: Changed `JSX.IntrinsicElements` to `React.JSX.IntrinsicElements` in `src/components/RichText.tsx` (React 19 namespace change)
-- **CMS connectivity fix**: `CMS_URL` must use internal K8s service name (`http://cms.poltr.svc.cluster.local`) for server-side CMS fetches from within the cluster
+- **CMS connectivity fix**: `CMS_INTERNAL_SERVER_URL` must use internal K8s service name (`http://cms.poltr.svc.cluster.local`) for server-side CMS fetches from within the cluster
 
 ### k8s/poltr.yaml
 - **Added CMS service**: Deployment, Service, and Ingress for Payload CMS at `cms.poltr.info`

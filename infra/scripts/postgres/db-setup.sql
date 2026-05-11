@@ -197,12 +197,11 @@ CREATE INDEX idx_auth_creds_email ON auth.auth_creds (email);
 
 CREATE TABLE auth.auth_sessions (
   id               serial PRIMARY KEY,
-  session_token    varchar(128) NOT NULL UNIQUE,
+  session_token    varchar(128) NOT NULL UNIQUE,  -- SHA-256 hash of the actual token
   user_data        jsonb,
   expires_at       timestamp NOT NULL,
   created_at       timestamp DEFAULT now(),
   last_accessed_at timestamp DEFAULT now(),
-  access_token     text,
   did              varchar(255)
 );
 

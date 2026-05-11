@@ -217,7 +217,7 @@ function ProfileContent() {
             <CardContent>
               <CopyField
                 label={t("pds")}
-                value={process.env.NEXT_PUBLIC_PDS_URL || "https://pds2.poltr.info"}
+                value="https://pds2.poltr.info"
               />
               <CopyField label={t("handle")} value={user.handle} />
               <CopyField label={t("password")} value={appPassword.password} breakAll />

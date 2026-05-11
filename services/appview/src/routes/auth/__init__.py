@@ -15,6 +15,7 @@ from src.auth.login import check_email_availability, login_account
 from src.auth.register import create_account
 from src.auth.middleware import TSession, verify_session_token
 import src.core.db as db
+from src.core.db import get_pool
 from src.auth.magic_link_handler import (
     VerifyLoginMagicLinkData,
     VerifyRegistrationMagicLinkData,
@@ -201,6 +202,20 @@ async def check_session(
         "did": session.did,
         "handle": session.user.get("handle", "") if session.user else "",
     })
+
+
+@router.post("/ch.poltr.auth.logout")
+async def logout(
+    request: Request, session: TSession = Depends(verify_session_token)
+):
+    """Logout: delete all sessions for this user (all devices)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM auth.auth_sessions WHERE did = $1",
+            session.did,
+        )
+    return JSONResponse(content={"success": True})
 
 
 @router.post("/ch.poltr.auth.createAppPassword")

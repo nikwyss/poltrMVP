@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from datetime import datetime, timedelta
@@ -8,21 +9,24 @@ from pydantic import BaseModel
 import src.core.db as db
 
 
+def hash_token(token: str) -> str:
+    """SHA-256 hash of a session token. DB stores the hash, cookie has the original."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 class TSession(BaseModel):
-    token: str
+    token: str          # original token (for cookie references)
+    token_hash: str     # SHA-256 hash (for DB queries)
     did: str
     user: dict
-    access_token: str
+    access_token: str = ""  # populated lazily from in-memory cache
 
 
 async def verify_session_token(
     authorization: Optional[str] = Header(None),
     session_token: Optional[str] = Cookie(None),
 ) -> TSession:
-    """Verify session token from Cookie or Authorization header"""
-
-    # print(f"Auth header: {authorization}")
-    # print(f"Session cookie: {session_token}")
+    """Verify session token from Cookie or Authorization header."""
 
     # Try cookie first (more secure), then Authorization header (for API clients)
     token = session_token or (
@@ -34,18 +38,19 @@ async def verify_session_token(
     if not token:
         raise HTTPException(status_code=401, detail="No authentication token provided")
 
-    # Validate token against database
+    token_hashed = hash_token(token)
+
     if db.pool is None:
         await db.init_pool()
 
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT session_token, did, user_data, expires_at, last_accessed_at, access_token
+            SELECT session_token, did, user_data, expires_at, last_accessed_at
             FROM auth_sessions
             WHERE session_token = $1
             """,
-            token,
+            token_hashed,
         )
 
         if not row:
@@ -53,14 +58,13 @@ async def verify_session_token(
 
         # Check if session expired
         if datetime.utcnow() > row["expires_at"]:
-            # Clean up expired session
             await conn.execute(
-                "DELETE FROM auth_sessions WHERE session_token = $1", token
+                "DELETE FROM auth_sessions WHERE session_token = $1", token_hashed
             )
             raise HTTPException(status_code=401, detail="Session expired")
 
         # Update last accessed time and extend session (sliding window)
-        session_lifetime_days = int(os.getenv("SESSION_LIFETIME_DAYS", "7"))
+        session_lifetime_days = int(os.getenv("APPVIEW_SESSION_LIFETIME_DAYS", "7"))
         await conn.execute(
             """
             UPDATE auth_sessions
@@ -68,7 +72,7 @@ async def verify_session_token(
                 expires_at = NOW() + $2 * INTERVAL '1 day'
             WHERE session_token = $1
             """,
-            token,
+            token_hashed,
             session_lifetime_days,
         )
 
@@ -82,8 +86,8 @@ async def verify_session_token(
         return TSession(
             **{
                 "token": token,
+                "token_hash": token_hashed,
                 "did": row["did"],
                 "user": user_data,
-                "access_token": row["access_token"] or "",
             }
         )
