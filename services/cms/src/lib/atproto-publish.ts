@@ -1,5 +1,7 @@
 /**
- * ATProto governance account creation for ballots.
+ * ATProto governance account creation for ballots, plus PDS record
+ * publishing for content curated in the CMS (currently: imported
+ * arguments from the Bundeskanzlei leaflet).
  *
  * Creates a PDS account, encrypts and stores credentials in the
  * AppView governance_accounts table.
@@ -172,4 +174,172 @@ export async function publishGovernanceAccount(
   await storeGovernanceAccount(did, handle, ballotId, ciphertext, nonce)
 
   return { did, handle }
+}
+
+// ---------------------------------------------------------------------------
+// Imported argument publishing
+// ---------------------------------------------------------------------------
+
+const ARGUMENT_NSID = 'app.ch.poltr.ballot.argument'
+
+function decryptGovernancePassword(ciphertext: Buffer, nonce: Buffer): string {
+  const keyB64 = env('APPVIEW_PDS_CREDS_MASTER_KEY_B64')
+  const key = Buffer.from(keyB64, 'base64')
+  if (key.length !== 32) throw new Error('Master key must be 32 bytes')
+
+  const opened = nacl.secretbox.open(
+    new Uint8Array(ciphertext),
+    new Uint8Array(nonce),
+    new Uint8Array(key),
+  )
+  if (!opened) throw new Error('Failed to decrypt governance password')
+  return Buffer.from(opened).toString('utf-8')
+}
+
+async function loadGovernanceCreds(ballotRkey: string): Promise<{
+  did: string
+  handle: string
+  password: string
+}> {
+  const dbUrl = env('APPVIEW_POSTGRES_URL')
+  const client = new pg.Client({ connectionString: dbUrl })
+
+  try {
+    await client.connect()
+    const res = await client.query<{
+      did: string
+      handle: string
+      pw_ciphertext: Buffer
+      pw_nonce: Buffer
+    }>(
+      `SELECT did, handle, pw_ciphertext, pw_nonce
+       FROM auth.governance_accounts
+       WHERE ballot_rkey = $1`,
+      [ballotRkey],
+    )
+    if (!res.rows.length) {
+      throw new Error(`No governance account for ballot rkey ${ballotRkey}`)
+    }
+    const { did, handle, pw_ciphertext, pw_nonce } = res.rows[0]
+    const password = decryptGovernancePassword(pw_ciphertext, pw_nonce)
+    return { did, handle, password }
+  } finally {
+    await client.end()
+  }
+}
+
+async function pdsCreateSession(
+  did: string,
+  password: string,
+): Promise<{ accessJwt: string }> {
+  const pdsUrl = env('PDS_INTERNAL_URL')
+  const resp = await fetch(`${pdsUrl}/xrpc/com.atproto.server.createSession`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ identifier: did, password }),
+  })
+  if (!resp.ok) {
+    throw new Error(`createSession failed (${resp.status}): ${await resp.text()}`)
+  }
+  return resp.json() as Promise<{ accessJwt: string }>
+}
+
+async function pdsCreateRecord(
+  did: string,
+  accessJwt: string,
+  collection: string,
+  record: Record<string, unknown>,
+): Promise<{ uri: string; cid: string }> {
+  const pdsUrl = env('PDS_INTERNAL_URL')
+  const resp = await fetch(`${pdsUrl}/xrpc/com.atproto.repo.createRecord`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessJwt}`,
+    },
+    body: JSON.stringify({ repo: did, collection, record }),
+  })
+  if (!resp.ok) {
+    throw new Error(`createRecord failed (${resp.status}): ${await resp.text()}`)
+  }
+  return resp.json() as Promise<{ uri: string; cid: string }>
+}
+
+type ImportedArgumentDoc = {
+  id: string | number
+  ballot: unknown
+  sourceType: 'official' | 'organization'
+  type: 'PRO' | 'CONTRA'
+  title: string
+  body: string
+  documentRef?: string | null
+  section?: string | null
+}
+
+/**
+ * Resolve the ballot rkey from a Payload relationship value. Payload may
+ * return either the raw ID or the populated document depending on depth.
+ *
+ * `payload` is typed loosely on purpose: the Payload-generated types
+ * (`payload-types.ts`) keep changing as collections are added, and the
+ * tight typing makes this helper hard to reuse.
+ */
+async function resolveBallotRkey(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload: any,
+  ballotRef: unknown,
+): Promise<string> {
+  if (typeof ballotRef === 'object' && ballotRef !== null) {
+    const ref = ballotRef as { rkey?: string; id?: string | number }
+    if (ref.rkey) return ref.rkey
+    if (ref.id !== undefined) {
+      const b = await payload.findByID({ collection: 'ballots', id: ref.id })
+      if (!b?.rkey) throw new Error(`Ballot ${ref.id} has no rkey`)
+      return b.rkey as string
+    }
+  }
+  if (typeof ballotRef === 'string' || typeof ballotRef === 'number') {
+    const b = await payload.findByID({ collection: 'ballots', id: ballotRef })
+    if (!b?.rkey) throw new Error(`Ballot ${ballotRef} has no rkey`)
+    return b.rkey as string
+  }
+  throw new Error('Unable to resolve ballot reference')
+}
+
+/**
+ * Publish an imported argument (from the CMS) to its ballot's governance
+ * PDS account. Returns the AT URI + CID of the created record.
+ */
+export async function publishImportedArgument(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload: any,
+  doc: ImportedArgumentDoc,
+): Promise<{ uri: string; cid: string }> {
+  const ballotRkey = await resolveBallotRkey(payload, doc.ballot)
+  const { did, password } = await loadGovernanceCreds(ballotRkey)
+
+  let source: Record<string, unknown>
+  if (doc.sourceType === 'official') {
+    source = { $type: `${ARGUMENT_NSID}#sourceOfficial` }
+    if (doc.documentRef) source.documentRef = doc.documentRef
+    if (doc.section) source.section = doc.section
+  } else {
+    // 'organization' is reserved but not yet exposed in the CMS UI.
+    throw new Error(
+      `sourceType '${doc.sourceType}' is not yet supported by publishImportedArgument`,
+    )
+  }
+
+  const record = {
+    $type: ARGUMENT_NSID,
+    title: doc.title,
+    body: doc.body,
+    type: doc.type,
+    ballot: ballotRkey,
+    createdAt: new Date().toISOString(),
+    source,
+  }
+
+  const { accessJwt } = await pdsCreateSession(did, password)
+  return pdsCreateRecord(did, accessJwt, ARGUMENT_NSID, record)
 }

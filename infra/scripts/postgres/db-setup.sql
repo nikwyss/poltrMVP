@@ -61,7 +61,7 @@ CREATE TABLE app_arguments (
   cid           text NOT NULL,
   did           text NOT NULL,          -- repo DID (governance account)
   rkey          text NOT NULL,          -- record key
-  author_did    text NOT NULL,          -- DID of the user who authored this argument
+  author_did    text,                   -- DID of the user who authored this argument (required for source_type='user')
   title         text NOT NULL,
   body          text NOT NULL,
   type          text NOT NULL,          -- 'PRO' or 'CONTRA'
@@ -73,9 +73,22 @@ CREATE TABLE app_arguments (
   comment_count    integer NOT NULL DEFAULT 0,
   bsky_reply_count integer NOT NULL DEFAULT 0,
   review_status text NOT NULL DEFAULT 'preliminary' CHECK (review_status IN ('preliminary', 'approved', 'rejected')),
+  -- Source discriminator: 'user' = user-submitted, 'official' = Bundeskanzlei leaflet,
+  -- 'organization' = party/association/NGO (schema reserved, not yet wired up).
+  source_type        text NOT NULL DEFAULT 'user'
+    CHECK (source_type IN ('user', 'official', 'organization')),
+  source_org_key     text,              -- CMS slug, set for source_type='organization'
+  source_doc_ref     text,              -- URL to leaflet / org publication
+  source_section     text,              -- Page/section within the source document
+  source_verified_did text,             -- Optional DID that vouches for the record
   created_at    timestamptz NOT NULL,
   indexed_at    timestamptz NOT NULL DEFAULT now(),
-  deleted       boolean NOT NULL DEFAULT false
+  deleted       boolean NOT NULL DEFAULT false,
+  CONSTRAINT app_arguments_source_consistency CHECK (
+    (source_type = 'user'         AND author_did IS NOT NULL) OR
+    (source_type = 'official'     AND source_org_key IS NULL) OR
+    (source_type = 'organization' AND source_org_key IS NOT NULL)
+  )
 );
 
 CREATE INDEX app_arguments_ballot_uri_idx    ON app_arguments (ballot_uri);
@@ -84,6 +97,9 @@ CREATE INDEX app_arguments_did_idx           ON app_arguments (did);
 CREATE INDEX app_arguments_author_did_idx    ON app_arguments (author_did);
 CREATE INDEX app_arguments_type_idx          ON app_arguments (type);
 CREATE INDEX app_arguments_review_status_idx ON app_arguments (review_status);
+CREATE INDEX app_arguments_source_type_idx   ON app_arguments (source_type);
+CREATE INDEX app_arguments_source_org_key_idx ON app_arguments (source_org_key)
+  WHERE source_org_key IS NOT NULL;
 
 CREATE TABLE app_review_invitations (
   uri           text PRIMARY KEY,

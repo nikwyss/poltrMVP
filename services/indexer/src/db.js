@@ -71,6 +71,67 @@ export async function markLikeDeleted(uri) {
   }
 }
 
+const ARGUMENT_NSID = "app.ch.poltr.ballot.argument";
+
+/**
+ * Parse the source union of an argument record into flat DB fields.
+ *
+ * Handles three cases:
+ *   - Explicit `source` union with `$type` set to one of the three refs
+ *   - Legacy records without `source` but with top-level `authorDid`
+ *     (treated as sourceUser as a backward-compatibility fallback)
+ */
+function parseArgumentSource(record) {
+  const source = record.source;
+  const refUser = `${ARGUMENT_NSID}#sourceUser`;
+  const refOfficial = `${ARGUMENT_NSID}#sourceOfficial`;
+  const refOrg = `${ARGUMENT_NSID}#sourceOrganization`;
+
+  if (source && typeof source === "object") {
+    const t = source.$type;
+    if (t === refOfficial) {
+      return {
+        sourceType: "official",
+        sourceOrgKey: null,
+        sourceDocRef: source.documentRef ?? null,
+        sourceSection: source.section ?? null,
+        sourceVerifiedDid: null,
+        authorDid: null,
+      };
+    }
+    if (t === refOrg) {
+      return {
+        sourceType: "organization",
+        sourceOrgKey: source.orgKey ?? null,
+        sourceDocRef: source.documentRef ?? null,
+        sourceSection: null,
+        sourceVerifiedDid: source.verifiedDid ?? null,
+        authorDid: null,
+      };
+    }
+    if (t === refUser) {
+      return {
+        sourceType: "user",
+        sourceOrgKey: null,
+        sourceDocRef: null,
+        sourceSection: null,
+        sourceVerifiedDid: null,
+        authorDid: source.authorDid ?? record.authorDid ?? null,
+      };
+    }
+  }
+
+  // Legacy record without a source union: assume user-submitted.
+  return {
+    sourceType: "user",
+    sourceOrgKey: null,
+    sourceDocRef: null,
+    sourceSection: null,
+    sourceVerifiedDid: null,
+    authorDid: record.authorDid ?? null,
+  };
+}
+
 /**
  * Upsert an argument record into app_arguments.
  */
@@ -83,40 +144,59 @@ export async function upsertArgumentDb(clientOrPool, params) {
   const ballotUri = record.ballot ?? null;
   const ballotRkey = ballotUri ? ballotUri.split("/").pop() : null;
   const createdAt = record.createdAt ? new Date(record.createdAt) : new Date();
-  const authorDid = record.authorDid ?? did;
+
+  const src = parseArgumentSource(record);
+
+  // Curated content (official/organization) skips peer review.
+  // For user-submitted args we keep the existing 'preliminary' default on insert
+  // so the peer-review workflow can promote them later.
+  const reviewStatus = src.sourceType === "user" ? "preliminary" : "approved";
 
   await dbQuery(
     clientOrPool,
     `
     INSERT INTO app_arguments
       (uri, cid, did, rkey, author_did, title, body, type, ballot_uri, ballot_rkey,
+       source_type, source_org_key, source_doc_ref, source_section, source_verified_did,
        review_status, created_at, deleted)
     VALUES
       ($1,  $2,  $3,  $4,  $5,  $6,    $7,   $8,   $9,         $10,
-       'preliminary', $11, false)
+       $11, $12, $13, $14, $15,
+       $16, $17, false)
     ON CONFLICT (uri) DO UPDATE SET
-      cid           = EXCLUDED.cid,
-      author_did    = EXCLUDED.author_did,
-      title         = EXCLUDED.title,
-      body          = EXCLUDED.body,
-      type          = EXCLUDED.type,
-      ballot_uri    = EXCLUDED.ballot_uri,
-      ballot_rkey   = EXCLUDED.ballot_rkey,
-      created_at    = EXCLUDED.created_at,
-      deleted       = false,
-      indexed_at    = now()
+      cid                  = EXCLUDED.cid,
+      author_did           = EXCLUDED.author_did,
+      title                = EXCLUDED.title,
+      body                 = EXCLUDED.body,
+      type                 = EXCLUDED.type,
+      ballot_uri           = EXCLUDED.ballot_uri,
+      ballot_rkey          = EXCLUDED.ballot_rkey,
+      source_type          = EXCLUDED.source_type,
+      source_org_key       = EXCLUDED.source_org_key,
+      source_doc_ref       = EXCLUDED.source_doc_ref,
+      source_section       = EXCLUDED.source_section,
+      source_verified_did  = EXCLUDED.source_verified_did,
+      created_at           = EXCLUDED.created_at,
+      deleted              = false,
+      indexed_at           = now()
     `,
     [
       uri,
       cid,
       did,
       rkey,
-      authorDid,
+      src.authorDid,
       title,
       body,
       type,
       ballotUri,
       ballotRkey,
+      src.sourceType,
+      src.sourceOrgKey,
+      src.sourceDocRef,
+      src.sourceSection,
+      src.sourceVerifiedDid,
+      reviewStatus,
       createdAt,
     ],
   );

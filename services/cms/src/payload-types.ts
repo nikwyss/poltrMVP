@@ -72,6 +72,7 @@ export interface Config {
     pages: Page;
     blocks: Block;
     ballots: Ballot;
+    'imported-arguments': ImportedArgument;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -84,6 +85,7 @@ export interface Config {
     pages: PagesSelect<false> | PagesSelect<true>;
     blocks: BlocksSelect<false> | BlocksSelect<true>;
     ballots: BallotsSelect<false> | BallotsSelect<true>;
+    'imported-arguments': ImportedArgumentsSelect<false> | ImportedArgumentsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -311,6 +313,43 @@ export interface Ballot {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "imported-arguments".
+ */
+export interface ImportedArgument {
+  id: number;
+  /**
+   * Zugehörige Abstimmungsvorlage.
+   */
+  ballot: number | Ballot;
+  /**
+   * Quelltyp. Aktuell nur "Offiziell" verfügbar; "Organisation" folgt später.
+   */
+  sourceType: 'official';
+  type: 'PRO' | 'CONTRA';
+  title: string;
+  body: string;
+  /**
+   * URL zur Originalquelle (Leaflet PDF, Webseite).
+   */
+  documentRef?: string | null;
+  /**
+   * Optional: Kapitel/Seite in der Quelle, z.B. "Argumente Befürworter, S. 14".
+   */
+  section?: string | null;
+  /**
+   * Auf "Published" setzen, um den Record auf den PDS zu schreiben.
+   */
+  status: 'draft' | 'published';
+  /**
+   * AT URI des Records (nach Publish).
+   */
+  pdsUri?: string | null;
+  pdsCid?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -352,6 +391,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'ballots';
         value: number | Ballot;
+      } | null)
+    | ({
+        relationTo: 'imported-arguments';
+        value: number | ImportedArgument;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -485,6 +528,24 @@ export interface BallotsSelect<T extends boolean = true> {
   status?: T;
   governanceDid?: T;
   governanceHandle?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "imported-arguments_select".
+ */
+export interface ImportedArgumentsSelect<T extends boolean = true> {
+  ballot?: T;
+  sourceType?: T;
+  type?: T;
+  title?: T;
+  body?: T;
+  documentRef?: T;
+  section?: T;
+  status?: T;
+  pdsUri?: T;
+  pdsCid?: T;
   updatedAt?: T;
   createdAt?: T;
 }

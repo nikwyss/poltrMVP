@@ -1,0 +1,66 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.ballot.argument",
+  "description": "Ein Argument zu einer Abstimmungsvorlage. Drei Quellen werden unterstützt: User-Eingaben (sourceUser), offizielle Argumente aus dem Bundeskanzlei-Leaflet (sourceOfficial) und Argumente von Organisationen/Parteien (sourceOrganization).",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["title", "body", "type", "ballot", "source", "createdAt"],
+        "properties": {
+          "title":     { "type": "string", "minLength": 1, "maxLength": 300 },
+          "body":      { "type": "string", "minLength": 1, "maxLength": 10000 },
+          "type":      { "type": "string", "knownValues": ["PRO", "CONTRA"] },
+          "ballot":    { "type": "string", "description": "Ballot-ID (rkey)." },
+          "createdAt": { "type": "string", "format": "datetime" },
+          "source": {
+            "type": "union",
+            "closed": true,
+            "refs": [
+              "#sourceUser",
+              "#sourceOfficial",
+              "#sourceOrganization"
+            ]
+          },
+          "authorDid": {
+            "type": "string",
+            "format": "did",
+            "description": "DEPRECATED: pre-source-Union Feld. Verwende source#sourceUser.authorDid. Wird vom Indexer als Fallback ausgewertet."
+          }
+        }
+      }
+    },
+
+    "sourceUser": {
+      "type": "object",
+      "description": "Argument von einem registrierten User eingereicht.",
+      "required": ["authorDid"],
+      "properties": {
+        "authorDid": { "type": "string", "format": "did" }
+      }
+    },
+
+    "sourceOfficial": {
+      "type": "object",
+      "description": "Offizielles Argument aus dem Abstimmungsbüchlein der Bundeskanzlei.",
+      "required": [],
+      "properties": {
+        "documentRef": { "type": "string", "format": "uri", "description": "URL zur offiziellen Quelle (PDF/HTML)." },
+        "section":     { "type": "string", "maxLength": 200, "description": "Kapitel/Seite, z.B. 'Argumente Befürworter, S. 14'." }
+      }
+    },
+
+    "sourceOrganization": {
+      "type": "object",
+      "description": "Argument einer Partei, eines Verbands, einer NGO o.ä. Erst in einer zukünftigen Phase implementiert; Schema bereits reserviert.",
+      "required": ["orgKey"],
+      "properties": {
+        "orgKey":      { "type": "string", "minLength": 1, "maxLength": 64, "description": "Stabiler Slug der Organisation." },
+        "documentRef": { "type": "string", "format": "uri" },
+        "verifiedDid": { "type": "string", "format": "did", "description": "Optional: DID, mit dem die Organisation den Beitrag bestätigt hat." }
+      }
+    }
+  }
+}

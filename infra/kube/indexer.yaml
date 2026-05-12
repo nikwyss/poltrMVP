@@ -27,11 +27,6 @@ spec:
                 secretKeyRef:
                   name: pds-secrets
                   key: PDS_HOSTNAME
-            - name: APPVIEW_CROSSPOST_ENABLED
-              valueFrom:
-                secretKeyRef:
-                  name: appview-secrets
-                  key: APPVIEW_CROSSPOST_ENABLED
 
           ports:
             - containerPort: 3000

@@ -238,6 +238,10 @@ async def list_arguments(
     ballot_rkey: str = Query(...),
     sort: str = Query("random"),
     type: Optional[str] = Query(None),
+    source: Optional[str] = Query(
+        None,
+        description="Filter by argument source: 'user', 'official', 'organization' or 'all' (default).",
+    ),
     limit: int = Query(100),
     session: TSession = Depends(verify_session_token),
 ):
@@ -253,8 +257,15 @@ async def list_arguments(
         params.append(type)
         type_filter = f"AND a.type = ${len(params)}"
 
+    # Source filter
+    source_filter = ""
+    if source in ("user", "official", "organization"):
+        params.append(source)
+        source_filter = f"AND a.source_type = ${len(params)}"
+
     # Filter: when peer review is enabled, show approved + preliminary;
-    # show rejected only to the author. When disabled, show all.
+    # show rejected only to the author. Curated content (official/organization)
+    # bypasses the review filter entirely. When peer review is disabled, show all.
     if viewer_did:
         params.append(viewer_did)
         viewer_param = f"${len(params)}"
@@ -265,13 +276,20 @@ async def list_arguments(
                 LIMIT 1
             ) AS viewer_like"""
         if peer_review_on:
-            review_filter = f"AND (a.review_status IN ('approved', 'preliminary') OR a.author_did = {viewer_param})"
+            review_filter = (
+                f"AND (a.source_type IN ('official','organization') "
+                f"     OR a.review_status IN ('approved', 'preliminary') "
+                f"     OR a.author_did = {viewer_param})"
+            )
         else:
             review_filter = ""
     else:
         viewer_select = ",\n            NULL AS viewer_like"
         if peer_review_on:
-            review_filter = "AND a.review_status IN ('approved', 'preliminary')"
+            review_filter = (
+                "AND (a.source_type IN ('official','organization') "
+                "     OR a.review_status IN ('approved', 'preliminary'))"
+            )
         else:
             review_filter = ""
 
@@ -295,6 +313,7 @@ async def list_arguments(
         LEFT JOIN app_profiles p ON p.did = a.author_did
         WHERE a.ballot_rkey = $1 AND NOT a.deleted
           {type_filter}
+          {source_filter}
           {review_filter}
         ORDER BY {order_by}
         LIMIT ${len(params)};
@@ -309,6 +328,28 @@ async def list_arguments(
         for r in rows:
             row = dict(r)
 
+            # Reconstruct the source union from the flat DB columns.
+            source_type = get_string(row, "source_type") or "user"
+            if source_type == "official":
+                source_obj_raw = {
+                    "$type": "app.ch.poltr.ballot.argument#sourceOfficial",
+                    "documentRef": get_string(row, "source_doc_ref"),
+                    "section": get_string(row, "source_section"),
+                }
+            elif source_type == "organization":
+                source_obj_raw = {
+                    "$type": "app.ch.poltr.ballot.argument#sourceOrganization",
+                    "orgKey": get_string(row, "source_org_key"),
+                    "documentRef": get_string(row, "source_doc_ref"),
+                    "verifiedDid": get_string(row, "source_verified_did"),
+                }
+            else:
+                source_obj_raw = {
+                    "$type": "app.ch.poltr.ballot.argument#sourceUser",
+                    "authorDid": get_string(row, "author_did"),
+                }
+            source_obj = {k: v for k, v in source_obj_raw.items() if v is not None}
+
             record_raw = {
                 "$type": "app.ch.poltr.ballot.argument",
                 "title": get_string(row, "title"),
@@ -316,6 +357,7 @@ async def list_arguments(
                 "type": get_string(row, "type"),
                 "ballot": get_string(row, "ballot_uri"),
                 "createdAt": get_date_iso(row, "created_at"),
+                "source": source_obj,
             }
             record = {k: v for k, v in record_raw.items() if v is not None}
 
@@ -323,13 +365,19 @@ async def list_arguments(
             if row.get("viewer_like"):
                 viewer_obj["like"] = row["viewer_like"]
 
-            author_raw = {
-                "did": get_string(row, "author_did") or "",
-                "displayName": get_string(row, "author_display_name"),
-                "canton": get_string(row, "author_canton"),
-                "color": get_string(row, "author_color"),
-            }
-            author = {k: v for k, v in author_raw.items() if v is not None}
+            # `author` is only meaningful for user-submitted arguments. For
+            # official / organization sources the caller can use record.source
+            # (and a later org-lookup) to render the source label.
+            if source_type == "user":
+                author_raw = {
+                    "did": get_string(row, "author_did") or "",
+                    "displayName": get_string(row, "author_display_name"),
+                    "canton": get_string(row, "author_canton"),
+                    "color": get_string(row, "author_color"),
+                }
+                author = {k: v for k, v in author_raw.items() if v is not None}
+            else:
+                author = None
 
             arg_raw = {
                 "uri": get_string(row, "uri") or "",
@@ -698,8 +746,11 @@ async def create_argument(
         "body": arg_body,
         "type": arg_type,
         "ballot": ballot_id,
-        "authorDid": session.did,
         "createdAt": datetime.now(timezone.utc).isoformat(),
+        "source": {
+            "$type": "app.ch.poltr.ballot.argument#sourceUser",
+            "authorDid": session.did,
+        },
     }
 
     try:
