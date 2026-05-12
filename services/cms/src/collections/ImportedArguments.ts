@@ -121,7 +121,12 @@ export const ImportedArguments: CollectionConfig = {
   ],
   hooks: {
     afterChange: [
-      async ({ doc, previousDoc, req, operation }) => {
+      async ({ doc, previousDoc, req, operation, context }) => {
+        // Skip recursive invocations triggered by the inner payload.update()
+        // calls below — they share the outer transaction (via `req`) and
+        // would otherwise re-enter this hook.
+        if (context?.skipPublishHook) return doc
+
         // Publish on first transition to 'published' that hasn't been published yet.
         const wasPublished = previousDoc?.status === 'published'
         const isPublished = doc.status === 'published'
@@ -138,6 +143,8 @@ export const ImportedArguments: CollectionConfig = {
             collection: 'imported-arguments',
             id: doc.id,
             data: { pdsUri: uri, pdsCid: cid },
+            req,
+            context: { skipPublishHook: true },
           })
 
           req.payload.logger.info(
@@ -153,6 +160,8 @@ export const ImportedArguments: CollectionConfig = {
               collection: 'imported-arguments',
               id: doc.id,
               data: { status: 'draft' },
+              req,
+              context: { skipPublishHook: true },
             })
           }
         }

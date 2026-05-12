@@ -54,11 +54,13 @@ export async function listArguments(
   ballotRkey: string,
   sort?: string,
   type?: string,
+  source?: 'user' | 'official' | 'organization' | 'all',
 ): Promise<ArgumentWithMetadata[]> {
   const authenticatedFetch = getAuthenticatedFetch();
   const params = new URLSearchParams({ ballot_rkey: ballotRkey });
   if (sort) params.set('sort', sort);
   if (type) params.set('type', type);
+  if (source && source !== 'all') params.set('source', source);
   const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.argument.list?${params.toString()}`);
   if (!res.ok) throw new Error(await res.text());
   const content = await res.json();

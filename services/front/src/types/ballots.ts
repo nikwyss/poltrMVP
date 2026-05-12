@@ -11,6 +11,23 @@ export interface BallotRecord {
   createdAt?: string;
 }
 
+export type ArgumentSource =
+  | {
+      $type: 'app.ch.poltr.ballot.argument#sourceUser';
+      authorDid: string;
+    }
+  | {
+      $type: 'app.ch.poltr.ballot.argument#sourceOfficial';
+      documentRef?: string;
+      section?: string;
+    }
+  | {
+      $type: 'app.ch.poltr.ballot.argument#sourceOrganization';
+      orgKey: string;
+      documentRef?: string;
+      verifiedDid?: string;
+    };
+
 export interface ArgumentRecord {
   $type: 'app.ch.poltr.ballot.argument';
   title: string;
@@ -18,13 +35,15 @@ export interface ArgumentRecord {
   type: 'PRO' | 'CONTRA';
   ballot: string; // AT URI of the ballot
   createdAt?: string;
+  source?: ArgumentSource;
 }
 
 export interface ArgumentWithMetadata {
   uri: string;
   cid: string;
   record: ArgumentRecord;
-  author: {
+  // `author` is omitted for curated sources (official / organization).
+  author?: {
     did: string;
     displayName?: string;
     canton?: string;

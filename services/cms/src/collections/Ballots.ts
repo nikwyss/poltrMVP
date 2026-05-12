@@ -113,7 +113,10 @@ export const Ballots: CollectionConfig = {
   ],
   hooks: {
     afterChange: [
-      async ({ doc, req }) => {
+      async ({ doc, req, context }) => {
+        // Skip recursive invocations from the inner payload.update() below.
+        if (context?.skipPublishHook) return doc
+
         const isPublishing =
           doc.status === 'published' && !doc.governanceDid
 
@@ -123,7 +126,9 @@ export const Ballots: CollectionConfig = {
           const { publishGovernanceAccount } = await import('../lib/atproto-publish')
           const { did, handle } = await publishGovernanceAccount(doc.rkey)
 
-          // Update the document with governance account info
+          // Update the document with governance account info — share the
+          // outer transaction (via `req`) and tag the call with a context
+          // flag so this hook short-circuits on the recursive afterChange.
           await req.payload.update({
             collection: 'ballots',
             id: doc.id,
@@ -131,6 +136,8 @@ export const Ballots: CollectionConfig = {
               governanceDid: did,
               governanceHandle: handle,
             },
+            req,
+            context: { skipPublishHook: true },
           })
 
           req.payload.logger.info(

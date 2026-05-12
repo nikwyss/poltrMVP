@@ -29,7 +29,7 @@ const viewDefs: {
     key: "tree",
     icon: GitBranch,
     labelKey: "argumentTree",
-    href: (id) => `/ballot/${id}/arguments`,
+    href: (id) => `/ballot/${id}/new_arguments`,
   },
 ];
 

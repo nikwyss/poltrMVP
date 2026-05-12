@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-05-13
+
+### Argument sources: official BK arguments alongside user-submitted ones (`lexicons`, `services/appview`, `services/indexer`, `services/cms`, `services/front`, `infra`)
+- **Lexicon `app.ch.poltr.ballot.argument` extended** with a closed `source` union (3 refs): `#sourceUser` (existing user-authored args; `authorDid` moved inside), `#sourceOfficial` (Bundeskanzlei leaflet, `documentRef` + `section`), `#sourceOrganization` (parties/associations/NGOs, `orgKey` — schema reserved, publish path not yet wired up). Top-level legacy `authorDid` tolerated as backward-compat fallback. New file: `lexicons/app/ch/poltr/ballot/argument.json`
+- **DB migration** (`infra/scripts/postgres/migrate-argument-sources.sql`): `app_arguments` gains `source_type` (`user|official|organization`, default `user`), `source_org_key`, `source_doc_ref`, `source_section`, `source_verified_did`; `author_did` relaxed to nullable; consistency check ensures user → `author_did NOT NULL`, organization → `source_org_key NOT NULL`. Indexes on `source_type` + partial on `source_org_key`. Mirrored in `infra/scripts/postgres/db-setup.sql`
+- **Indexer**: `upsertArgumentDb` parses the `source` union into the flat DB columns. Legacy records (no `source`, top-level `authorDid`) treated as `sourceUser`. Curated content (`official`/`organization`) inserted with `review_status='approved'` — bypasses peer review entirely
+- **AppView**: `argument.create` wraps the caller's DID as `source: { $type: '…#sourceUser', authorDid }` on the record. `argument.list` accepts a `source` query param (`user|official|organization|all`) and reconstructs the `source` union in the response. Peer-review filter on the list endpoint exempts `official`/`organization` rows
+- **CMS `ImportedArguments` collection** (`services/cms/src/collections/ImportedArguments.ts`): curated arguments are entered in Payload. `afterChange` hook calls `publishImportedArgument()` which loads the ballot's governance creds (NaCl SecretBox), opens a PDS session, writes the record with `sourceOfficial`, and persists `pds_uri`/`pds_cid` back to the CMS row. `sourceOrganization` option in the collection is commented-out until that path is built
+- **Frontend `/ballot/[id]/new_arguments`**: experimental two-section view — "Offizielle Argumente" (warm off-white bg, `★` marker, 3px left accent on cards) above "Community" (dashed border, `◐` marker). Sticky PRO/CONTRA column header; mobile interleaves cards. `ArgumentSource` discriminated union added to `types/ballots.ts`; `listArguments(..., source?)` accepts the new query param; `author` is now optional on `ArgumentWithMetadata` because curated args have no pseudonym
+- **Wiki updates**: `Arguments-and-Comments.md` gains a "Argument Sources" section + curated-content note; `ATProto-Integration.md` lexicon table updated to the union shape; `Peer-Review.md` notes the curated-content bypass
+- **Tooling**:
+  - `infra/scripts/backfill_argument_sources.py`: idempotent rewrite of legacy user arguments on the PDS — applied to all 99 existing records, each now carries `source: sourceUser` and the top-level `authorDid` is removed
+  - `infra/scripts/import_bk_arguments.py`: parses a markdown dump of leaflet arguments and bulk-publishes the missing ones via PDS `createRecord` + direct CMS row insert (bypasses the CMS hook). Idempotent on case-insensitive title match. Used to import the 11 remaining BK 663 (Klimaschutz-Initiative) arguments
+- **Operations fixes**:
+  - `infra/kube/indexer.yaml`: removed stale `env: APPVIEW_CROSSPOST_ENABLED` reference (the indexer doesn't read that var — it was a copy-paste from appview, and the missing key was blocking pod startup)
+  - **Payload hook deadlock fix** in `Ballots.ts` and `ImportedArguments.ts`: the `afterChange` → `payload.update(same collection)` pattern was deadlocking the Postgres adapter (outer tx held the row lock; inner update on a new connection waited for it). Both hooks now pass `req` (share transaction) plus `context: { skipPublishHook: true }` (short-circuits the recursive afterChange)
+
 ## 2026-05-10
 
 ### Login/Registration separation and AppView restructure (`services/appview`, `services/eidproto`)
