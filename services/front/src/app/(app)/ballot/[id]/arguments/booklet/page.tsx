@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import { getBallot, listArguments } from "@/lib/agent";
 import { likeBallot, unlikeBallot } from "@/lib/ballots";
+import { loadCached, patchCached } from "@/lib/pageCache";
+import { useScrollRestore } from "@/lib/scrollRestore";
 import { formatDate } from "@/lib/utils";
 import type {
   BallotWithMetadata,
@@ -28,34 +30,32 @@ function sourceKind(record: ArgumentWithMetadata["record"]): "official" | "organ
   return "user";
 }
 
-/**
- * Render the "byline" beneath the title. For curated content this names
- * the upstream source (Bundesrat / Initiativkomitee, or org slug); for user
- * arguments this is the pseudonym.
- */
+type AttributionLabels = {
+  bundesrat: string;
+  initiativkomitee: string;
+  organization: string;
+  anonymous: string;
+};
+
 function attributionLine(
   arg: ArgumentWithMetadata,
   kind: "official" | "organization" | "user",
+  labels: AttributionLabels,
 ): string {
   if (kind === "official") {
-    // Heuristic: leaflet sections name PRO sources "Bundesrat (& Parlament)"
-    // and CONTRA sources "Initiativkomitee" / "Referendumskomitee". Prefer the
-    // section text from the lexicon when present.
     const section =
       arg.record.source && "section" in arg.record.source ? arg.record.source.section : undefined;
     if (section) return `— ${section}`;
     return arg.record.type === "PRO"
-      ? "— Bundesrat"
-      : "— Initiativkomitee";
+      ? `— ${labels.bundesrat}`
+      : `— ${labels.initiativkomitee}`;
   }
   if (kind === "organization") {
     const orgKey =
       arg.record.source && "orgKey" in arg.record.source ? arg.record.source.orgKey : undefined;
-    return orgKey ? `— ${orgKey}` : "— Organisation";
+    return orgKey ? `— ${orgKey}` : `— ${labels.organization}`;
   }
-  // user
-  const name = arg.author?.displayName || "anonym";
-  return `@${name.toLowerCase().replace(/\s+/g, "_")}`;
+  return arg.author?.displayName || labels.anonymous;
 }
 
 // ---------------------------------------------------------------------------
@@ -74,7 +74,15 @@ function ArgumentCardCompact({
   onClick: () => void;
 }) {
   const tc = useTranslations("common");
+  const trs = useTranslations("reviewStatus");
+  const tbk = useTranslations("booklet");
   const type = arg.record.type;
+  const labels: AttributionLabels = {
+    bundesrat: tbk("fallbackBundesrat"),
+    initiativkomitee: tbk("fallbackInitiativkomitee"),
+    organization: tbk("fallbackOrganization"),
+    anonymous: tc("anonymous"),
+  };
 
   return (
     <div
@@ -89,12 +97,11 @@ function ArgumentCardCompact({
           #{String(index + 1).padStart(2, "0")}
         </div>
       </div>
-      <div className="na-card-author">{attributionLine(arg, kind)}</div>
+      <div className="na-card-author">{attributionLine(arg, kind, labels)}</div>
       <div className="na-card-body">{arg.record.body}</div>
       <div className="na-card-footer">
         <span>
-          {kind === "user" ? tc("preliminary") || "Vorläufig" : ""}
-          {kind !== "user" ? "Offiziell" : ""}
+          {kind === "user" ? trs("preliminary") : trs("official")}
         </span>
         <span className="na-helpful">
           {"↑"} {(arg.likeCount ?? 0)} {tc("helpful")}
@@ -126,6 +133,7 @@ function ArgumentSection({
   ballotId: string;
 }) {
   const router = useRouter();
+  const t = useTranslations("ballotDetail");
   const kind: "official" | "user" = variant === "official" ? "official" : "user";
 
   const open = (uri: string) =>
@@ -151,7 +159,7 @@ function ArgumentSection({
             />
           ))}
           {proArgs.length === 0 && (
-            <p className="na-empty">Keine PRO-Argumente.</p>
+            <p className="na-empty">{t("noProArguments")}</p>
           )}
         </div>
         <div className="na-column">
@@ -165,7 +173,7 @@ function ArgumentSection({
             />
           ))}
           {contraArgs.length === 0 && (
-            <p className="na-empty">Keine CONTRA-Argumente.</p>
+            <p className="na-empty">{t("noContraArguments")}</p>
           )}
         </div>
       </div>
@@ -185,6 +193,7 @@ export default function BallotDetailNewArguments() {
   const t = useTranslations("ballotDetail");
   const tb = useTranslations("ballots");
   const tc = useTranslations("common");
+  const tbk = useTranslations("booklet");
 
   const [ballot, setBallot] = useState<BallotWithMetadata | null>(null);
   const [arguments_, setArguments] = useState<ArgumentWithMetadata[]>([]);
@@ -206,10 +215,16 @@ export default function BallotDetailNewArguments() {
     setLoading(true);
     setError("");
     try {
-      const [ballotData, argsData] = await Promise.all([
-        getBallot(id),
-        listArguments(id),
-      ]);
+      const { ballot: ballotData, args: argsData } = await loadCached(
+        `ballot:${id}`,
+        async () => {
+          const [b, a] = await Promise.all([
+            getBallot(id),
+            listArguments(id),
+          ]);
+          return { ballot: b, args: a };
+        },
+      );
       setBallot(ballotData);
       setArguments(argsData);
     } catch (err) {
@@ -219,6 +234,8 @@ export default function BallotDetailNewArguments() {
       setLoading(false);
     }
   };
+
+  useScrollRestore(!loading && !!ballot);
 
   const handleToggleLike = useCallback(async () => {
     if (!ballot) return;
@@ -238,9 +255,31 @@ export default function BallotDetailNewArguments() {
       if (isLiked) {
         await unlikeBallot(ballot.viewer!.like!);
         setBallot((prev) => (prev ? { ...prev, viewer: undefined } : prev));
+        patchCached<{ ballot: BallotWithMetadata; args: ArgumentWithMetadata[] }>(
+          `ballot:${id}`,
+          (c) => ({
+            ...c,
+            ballot: {
+              ...c.ballot,
+              likeCount: Math.max(0, (c.ballot.likeCount ?? 0) - 1),
+              viewer: undefined,
+            },
+          }),
+        );
       } else {
         const likeUri = await likeBallot(ballot.uri, ballot.cid);
         setBallot((prev) => (prev ? { ...prev, viewer: { like: likeUri } } : prev));
+        patchCached<{ ballot: BallotWithMetadata; args: ArgumentWithMetadata[] }>(
+          `ballot:${id}`,
+          (c) => ({
+            ...c,
+            ballot: {
+              ...c.ballot,
+              likeCount: (c.ballot.likeCount ?? 0) + 1,
+              viewer: { like: likeUri },
+            },
+          }),
+        );
       }
     } catch (err) {
       console.error("Failed to toggle like:", err);
@@ -299,7 +338,7 @@ export default function BallotDetailNewArguments() {
           {ballot?.record.title ?? "..."}
         </span>
         <div className="ml-auto">
-          <ViewToggle active="columns" ballotId={id} />
+          <ViewToggle active="booklet" ballotId={id} />
         </div>
       </nav>
 
@@ -414,8 +453,8 @@ export default function BallotDetailNewArguments() {
           <ArgumentSection
             variant="official"
             marker="★"
-            title="Offizielle Argumente"
-            subtitle="aus dem Abstimmungsbüchlein der Bundeskanzlei"
+            title={tbk("officialTitle")}
+            subtitle={tbk("officialSubtitle")}
             proArgs={officialPro}
             contraArgs={officialContra}
             ballotId={id}
@@ -425,8 +464,8 @@ export default function BallotDetailNewArguments() {
           <ArgumentSection
             variant="community"
             marker="◐"
-            title="Community"
-            subtitle="Argumente von Userinnen und Usern"
+            title={tbk("communityTitle")}
+            subtitle={tbk("communitySubtitle")}
             proArgs={userPro}
             contraArgs={userContra}
             ballotId={id}

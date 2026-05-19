@@ -4,8 +4,9 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
-import { listArguments, listComments, createComment } from "@/lib/agent";
+import { getArgument, listComments, createComment } from "@/lib/agent";
 import { likeContent, unlikeContent } from "@/lib/ballots";
+import { useScrollRestore, smartBack } from "@/lib/scrollRestore";
 import { formatRelativeTime } from "@/lib/utils";
 import type {
   ArgumentWithMetadata,
@@ -177,9 +178,7 @@ export default function ArgumentDetailPage() {
       setLoading(true);
       setError("");
       try {
-        const args = await listArguments(ballotRkey);
-        const arg = args.find((a) => a.uri.split("/").pop() === argRkey);
-        if (!arg) throw new Error("Argument not found");
+        const arg = await getArgument(ballotRkey, argRkey);
         setArgument(arg);
         setComments(await loadComments(arg.uri));
       } catch (err) {
@@ -242,7 +241,7 @@ export default function ArgumentDetailPage() {
   const handleNavigateToComment = useCallback(
     (uri: string) => {
       router.push(
-        `/ballot/${ballotRkey}/feed/comment?uri=${encodeURIComponent(uri)}`,
+        `/ballot/${ballotRkey}/arguments/feed/comment?uri=${encodeURIComponent(uri)}`,
       );
     },
     [ballotRkey, router],
@@ -262,6 +261,8 @@ export default function ArgumentDetailPage() {
     }
   }, [replyText, submitting, argument, loadComments]);
 
+  useScrollRestore(!loading && !!argument);
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh] gap-3">
@@ -279,7 +280,7 @@ export default function ArgumentDetailPage() {
       <Button
         variant="outline"
         size="sm"
-        onClick={() => router.push(`/ballot/${ballotRkey}/arguments`)}
+        onClick={() => smartBack(router, `/ballot/${ballotRkey}/arguments`)}
       >
         &larr; {t("backToBallot")}
       </Button>

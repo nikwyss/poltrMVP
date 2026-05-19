@@ -50,6 +50,26 @@ export async function listBallots(): Promise<BallotWithMetadata[]> {
 // Argument API
 // ---------------------------------------------------------------------------
 
+export async function getArgument(
+  ballotRkey: string,
+  rkey: string,
+): Promise<ArgumentWithMetadata> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  const params = new URLSearchParams({
+    ballot_rkey: ballotRkey,
+    rkey,
+  });
+  const res = await authenticatedFetch(
+    `/api/xrpc/app.ch.poltr.argument.get?${params.toString()}`,
+  );
+  if (!res.ok) throw new Error(await res.text());
+  const content = await res.json();
+  if (!content?.argument) {
+    throw new Error('Invalid response from argument.get endpoint');
+  }
+  return content.argument;
+}
+
 export async function listArguments(
   ballotRkey: string,
   sort?: string,

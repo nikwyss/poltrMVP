@@ -291,6 +291,18 @@ export interface Ballot {
    */
   topic?: string | null;
   /**
+   * Rechtsform der Vorlage (gemäss swissvotes.ch)
+   */
+  ballotType?:
+    | (
+        | 'obligatorisches_referendum'
+        | 'fakultatives_referendum'
+        | 'volksinitiative'
+        | 'direkter_gegenentwurf'
+        | 'stichfrage'
+      )
+    | null;
+  /**
    * Abstimmungsdatum
    */
   voteDate: string;
@@ -522,6 +534,7 @@ export interface BallotsSelect<T extends boolean = true> {
   title?: T;
   description?: T;
   topic?: T;
+  ballotType?: T;
   voteDate?: T;
   officialRef?: T;
   language?: T;

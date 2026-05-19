@@ -47,6 +47,20 @@ export const Ballots: CollectionConfig = {
       },
     },
     {
+      name: 'ballotType',
+      type: 'select',
+      options: [
+        { label: 'Obligatorisches Referendum', value: 'obligatorisches_referendum' },
+        { label: 'Fakultatives Referendum', value: 'fakultatives_referendum' },
+        { label: 'Volksinitiative', value: 'volksinitiative' },
+        { label: 'Direkter Gegenentwurf', value: 'direkter_gegenentwurf' },
+        { label: 'Stichfrage', value: 'stichfrage' },
+      ],
+      admin: {
+        description: 'Rechtsform der Vorlage (gemäss swissvotes.ch)',
+      },
+    },
+    {
       name: 'voteDate',
       type: 'date',
       required: true,

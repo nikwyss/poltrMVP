@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import { getComment, listComments, createComment } from "@/lib/agent";
 import { likeContent, unlikeContent } from "@/lib/ballots";
+import { useScrollRestore, smartBack } from "@/lib/scrollRestore";
 import { formatRelativeTime } from "@/lib/utils";
 import type { CommentWithMetadata } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
@@ -412,7 +413,9 @@ export default function CommentDetailPage() {
 
   const handleNavigateToComment = useCallback(
     (uri: string) => {
-      router.push(`/ballot/${id}/feed/comment?uri=${encodeURIComponent(uri)}`);
+      router.push(
+        `/ballot/${id}/arguments/feed/comment?uri=${encodeURIComponent(uri)}`,
+      );
     },
     [id, router],
   );
@@ -448,6 +451,8 @@ export default function CommentDetailPage() {
     }
   }, [replyText, submitting, focalComment, argument]);
 
+  useScrollRestore(!loading && !!focalComment);
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh] gap-3">
@@ -463,7 +468,7 @@ export default function CommentDetailPage() {
       <Button
         variant="outline"
         size="sm"
-        onClick={() => router.push(`/ballot/${id}/feed`)}
+        onClick={() => smartBack(router, `/ballot/${id}/arguments/feed`)}
       >
         &larr; {t("backToFeed")}
       </Button>

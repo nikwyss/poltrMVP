@@ -193,12 +193,22 @@
   "reviewStatus": {
     "preliminary": "Preliminary",
     "peerReviewed": "Peer-reviewed",
-    "rejected": "Rejected"
+    "rejected": "Rejected",
+    "official": "Official"
   },
   "viewToggle": {
-    "dualColumn": "Dual Column",
+    "community": "Community",
     "feed": "Feed",
-    "argumentTree": "Argument Tree"
+    "booklet": "Booklet"
+  },
+  "booklet": {
+    "officialTitle": "Official arguments",
+    "officialSubtitle": "from the Federal Chancellery's ballot booklet",
+    "communityTitle": "Community",
+    "communitySubtitle": "Arguments from users",
+    "fallbackBundesrat": "Federal Council",
+    "fallbackInitiativkomitee": "Initiative Committee",
+    "fallbackOrganization": "Organization"
   },
   "vorlage": {
     "backToHome": "Ballots",

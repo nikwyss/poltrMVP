@@ -11,6 +11,8 @@ import {
   createArgument,
 } from "@/lib/agent";
 import { likeBallot, unlikeBallot } from "@/lib/ballots";
+import { loadCached, patchCached } from "@/lib/pageCache";
+import { useScrollRestore } from "@/lib/scrollRestore";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 import type { BallotWithMetadata, ActivityItem } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
@@ -570,7 +572,9 @@ export default function BallotFeed() {
     setBallotLoading(true);
     setBallotError("");
     try {
-      const ballotData = await getBallot(id);
+      const ballotData = await loadCached(`feed:ballot:${id}`, () =>
+        getBallot(id),
+      );
       setBallot(ballotData);
     } catch (err) {
       setBallotError(
@@ -593,7 +597,12 @@ export default function BallotFeed() {
 
       try {
         const currentCursor = reset ? undefined : cursor;
-        const result = await listActivity(id, selectedFilter, currentCursor);
+        const result = reset
+          ? await loadCached(
+              `feed:activity:${id}:${selectedFilter}`,
+              () => listActivity(id, selectedFilter, undefined),
+            )
+          : await listActivity(id, selectedFilter, currentCursor);
         if (reset) {
           setActivities(result.activities);
         } else {
@@ -631,7 +640,7 @@ export default function BallotFeed() {
       );
       if (item.type === "comment" || item.type === "reply") {
         router.push(
-          `/ballot/${id}/feed/comment?uri=${encodeURIComponent(item.comment!.uri)}`,
+          `/ballot/${id}/arguments/feed/comment?uri=${encodeURIComponent(item.comment!.uri)}`,
         );
       } else {
         router.push(`/ballot/${id}/arguments`);
@@ -658,11 +667,21 @@ export default function BallotFeed() {
       if (isLiked) {
         await unlikeBallot(ballot.viewer!.like!);
         setBallot((prev) => (prev ? { ...prev, viewer: undefined } : prev));
+        patchCached<BallotWithMetadata>(`feed:ballot:${id}`, (b) => ({
+          ...b,
+          likeCount: Math.max(0, (b.likeCount ?? 0) - 1),
+          viewer: undefined,
+        }));
       } else {
         const likeUri = await likeBallot(ballot.uri, ballot.cid);
         setBallot((prev) =>
           prev ? { ...prev, viewer: { like: likeUri } } : prev,
         );
+        patchCached<BallotWithMetadata>(`feed:ballot:${id}`, (b) => ({
+          ...b,
+          likeCount: (b.likeCount ?? 0) + 1,
+          viewer: { like: likeUri },
+        }));
       }
     } catch (err) {
       console.error("Failed to toggle like:", err);
@@ -676,7 +695,9 @@ export default function BallotFeed() {
           : prev,
       );
     }
-  }, [ballot]);
+  }, [ballot, id]);
+
+  useScrollRestore(!ballotLoading && !activityLoading && !!ballot);
 
   if (authLoading) {
     return (

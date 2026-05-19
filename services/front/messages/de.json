@@ -191,14 +191,24 @@
     "ballot": "Abstimmung: {rkey}"
   },
   "reviewStatus": {
-    "preliminary": "Vorläufig",
+    "preliminary": "Unter Begutachtung",
     "peerReviewed": "Begutachtet",
-    "rejected": "Abgelehnt"
+    "rejected": "Abgelehnt",
+    "official": "Aus der Abstimmungsbrochüre"
   },
   "viewToggle": {
-    "dualColumn": "Zwei Spalten",
+    "community": "Community",
     "feed": "Feed",
-    "argumentTree": "Argumentbaum"
+    "booklet": "Büchlein"
+  },
+  "booklet": {
+    "officialTitle": "Offizielle Argumente",
+    "officialSubtitle": "aus dem Abstimmungsbüchlein der Bundeskanzlei",
+    "communityTitle": "Community",
+    "communitySubtitle": "Argumente von Userinnen und Usern",
+    "fallbackBundesrat": "Bundesrat",
+    "fallbackInitiativkomitee": "Initiativkomitee",
+    "fallbackOrganization": "Organisation"
   },
   "vorlage": {
     "backToHome": "Vorlagen",

@@ -7,9 +7,9 @@ import { cn } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
 
 const tabs = [
-  { key: "arguments" as const, segment: "arguments" },
   { key: "info" as const, segment: "info" },
   { key: "chat" as const, segment: "chat" },
+  { key: "arguments" as const, segment: "arguments" },
   { key: "review" as const, segment: "review" },
 ] as const;
 

@@ -1,9 +1,17 @@
 
 // TypeScript types for our lexicons
+export type BallotType =
+  | 'obligatorisches_referendum'
+  | 'fakultatives_referendum'
+  | 'volksinitiative'
+  | 'direkter_gegenentwurf'
+  | 'stichfrage';
+
 export interface BallotRecord {
   $type: 'app.ch.poltr.ballot.entry';
   title: string;
   topic?: string;
+  ballotType?: BallotType;
   text?: string;
   officialRef: string;
   voteDate: string; // ISO date string

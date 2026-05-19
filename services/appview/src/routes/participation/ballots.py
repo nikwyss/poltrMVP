@@ -70,6 +70,8 @@ def _serialize_cms_ballot(
     }
     if doc.get("topic"):
         record["topic"] = doc["topic"]
+    if doc.get("ballotType"):
+        record["ballotType"] = doc["ballotType"]
     if doc.get("description"):
         # Rich text from CMS — extract plain text for preview
         desc = doc["description"]
@@ -228,6 +230,77 @@ async def get_ballot(
 
 
 # -----------------------------------------------------------------------------
+# Argument row → JSON serialization (shared by argument.list and argument.get)
+# -----------------------------------------------------------------------------
+
+
+def _serialize_argument_row(row: dict, peer_review_on: bool) -> dict:
+    """Convert a row from app_arguments (joined with profile + viewer_like)
+    into the API argument shape."""
+    source_type = get_string(row, "source_type") or "user"
+    if source_type == "official":
+        source_obj_raw = {
+            "$type": "app.ch.poltr.ballot.argument#sourceOfficial",
+            "documentRef": get_string(row, "source_doc_ref"),
+            "section": get_string(row, "source_section"),
+        }
+    elif source_type == "organization":
+        source_obj_raw = {
+            "$type": "app.ch.poltr.ballot.argument#sourceOrganization",
+            "orgKey": get_string(row, "source_org_key"),
+            "documentRef": get_string(row, "source_doc_ref"),
+            "verifiedDid": get_string(row, "source_verified_did"),
+        }
+    else:
+        source_obj_raw = {
+            "$type": "app.ch.poltr.ballot.argument#sourceUser",
+            "authorDid": get_string(row, "author_did"),
+        }
+    source_obj = {k: v for k, v in source_obj_raw.items() if v is not None}
+
+    record_raw = {
+        "$type": "app.ch.poltr.ballot.argument",
+        "title": get_string(row, "title"),
+        "body": get_string(row, "body"),
+        "type": get_string(row, "type"),
+        "ballot": get_string(row, "ballot_uri"),
+        "createdAt": get_date_iso(row, "created_at"),
+        "source": source_obj,
+    }
+    record = {k: v for k, v in record_raw.items() if v is not None}
+
+    viewer_obj = {}
+    if row.get("viewer_like"):
+        viewer_obj["like"] = row["viewer_like"]
+
+    if source_type == "user":
+        author_raw = {
+            "did": get_string(row, "author_did") or "",
+            "displayName": get_string(row, "author_display_name"),
+            "canton": get_string(row, "author_canton"),
+            "color": get_string(row, "author_color"),
+        }
+        author = {k: v for k, v in author_raw.items() if v is not None}
+    else:
+        author = None
+
+    arg_raw = {
+        "uri": get_string(row, "uri") or "",
+        "cid": get_string(row, "cid") or "",
+        "record": record,
+        "author": author,
+        "likeCount": get_number(row, "like_count"),
+        "commentCount": get_number(row, "comment_count"),
+        "reviewStatus": (
+            get_string(row, "review_status") if peer_review_on else None
+        ),
+        "indexedAt": get_date_iso(row, "indexed_at"),
+        "viewer": viewer_obj if viewer_obj else None,
+    }
+    return {k: v for k, v in arg_raw.items() if v is not None}
+
+
+# -----------------------------------------------------------------------------
 # app.ch.poltr.argument.list
 # -----------------------------------------------------------------------------
 
@@ -324,78 +397,77 @@ async def list_arguments(
         async with db_pool.acquire() as conn:
             rows = await conn.fetch(sql, *params)
 
-        arguments = []
-        for r in rows:
-            row = dict(r)
-
-            # Reconstruct the source union from the flat DB columns.
-            source_type = get_string(row, "source_type") or "user"
-            if source_type == "official":
-                source_obj_raw = {
-                    "$type": "app.ch.poltr.ballot.argument#sourceOfficial",
-                    "documentRef": get_string(row, "source_doc_ref"),
-                    "section": get_string(row, "source_section"),
-                }
-            elif source_type == "organization":
-                source_obj_raw = {
-                    "$type": "app.ch.poltr.ballot.argument#sourceOrganization",
-                    "orgKey": get_string(row, "source_org_key"),
-                    "documentRef": get_string(row, "source_doc_ref"),
-                    "verifiedDid": get_string(row, "source_verified_did"),
-                }
-            else:
-                source_obj_raw = {
-                    "$type": "app.ch.poltr.ballot.argument#sourceUser",
-                    "authorDid": get_string(row, "author_did"),
-                }
-            source_obj = {k: v for k, v in source_obj_raw.items() if v is not None}
-
-            record_raw = {
-                "$type": "app.ch.poltr.ballot.argument",
-                "title": get_string(row, "title"),
-                "body": get_string(row, "body"),
-                "type": get_string(row, "type"),
-                "ballot": get_string(row, "ballot_uri"),
-                "createdAt": get_date_iso(row, "created_at"),
-                "source": source_obj,
-            }
-            record = {k: v for k, v in record_raw.items() if v is not None}
-
-            viewer_obj = {}
-            if row.get("viewer_like"):
-                viewer_obj["like"] = row["viewer_like"]
-
-            # `author` is only meaningful for user-submitted arguments. For
-            # official / organization sources the caller can use record.source
-            # (and a later org-lookup) to render the source label.
-            if source_type == "user":
-                author_raw = {
-                    "did": get_string(row, "author_did") or "",
-                    "displayName": get_string(row, "author_display_name"),
-                    "canton": get_string(row, "author_canton"),
-                    "color": get_string(row, "author_color"),
-                }
-                author = {k: v for k, v in author_raw.items() if v is not None}
-            else:
-                author = None
-
-            arg_raw = {
-                "uri": get_string(row, "uri") or "",
-                "cid": get_string(row, "cid") or "",
-                "record": record,
-                "author": author,
-                "likeCount": get_number(row, "like_count"),
-                "commentCount": get_number(row, "comment_count"),
-                "reviewStatus": (
-                    get_string(row, "review_status") if peer_review_on else None
-                ),
-                "indexedAt": get_date_iso(row, "indexed_at"),
-                "viewer": viewer_obj if viewer_obj else None,
-            }
-            arg = {k: v for k, v in arg_raw.items() if v is not None}
-            arguments.append(arg)
+        arguments = [
+            _serialize_argument_row(dict(r), peer_review_on) for r in rows
+        ]
 
         return JSONResponse(status_code=200, content={"arguments": arguments})
+    except Exception as err:
+        logger.error(f"DB query failed: {err}")
+        return JSONResponse(
+            status_code=500, content={"error": "internal_error", "details": str(err)}
+        )
+
+
+# -----------------------------------------------------------------------------
+# app.ch.poltr.argument.get
+# -----------------------------------------------------------------------------
+
+
+@router.get("/app.ch.poltr.argument.get")
+async def get_argument(
+    request: Request,
+    ballot_rkey: str = Query(...),
+    rkey: str = Query(...),
+    session: TSession = Depends(verify_session_token),
+):
+    """Fetch a single argument by (ballot_rkey, rkey).
+
+    Direct lookup that bypasses the random-sort + 100-limit semantics of
+    `argument.list` — the detail page needs guaranteed access to the specific
+    record the user clicked on, regardless of dataset size.
+    """
+    viewer_did = session.did if session else None
+    peer_review_on = os.getenv("APPVIEW_PEER_REVIEW_ENABLED", "false").lower() == "true"
+
+    params: list = [ballot_rkey, rkey]
+    if viewer_did:
+        params.append(viewer_did)
+        viewer_param = f"${len(params)}"
+        viewer_select = f""",
+            (
+                SELECT uri FROM app_likes
+                WHERE subject_uri = a.uri AND did = {viewer_param} AND NOT deleted
+                LIMIT 1
+            ) AS viewer_like"""
+    else:
+        viewer_select = ",\n            NULL AS viewer_like"
+
+    sql = f"""
+        SELECT a.*,
+               p.display_name AS author_display_name,
+               p.canton AS author_canton,
+               p.color AS author_color
+               {viewer_select}
+        FROM app_arguments a
+        LEFT JOIN app_profiles p ON p.did = a.author_did
+        WHERE a.ballot_rkey = $1 AND a.rkey = $2 AND NOT a.deleted
+        LIMIT 1;
+    """
+
+    try:
+        db_pool = await get_pool()
+        async with db_pool.acquire() as conn:
+            row = await conn.fetchrow(sql, *params)
+
+        if row is None:
+            return JSONResponse(
+                status_code=404,
+                content={"error": "not_found", "message": "Argument not found"},
+            )
+
+        argument = _serialize_argument_row(dict(row), peer_review_on)
+        return JSONResponse(status_code=200, content={"argument": argument})
     except Exception as err:
         logger.error(f"DB query failed: {err}")
         return JSONResponse(
