@@ -4,6 +4,12 @@
 
 - [ ] Ballot creation endpoint: wire up `create_ballot_account()` in AppView (currently only DB + governance_pds.py ready)
 - [ ] Missing: per-email rate limit on code requests
+- [ ] Email-Magic-Link: Text und Layout (Vorbild Tamedia: Verifzierungscode zum Beispiel) 
+- [ ] Anzahl Kommentare bei Argumenten einblenden. 
+- [ ] Randomisierung von argumenten und kommentaren auf gleicher stufe: user-konstante randomisierung. 
+- [ ] Comment-Tree: immer nur auswahl der comments zeigen, und dann mit "Zeige mehr" links expandierbar machen. 
+- [ ] Scroll-positioning . springt immer noch zur top position, wenn man auf feed zurückkehrt.
+- [ ] @tanstack/vue-virtual beim feed view?
 
 ## VISION
 - [ ] Translations: translations only in the appviev. a) Originalsprache im PDS speichern. b). Auch in "einfache Sprache" übersetzbar? (Inclusion)

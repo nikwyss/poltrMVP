@@ -41,7 +41,8 @@ router = APIRouter(prefix="/xrpc", tags=["auth"])
 @limiter.limit("5/minute")
 async def send_magic_link(request: Request, data: SendMagicLinkData):
     """Send magic link to user's email"""
-    return await send_magic_link_handler(data)
+    locale = request.cookies.get("locale", "de")
+    return await send_magic_link_handler(data, locale=locale)
 
 
 @router.post("/ch.poltr.auth.verifyLogin")
@@ -116,8 +117,9 @@ async def register(request: Request):
     try:
         from src.core.email_service import email_service
 
+        locale = request.cookies.get("locale", "de")
         success = email_service.send_confirmation_link(
-            email, token, purpose="registration", short_code=short_code
+            email, token, purpose="registration", short_code=short_code, locale=locale
         )
         if not success:
             return JSONResponse(

@@ -7,14 +7,14 @@ import { useAuth } from "@/lib/AuthContext";
 import { getComment, listComments, createComment } from "@/lib/agent";
 import { likeContent, unlikeContent } from "@/lib/ballots";
 import { useScrollRestore, smartBack } from "@/lib/scrollRestore";
-import { formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime, cn } from "@/lib/utils";
 import type { CommentWithMetadata } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
-import { ProContraBadge } from "@/components/pro-contra-badge";
+import { ProContraBadge, ReviewStatusBadge } from "@/components/pro-contra-badge";
 import { CantonAvatar, BskyAvatar } from "@/components/canton-avatar";
 import { ReplyInput } from "@/components/reply-input";
 
@@ -37,56 +37,90 @@ function buildAncestorChain(
   return chain;
 }
 
+function authorName(
+  comment: CommentWithMetadata,
+  tc: (k: string) => string,
+): string {
+  if (comment.origin === "extern") {
+    return (
+      comment.author.handle || comment.author.displayName || tc("bluesky")
+    );
+  }
+  return comment.author.displayName || tc("anonymous");
+}
+
 // ---------------------------------------------------------------------------
-// Comment node (recursive)
+// PostRow — one comment in the thread (used for ancestors, focal and replies).
+// The avatar column carries the vertical thread line that visually connects
+// the ancestor chain to the focal comment (X / Bluesky style).
 // ---------------------------------------------------------------------------
 
-function CommentNode({
+const AVATAR = 32;
+
+function PostRow({
   comment,
-  depth,
+  focal = false,
+  clickable = false,
+  clamp = false,
+  showLineTop = false,
+  showLineBottom = false,
+  onNavigate,
   onLikeToggle,
   onReply,
-  onNavigate,
 }: {
   comment: CommentWithMetadata;
-  depth: number;
-  onLikeToggle: (c: CommentWithMetadata) => void;
-  onReply: (parentUri: string) => void;
-  onNavigate: (uri: string) => void;
+  focal?: boolean;
+  clickable?: boolean;
+  clamp?: boolean;
+  showLineTop?: boolean;
+  showLineBottom?: boolean;
+  onNavigate?: (uri: string) => void;
+  onLikeToggle?: (c: CommentWithMetadata) => void;
+  onReply?: (uri: string) => void;
 }) {
   const tc = useTranslations("common");
-  const indent =
-    typeof window !== "undefined" && window.innerWidth < 640 ? 16 : 24;
   const isExtern = comment.origin === "extern";
   const liked = !!comment.viewer?.like;
 
   return (
-    <div style={{ paddingLeft: depth > 0 ? indent : 0 }}>
-      <div
-        onClick={() => onNavigate(comment.uri)}
-        className="flex gap-2 pt-2.5 pb-1.5 cursor-pointer"
-        style={{
-          borderLeft: depth > 0 ? "2px solid #e0e0e0" : "none",
-          paddingLeft: depth > 0 ? 10 : 0,
-        }}
-      >
+    <div className="flex gap-3">
+      {/* avatar + thread line rail */}
+      <div className="flex flex-col items-center" style={{ width: AVATAR }}>
+        <div
+          className={cn("w-0.5 shrink-0", showLineTop ? "bg-border" : "bg-transparent")}
+          style={{ height: 8 }}
+        />
         {isExtern ? (
-          <BskyAvatar size={28} />
+          <BskyAvatar size={AVATAR} />
         ) : (
           <CantonAvatar
             canton={comment.author.canton}
             color={comment.author.color}
-            size={28}
+            size={AVATAR}
           />
         )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {showLineBottom && <div className="w-0.5 flex-1 mt-1 bg-border" />}
+      </div>
+
+      {/* content */}
+      <div
+        className={cn("flex-1 min-w-0 pb-4", clickable && "cursor-pointer")}
+        onClick={clickable ? () => onNavigate?.(comment.uri) : undefined}
+      >
+        <div
+          className={cn(focal && "rounded-r-md px-3 py-2")}
+          style={
+            focal
+              ? {
+                  backgroundColor: "var(--brand-dim)",
+                  borderLeft: "2px solid var(--brand)",
+                }
+              : undefined
+          }
+        >
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
             <span className="font-semibold text-foreground">
-              {isExtern
-                ? comment.author.handle ||
-                  comment.author.displayName ||
-                  tc("bluesky")
-                : comment.author.displayName || tc("anonymous")}
+              {authorName(comment, tc)}
             </span>
             {isExtern && (
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
@@ -99,45 +133,91 @@ function CommentNode({
                 : ""}
             </span>
           </div>
-          <div className="text-sm leading-normal mt-0.5">
+
+          <div
+            className={cn(
+              "leading-normal mt-0.5",
+              focal ? "text-base" : "text-sm",
+              clamp && "line-clamp-4",
+            )}
+          >
             {comment.record.body}
           </div>
-          <div className="flex gap-3.5 mt-1 text-xs text-muted-foreground">
+
+          <div className="flex gap-4 mt-1.5 text-xs text-muted-foreground">
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onLikeToggle(comment);
+                onLikeToggle?.(comment);
               }}
               className="bg-transparent border-none p-0 cursor-pointer text-xs"
               style={{ color: liked ? "var(--brand)" : "#8e8e8e" }}
             >
-              {liked ? "\u2764" : "\u2661"}{" "}
+              {liked ? "❤" : "♡"}{" "}
               {(comment.likeCount ?? 0) > 0 ? comment.likeCount : ""}
             </button>
             {!isExtern && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onReply(comment.uri);
+                  onReply?.(comment.uri);
                 }}
-                className="bg-transparent border-none p-0 cursor-pointer text-xs text-muted-foreground"
+                className={cn(
+                  "bg-transparent border-none p-0 cursor-pointer text-xs",
+                  focal
+                    ? "text-primary font-semibold"
+                    : "text-muted-foreground",
+                )}
               >
-                {"\ud83d\udcac"} {tc("reply")}
+                {"💬"} {tc("reply")}
               </button>
             )}
           </div>
         </div>
       </div>
-      {comment.replies && comment.replies.length > 0 && (
-        <div>
-          {comment.replies.map((r) => (
-            <CommentNode
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ReplyTree — direct replies below the focal comment, nested via indentation.
+// ---------------------------------------------------------------------------
+
+function ReplyTree({
+  comment,
+  depth,
+  onNavigate,
+  onLikeToggle,
+  onReply,
+}: {
+  comment: CommentWithMetadata;
+  depth: number;
+  onNavigate: (uri: string) => void;
+  onLikeToggle: (c: CommentWithMetadata) => void;
+  onReply: (uri: string) => void;
+}) {
+  const showChildren =
+    !!comment.replies && comment.replies.length > 0 && depth < 2;
+
+  return (
+    <div>
+      <PostRow
+        comment={comment}
+        clickable
+        onNavigate={onNavigate}
+        onLikeToggle={onLikeToggle}
+        onReply={onReply}
+      />
+      {showChildren && (
+        <div className="pl-6">
+          {comment.replies!.map((r) => (
+            <ReplyTree
               key={r.uri}
               comment={r}
-              depth={Math.min(depth + 1, 2)}
+              depth={depth + 1}
+              onNavigate={onNavigate}
               onLikeToggle={onLikeToggle}
               onReply={onReply}
-              onNavigate={onNavigate}
             />
           ))}
         </div>
@@ -147,91 +227,68 @@ function CommentNode({
 }
 
 // ---------------------------------------------------------------------------
-// Argument context box
+// Argument context box (clickable → opens the argument)
 // ---------------------------------------------------------------------------
 
 function ArgumentContextBox({
   title,
+  body,
   type,
   likeCount,
   commentCount,
+  reviewStatus,
+  onClick,
 }: {
   title: string;
+  body?: string;
   type?: "PRO" | "CONTRA";
   likeCount?: number;
   commentCount?: number;
+  reviewStatus?: string;
+  onClick?: () => void;
 }) {
+  const accentColor =
+    type === "PRO"
+      ? "var(--green)"
+      : type === "CONTRA"
+        ? "var(--red)"
+        : "var(--border)";
+
   return (
     <div
-      className="bg-muted px-3 py-2 mb-4 rounded-r"
-      style={{ borderLeft: "3px solid #4a90e2" }}
+      onClick={onClick}
+      className={cn(
+        "pl-4 pr-2 py-2 rounded-r",
+        onClick && "cursor-pointer hover:bg-muted/40 transition-colors",
+      )}
+      style={{ borderLeft: `4px solid ${accentColor}` }}
     >
-      <div className="flex items-center gap-2">
-        <span className="font-bold text-xs flex-1">{title}</span>
-        {type && <ProContraBadge type={type.toLowerCase()} variant="soft" />}
-      </div>
-      <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
-        {likeCount !== undefined && (
-          <span>
-            {"\u2661"} {likeCount}
-          </span>
-        )}
-        {commentCount !== undefined && (
-          <span>
-            {"\ud83d\udcac"} {commentCount}
+      <div className="flex items-start gap-2 mb-1">
+        <h3 className="text-base font-bold flex-1 leading-snug m-0">{title}</h3>
+        {type && <ProContraBadge type={type.toLowerCase()} />}
+        {onClick && (
+          <span className="text-muted-foreground text-base leading-none mt-0.5">
+            {"›"}
           </span>
         )}
       </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Compact ancestor strip
-// ---------------------------------------------------------------------------
-
-function AncestorStrip({
-  comment,
-  indent,
-  onNavigate,
-}: {
-  comment: CommentWithMetadata;
-  indent: number;
-  onNavigate: (uri: string) => void;
-}) {
-  const tc = useTranslations("common");
-  const isExtern = comment.origin === "extern";
-  const truncated =
-    comment.record.body.length > 80
-      ? comment.record.body.slice(0, 80) + "..."
-      : comment.record.body;
-
-  return (
-    <div style={{ paddingLeft: indent, paddingTop: 6, paddingBottom: 6 }}>
-      <div
-        onClick={() => onNavigate(comment.uri)}
-        className="flex items-center gap-1.5 bg-muted rounded px-2 py-1 text-xs text-muted-foreground cursor-pointer"
-      >
-        {isExtern ? (
-          <BskyAvatar size={20} />
-        ) : (
-          <CantonAvatar
-            canton={comment.author.canton}
-            color={comment.author.color}
-            size={20}
-          />
+      {body && (
+        <p className="text-sm text-muted-foreground leading-relaxed m-0 mb-2 line-clamp-2">
+          {body}
+        </p>
+      )}
+      <div className="flex gap-4 text-xs text-muted-foreground items-center flex-wrap">
+        {(likeCount ?? 0) > 0 && (
+          <span>
+            {"♡"} {likeCount}
+          </span>
         )}
-        <span className="font-semibold text-foreground whitespace-nowrap">
-          {isExtern
-            ? comment.author.handle ||
-              comment.author.displayName ||
-              tc("bluesky")
-            : comment.author.displayName || tc("anonymous")}
-          :
-        </span>
-        <span className="overflow-hidden text-ellipsis whitespace-nowrap flex-1">
-          {truncated}
-        </span>
+        {(commentCount ?? 0) > 0 && (
+          <span>
+            {"💬"} {commentCount}
+          </span>
+        )}
+        <ReviewStatusBadge status={reviewStatus} />
       </div>
     </div>
   );
@@ -257,13 +314,27 @@ type ArgumentInfo = {
 // Main page
 // ---------------------------------------------------------------------------
 
-export default function CommentDetailPage() {
+export default function CommentDetailPage({
+  isOverlay = false,
+  onClose,
+  commentUriOverride,
+  onNavigateToComment,
+  onNavigateToArgument,
+  backLabel,
+}: {
+  isOverlay?: boolean;
+  onClose?: () => void;
+  commentUriOverride?: string;
+  onNavigateToComment?: (uri: string) => void;
+  onNavigateToArgument?: (rkey: string) => void;
+  backLabel?: string;
+} = {}) {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const id = params.id as string;
-  const commentUri = searchParams.get("uri") ?? "";
+  const commentUri = commentUriOverride ?? searchParams.get("uri") ?? "";
   const t = useTranslations("commentDetail");
   const tc = useTranslations("common");
 
@@ -413,12 +484,25 @@ export default function CommentDetailPage() {
 
   const handleNavigateToComment = useCallback(
     (uri: string) => {
+      if (onNavigateToComment) {
+        onNavigateToComment(uri);
+        return;
+      }
       router.push(
         `/ballot/${id}/arguments/feed/comment?uri=${encodeURIComponent(uri)}`,
       );
     },
-    [id, router],
+    [id, router, onNavigateToComment],
   );
+
+  const handleNavigateToArgument = useCallback(() => {
+    if (!argument) return;
+    if (onNavigateToArgument) {
+      onNavigateToArgument(argument.rkey);
+      return;
+    }
+    router.push(`/ballot/${id}/arguments/${argument.rkey}`);
+  }, [argument, onNavigateToArgument, id, router]);
 
   const handleReply = useCallback(() => {
     replyInputRef.current?.focus();
@@ -451,7 +535,7 @@ export default function CommentDetailPage() {
     }
   }, [replyText, submitting, focalComment, argument]);
 
-  useScrollRestore(!loading && !!focalComment);
+  useScrollRestore(!isOverlay && !loading && !!focalComment);
 
   if (authLoading) {
     return (
@@ -463,6 +547,136 @@ export default function CommentDetailPage() {
   }
   if (!isAuthenticated) return null;
 
+  const loaded = !loading && !!focalComment && !!argument;
+
+  // ── Shared content blocks (used by both overlay and full-page layouts) ──────
+  const contextBox = !loading && focalComment && argument && (
+    <ArgumentContextBox
+      title={argument.title}
+      body={argument.body}
+      type={argument.type}
+      likeCount={argument.likeCount}
+      commentCount={argument.commentCount}
+      reviewStatus={argument.reviewStatus}
+      onClick={handleNavigateToArgument}
+    />
+  );
+
+  const threadBlock = !loading && focalComment && argument && (
+    <div>
+      {/* Spine: ancestor chain → focal, connected by a vertical thread line */}
+      {ancestors.map((ancestor, idx) => (
+        <PostRow
+          key={ancestor.uri}
+          comment={ancestor}
+          clickable
+          clamp
+          showLineTop={idx > 0}
+          showLineBottom
+          onNavigate={handleNavigateToComment}
+          onLikeToggle={handleLikeToggle}
+          onReply={handleReply}
+        />
+      ))}
+
+      <PostRow
+        comment={focalComment}
+        focal
+        showLineTop={ancestors.length > 0}
+        onLikeToggle={handleLikeToggle}
+        onReply={handleReply}
+      />
+
+      {/* Replies */}
+      {directReplies.length > 0 && (
+        <div className="mt-5">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+            {t("replies")} ({directReplies.length})
+          </div>
+          {directReplies.map((reply) => (
+            <ReplyTree
+              key={reply.uri}
+              comment={reply}
+              depth={0}
+              onNavigate={handleNavigateToComment}
+              onLikeToggle={handleLikeToggle}
+              onReply={handleReply}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const replyBlock = !loading && focalComment && argument && (
+    <>
+      <div className="text-xs text-muted-foreground mb-1.5">
+        {t("replyToComment")}
+      </div>
+      <ReplyInput
+        ref={replyInputRef}
+        value={replyText}
+        onChange={setReplyText}
+        onSubmit={handleSubmitReply}
+        submitting={submitting}
+        placeholder={t("replyPlaceholder")}
+      />
+    </>
+  );
+
+  // ── Overlay layout (rendered inside Dialog) ─────────────────────────────────
+  if (isOverlay) {
+    return (
+      <div className="flex flex-col">
+        {/* Sticky header */}
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b flex items-center px-5 py-3">
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <span className="text-base leading-none">←</span>
+            {backLabel ?? t("backToArgument")}
+          </button>
+        </div>
+
+        {/* Scrolling content */}
+        <div className="px-5 py-5 pb-28 space-y-5">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                <strong>{tc("error")}:</strong> {error}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {loading && (
+            <div className="flex items-center justify-center py-16 gap-3">
+              <Spinner />
+              <span className="text-muted-foreground">
+                {t("loadingComment")}
+              </span>
+            </div>
+          )}
+
+          {loaded && (
+            <>
+              {contextBox}
+              {threadBlock}
+            </>
+          )}
+        </div>
+
+        {/* Sticky reply composer */}
+        {loaded && (
+          <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur-sm border-t px-5 py-3">
+            {replyBlock}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Full-page layout ────────────────────────────────────────────────────────
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <Button
@@ -490,124 +704,16 @@ export default function CommentDetailPage() {
         </Card>
       )}
 
-      {!loading && focalComment && argument && (
+      {loaded && (
         <>
-          <ArgumentContextBox
-            title={argument.title}
-            type={argument.type}
-            likeCount={argument.likeCount}
-            commentCount={argument.commentCount}
-          />
+          {contextBox}
 
           <Card>
-            <CardContent className="pt-5">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 border-b pb-2">
-                {t("thread")}
-              </div>
-
-              {ancestors.map((ancestor, idx) => (
-                <AncestorStrip
-                  key={ancestor.uri}
-                  comment={ancestor}
-                  indent={idx * 16}
-                  onNavigate={handleNavigateToComment}
-                />
-              ))}
-
-              <div
-                style={{
-                  paddingLeft: ancestors.length * 16,
-                  paddingTop: ancestors.length > 0 ? 4 : 0,
-                }}
-              >
-                <div
-                  className="bg-card rounded-r-lg shadow-md px-4 py-3"
-                  style={{ borderLeft: "3px solid #1565c0" }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    {focalComment.origin === "extern" ? (
-                      <BskyAvatar size={32} />
-                    ) : (
-                      <CantonAvatar
-                        canton={focalComment.author.canton}
-                        color={focalComment.author.color}
-                        size={32}
-                      />
-                    )}
-                    <div>
-                      <div className="font-semibold text-sm">
-                        {focalComment.origin === "extern"
-                          ? focalComment.author.handle ||
-                            focalComment.author.displayName ||
-                            tc("bluesky")
-                          : focalComment.author.displayName || tc("anonymous")}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {focalComment.record.createdAt
-                          ? formatRelativeTime(focalComment.record.createdAt)
-                          : ""}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-sm leading-relaxed mb-2.5">
-                    {focalComment.record.body}
-                  </div>
-                  <div className="flex gap-4 text-xs text-muted-foreground">
-                    <button
-                      onClick={() => handleLikeToggle(focalComment)}
-                      className="bg-transparent border-none p-0 cursor-pointer text-xs"
-                      style={{
-                        color: focalComment.viewer?.like
-                          ? "#d81b60"
-                          : "#8e8e8e",
-                      }}
-                    >
-                      {focalComment.viewer?.like ? "\u2764" : "\u2661"}{" "}
-                      {(focalComment.likeCount ?? 0) > 0
-                        ? focalComment.likeCount
-                        : ""}
-                    </button>
-                    <button
-                      onClick={handleReply}
-                      className="bg-transparent border-none p-0 cursor-pointer text-xs text-primary font-semibold"
-                    >
-                      {"\ud83d\udcac"} {tc("reply")}
-                    </button>
-                  </div>
-                </div>
-
-                {directReplies.length > 0 && (
-                  <div className="mt-2 pl-4">
-                    {directReplies.map((reply) => (
-                      <CommentNode
-                        key={reply.uri}
-                        comment={reply}
-                        depth={0}
-                        onLikeToggle={handleLikeToggle}
-                        onReply={handleReply}
-                        onNavigate={handleNavigateToComment}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </CardContent>
+            <CardContent className="pt-5">{threadBlock}</CardContent>
           </Card>
 
           <Card>
-            <CardContent className="pt-4 pb-3">
-              <div className="text-xs text-muted-foreground mb-1.5">
-                {t("replyToComment")}
-              </div>
-              <ReplyInput
-                ref={replyInputRef}
-                value={replyText}
-                onChange={setReplyText}
-                onSubmit={handleSubmitReply}
-                submitting={submitting}
-                placeholder={t("replyPlaceholder")}
-              />
-            </CardContent>
+            <CardContent className="pt-4 pb-3">{replyBlock}</CardContent>
           </Card>
         </>
       )}

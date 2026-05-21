@@ -264,6 +264,20 @@ python3 infra/scripts/import_peerreviews.py
 
 Uses `createRecord` with composed rkeys (`{content_id}-{did_suffix}`), so re-runs are idempotent.
 
+# Wiki
+
+The project wiki lives in the sibling repository **`../poltr.wiki`** (`/var/projects/poltr.wiki`).
+
+- **Format:** GitHub Wiki — plain Markdown files, one page per `.md` file
+- **Navigation:** `_Sidebar.md` controls the sidebar; `_Footer.md` the footer
+- **Edit:** directly edit `.md` files in `/var/projects/poltr.wiki/`
+- **Run locally:**
+  ```bash
+  cd /var/projects/poltr.wiki
+  gollum --port 4567   # → http://localhost:4567
+  ```
+  Or use the **"Wiki (Gollum)"** entry in the VS Code Run panel (`.vscode/launch.json`).
+
 # DB Setup Script
 Keep ./scripts/postgres/db-setup.sql file up to date. (it should entail an all setup script for an empty postgres DB.)
 

@@ -4,6 +4,44 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Literal, Optional
 
+# Email translations keyed by locale
+_EMAIL_STRINGS: dict[str, dict] = {
+    "de": {
+        "registration": {
+            "subject": "Registrierung bestätigen – POLTR",
+            "action_text": "Konto bestätigen",
+            "expiry_text": "30 Minuten",
+        },
+        "login": {
+            "subject": "Dein Magic Link! – POLTR",
+            "action_text": "Bei POLTR anmelden",
+            "expiry_text": "15 Minuten",
+        },
+        "click_below": "Klicke auf den Button, um fortzufahren:",
+        "copy_link": "Oder kopiere diesen Link in deinen Browser:",
+        "short_code_hint": "Oder gib diesen Code auf der Anmeldeseite ein:",
+        "expires": "Dieser Link läuft in {expiry} ab.",
+        "ignore": "Falls du das nicht angefordert hast, kannst du diese E-Mail ignorieren.",
+    },
+    "en": {
+        "registration": {
+            "subject": "Confirm your registration – POLTR",
+            "action_text": "Confirm your account",
+            "expiry_text": "30 minutes",
+        },
+        "login": {
+            "subject": "Your Magic Link! – POLTR",
+            "action_text": "Login to POLTR",
+            "expiry_text": "15 minutes",
+        },
+        "click_below": "Click the button below to continue:",
+        "copy_link": "Or copy and paste this link in your browser:",
+        "short_code_hint": "Or enter this code on the login page:",
+        "expires": "This link will expire in {expiry}.",
+        "ignore": "If you didn't request this, you can safely ignore this email.",
+    },
+}
+
 
 class EmailService:
     def __init__(self):
@@ -21,19 +59,20 @@ class EmailService:
         token: str,
         purpose: Literal["registration", "login"] = "registration",
         short_code: str | None = None,
+        locale: str = "de",
     ) -> bool:
         """Send a confirmation link (and optional short code) for registration or login"""
         try:
+            strings = _EMAIL_STRINGS.get(locale, _EMAIL_STRINGS["de"])
+            purpose_strings = strings[purpose]
+            subject = purpose_strings["subject"]
+            action_text = purpose_strings["action_text"]
+            expiry_text = purpose_strings["expiry_text"]
+
             if purpose == "registration":
                 link = f"{self.frontend_url}/auth/verify-registration?token={token}"
-                subject = "Confirm your registration - POLTR"
-                action_text = "Confirm your account"
-                expiry_text = "30 minutes"
             elif purpose == "login":
                 link = f"{self.frontend_url}/auth/verify-login?token={token}"
-                subject = "Your Magic Link! - POLTR"
-                action_text = "Login to POLTR"
-                expiry_text = "15 minutes"
             else:
                 raise ValueError("Invalid purpose for confirmation link")
 
@@ -41,26 +80,28 @@ class EmailService:
             short_code_text = ""
             if short_code:
                 short_code_html = f"""
-                    <p style="margin-top: 24px; color: #666;">Or enter this code on the login page:</p>
+                    <p style="margin-top: 24px; color: #666;">{strings["short_code_hint"]}</p>
                     <p style="font-size: 32px; font-family: monospace; letter-spacing: 8px;
                               font-weight: bold; text-align: center; padding: 16px;
                               background: #f5f5f5; border-radius: 8px; margin: 8px 0;">
                         {short_code}
                     </p>
                 """
-                short_code_text = f"\n            Or enter this code: {short_code}\n"
+                short_code_text = f"\n            {strings['short_code_hint']} {short_code}\n"
+
+            expires_sentence = strings["expires"].format(expiry=expiry_text)
 
             html_body = f"""
             <html>
                 <body>
                     <h2>{subject}</h2>
-                    <p>Click the button below to {action_text.lower()}:</p>
+                    <p>{strings["click_below"]}</p>
                     <p><a href="{link}" style="background-color: #0085ff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">{action_text}</a></p>
-                    <p>Or copy and paste this link in your browser:</p>
+                    <p>{strings["copy_link"]}</p>
                     <p>{link}</p>
                     {short_code_html}
-                    <p>This link will expire in {expiry_text}.</p>
-                    <p>If you didn't request this, you can safely ignore this email.</p>
+                    <p>{expires_sentence}</p>
+                    <p>{strings["ignore"]}</p>
                 </body>
             </html>
             """
@@ -68,11 +109,11 @@ class EmailService:
             text_body = f"""
             {subject}
 
-            Click the link below to {action_text.lower()}:
+            {strings["click_below"]}
             {link}
             {short_code_text}
-            This link will expire in {expiry_text}.
-            If you didn't request this, you can safely ignore this email.
+            {expires_sentence}
+            {strings["ignore"]}
             """
 
             msg = MIMEMultipart("alternative")

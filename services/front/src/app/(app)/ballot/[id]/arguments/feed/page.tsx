@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import {
@@ -33,6 +33,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import ArgumentDetailPage from "@/app/(app)/ballot/[id]/arguments/[argRkey]/page";
+import CommentDetailPage from "@/app/(app)/ballot/[id]/arguments/feed/comment/page";
 import {
   Select,
   SelectContent,
@@ -540,6 +542,7 @@ export default function BallotFeed() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
   const t = useTranslations("feed");
   const tc = useTranslations("common");
@@ -557,6 +560,97 @@ export default function BallotFeed() {
 
   const [filter, setFilter] = useState<"all" | "comments" | "arguments">("all");
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // Overlay stack — encoded in the URL so browser-back and deep links work.
+  // `?arg=<rkey>` is the (optional) bottom argument overlay; each `?comment=<uri>`
+  // (repeatable) is a stacked comment overlay. The top entry is what's visible;
+  // the entry beneath it determines the back-button label.
+  const argRkeyParam = searchParams.get("arg");
+  const commentChain = useMemo(
+    () => searchParams.getAll("comment"),
+    [searchParams],
+  );
+  const topCommentUri = commentChain[commentChain.length - 1] ?? null;
+
+  // The argument overlay is only the visible top when no comment sits above it.
+  const argIsTop = !!argRkeyParam && commentChain.length === 0;
+
+  const [sheetOpen, setSheetOpen] = useState(argIsTop);
+  const [displayedArgRkey, setDisplayedArgRkey] = useState<string | null>(argRkeyParam);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [commentSheetOpen, setCommentSheetOpen] = useState(!!topCommentUri);
+  const [displayedCommentUri, setDisplayedCommentUri] = useState<string | null>(
+    topCommentUri,
+  );
+  const commentCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Label for the visible overlay's back button: reflects the view revealed on
+  // close — an argument, another post, or (nothing left) just "close".
+  const commentBackLabel =
+    commentChain.length >= 2
+      ? tc("backToPost")
+      : argRkeyParam
+        ? tc("backToArgument")
+        : tc("close");
+
+  useEffect(() => {
+    if (argRkeyParam) setDisplayedArgRkey(argRkeyParam);
+    if (argIsTop) {
+      setSheetOpen(true);
+    } else {
+      setSheetOpen(false);
+      if (!argRkeyParam) {
+        closeTimerRef.current = setTimeout(() => setDisplayedArgRkey(null), 350);
+      }
+    }
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, [argRkeyParam, argIsTop]);
+
+  useEffect(() => {
+    if (topCommentUri) {
+      setDisplayedCommentUri(topCommentUri);
+      setCommentSheetOpen(true);
+    } else {
+      setCommentSheetOpen(false);
+      commentCloseTimerRef.current = setTimeout(
+        () => setDisplayedCommentUri(null),
+        350,
+      );
+    }
+    return () => {
+      if (commentCloseTimerRef.current)
+        clearTimeout(commentCloseTimerRef.current);
+    };
+  }, [topCommentUri]);
+
+  const openArgument = useCallback(
+    (rkey: string) => {
+      router.push(`?arg=${rkey}`, { scroll: false });
+    },
+    [router],
+  );
+
+  const openComment = useCallback(
+    (uri: string) => {
+      const qp = new URLSearchParams(searchParams.toString());
+      qp.append("comment", uri);
+      router.push(`?${qp.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  // Header back button pops one level off the stack via browser history.
+  const closeOverlay = useCallback(() => {
+    router.back();
+  }, [router]);
+
+  // Clicking the backdrop (or Escape) dismisses the whole overlay stack at once.
+  const closeAllOverlays = useCallback(() => {
+    router.push("?", { scroll: false });
+  }, [router]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -638,15 +732,18 @@ export default function BallotFeed() {
             : a,
         ),
       );
-      if (item.type === "comment" || item.type === "reply") {
-        router.push(
-          `/ballot/${id}/arguments/feed/comment?uri=${encodeURIComponent(item.comment!.uri)}`,
-        );
+      // Comment/reply activities open the comment overlay directly; argument
+      // and milestone activities open the argument overlay.
+      if (
+        (item.type === "comment" || item.type === "reply") &&
+        item.comment?.uri
+      ) {
+        openComment(item.comment.uri);
       } else {
-        router.push(`/ballot/${id}/arguments`);
+        openArgument(item.argument.rkey);
       }
     },
-    [id, router],
+    [openArgument, openComment],
   );
 
   const handleToggleLike = useCallback(async () => {
@@ -916,6 +1013,53 @@ export default function BallotFeed() {
           onCreated={() => loadActivities(filter, true)}
         />
       )}
+
+      {/* Argument detail overlay — hidden while a comment overlay is on top */}
+      <Dialog
+        open={sheetOpen}
+        onOpenChange={(open) => {
+          if (!open) closeAllOverlays();
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-4xl w-full h-[92vh] overflow-y-auto p-0 flex flex-col gap-0"
+        >
+          {displayedArgRkey && (
+            <ArgumentDetailPage
+              isOverlay
+              onClose={closeOverlay}
+              argRkeyOverride={displayedArgRkey}
+              onNavigateToComment={openComment}
+              backLabel={tc("close")}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Comment detail overlay */}
+      <Dialog
+        open={commentSheetOpen}
+        onOpenChange={(open) => {
+          if (!open) closeAllOverlays();
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-4xl w-full h-[92vh] overflow-y-auto p-0 flex flex-col gap-0"
+        >
+          {displayedCommentUri && (
+            <CommentDetailPage
+              isOverlay
+              onClose={closeOverlay}
+              commentUriOverride={displayedCommentUri}
+              onNavigateToComment={openComment}
+              onNavigateToArgument={openArgument}
+              backLabel={commentBackLabel}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -37,7 +37,7 @@ class VerifyShortCodeData(BaseModel):
     purpose: Literal["login", "registration"] = "login"
 
 
-async def send_magic_link_handler(data: SendMagicLinkData):
+async def send_magic_link_handler(data: SendMagicLinkData, locale: str = "de"):
     """Generate and send magic link to user's email"""
     try:
         if db.pool is None:
@@ -83,7 +83,7 @@ async def send_magic_link_handler(data: SendMagicLinkData):
 
         # Send email with magic link and short code
         success = email_service.send_confirmation_link(
-            email, token, purpose="login", short_code=short_code
+            email, token, purpose="login", short_code=short_code, locale=locale
         )
 
         # send_magic_link

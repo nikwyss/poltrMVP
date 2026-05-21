@@ -8,6 +8,7 @@ import { getArgument, listComments, createComment } from "@/lib/agent";
 import { likeContent, unlikeContent } from "@/lib/ballots";
 import { useScrollRestore, smartBack } from "@/lib/scrollRestore";
 import { formatRelativeTime } from "@/lib/utils";
+import { Separator } from "@/components/ui/separator";
 import type {
   ArgumentWithMetadata,
   CommentWithMetadata,
@@ -137,12 +138,24 @@ function CommentNode({
 // Main page
 // ---------------------------------------------------------------------------
 
-export default function ArgumentDetailPage() {
+export default function ArgumentDetailPage({
+  isOverlay = false,
+  onClose,
+  argRkeyOverride,
+  onNavigateToComment,
+  backLabel,
+}: {
+  isOverlay?: boolean;
+  onClose?: () => void;
+  argRkeyOverride?: string;
+  onNavigateToComment?: (uri: string) => void;
+  backLabel?: string;
+} = {}) {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
   const ballotRkey = params.id as string;
-  const argRkey = params.argRkey as string;
+  const argRkey = argRkeyOverride ?? (params.argRkey as string);
   const t = useTranslations("argumentDetail");
   const tc = useTranslations("common");
 
@@ -240,11 +253,15 @@ export default function ArgumentDetailPage() {
 
   const handleNavigateToComment = useCallback(
     (uri: string) => {
+      if (onNavigateToComment) {
+        onNavigateToComment(uri);
+        return;
+      }
       router.push(
         `/ballot/${ballotRkey}/arguments/feed/comment?uri=${encodeURIComponent(uri)}`,
       );
     },
-    [ballotRkey, router],
+    [ballotRkey, router, onNavigateToComment],
   );
 
   const handleSubmitComment = useCallback(async () => {
@@ -261,7 +278,7 @@ export default function ArgumentDetailPage() {
     }
   }, [replyText, submitting, argument, loadComments]);
 
-  useScrollRestore(!loading && !!argument);
+  useScrollRestore(!isOverlay && !loading && !!argument);
 
   if (authLoading) {
     return (
@@ -274,7 +291,113 @@ export default function ArgumentDetailPage() {
   if (!isAuthenticated) return null;
 
   const isPro = argument?.record.type === "PRO";
+  const accentColor = isPro ? "var(--green)" : "var(--red)";
 
+  // ── Overlay layout (rendered inside Dialog) ────────────────────────────────
+  if (isOverlay) {
+    return (
+      <div className="flex flex-col">
+        {/* Sticky header */}
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b flex items-center px-5 py-3">
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <span className="text-base leading-none">←</span>
+            {backLabel ?? t("backToBallot")}
+          </button>
+        </div>
+
+        <div className="px-5 py-6 space-y-6">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                <strong>{tc("error")}:</strong> {error}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {loading && (
+            <div className="flex items-center justify-center py-16 gap-3">
+              <Spinner />
+              <span className="text-muted-foreground">{t("loadingArgument")}</span>
+            </div>
+          )}
+
+          {!loading && argument && (
+            <>
+              {/* Argument — prominent accent block */}
+              <div
+                className="pl-5 pr-2 py-1"
+                style={{ borderLeft: `4px solid ${accentColor}` }}
+              >
+                <div className="flex items-start gap-3 mb-3">
+                  <h2 className="text-xl font-bold flex-1 leading-snug m-0">
+                    {argument.record.title}
+                  </h2>
+                  <ProContraBadge type={argument.record.type?.toLowerCase()} />
+                </div>
+                {argument.record.body && (
+                  <p className="text-sm text-muted-foreground leading-relaxed m-0 mb-3">
+                    {argument.record.body}
+                  </p>
+                )}
+                <div className="flex gap-4 text-xs text-muted-foreground items-center flex-wrap">
+                  {(argument.likeCount ?? 0) > 0 && (
+                    <span>{"\u2661"} {argument.likeCount}</span>
+                  )}
+                  {(argument.commentCount ?? 0) > 0 && (
+                    <span>{"\ud83d\udcac"} {argument.commentCount}</span>
+                  )}
+                  <ReviewStatusBadge status={argument.reviewStatus} />
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Comments */}
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
+                  {t("comments")}{comments.length > 0 ? ` (${comments.length})` : ""}
+                </div>
+                {comments.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">{t("noComments")}</p>
+                ) : (
+                  <div className="space-y-0.5">
+                    {comments.map((c) => (
+                      <CommentNode
+                        key={c.uri}
+                        comment={c}
+                        depth={0}
+                        onLikeToggle={handleLikeToggle}
+                        onReply={handleReply}
+                        onNavigate={handleNavigateToComment}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Comment input */}
+              <div className="pt-1 border-t">
+                <div className="text-xs text-muted-foreground mb-2">{t("addComment")}</div>
+                <ReplyInput
+                  ref={replyInputRef}
+                  value={replyText}
+                  onChange={setReplyText}
+                  onSubmit={handleSubmitComment}
+                  submitting={submitting}
+                  placeholder={t("commentPlaceholder")}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Full-page layout ────────────────────────────────────────────────────────
   return (
     <div className="max-w-2xl mx-auto space-y-4">
       <Button

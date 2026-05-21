@@ -20,7 +20,10 @@
     "backToLogin": "Back to Login",
     "helpful": "Helpful",
     "voted": "voted",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "close": "Close",
+    "backToArgument": "Back to argument",
+    "backToPost": "Back to post"
   },
   "nav": {
     "home": "Home",
@@ -170,7 +173,9 @@
     "thread": "Thread",
     "replyToComment": "Reply to this comment:",
     "replyPlaceholder": "Write a reply...",
-    "loadingComment": "Loading comment..."
+    "loadingComment": "Loading comment...",
+    "backToArgument": "Back to argument",
+    "replies": "Replies"
   },
   "review": {
     "title": "Peer Review",
@@ -197,7 +202,6 @@
     "official": "Official"
   },
   "viewToggle": {
-    "community": "Community",
     "feed": "Feed",
     "booklet": "Booklet"
   },

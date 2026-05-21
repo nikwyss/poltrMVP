@@ -20,7 +20,10 @@
     "backToLogin": "Zurück zum Login",
     "helpful": "Hilfreich",
     "voted": "abgestimmt",
-    "loading": "Laden..."
+    "loading": "Laden...",
+    "close": "Schliessen",
+    "backToArgument": "Zurück zum Argument",
+    "backToPost": "Zurück zum Post"
   },
   "nav": {
     "home": "Start",
@@ -170,7 +173,9 @@
     "thread": "Thread",
     "replyToComment": "Auf diesen Kommentar antworten:",
     "replyPlaceholder": "Schreibe eine Antwort...",
-    "loadingComment": "Lade Kommentar..."
+    "loadingComment": "Lade Kommentar...",
+    "backToArgument": "Zurück zum Argument",
+    "replies": "Antworten"
   },
   "review": {
     "title": "Peer Review",
@@ -197,7 +202,6 @@
     "official": "Aus der Abstimmungsbrochüre"
   },
   "viewToggle": {
-    "community": "Community",
     "feed": "Feed",
     "booklet": "Büchlein"
   },

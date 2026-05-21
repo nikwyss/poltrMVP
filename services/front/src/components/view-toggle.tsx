@@ -3,13 +3,12 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Columns2, List, BookOpen } from "lucide-react";
+import { List, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type ArgumentsView = "community" | "feed" | "booklet";
+export type ArgumentsView = "feed" | "booklet";
 
 export const ARGUMENTS_VIEWS: readonly ArgumentsView[] = [
-  "community",
   "feed",
   "booklet",
 ] as const;
@@ -32,11 +31,10 @@ function persistArgumentsView(view: ArgumentsView) {
 
 const viewDefs: {
   key: ArgumentsView;
-  icon: typeof Columns2;
+  icon: typeof List;
   labelKey: string;
   segment: string;
 }[] = [
-  { key: "community", icon: Columns2, labelKey: "community", segment: "community" },
   { key: "feed", icon: List, labelKey: "feed", segment: "feed" },
   { key: "booklet", icon: BookOpen, labelKey: "booklet", segment: "booklet" },
 ];

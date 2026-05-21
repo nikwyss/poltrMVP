@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import { getBallot, listArguments } from "@/lib/agent";
@@ -18,6 +18,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
+import ArgumentDetailPage from "../[argRkey]/page";
+import CommentDetailPage from "../feed/comment/page";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -76,6 +82,7 @@ function ArgumentCardCompact({
   const tc = useTranslations("common");
   const trs = useTranslations("reviewStatus");
   const tbk = useTranslations("booklet");
+  const tf = useTranslations("feed");
   const type = arg.record.type;
   const labels: AttributionLabels = {
     bundesrat: tbk("fallbackBundesrat"),
@@ -105,6 +112,9 @@ function ArgumentCardCompact({
         </span>
         <span className="na-helpful">
           {"↑"} {(arg.likeCount ?? 0)} {tc("helpful")}
+          {(arg.commentCount ?? 0) > 0 && (
+            <> · {tf("comments", { count: arg.commentCount ?? 0 })}</>
+          )}
         </span>
       </div>
     </div>
@@ -122,7 +132,7 @@ function ArgumentSection({
   subtitle,
   proArgs,
   contraArgs,
-  ballotId,
+  onOpen,
 }: {
   variant: "official" | "community";
   marker: string;
@@ -130,21 +140,47 @@ function ArgumentSection({
   subtitle: string;
   proArgs: ArgumentWithMetadata[];
   contraArgs: ArgumentWithMetadata[];
-  ballotId: string;
+  onOpen: (rkey: string) => void;
 }) {
-  const router = useRouter();
+  const tc = useTranslations("common");
   const t = useTranslations("ballotDetail");
   const kind: "official" | "user" = variant === "official" ? "official" : "user";
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const [isSticky, setIsSticky] = useState(false);
 
-  const open = (uri: string) =>
-    router.push(`/ballot/${ballotId}/arguments/${uri.split("/").pop()}`);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsSticky(!entry.isIntersecting),
+      { rootMargin: "-94px 0px 0px 0px", threshold: 0 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <section className={`na-section na-section-${variant}`}>
-      <div className="na-section-header">
-        <div className="na-section-marker">{marker}</div>
-        <div className="na-section-title">{title}</div>
-        <div className="na-section-subtitle">{subtitle}</div>
+      {/* sentinel: when this leaves the viewport at 97px from top, header is sticky */}
+      <div ref={sentinelRef} style={{ height: 0 }} />
+
+      <div className={`na-section-sticky-header${isSticky ? " na-section-sticky-header--active" : ""}`}>
+        <div className="na-section-header">
+          <div className="na-section-marker">{marker}</div>
+          <div className="na-section-title">{title}</div>
+          <div className="na-section-subtitle">{subtitle}</div>
+        </div>
+
+        <div className="na-section-col-headers">
+          <div className="na-section-col-label na-section-col-pro">
+            <span>{tc("pro")}</span>
+            <span className="na-col-count">{proArgs.length}</span>
+          </div>
+          <div className="na-section-col-label na-section-col-contra">
+            <span>{tc("contra")}</span>
+            <span className="na-col-count">{contraArgs.length}</span>
+          </div>
+        </div>
       </div>
 
       <div className="na-columns">
@@ -155,7 +191,7 @@ function ArgumentSection({
               arg={arg}
               index={i}
               kind={kind}
-              onClick={() => open(arg.uri)}
+              onClick={() => onOpen(arg.uri.split("/").pop()!)}
             />
           ))}
           {proArgs.length === 0 && (
@@ -169,7 +205,7 @@ function ArgumentSection({
               arg={arg}
               index={i}
               kind={kind}
-              onClick={() => open(arg.uri)}
+              onClick={() => onOpen(arg.uri.split("/").pop()!)}
             />
           ))}
           {contraArgs.length === 0 && (
@@ -189,6 +225,7 @@ export default function BallotDetailNewArguments() {
   const { user, isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
   const t = useTranslations("ballotDetail");
   const tb = useTranslations("ballots");
@@ -199,6 +236,82 @@ export default function BallotDetailNewArguments() {
   const [arguments_, setArguments] = useState<ArgumentWithMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Overlay stack — encoded in the URL so browser-back and deep links work.
+  // `?arg=<rkey>` is the (optional) bottom argument overlay; each `?comment=<uri>`
+  // (repeatable) is a stacked comment overlay. The top entry is what's visible;
+  // the entry beneath it determines the back-button label.
+  const argRkeyParam = searchParams.get("arg");
+  const commentChain = useMemo(
+    () => searchParams.getAll("comment"),
+    [searchParams],
+  );
+  const topCommentUri = commentChain[commentChain.length - 1] ?? null;
+  const argIsTop = !!argRkeyParam && commentChain.length === 0;
+
+  const [sheetOpen, setSheetOpen] = useState(argIsTop);
+  const [displayedArgRkey, setDisplayedArgRkey] = useState<string | null>(
+    argRkeyParam,
+  );
+  const [commentSheetOpen, setCommentSheetOpen] = useState(!!topCommentUri);
+  const [displayedCommentUri, setDisplayedCommentUri] = useState<string | null>(
+    topCommentUri,
+  );
+
+  const commentBackLabel =
+    commentChain.length >= 2
+      ? tc("backToPost")
+      : argRkeyParam
+        ? tc("backToArgument")
+        : tc("close");
+
+  useEffect(() => {
+    if (argRkeyParam) setDisplayedArgRkey(argRkeyParam);
+    if (argIsTop) {
+      setSheetOpen(true);
+    } else {
+      setSheetOpen(false);
+      if (!argRkeyParam) {
+        const t = setTimeout(() => setDisplayedArgRkey(null), 350);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [argRkeyParam, argIsTop]);
+
+  useEffect(() => {
+    if (topCommentUri) {
+      setDisplayedCommentUri(topCommentUri);
+      setCommentSheetOpen(true);
+    } else {
+      setCommentSheetOpen(false);
+      const t = setTimeout(() => setDisplayedCommentUri(null), 350);
+      return () => clearTimeout(t);
+    }
+  }, [topCommentUri]);
+
+  const openArgument = useCallback(
+    (rkey: string) => router.push(`?arg=${rkey}`, { scroll: false }),
+    [router],
+  );
+
+  const openComment = useCallback(
+    (uri: string) => {
+      const qp = new URLSearchParams(searchParams.toString());
+      qp.append("comment", uri);
+      router.push(`?${qp.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
+
+  // Header back button pops one level off the stack via browser history.
+  const closeOverlay = useCallback(() => {
+    router.back();
+  }, [router]);
+
+  // Clicking the backdrop (or Escape) dismisses the whole overlay stack at once.
+  const closeAllOverlays = useCallback(() => {
+    router.push("?", { scroll: false });
+  }, [router]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -437,18 +550,6 @@ export default function BallotDetailNewArguments() {
             )}
           </div>
 
-          {/* Sticky Pro/Contra column header */}
-          <div className="na-columns-header">
-            <div className="na-col-label na-col-pro">
-              <span>{tc("pro")}</span>
-              <span className="na-col-count">{proArgs.length}</span>
-            </div>
-            <div className="na-col-label na-col-contra">
-              <span>{tc("contra")}</span>
-              <span className="na-col-count">{contraArgs.length}</span>
-            </div>
-          </div>
-
           {/* Section 1: Official */}
           <ArgumentSection
             variant="official"
@@ -457,7 +558,7 @@ export default function BallotDetailNewArguments() {
             subtitle={tbk("officialSubtitle")}
             proArgs={officialPro}
             contraArgs={officialContra}
-            ballotId={id}
+            onOpen={openArgument}
           />
 
           {/* Section 2: Community */}
@@ -468,7 +569,7 @@ export default function BallotDetailNewArguments() {
             subtitle={tbk("communitySubtitle")}
             proArgs={userPro}
             contraArgs={userContra}
-            ballotId={id}
+            onOpen={openArgument}
           />
 
           {arguments_.length === 0 && !loading && (
@@ -482,18 +583,30 @@ export default function BallotDetailNewArguments() {
       )}
 
       <style jsx>{`
-        :global(.na-columns-header) {
+        :global(.na-section-sticky-header) {
+          position: sticky;
+          top: 92px;
+          z-index: 4;
+          background: inherit;
+          padding: 8px 0 8px;
+          overflow: visible;
+        }
+        :global(.na-section-official .na-section-sticky-header) {
+          background: #f4ede0;
+        }
+        :global(.na-section-community .na-section-sticky-header) {
+          background: var(--bg, #f9f9f8);
+        }
+        :global(.na-section-col-headers) {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 16px;
-          position: sticky;
-          top: 0;
-          z-index: 5;
+          margin-top: 8px;
         }
-        :global(.na-col-label) {
-          padding: 8px 14px;
-          border-radius: 8px;
-          font-size: 12px;
+        :global(.na-section-col-label) {
+          padding: 5px 10px;
+          border-radius: 6px;
+          font-size: 11px;
           font-weight: 600;
           letter-spacing: 0.06em;
           text-transform: uppercase;
@@ -501,20 +614,33 @@ export default function BallotDetailNewArguments() {
           justify-content: space-between;
           align-items: center;
         }
-        :global(.na-col-pro) {
+        :global(.na-section-col-pro) {
           background: #ecf6f0;
           color: #2d8659;
           border: 1px solid #c5e2d2;
         }
-        :global(.na-col-contra) {
+        :global(.na-section-col-contra) {
           background: #fbedef;
           color: #b8455a;
           border: 1px solid #f0cdd3;
         }
-        :global(.na-col-count) {
-          font-weight: 500;
-          font-size: 11px;
-          opacity: 0.8;
+
+        /* fade only when sticky is active */
+        :global(.na-section-sticky-header--active::after) {
+          content: '';
+          position: absolute;
+          bottom: -24px;
+          left: 0;
+          right: 0;
+          height: 24px;
+          pointer-events: none;
+          z-index: 3;
+        }
+        :global(.na-section-official .na-section-sticky-header--active::after) {
+          background: linear-gradient(to bottom, #f4ede0, rgba(244,237,224,0));
+        }
+        :global(.na-section-community .na-section-sticky-header--active::after) {
+          background: linear-gradient(to bottom, var(--bg, #f9f9f8), rgba(249,249,248,0));
         }
 
         :global(.na-section) {
@@ -726,6 +852,53 @@ export default function BallotDetailNewArguments() {
           }
         }
       `}</style>
+
+      {/* Argument detail overlay — hidden while a comment overlay is on top */}
+      <Dialog
+        open={sheetOpen}
+        onOpenChange={(open) => {
+          if (!open) closeAllOverlays();
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-4xl w-full h-[92vh] overflow-y-auto p-0 flex flex-col gap-0"
+        >
+          {displayedArgRkey && (
+            <ArgumentDetailPage
+              isOverlay
+              onClose={closeOverlay}
+              argRkeyOverride={displayedArgRkey}
+              onNavigateToComment={openComment}
+              backLabel={tc("close")}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Comment detail overlay */}
+      <Dialog
+        open={commentSheetOpen}
+        onOpenChange={(open) => {
+          if (!open) closeAllOverlays();
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="sm:max-w-4xl w-full h-[92vh] overflow-y-auto p-0 flex flex-col gap-0"
+        >
+          {displayedCommentUri && (
+            <CommentDetailPage
+              isOverlay
+              onClose={closeOverlay}
+              commentUriOverride={displayedCommentUri}
+              onNavigateToComment={openComment}
+              onNavigateToArgument={openArgument}
+              backLabel={commentBackLabel}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
