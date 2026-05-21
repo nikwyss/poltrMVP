@@ -5,6 +5,7 @@ Ballots are sourced from the CMS (Payload) and enriched with counts from
 the AppView database. Arguments/comments/reviews are ATProto records.
 """
 
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
@@ -366,16 +367,25 @@ async def list_arguments(
         else:
             review_filter = ""
 
-    # Sort order
+    # Sort order. Explicit sorts run in SQL; the default ("random") is a stable
+    # per-user shuffle applied in Python (see below) so each user gets their own
+    # fixed ordering that never reshuffles when arguments are added.
     sort_map = {
         "top": "a.like_count DESC",
         "new": "a.created_at DESC",
         "discussed": "a.comment_count DESC",
-        "random": "RANDOM()",
     }
-    order_by = sort_map.get(sort, "RANDOM()")
+    seeded_shuffle = sort not in sort_map
+    if seeded_shuffle:
+        # Deterministic fetch order; the per-user permutation is applied after
+        # serialization. LIMIT is applied post-sort to keep a stable top-N.
+        order_by = "a.created_at ASC, a.uri"
+        limit_clause = ""
+    else:
+        order_by = sort_map[sort]
+        params.append(limit)
+        limit_clause = f"LIMIT ${len(params)}"
 
-    params.append(limit)
     sql = f"""
         SELECT a.*,
                p.display_name AS author_display_name,
@@ -389,7 +399,7 @@ async def list_arguments(
           {source_filter}
           {review_filter}
         ORDER BY {order_by}
-        LIMIT ${len(params)};
+        {limit_clause};
     """
 
     try:
@@ -400,6 +410,19 @@ async def list_arguments(
         arguments = [
             _serialize_argument_row(dict(r), peer_review_on) for r in rows
         ]
+
+        if seeded_shuffle:
+            # Per-row key depends only on the viewer DID and the argument's own
+            # uri, so the order is stable per user and inserting a new argument
+            # never moves the others. viewer_did is realistically always set
+            # (verify_session_token rejects anonymous requests with 401).
+            seed = viewer_did or ""
+            arguments.sort(
+                key=lambda a: hashlib.md5(
+                    f"{seed}:{a['uri']}".encode()
+                ).hexdigest()
+            )
+            arguments = arguments[:limit]
 
         return JSONResponse(status_code=200, content={"arguments": arguments})
     except Exception as err:
