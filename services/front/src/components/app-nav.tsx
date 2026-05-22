@@ -44,9 +44,9 @@ export function AppNav() {
         >
           {/* Logo */}
           <Link href="/home" className="flex items-center gap-1.5 no-underline">
-            <img src="/logo5.svg" alt="Poltr" className="h-9 w-9 shrink-0" />
+            <img src="/logo5.svg" alt="smartvotes Abstimmungsdossier" className="h-9 w-9 shrink-0" />
             <span className="font-extrabold text-base tracking-tight hidden sm:inline ">
-              Poltr
+              Abstimmungsdossier
             </span>
           </Link>
 
