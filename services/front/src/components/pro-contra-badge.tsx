@@ -11,8 +11,8 @@ export function ProContraBadge({ type, variant = "solid" }: { type?: string; var
       <Badge
         className="text-xs font-semibold"
         style={{
-          backgroundColor: isPro ? '#e8f5e9' : '#ffebee',
-          color: isPro ? '#2e7d32' : '#c62828',
+          backgroundColor: isPro ? 'var(--pro-dim)' : 'var(--contra-dim)',
+          color: isPro ? 'var(--pro)' : 'var(--contra)',
         }}
       >
         {isPro ? tc('pro') : tc('contra')}
@@ -23,7 +23,7 @@ export function ProContraBadge({ type, variant = "solid" }: { type?: string; var
   return (
     <Badge
       className="text-xs font-bold text-white"
-      style={{ backgroundColor: isPro ? '#16a34a' : '#dc2626' }}
+      style={{ backgroundColor: isPro ? 'var(--pro)' : 'var(--contra)' }}
     >
       {isPro ? tc('pro') : tc('contra')}
     </Badge>

@@ -30,41 +30,51 @@ export default function VorlageLayout({
   return (
     <div className="flex flex-col gap-0">
       {/* Sub-navigation bar */}
-      <nav className="sticky top-[53px] z-40 bg-[var(--bg)]/88 backdrop-blur-xl supports-[backdrop-filter]:bg-[var(--bg)]/60 border-b">
+      <nav className="sticky top-[59px] z-40 bg-[var(--bg)]/88 backdrop-blur-xl supports-[backdrop-filter]:bg-[var(--bg)]/60">
         <div
           className="mx-auto flex items-center gap-1 overflow-x-auto"
           style={{
             maxWidth: "var(--page-max)",
             padding: "0 var(--page-px)",
-            height: 40,
+            height: 44,
           }}
         >
           <Link
             href="/home"
-            className="flex items-center gap-1 text-[12px] text-[var(--text-mid)] hover:text-[var(--text)] transition-colors no-underline shrink-0 mr-2 pr-2 border-r border-border"
+            className="flex items-center gap-1 text-[0.8125rem] text-[var(--text-mid)] hover:text-[var(--text)] transition-colors no-underline shrink-0 mr-2 pr-2 border-r border-border"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{t("backToHome")}</span>
           </Link>
 
-          {tabs.map((tab) => {
-            const href = `/ballot/${id}/${tab.segment}`;
-            const isActive = activeSegment === tab.segment;
-            return (
-              <Link
-                key={tab.segment}
-                href={href}
-                className={cn(
-                  "px-3 py-1.5 text-[12.5px] font-medium rounded-[var(--r-sm)] no-underline transition-all duration-150 whitespace-nowrap",
-                  isActive
-                    ? "bg-[var(--text)] text-[var(--bg)]"
-                    : "text-[var(--text-mid)] hover:bg-accent hover:text-[var(--text)]",
-                )}
-              >
-                {t(tab.key)}
-              </Link>
-            );
-          })}
+          {/* Tab-Gruppe als Mauerwerk: feine Quaderfugen zwischen den Tabs */}
+          <div className="flex items-center">
+            {tabs.map((tab, i) => {
+              const href = `/ballot/${id}/${tab.segment}`;
+              const isActive = activeSegment === tab.segment;
+              return (
+                <div key={tab.segment} className="flex items-center">
+                  {i > 0 && (
+                    <span
+                      aria-hidden
+                      className="h-4 w-px bg-[var(--line-mid)] shrink-0"
+                    />
+                  )}
+                  <Link
+                    href={href}
+                    className={cn(
+                      "mx-1 px-3 py-1.5 text-[0.78125rem] font-medium rounded-[var(--r-sm)] border border-transparent no-underline transition-all duration-150 whitespace-nowrap",
+                      isActive
+                        ? "stone-tab-active"
+                        : "text-[var(--text-mid)] hover:bg-accent hover:text-[var(--text)]",
+                    )}
+                  >
+                    {t(tab.key)}
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </nav>
 

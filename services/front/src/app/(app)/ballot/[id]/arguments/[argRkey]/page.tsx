@@ -220,7 +220,7 @@ export default function ArgumentDetailPage({
   if (!isAuthenticated) return null;
 
   const isPro = argument?.record.type === "PRO";
-  const accentColor = isPro ? "var(--green)" : "var(--red)";
+  const accentColor = isPro ? "var(--pro)" : "var(--contra)";
 
   // ── Shared comments block (used by both overlay and full-page layouts) ──────
   const commentsBlock = (

@@ -19,7 +19,7 @@
   animation: fadeUp 0.4s ease both;
 }
 
-@theme inline { --text-sm: 15px; --text-sm--line-height: 1.43; --radius-sm: calc(var(--radius) - 4px); --radius-md: calc(var(--radius) - 2px); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) + 4px); --radius-2xl: calc(var(--radius) + 8px); --radius-3xl: calc(var(--radius) + 12px); --radius-4xl: calc(var(--radius) + 16px); --color-background: var(--background); --color-foreground: var(--foreground); --color-card: var(--card); --color-card-foreground: var(--card-foreground); --color-popover: var(--popover); --color-popover-foreground: var(--popover-foreground); --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground); --color-secondary: var(--secondary); --color-secondary-foreground: var(--secondary-foreground); --color-muted: var(--muted); --color-muted-foreground: var(--muted-foreground); --color-accent: var(--accent); --color-accent-foreground: var(--accent-foreground); --color-destructive: var(--destructive); --color-border: var(--border); --color-input: var(--input); --color-ring: var(--ring); --color-chart-1: var(--chart-1); --color-chart-2: var(--chart-2); --color-chart-3: var(--chart-3); --color-chart-4: var(--chart-4); --color-chart-5: var(--chart-5); --color-sidebar: var(--sidebar); --color-sidebar-foreground: var(--sidebar-foreground); --color-sidebar-primary: var(--sidebar-primary); --color-sidebar-primary-foreground: var(--sidebar-primary-foreground); --color-sidebar-accent: var(--sidebar-accent); --color-sidebar-accent-foreground: var(--sidebar-accent-foreground); --color-sidebar-border: var(--sidebar-border); --color-sidebar-ring: var(--sidebar-ring);
+@theme inline { --text-sm: 0.9375rem; --text-sm--line-height: 1.43; --radius-sm: calc(var(--radius) - 4px); --radius-md: calc(var(--radius) - 2px); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) + 4px); --radius-2xl: calc(var(--radius) + 8px); --radius-3xl: calc(var(--radius) + 12px); --radius-4xl: calc(var(--radius) + 16px); --color-background: var(--background); --color-foreground: var(--foreground); --color-card: var(--card); --color-card-foreground: var(--card-foreground); --color-popover: var(--popover); --color-popover-foreground: var(--popover-foreground); --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground); --color-secondary: var(--secondary); --color-secondary-foreground: var(--secondary-foreground); --color-muted: var(--muted); --color-muted-foreground: var(--muted-foreground); --color-accent: var(--accent); --color-accent-foreground: var(--accent-foreground); --color-destructive: var(--destructive); --color-border: var(--border); --color-input: var(--input); --color-ring: var(--ring); --color-chart-1: var(--chart-1); --color-chart-2: var(--chart-2); --color-chart-3: var(--chart-3); --color-chart-4: var(--chart-4); --color-chart-5: var(--chart-5); --color-sidebar: var(--sidebar); --color-sidebar-foreground: var(--sidebar-foreground); --color-sidebar-primary: var(--sidebar-primary); --color-sidebar-primary-foreground: var(--sidebar-primary-foreground); --color-sidebar-accent: var(--sidebar-accent); --color-sidebar-accent-foreground: var(--sidebar-accent-foreground); --color-sidebar-border: var(--sidebar-border); --color-sidebar-ring: var(--sidebar-ring);
 }
 
 :root {
@@ -51,6 +51,17 @@
   --green: #1a8a5a;
   --green-dim: #eef7f2;
   --green-border: #b3ddc8;
+  --sand: #e7dcc6;           /* aktiver Sandstein-Quader (Füllung) */
+  --sand-edge: #d6c7a8;      /* Quader-Schattenfuge / Schlussstein */
+  /* Pro/Contra — in die Steinpalette eingebettet (gedämpftes Salbei + Terrakotta) */
+  --pro: #5b7a55;            /* Moos-/Salbeigrün */
+  --pro-dim: #eef2ea;
+  --pro-border: #cbd8c4;
+  --pro-tint: #f1f4ee;       /* getönter Kartenhintergrund */
+  --contra: #a6614a;         /* erdiges Terrakotta */
+  --contra-dim: #f5ece7;
+  --contra-border: #e3cdc1;
+  --contra-tint: #f7efe9;
 
   /* ── shadcn mappings ── */
   --radius: var(--r);
@@ -105,6 +116,15 @@
   --green: #66bb6a;
   --green-dim: #1a2e1a;
   --green-border: #2a4a2a;
+  --sand: #3a3328;
+  --sand-edge: #4a4234;
+  /* Pro/Contra dunkel — Tints erben die hellen :root-Werte (Booklet-Karten sind hell) */
+  --pro: #8aa384;
+  --pro-dim: #232a21;
+  --pro-border: #3a4636;
+  --contra: #c08a72;
+  --contra-dim: #2e211c;
+  --contra-border: #4a382f;
 
   --accent: #2e2a22;
   --accent-foreground: #f0ede9;
@@ -117,6 +137,13 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  /* Root-Schriftgröße: in % → respektiert die Browser-Einstellung der Nutzer:innen.
+     Alle Schriftgrößen sind rem-basiert und skalieren proportional mit (Barrierefreiheit). */
+  html {
+    /* Basis 15.5px: Mitte zwischen alt (klein) und der zuletzt zu grossen Skala.
+       z.B. Argument-Card-Body (0.9375rem) ≈ 14.5px. */
+    font-size: 100%;
   }
   body {
     @apply bg-background text-foreground;
@@ -133,7 +160,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 11px;
+    font-size: 0.75rem;
     font-weight: 500;
     color: var(--text-mid);
     background: var(--surface-up);
@@ -144,13 +171,13 @@
 
   /* Small label text */
   .label {
-    font-size: 12px;
+    font-size: 0.8125rem;
     color: var(--text-faint);
   }
 
   /* Eyebrow: uppercase small label */
   .eyebrow {
-    font-size: 11px;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -171,10 +198,17 @@
     background: var(--line);
   }
   .section-bar h2 {
-    font-size: 17px;
+    font-size: 1.0625rem;
     font-weight: 700;
     letter-spacing: -0.1px;
     white-space: nowrap;
+  }
+
+  /* Aktiver Nav-Tab: dezentes Pill */
+  .stone-tab-active {
+    background: var(--surface-up);
+    color: var(--text);
+    font-weight: 600;
   }
 
   /* Card hover effect */
@@ -195,7 +229,7 @@
     border: 1.5px dashed var(--line-mid);
     background: transparent;
     color: var(--text-faint);
-    font-size: 12.5px;
+    font-size: 0.78125rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.18s;
@@ -213,7 +247,7 @@
     gap: 4px;
     border-radius: var(--r-full);
     padding: 6px 16px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
@@ -246,11 +280,11 @@
     margin-bottom: 4px;
   }
   .col-pill.pro {
-    background: var(--green-dim);
-    border-color: var(--green-border);
+    background: var(--pro-dim);
+    border-color: var(--pro-border);
   }
   .col-pill.contra {
-    background: var(--red-dim);
-    border-color: var(--red-border);
+    background: var(--contra-dim);
+    border-color: var(--contra-border);
   }
 }

@@ -39,14 +39,14 @@ export function AppNav() {
     <header className="sticky top-0 z-50 w-full bg-[var(--bg)]/88 backdrop-blur-xl supports-[backdrop-filter]:bg-[var(--bg)]/60">
       <div className="border-b">
         <nav
-          className="mx-auto flex h-[52px] max-w-[var(--page-max)] items-center justify-between"
+          className="mx-auto flex h-[58px] max-w-[var(--page-max)] items-center justify-between"
           style={{ padding: "0 var(--page-px)" }}
         >
           {/* Logo */}
-          <Link href="/home" className="flex items-center gap-1.5 no-underline">
+          <Link href="/home" className="flex items-center gap-2.5 no-underline">
             <img src="/logo5.svg" alt="smartvotes Abstimmungsdossier" className="h-9 w-9 shrink-0" />
-            <span className="font-extrabold text-base tracking-tight hidden sm:inline ">
-              Abstimmungsdossier
+            <span className="font-bold text-[0.9375rem] uppercase tracking-[0.18em] hidden sm:inline ">
+               Abstimmungsdossier
             </span>
           </Link>
 
@@ -62,9 +62,9 @@ export function AppNav() {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      "px-3.5 py-1 text-[13px] font-medium rounded-[var(--r-sm)] no-underline transition-all duration-150",
+                      "px-3.5 py-1 text-[0.8125rem] font-medium rounded-[var(--r-sm)] border border-transparent no-underline transition-all duration-150",
                       isActive
-                        ? "bg-[var(--text)] text-[var(--bg)]"
+                        ? "stone-tab-active"
                         : "text-[var(--text-mid)] hover:bg-accent hover:text-[var(--text)]",
                     )}
                   >
@@ -83,9 +83,9 @@ export function AppNav() {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="flex items-center gap-1.5 bg-[var(--surface)] border border-[var(--line)] rounded-[var(--r-full)] py-0.5 pl-1 pr-3 text-[12.5px] text-[var(--text-mid)] hover:border-[var(--line-mid)] transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 bg-[var(--surface-up)] border border-[var(--line)] rounded-[var(--r-full)] py-0.5 pl-1 pr-3 text-[0.78125rem] text-[var(--text-mid)] hover:border-[var(--line-mid)] transition-colors cursor-pointer"
                 >
-                  <div className="flex size-[22px] items-center justify-center rounded-full bg-accent border border-[var(--line-mid)] text-[8px] font-bold text-[var(--text-mid)]">
+                  <div className="flex size-[22px] items-center justify-center rounded-full bg-accent border border-[var(--line-mid)] text-[0.5rem] font-bold text-[var(--text-mid)]">
                     {initials}
                   </div>
                   <span className="hidden md:inline truncate max-w-[120px]">
@@ -137,9 +137,9 @@ export function AppNav() {
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "px-3 py-2 text-[13px] font-medium rounded-[var(--r-sm)] no-underline transition-all",
+                    "px-3 py-2 text-[0.8125rem] font-medium rounded-[var(--r-sm)] border border-transparent no-underline transition-all",
                     isActive
-                      ? "bg-[var(--text)] text-[var(--bg)]"
+                      ? "stone-tab-active"
                       : "text-[var(--text-mid)] hover:bg-accent hover:text-[var(--text)]",
                   )}
                 >

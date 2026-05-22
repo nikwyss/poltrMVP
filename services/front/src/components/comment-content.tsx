@@ -55,7 +55,7 @@ export function CommentContent({
           {authorName(comment, tc)}
         </span>
         {isExtern && (
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+          <Badge variant="secondary" className="text-[0.6875rem] px-1.5 py-0">
             {tc("bluesky")}
           </Badge>
         )}

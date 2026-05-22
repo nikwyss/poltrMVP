@@ -183,7 +183,7 @@ export default function ReviewDashboard() {
               {/* Argument preview */}
               <div
                 className="p-4 bg-muted rounded-md"
-                style={{ borderLeft: `4px solid ${inv.argument.type === 'PRO' ? 'var(--green)' : 'var(--red)'}` }}
+                style={{ borderLeft: `4px solid ${inv.argument.type === 'PRO' ? 'var(--pro)' : 'var(--contra)'}` }}
               >
                 <div className="flex items-center gap-2 mb-2">
                   <ProContraBadge type={inv.argument.type?.toLowerCase()} variant="soft" />

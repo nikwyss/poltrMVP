@@ -106,9 +106,10 @@ function ArgumentCardCompact({
             : attributionLine(arg, kind, labels)}
         </span>
         <span className="na-helpful">
-          {"↑"} {(arg.likeCount ?? 0)} {tc("helpful")}
+          {/* {"↑"} {(arg.likeCount ?? 0)} {tc("helpful")} */}
           {(arg.commentCount ?? 0) > 0 && (
-            <> · {tf("comments", { count: arg.commentCount ?? 0 })}</>
+            // <> ·</>
+            <> {tf("comments", { count: arg.commentCount ?? 0 })}</>
           )}
         </span>
       </div>
@@ -121,6 +122,7 @@ function ArgumentCardCompact({
 // ---------------------------------------------------------------------------
 
 function ArgumentSection({
+  id,
   variant,
   marker,
   title,
@@ -129,6 +131,7 @@ function ArgumentSection({
   contraArgs,
   onOpen,
 }: {
+  id: string;
   variant: "official" | "community";
   marker: string;
   title: string;
@@ -148,16 +151,17 @@ function ArgumentSection({
     if (!sentinel) return;
     const observer = new IntersectionObserver(
       ([entry]) => setIsSticky(!entry.isIntersecting),
-      { rootMargin: "-94px 0px 0px 0px", threshold: 0 },
+      { rootMargin: "-104px 0px 0px 0px", threshold: 0 },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, []);
 
   return (
-    <section className={`na-section na-section-${variant}`}>
+    <section id={id} className={`na-section na-section-${variant}`}>
       {/* sentinel: when this leaves the viewport at 97px from top, header is sticky */}
       <div ref={sentinelRef} style={{ height: 0 }} />
+
 
       <div className={`na-section-sticky-header${isSticky ? " na-section-sticky-header--active" : ""}`}>
         <div className="na-section-header">
@@ -229,6 +233,11 @@ export default function BallotDetailNewArguments() {
   const [arguments_, setArguments] = useState<ArgumentWithMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Sticky-Section-Rail (Akkordeon): Official pinnt oben, sobald man daran vorbeiscrollt;
+  // Community ist am unteren Rand angepinnt, solange sie unter dem Fold liegt.
+  const [officialPinned, setOfficialPinned] = useState(false);
+  const [communityBelow, setCommunityBelow] = useState(false);
 
   // Overlay stack — encoded in the URL so browser-back and deep links work.
   // `?arg=<rkey>` is the (optional) bottom argument overlay; each `?comment=<uri>`
@@ -343,6 +352,46 @@ export default function BallotDetailNewArguments() {
 
   useScrollRestore(!loading && !!ballot);
 
+  // Pinn-Zustände der Section-Rail anhand der Scroll-Position berechnen.
+  useEffect(() => {
+    if (loading || !ballot) return;
+    const TOP = 102; // Stack-Linie unter der Sub-Nav
+    const BAR_H = 40; // Höhe einer fixierten Titel-Leiste
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const off = document.getElementById("na-sec-official");
+      const com = document.getElementById("na-sec-community");
+      if (off) {
+        const r = off.getBoundingClientRect();
+        // Official ist „vorbeigescrollt", sobald sein unteres Ende die Stack-Linie erreicht.
+        setOfficialPinned(r.top < TOP && r.bottom <= TOP + BAR_H);
+      }
+      if (com) {
+        const r = com.getBoundingClientRect();
+        setCommunityBelow(r.top > window.innerHeight - BAR_H);
+      }
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, [loading, ballot]);
+
+  const scrollToSection = (sectionId: string) => {
+    const el = document.getElementById(sectionId);
+    if (!el) return;
+    const y = el.getBoundingClientRect().top + window.scrollY - 110;
+    window.scrollTo({ top: y, behavior: "smooth" });
+  };
+
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh] gap-3">
@@ -380,14 +429,9 @@ export default function BallotDetailNewArguments() {
       className="max-w-[var(--page-max)] mx-auto"
       style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}
     >
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 pt-5 text-xs label">
-        <span className="text-[var(--text)] font-semibold truncate">
-          {ballot?.record.title ?? "..."}
-        </span>
-        <div className="ml-auto">
-          <ViewToggle active="booklet" ballotId={id} />
-        </div>
+      {/* View-Toggle (Titel steckt in der Hero-Card darunter) */}
+      <nav className="flex items-center justify-end gap-2 pt-5 text-xs label">
+        <ViewToggle active="booklet" ballotId={id} />
       </nav>
 
       {loading && (
@@ -424,7 +468,7 @@ export default function BallotDetailNewArguments() {
             </div>
 
             <div className="flex justify-between items-start gap-6 mb-5">
-              <h1 className="text-4xl md:text-[44px] font-bold tracking-tight leading-[0.92]">
+              <h1 className="text-4xl md:text-[2.75rem] font-bold tracking-tight leading-[0.92]">
                 {ballot.record.title}
               </h1>
               <div className="flex flex-col items-end gap-2.5 shrink-0">
@@ -452,22 +496,22 @@ export default function BallotDetailNewArguments() {
             {totalArgs > 0 && (
               <div className="mt-1">
                 <div className="flex justify-between mb-2">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--green)]">
-                    <span className="inline-block size-[7px] rounded-sm bg-[var(--green)]" />
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--pro)]">
+                    <span className="inline-block size-[7px] rounded-sm bg-[var(--pro)]" />
                     {tc("pro")} — {proArgs.length}
                   </div>
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--red)]">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--contra)]">
                     {tc("contra")} — {contraArgs.length}
-                    <span className="inline-block size-[7px] rounded-sm bg-[var(--red)]" />
+                    <span className="inline-block size-[7px] rounded-sm bg-[var(--contra)]" />
                   </div>
                 </div>
                 <div className="h-[5px] rounded-[var(--r-full)] bg-[var(--surface-up)] border border-border overflow-hidden flex">
                   <div
-                    className="h-full rounded-l-[var(--r-full)] bg-[var(--green)] transition-all duration-500"
+                    className="h-full rounded-l-[var(--r-full)] bg-[var(--pro)] transition-all duration-500"
                     style={{ width: `${proPercent}%` }}
                   />
                   <div
-                    className="h-full rounded-r-[var(--r-full)] bg-[var(--red)] transition-all duration-500"
+                    className="h-full rounded-r-[var(--r-full)] bg-[var(--contra)] transition-all duration-500"
                     style={{ width: `${100 - proPercent}%` }}
                   />
                 </div>
@@ -477,6 +521,7 @@ export default function BallotDetailNewArguments() {
 
           {/* Section 1: Official */}
           <ArgumentSection
+            id="na-sec-official"
             variant="official"
             marker="★"
             title={tbk("officialTitle")}
@@ -488,6 +533,7 @@ export default function BallotDetailNewArguments() {
 
           {/* Section 2: Community */}
           <ArgumentSection
+            id="na-sec-community"
             variant="community"
             marker="◐"
             title={tbk("communityTitle")}
@@ -504,23 +550,117 @@ export default function BallotDetailNewArguments() {
               </CardContent>
             </Card>
           )}
+
+          {/* Section-Rail: Official oben angepinnt, während man in Community liest */}
+          {officialPinned && (
+            <div className="na-railbar na-railbar-top">
+              <button
+                type="button"
+                className="na-railbar-inner"
+                onClick={() => scrollToSection("na-sec-official")}
+              >
+                <span className="na-railbar-marker na-railbar-marker-official">★</span>
+                <span className="na-railbar-title">{tbk("officialTitle")}</span>
+              </button>
+            </div>
+          )}
+          {/* Community am unteren Rand angepinnt, solange unter dem Fold — klickbar zum Springen */}
+          {communityBelow && (
+            <div className="na-railbar na-railbar-bottom">
+              <button
+                type="button"
+                className="na-railbar-inner"
+                onClick={() => scrollToSection("na-sec-community")}
+              >
+                <span className="na-railbar-marker na-railbar-marker-community">◐</span>
+                <span className="na-railbar-title">{tbk("communityTitle")}</span>
+                <span className="na-railbar-hint">↓</span>
+              </button>
+            </div>
+          )}
         </>
       )}
 
       <style jsx>{`
         :global(.na-section-sticky-header) {
           position: sticky;
-          top: 92px;
+          top: 102px;
           z-index: 4;
           background: inherit;
           padding: 8px 0 8px;
           overflow: visible;
         }
         :global(.na-section-official .na-section-sticky-header) {
-          background: #f4ede0;
+          // background: transparent;
+          background: var(--bg, #f9f9f8);
+        }
+        :global(.na-section-official .na-section-sticky-header--active) {
+          background: var(--bg);
         }
         :global(.na-section-community .na-section-sticky-header) {
           background: var(--bg, #f9f9f8);
+          /* unter der oben angepinnten Official-Leiste (102px) stapeln */
+          top: 142px;
+        }
+
+        /* ── Section-Rail: fixierte, klickbare Titel-Leisten ── */
+        :global(.na-railbar) {
+          position: fixed;
+          left: 0;
+          right: 0;
+          z-index: 30;
+          height: 40px;
+          background: var(--bg);
+        }
+        :global(.na-railbar-top) {
+          top: 102px;
+        }
+        :global(.na-railbar-bottom) {
+          bottom: 0;
+        }
+        :global(.na-railbar-inner) {
+          display: flex;
+          align-items: center;
+          gap: 11px;
+          width: 100%;
+          height: 100%;
+          max-width: var(--page-max);
+          margin: 0 auto;
+          /* an die Section-Header ausrichten: page-px + Section-Padding(14) + Header-Padding(4) */
+          padding: 0 var(--page-px) 0 calc(var(--page-px) + 18px);
+          background: transparent;
+          border: none;
+          font: inherit;
+          color: var(--text);
+          text-align: left;
+          cursor: pointer;
+        }
+        :global(.na-railbar-marker) {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: white;
+          flex-shrink: 0;
+        }
+        /* Railbars zeigen die eingeklappte (inaktive) Sektion → gedämpft grau */
+        :global(.na-railbar-marker-official),
+        :global(.na-railbar-marker-community) {
+          background: #888;
+        }
+        :global(.na-railbar-title) {
+          font-size: 0.9375rem;
+          font-weight: 700;
+          letter-spacing: 0.01em;
+        }
+        :global(.na-railbar-hint) {
+          margin-left: auto;
+          color: var(--text-faint);
+          font-size: 0.875rem;
         }
         :global(.na-section-col-headers) {
           display: grid;
@@ -531,23 +671,22 @@ export default function BallotDetailNewArguments() {
         :global(.na-section-col-label) {
           padding: 5px 10px;
           border-radius: 6px;
-          font-size: 11px;
+          font-size: 0.78125rem;
           font-weight: 600;
-          letter-spacing: 0.06em;
-          text-transform: uppercase;
+          letter-spacing: 0.01em;
           display: flex;
           justify-content: space-between;
           align-items: center;
         }
         :global(.na-section-col-pro) {
-          background: #ecf6f0;
-          color: #2d8659;
-          border: 1px solid #c5e2d2;
+          background: var(--pro-dim);
+          color: var(--pro);
+          border: 1px solid var(--pro-border);
         }
         :global(.na-section-col-contra) {
-          background: #fbedef;
-          color: #b8455a;
-          border: 1px solid #f0cdd3;
+          background: var(--contra-dim);
+          color: var(--contra);
+          border: 1px solid var(--contra-border);
         }
 
         /* fade only when sticky is active */
@@ -562,7 +701,8 @@ export default function BallotDetailNewArguments() {
           z-index: 3;
         }
         :global(.na-section-official .na-section-sticky-header--active::after) {
-          background: linear-gradient(to bottom, #f4ede0, rgba(244,237,224,0));
+          background: linear-gradient(to bottom, var(--bg, #f9f9f8), rgba(249,249,248,0));
+          // background: linear-gradient(to bottom, var(--bg), transparent);
         }
         :global(.na-section-community .na-section-sticky-header--active::after) {
           background: linear-gradient(to bottom, var(--bg, #f9f9f8), rgba(249,249,248,0));
@@ -571,22 +711,23 @@ export default function BallotDetailNewArguments() {
         :global(.na-section) {
           margin-top: 6px;
           border-radius: 10px;
-          padding: 14px 14px 16px;
+          padding: 18px 14px 20px;
         }
         :global(.na-section-official) {
-          background: #f4ede0;
-          border: 1px solid #e8dcc1;
+          background: transparent;
+          // position: relative;
+          // background: transparent;
+          // padding-top: 132px;
         }
         :global(.na-section-community) {
           background: transparent;
-          border: 1px dashed #e5e3de;
         }
 
         :global(.na-section-header) {
           display: flex;
           align-items: center;
-          gap: 10px;
-          margin-bottom: 12px;
+          gap: 11px;
+          margin-bottom: 18px;
           padding: 0 4px;
         }
         :global(.na-section-marker) {
@@ -596,27 +737,31 @@ export default function BallotDetailNewArguments() {
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 11px;
+          font-size: 0.75rem;
           font-weight: 700;
           color: white;
           flex-shrink: 0;
         }
+        /* Section-Header zeigt die aktive (expandierte) Sektion → farbig */
         :global(.na-section-official .na-section-marker) {
           background: #8a6b2b;
         }
         :global(.na-section-community .na-section-marker) {
-          background: #888;
+          background: #5a6b8a;
         }
         :global(.na-section-title) {
-          font-size: 14px;
+          font-size: 0.9375rem;
           font-weight: 700;
-          letter-spacing: 0.02em;
+          letter-spacing: 0.01em;
         }
         :global(.na-section-official .na-section-title) {
           color: #8a6b2b;
         }
+        :global(.na-section-community .na-section-title) {
+          color: #5a6b8a;
+        }
         :global(.na-section-subtitle) {
-          font-size: 11px;
+          font-size: 0.75rem;
           color: #888;
           margin-left: auto;
         }
@@ -625,6 +770,8 @@ export default function BallotDetailNewArguments() {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 12px;
+          position: relative;
+          z-index: 1;
         }
         :global(.na-column) {
           display: flex;
@@ -632,17 +779,18 @@ export default function BallotDetailNewArguments() {
           gap: 10px;
         }
         :global(.na-empty) {
-          font-size: 12px;
+          font-size: 0.875rem;
           color: #888;
           padding: 8px 4px;
         }
 
         :global(.na-card) {
-          background: white;
-          border: 1px solid #e5e3de;
-          border-radius: 8px;
+          background: #fff;
+          border: 1px solid var(--line);
+          border-radius: 7px;
           padding: 12px 14px;
           cursor: pointer;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
           transition:
             transform 0.15s ease,
             box-shadow 0.15s ease,
@@ -650,32 +798,26 @@ export default function BallotDetailNewArguments() {
         }
         :global(.na-card:hover) {
           transform: translateY(-1px);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-        }
-        :global(.na-section-official .na-card) {
-          border-left: 3px solid #8a6b2b;
-        }
-        :global(.na-card-pro) {
-          border-top: 2px solid #c5e2d2;
-        }
-        :global(.na-card-contra) {
-          border-top: 2px solid #f0cdd3;
+          border-color: var(--line-mid);
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 2px 10px rgba(0, 0, 0, 0.05);
         }
         :global(.na-card-header) {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          margin-bottom: 8px;
+          margin-bottom: 10px;
+          padding-bottom: 9px;
+          border-bottom: 1px solid var(--line);
           gap: 8px;
         }
         :global(.na-card-title) {
-          font-size: 14px;
+          font-size: 1rem;
           font-weight: 600;
           line-height: 1.3;
           flex: 1;
         }
         :global(.na-card-body) {
-          font-size: 12px;
+          font-size: 0.9375rem;
           color: #555;
           line-height: 1.5;
           margin-bottom: 10px;
@@ -688,10 +830,10 @@ export default function BallotDetailNewArguments() {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          font-size: 11px;
+          font-size: 0.8125rem;
           color: #888;
           padding-top: 8px;
-          border-top: 1px solid #e5e3de;
+          border-top: 1px solid var(--line);
         }
         :global(.na-helpful) {
           color: #555;
@@ -758,10 +900,10 @@ export default function BallotDetailNewArguments() {
             transform: translateY(-1px);
           }
           :global(.na-card-pro .na-card-title::before) {
-            background: #2d8659;
+            background: var(--pro);
           }
           :global(.na-card-contra .na-card-title::before) {
-            background: #b8455a;
+            background: var(--contra);
           }
         }
       `}</style>

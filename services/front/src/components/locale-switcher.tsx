@@ -26,9 +26,10 @@ export function LocaleSwitcher() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex items-center justify-center size-[28px] rounded-[var(--r-sm)] border border-[var(--line)] bg-[var(--surface)] text-[var(--text-mid)] hover:bg-accent hover:border-[var(--line-mid)] transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 h-[28px] pl-2 pr-2.5 rounded-[var(--r-sm)] border border-[var(--line)] bg-[var(--surface-up)] text-[0.78125rem] text-[var(--text-mid)] hover:bg-accent hover:border-[var(--line-mid)] transition-colors cursor-pointer"
         >
-          <LanguageIcon className="h-3.5 w-3.5" />
+          <LanguageIcon className="h-3.5 w-3.5 shrink-0" />
+          <span>{localeLabels[locale as Locale]}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[140px]">

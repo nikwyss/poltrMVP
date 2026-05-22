@@ -35,7 +35,7 @@ function BallotCard({
       )}
 
       {ballot.record.text && (
-        <p className="text-[12.5px] text-[var(--text-mid)] mb-3 leading-relaxed line-clamp-3">
+        <p className="text-[0.78125rem] text-[var(--text-mid)] mb-3 leading-relaxed line-clamp-3">
           {ballot.record.text}
         </p>
       )}

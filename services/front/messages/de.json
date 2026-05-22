@@ -211,14 +211,14 @@
   "booklet": {
     "officialTitle": "Offizielle Argumente",
     "officialSubtitle": "aus dem Abstimmungsbüchlein der Bundeskanzlei",
-    "communityTitle": "Community",
+    "communityTitle": "Community Argumente",
     "communitySubtitle": "Argumente von Userinnen und Usern",
     "fallbackBundesrat": "Bundesrat",
     "fallbackInitiativkomitee": "Initiativkomitee",
     "fallbackOrganization": "Organisation"
   },
   "vorlage": {
-    "backToHome": "Vorlagen",
+    "backToHome": "Startseite",
     "info": "Infos",
     "chat": "Chatbot",
     "arguments": "Argumente",

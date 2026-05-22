@@ -32,9 +32,9 @@ export function ArgumentSummary({
 }) {
   const accentColor =
     type === "PRO"
-      ? "var(--green)"
+      ? "var(--pro)"
       : type === "CONTRA"
-        ? "var(--red)"
+        ? "var(--contra)"
         : "var(--border)";
 
   return (
