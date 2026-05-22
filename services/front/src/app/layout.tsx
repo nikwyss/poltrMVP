@@ -9,7 +9,7 @@ import { getLocale, getMessages } from "next-intl/server";
 const dmSans = DM_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "POLTR | PoC Platform",
+  title: "Abstimmungsdossier Platform",
   description: "ATProto-based civic-tech platform for Swiss referenda",
 };
 
