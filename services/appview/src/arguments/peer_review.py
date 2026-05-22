@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import httpx
 
 from src.core.db import get_pool
-from src.participation.governance import put_governance_record, compose_review_rkey
+from src.atproto.governance import put_governance_record, compose_review_rkey
 
 logger = logging.getLogger("peer_review")
 

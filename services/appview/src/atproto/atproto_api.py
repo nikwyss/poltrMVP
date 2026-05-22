@@ -379,7 +379,7 @@ async def _ensure_fresh_token(session: TSession, client: httpx.AsyncClient, pds_
 
 async def _relogin_from_stored_creds(did: str, client: httpx.AsyncClient, pds_url: str) -> dict:
     """Re-authenticate with the PDS using the encrypted password stored in auth_creds."""
-    from src.participation.pds_creds import decrypt_app_password
+    from src.atproto.pds_creds import decrypt_app_password
 
     db_pool = await db.get_pool()
     async with db_pool.acquire() as conn:

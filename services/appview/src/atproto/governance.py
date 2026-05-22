@@ -15,7 +15,7 @@ import string
 import httpx
 
 from src.core import db
-from src.participation.pds_creds import decrypt_app_password, encrypt_app_password
+from src.atproto.pds_creds import decrypt_app_password, encrypt_app_password
 
 logger = logging.getLogger("governance_pds")
 
@@ -158,7 +158,7 @@ async def create_ballot_account(ballot_rkey: str) -> str:
     3. Stores encrypted credentials in governance_accounts
     4. Waits for PLC resolution
     """
-    from src.participation.atproto_api import pds_admin_create_account, wait_for_plc_resolution
+    from src.atproto.atproto_api import pds_admin_create_account, wait_for_plc_resolution
 
     handle = f"ballot-{ballot_rkey}.id.poltr.ch"
     password = _generate_password()

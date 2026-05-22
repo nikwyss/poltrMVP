@@ -27,7 +27,7 @@ from src.auth.magic_link_handler import (
     verify_short_code_handler,
     generate_short_code,
 )
-from src.participation.atproto_api import pds_create_app_password, pds_set_birthdate
+from src.atproto.atproto_api import pds_create_app_password, pds_set_birthdate
 from src.core.fastapi import limiter
 
 EIDPROTO_URL = os.getenv("EIDPROTO_URL", "https://eidproto.poltr.info")
@@ -289,7 +289,7 @@ async def initiate_eid_verification(
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             # Get a fresh access token before sending to eidproto
-            from src.participation.atproto_api import _relogin_from_stored_creds
+            from src.atproto.atproto_api import _relogin_from_stored_creds
             fresh = await _relogin_from_stored_creds(session.did, client, pds_url)
             fresh_access_token = fresh["accessJwt"]
 

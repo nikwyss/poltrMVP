@@ -8,7 +8,7 @@ Called by register.py after Phase 1 (prepare) succeeds.
 import logging
 
 from src.config import PROFILE_BIO_TEMPLATE
-from src.participation.atproto_api import (
+from src.atproto.atproto_api import (
     TCreateAccountResponse,
     pds_admin_create_account,
     pds_admin_delete_account,

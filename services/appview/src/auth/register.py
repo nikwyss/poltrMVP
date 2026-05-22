@@ -14,8 +14,8 @@ import src.core.db as db
 from src.auth.login import create_session_cookie
 from src.auth.pseudonym_generator import generate_pseudonym
 from src.config import MAX_PDS_ACCOUNTS
-from src.participation.pds_creds import encrypt_app_password
-from src.participation.provisioning import provision_pds_account, ProvisioningError
+from src.atproto.pds_creds import encrypt_app_password
+from src.atproto.provisioning import provision_pds_account, ProvisioningError
 
 logger = logging.getLogger(__name__)
 

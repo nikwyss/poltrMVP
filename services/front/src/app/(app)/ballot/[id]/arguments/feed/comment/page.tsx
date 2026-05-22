@@ -1,53 +1,22 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
-import { getComment, listComments, createComment } from "@/lib/agent";
-import { likeContent, unlikeContent } from "@/lib/ballots";
+import { getComment, listComments } from "@/lib/agent";
 import { useScrollRestore, smartBack } from "@/lib/scrollRestore";
-import { formatRelativeTime, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { buildCommentMap, buildAncestorChain } from "@/lib/commentThread";
+import { useCommentThread } from "@/hooks/useCommentThread";
 import type { CommentWithMetadata } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
-import { ProContraBadge, ReviewStatusBadge } from "@/components/pro-contra-badge";
-import { CantonAvatar, BskyAvatar } from "@/components/canton-avatar";
+import { ArgumentSummary } from "@/components/argument-summary";
+import { CommentAvatar, CommentContent } from "@/components/comment-content";
 import { ReplyInput } from "@/components/reply-input";
-
-// ---------------------------------------------------------------------------
-// Thread helpers
-// ---------------------------------------------------------------------------
-
-function buildAncestorChain(
-  commentMap: Map<string, CommentWithMetadata>,
-  focalUri: string,
-): CommentWithMetadata[] {
-  const chain: CommentWithMetadata[] = [];
-  let current = commentMap.get(focalUri);
-  while (current?.parentUri) {
-    const parent = commentMap.get(current.parentUri);
-    if (!parent) break;
-    chain.unshift(parent);
-    current = parent;
-  }
-  return chain;
-}
-
-function authorName(
-  comment: CommentWithMetadata,
-  tc: (k: string) => string,
-): string {
-  if (comment.origin === "extern") {
-    return (
-      comment.author.handle || comment.author.displayName || tc("bluesky")
-    );
-  }
-  return comment.author.displayName || tc("anonymous");
-}
 
 // ---------------------------------------------------------------------------
 // PostRow — one comment in the thread (used for ancestors, focal and replies).
@@ -82,108 +51,51 @@ function PostRow({
   activeComposerUri?: string | null;
   renderComposer?: () => React.ReactNode;
 }) {
-  const tc = useTranslations("common");
-  const isExtern = comment.origin === "extern";
-  const liked = !!comment.viewer?.like;
-
   return (
     <div>
-    <div className="flex gap-3">
-      {/* avatar + thread line rail */}
-      <div className="flex flex-col items-center" style={{ width: AVATAR }}>
-        <div
-          className={cn("w-0.5 shrink-0", showLineTop ? "bg-border" : "bg-transparent")}
-          style={{ height: 8 }}
-        />
-        {isExtern ? (
-          <BskyAvatar size={AVATAR} />
-        ) : (
-          <CantonAvatar
-            canton={comment.author.canton}
-            color={comment.author.color}
-            size={AVATAR}
-          />
-        )}
-        {showLineBottom && <div className="w-0.5 flex-1 mt-1 bg-border" />}
-      </div>
-
-      {/* content */}
-      <div
-        className={cn("flex-1 min-w-0 pb-4", clickable && "cursor-pointer")}
-        onClick={clickable ? () => onNavigate?.(comment.uri) : undefined}
-      >
-        <div
-          className={cn(focal && "rounded-r-md px-3 py-2")}
-          style={
-            focal
-              ? {
-                  backgroundColor: "var(--brand-dim)",
-                  borderLeft: "2px solid var(--brand)",
-                }
-              : undefined
-          }
-        >
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
-            <span className="font-semibold text-foreground">
-              {authorName(comment, tc)}
-            </span>
-            {isExtern && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                {tc("bluesky")}
-              </Badge>
-            )}
-            <span>
-              {comment.record.createdAt
-                ? formatRelativeTime(comment.record.createdAt)
-                : ""}
-            </span>
-          </div>
-
+      <div className="flex gap-3">
+        {/* avatar + thread line rail */}
+        <div className="flex flex-col items-center" style={{ width: AVATAR }}>
           <div
             className={cn(
-              "leading-normal mt-0.5",
-              focal ? "text-base" : "text-sm",
-              clamp && "line-clamp-4",
+              "w-0.5 shrink-0",
+              showLineTop ? "bg-border" : "bg-transparent",
             )}
-          >
-            {comment.record.body}
-          </div>
+            style={{ height: 8 }}
+          />
+          <CommentAvatar comment={comment} size={AVATAR} />
+          {showLineBottom && <div className="w-0.5 flex-1 mt-1 bg-border" />}
+        </div>
 
-          <div className="flex gap-4 mt-1.5 text-xs text-muted-foreground">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onLikeToggle?.(comment);
-              }}
-              className="bg-transparent border-none p-0 cursor-pointer text-xs"
-              style={{ color: liked ? "var(--brand)" : "#8e8e8e" }}
-            >
-              {liked ? "❤" : "♡"}{" "}
-              {(comment.likeCount ?? 0) > 0 ? comment.likeCount : ""}
-            </button>
-            {!isExtern && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onReply?.(comment.uri);
-                }}
-                className={cn(
-                  "bg-transparent border-none p-0 cursor-pointer text-xs",
-                  focal
-                    ? "text-primary font-semibold"
-                    : "text-muted-foreground",
-                )}
-              >
-                {"💬"} {tc("reply")}
-              </button>
-            )}
+        {/* content */}
+        <div
+          className={cn("flex-1 min-w-0 pb-4", clickable && "cursor-pointer")}
+          onClick={clickable ? () => onNavigate?.(comment.uri) : undefined}
+        >
+          <div
+            className={cn(focal && "rounded-r-md px-3 py-2")}
+            style={
+              focal
+                ? {
+                    backgroundColor: "var(--brand-dim)",
+                    borderLeft: "2px solid var(--brand)",
+                  }
+                : undefined
+            }
+          >
+            <CommentContent
+              comment={comment}
+              focal={focal}
+              clamp={clamp}
+              onLikeToggle={onLikeToggle}
+              onReply={onReply}
+            />
           </div>
         </div>
       </div>
-    </div>
-    {comment.uri === activeComposerUri && renderComposer && (
-      <div className="pl-11 pb-3">{renderComposer()}</div>
-    )}
+      {comment.uri === activeComposerUri && renderComposer && (
+        <div className="pl-11 pb-3">{renderComposer()}</div>
+      )}
     </div>
   );
 }
@@ -244,74 +156,6 @@ function ReplyTree({
 }
 
 // ---------------------------------------------------------------------------
-// Argument context box (clickable → opens the argument)
-// ---------------------------------------------------------------------------
-
-function ArgumentContextBox({
-  title,
-  body,
-  type,
-  likeCount,
-  commentCount,
-  reviewStatus,
-  onClick,
-}: {
-  title: string;
-  body?: string;
-  type?: "PRO" | "CONTRA";
-  likeCount?: number;
-  commentCount?: number;
-  reviewStatus?: string;
-  onClick?: () => void;
-}) {
-  const accentColor =
-    type === "PRO"
-      ? "var(--green)"
-      : type === "CONTRA"
-        ? "var(--red)"
-        : "var(--border)";
-
-  return (
-    <div
-      onClick={onClick}
-      className={cn(
-        "pl-4 pr-2 py-2 rounded-r",
-        onClick && "cursor-pointer hover:bg-muted/40 transition-colors",
-      )}
-      style={{ borderLeft: `4px solid ${accentColor}` }}
-    >
-      <div className="flex items-start gap-2 mb-1">
-        <h3 className="text-base font-bold flex-1 leading-snug m-0">{title}</h3>
-        {type && <ProContraBadge type={type.toLowerCase()} />}
-        {onClick && (
-          <span className="text-muted-foreground text-base leading-none mt-0.5">
-            {"›"}
-          </span>
-        )}
-      </div>
-      {body && (
-        <p className="text-sm text-muted-foreground leading-relaxed m-0 mb-2 line-clamp-2">
-          {body}
-        </p>
-      )}
-      <div className="flex gap-4 text-xs text-muted-foreground items-center flex-wrap">
-        {(likeCount ?? 0) > 0 && (
-          <span>
-            {"♡"} {likeCount}
-          </span>
-        )}
-        {(commentCount ?? 0) > 0 && (
-          <span>
-            {"💬"} {commentCount}
-          </span>
-        )}
-        <ReviewStatusBadge status={reviewStatus} />
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Argument info type
 // ---------------------------------------------------------------------------
 
@@ -355,24 +199,45 @@ export default function CommentDetailPage({
   const t = useTranslations("commentDetail");
   const tc = useTranslations("common");
 
-  const [focalComment, setFocalComment] = useState<CommentWithMetadata | null>(
-    null,
-  );
   const [argument, setArgument] = useState<ArgumentInfo | null>(null);
-  const [directReplies, setDirectReplies] = useState<CommentWithMetadata[]>([]);
-  const [ancestors, setAncestors] = useState<CommentWithMetadata[]>([]);
+  const [focalUri, setFocalUri] = useState("");
+  // Insurance in case the focal comment is missing from listComments().
+  const [focalFallback, setFocalFallback] =
+    useState<CommentWithMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [replyText, setReplyText] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  // null = no composer open; otherwise the uri of the comment being replied to.
-  const [replyTarget, setReplyTarget] = useState<string | null>(null);
-  const replyInputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Focus the textarea whenever the composer opens.
-  useEffect(() => {
-    if (replyTarget) replyInputRef.current?.focus();
-  }, [replyTarget]);
+  const {
+    comments,
+    setComments,
+    toggleLike,
+    submitComment,
+    replyText,
+    setReplyText,
+    submitting,
+    replyTarget,
+    setReplyTarget,
+    replyInputRef,
+  } = useCommentThread();
+
+  // Derive the thread spine (ancestors → focal → direct replies) from the
+  // flat comment list. Likes/replies update the list, so this stays in sync.
+  const { focalComment, ancestors, directReplies } = useMemo(() => {
+    if (!focalUri) {
+      return {
+        focalComment: null as CommentWithMetadata | null,
+        ancestors: [] as CommentWithMetadata[],
+        directReplies: [] as CommentWithMetadata[],
+      };
+    }
+    const map = buildCommentMap(comments, focalFallback);
+    const focal = map.get(focalUri) ?? null;
+    return {
+      focalComment: focal,
+      ancestors: buildAncestorChain(map, focalUri),
+      directReplies: focal?.replies ?? [],
+    };
+  }, [comments, focalUri, focalFallback]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -389,179 +254,51 @@ export default function CommentDetailPage({
         const { comment, argument: arg } = await getComment(commentUri);
         const allCmts = await listComments(arg.uri);
 
-        const commentMap = new Map<string, CommentWithMetadata>();
-        for (const c of allCmts) {
-          commentMap.set(c.uri, { ...c, replies: [] });
-        }
-        if (!commentMap.has(comment.uri)) {
-          commentMap.set(comment.uri, { ...comment, replies: [] });
-        }
-
-        for (const c of allCmts) {
-          if (c.parentUri && commentMap.has(c.parentUri)) {
-            commentMap.get(c.parentUri)!.replies!.push(commentMap.get(c.uri)!);
-          }
-        }
-
-        const chain = buildAncestorChain(commentMap, comment.uri);
-        const replies = allCmts
-          .filter((c) => c.parentUri === comment.uri)
-          .map((c) => commentMap.get(c.uri)!);
-
-        setFocalComment(comment);
         setArgument(arg);
-        setAncestors(chain);
-        setDirectReplies(replies);
+        setFocalUri(comment.uri);
+        setFocalFallback(comment);
+        setComments(allCmts);
+
         // Empty thread → open the composer under the focal comment right away.
-        setReplyTarget(replies.length === 0 ? comment.uri : null);
+        const hasReplies = allCmts.some((c) => c.parentUri === comment.uri);
+        setReplyTarget(hasReplies ? null : comment.uri);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load comment");
       } finally {
         setLoading(false);
       }
     })();
-  }, [isAuthenticated, authLoading, commentUri]);
+  }, [
+    isAuthenticated,
+    authLoading,
+    commentUri,
+    setComments,
+    setReplyTarget,
+  ]);
 
-  const handleLikeToggle = useCallback(
-    async (c: CommentWithMetadata) => {
-      const liked = !!c.viewer?.like;
+  const handleNavigateToComment = (uri: string) => {
+    if (onNavigateToComment) {
+      onNavigateToComment(uri);
+      return;
+    }
+    router.push(
+      `/ballot/${id}/arguments/feed/comment?uri=${encodeURIComponent(uri)}`,
+    );
+  };
 
-      if (c.uri === focalComment?.uri) {
-        setFocalComment((prev) =>
-          prev
-            ? {
-                ...prev,
-                likeCount: (prev.likeCount ?? 0) + (liked ? -1 : 1),
-                viewer: liked ? undefined : { like: "__pending__" },
-              }
-            : prev,
-        );
-      } else {
-        setDirectReplies((prev) =>
-          prev.map((r) =>
-            r.uri === c.uri
-              ? {
-                  ...r,
-                  likeCount: (r.likeCount ?? 0) + (liked ? -1 : 1),
-                  viewer: liked ? undefined : { like: "__pending__" },
-                }
-              : r,
-          ),
-        );
-      }
-
-      try {
-        if (liked) {
-          await unlikeContent(c.viewer!.like!);
-          if (c.uri === focalComment?.uri) {
-            setFocalComment((prev) =>
-              prev ? { ...prev, viewer: undefined } : prev,
-            );
-          } else {
-            setDirectReplies((prev) =>
-              prev.map((r) =>
-                r.uri === c.uri ? { ...r, viewer: undefined } : r,
-              ),
-            );
-          }
-        } else {
-          const likeUri = await likeContent(c.uri, c.cid);
-          if (c.uri === focalComment?.uri) {
-            setFocalComment((prev) =>
-              prev ? { ...prev, viewer: { like: likeUri } } : prev,
-            );
-          } else {
-            setDirectReplies((prev) =>
-              prev.map((r) =>
-                r.uri === c.uri ? { ...r, viewer: { like: likeUri } } : r,
-              ),
-            );
-          }
-        }
-      } catch (err) {
-        console.error("Failed to toggle like:", err);
-        if (c.uri === focalComment?.uri) {
-          setFocalComment((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  likeCount: (prev.likeCount ?? 0) + (liked ? 1 : -1),
-                  viewer: liked ? { like: c.viewer!.like! } : undefined,
-                }
-              : prev,
-          );
-        } else {
-          setDirectReplies((prev) =>
-            prev.map((r) =>
-              r.uri === c.uri
-                ? {
-                    ...r,
-                    likeCount: (r.likeCount ?? 0) + (liked ? 1 : -1),
-                    viewer: liked ? { like: c.viewer!.like! } : undefined,
-                  }
-                : r,
-            ),
-          );
-        }
-      }
-    },
-    [focalComment],
-  );
-
-  const handleNavigateToComment = useCallback(
-    (uri: string) => {
-      if (onNavigateToComment) {
-        onNavigateToComment(uri);
-        return;
-      }
-      router.push(
-        `/ballot/${id}/arguments/feed/comment?uri=${encodeURIComponent(uri)}`,
-      );
-    },
-    [id, router, onNavigateToComment],
-  );
-
-  const handleNavigateToArgument = useCallback(() => {
+  const handleNavigateToArgument = () => {
     if (!argument) return;
     if (onNavigateToArgument) {
       onNavigateToArgument(argument.rkey);
       return;
     }
     router.push(`/ballot/${id}/arguments/${argument.rkey}`);
-  }, [argument, onNavigateToArgument, id, router]);
+  };
 
-  const handleReply = useCallback((uri: string) => {
-    setReplyTarget(uri);
-  }, []);
-
-  const handleSubmitReply = useCallback(async () => {
-    if (!replyText.trim() || submitting || !focalComment || !argument) return;
-    const parentUri = replyTarget ?? focalComment.uri;
-    setSubmitting(true);
-    try {
-      await createComment(argument.uri, "", replyText.trim(), parentUri);
-      setReplyText("");
-      const allCmts = await listComments(argument.uri);
-      const commentMap = new Map<string, CommentWithMetadata>();
-      for (const c of allCmts) {
-        commentMap.set(c.uri, { ...c, replies: [] });
-      }
-      for (const c of allCmts) {
-        if (c.parentUri && commentMap.has(c.parentUri)) {
-          commentMap.get(c.parentUri)!.replies!.push(commentMap.get(c.uri)!);
-        }
-      }
-      const replies = allCmts
-        .filter((c) => c.parentUri === focalComment.uri)
-        .map((c) => commentMap.get(c.uri)!);
-      setDirectReplies(replies);
-      setReplyTarget(null);
-    } catch (err) {
-      console.error("Failed to submit reply:", err);
-    } finally {
-      setSubmitting(false);
-    }
-  }, [replyText, submitting, focalComment, argument, replyTarget]);
+  const handleSubmitReply = () => {
+    if (!argument || !focalUri) return;
+    submitComment(argument.uri, replyTarget ?? focalUri);
+  };
 
   useScrollRestore(!isOverlay && !loading && !!focalComment);
 
@@ -579,13 +316,14 @@ export default function CommentDetailPage({
 
   // ── Shared content blocks (used by both overlay and full-page layouts) ──────
   const contextBox = !loading && focalComment && argument && (
-    <ArgumentContextBox
+    <ArgumentSummary
       title={argument.title}
       body={argument.body}
       type={argument.type}
       likeCount={argument.likeCount}
       commentCount={argument.commentCount}
       reviewStatus={argument.reviewStatus}
+      clampBody
       onClick={handleNavigateToArgument}
     />
   );
@@ -617,8 +355,8 @@ export default function CommentDetailPage({
           showLineTop={idx > 0}
           showLineBottom
           onNavigate={handleNavigateToComment}
-          onLikeToggle={handleLikeToggle}
-          onReply={handleReply}
+          onLikeToggle={toggleLike}
+          onReply={setReplyTarget}
           activeComposerUri={replyTarget}
           renderComposer={renderComposer}
         />
@@ -628,8 +366,8 @@ export default function CommentDetailPage({
         comment={focalComment}
         focal
         showLineTop={ancestors.length > 0}
-        onLikeToggle={handleLikeToggle}
-        onReply={handleReply}
+        onLikeToggle={toggleLike}
+        onReply={setReplyTarget}
         activeComposerUri={replyTarget}
         renderComposer={renderComposer}
       />
@@ -646,8 +384,8 @@ export default function CommentDetailPage({
               comment={reply}
               depth={0}
               onNavigate={handleNavigateToComment}
-              onLikeToggle={handleLikeToggle}
-              onReply={handleReply}
+              onLikeToggle={toggleLike}
+              onReply={setReplyTarget}
               activeComposerUri={replyTarget}
               renderComposer={renderComposer}
             />

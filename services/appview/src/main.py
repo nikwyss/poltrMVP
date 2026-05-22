@@ -1,7 +1,7 @@
 from src.core.fastapi import app
 
 from src.routes.auth import router as auth_router
-from src.routes.participation import routers as participation_routers
+from src.routes.ballots import routers as participation_routers
 from src.routes.atproto import routers as atproto_routers
 
 app.include_router(auth_router)

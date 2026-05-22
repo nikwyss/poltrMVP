@@ -14,6 +14,9 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     strategy:
+      # Serialize: parallel pushes of services that share base-image layers
+      # race on ghcr.io cross-repo blob mounts and fail with "unknown blob".
+      max-parallel: 1
       matrix:
         service: [appview, indexer, front, cms]
 
@@ -33,8 +36,19 @@ jobs:
             BUILD_ARGS="--build-arg NEXT_PUBLIC_EID_VERIFICATION_ENABLED=false"
           fi
           docker build --no-cache $BUILD_ARGS -t ${IMAGE}:${TAG} -t ${IMAGE}:latest ./services/${{ matrix.service }}
-          docker push ${IMAGE}:${TAG}
-          docker push ${IMAGE}:latest
+          # Retry pushes: ghcr.io occasionally returns transient "unknown blob".
+          for ref in "${IMAGE}:${TAG}" "${IMAGE}:latest"; do
+            pushed=false
+            for attempt in 1 2 3; do
+              if docker push "$ref"; then pushed=true; break; fi
+              echo "push of $ref failed (attempt $attempt), retrying in 10s..."
+              sleep 10
+            done
+            if [ "$pushed" != true ]; then
+              echo "ERROR: giving up on $ref after 3 attempts"
+              exit 1
+            fi
+          done
 
       - name: Output image tag
         run: echo "Built ghcr.io/${{ github.repository_owner }}/poltr-${{ matrix.service }}:${{ github.sha }}"

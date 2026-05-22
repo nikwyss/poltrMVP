@@ -8,7 +8,7 @@ from unittest.mock import patch, AsyncMock, MagicMock
 import pytest
 
 from tests.conftest import FakePool
-from src.participation.provisioning import ProvisioningError
+from src.atproto.provisioning import ProvisioningError
 
 FAKE_PSEUDONYM = {
     "displayName": "TestBerg A",

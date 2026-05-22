@@ -20,7 +20,7 @@ import httpx
 
 from src.auth.middleware import TSession, verify_session_token
 from src.core.db import get_pool
-from src.participation.governance import put_governance_record, compose_review_rkey
+from src.atproto.governance import put_governance_record, compose_review_rkey
 
 logger = logging.getLogger("review")
 

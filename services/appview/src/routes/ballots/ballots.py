@@ -20,8 +20,8 @@ from src.core.fastapi import logger
 from src.core.db import get_pool
 from src.core.cursor import encode_cursor
 from src.core.lib import get_string, get_date_iso, get_number, get_array, get_object
-from src.participation.atproto_api import pds_create_record, pds_delete_record
-from src.participation.governance import create_governance_record, get_did_for_ballot
+from src.atproto.atproto_api import pds_create_record, pds_delete_record
+from src.atproto.governance import create_governance_record, get_did_for_ballot
 
 router = APIRouter(prefix="/xrpc", tags=["poltr"])
 

@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 import httpx
 
 from src.core.db import get_pool
-from src.participation.governance import get_governance_token, _pds_internal_url
+from src.atproto.governance import get_governance_token, _pds_internal_url
 
 logger = logging.getLogger("crosspost")
 
