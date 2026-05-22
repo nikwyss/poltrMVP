@@ -23,7 +23,8 @@
     "loading": "Loading...",
     "close": "Close",
     "backToArgument": "Back to argument",
-    "backToPost": "Back to post"
+    "backToPost": "Back to post",
+    "cancel": "Cancel"
   },
   "nav": {
     "home": "Home",
@@ -111,7 +112,8 @@
     "verificationFailed": "E-ID verification failed. Please try again.",
     "appPasswordCreated": "App Password Created!",
     "pds": "PDS",
-    "password": "Password"
+    "password": "Password",
+    "pseudonymSource": "Your display name is derived from the mountain “{mountain}” – {canton}, {height} m a.s.l."
   },
   "ballots": {
     "title": "Ballots",
@@ -140,7 +142,8 @@
     "noComments": "No comments yet. Be the first!",
     "addComment": "Add a comment:",
     "commentPlaceholder": "Write a comment...",
-    "loadingArgument": "Loading argument..."
+    "loadingArgument": "Loading argument...",
+    "writeComment": "Write a comment"
   },
   "feed": {
     "addArgument": "Add argument",

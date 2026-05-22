@@ -62,6 +62,10 @@ function MagicLinkSentContent() {
         did: data.user.did,
         handle: data.user.handle,
         displayName: data.user.displayName,
+        canton: data.user.canton,
+        color: data.user.color,
+        mountainFullname: data.user.mountainFullname,
+        height: data.user.height,
       });
 
       router.push('/home');

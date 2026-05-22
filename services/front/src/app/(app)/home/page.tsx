@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import { listBallots } from "@/lib/agent";
-import { likeBallot, unlikeBallot } from "@/lib/ballots";
 import { formatDate } from "@/lib/utils";
 import type { BallotWithMetadata } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
@@ -16,11 +15,9 @@ import { Spinner } from "@/components/spinner";
 
 function BallotCard({
   ballot,
-  onLike,
   onClick,
 }: {
   ballot: BallotWithMetadata;
-  onLike: (b: BallotWithMetadata) => void;
   onClick: () => void;
 }) {
   const t = useTranslations("ballots");
@@ -29,24 +26,9 @@ function BallotCard({
       className="bg-card border border-border rounded-[var(--r)] p-5 cursor-pointer card-hover"
       onClick={onClick}
     >
-      <div className="flex justify-between items-start mb-2">
-        <h3 className="font-bold text-lg leading-tight tracking-tight">
-          {ballot.record.title}
-        </h3>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onLike(ballot);
-          }}
-          className="like-pill shrink-0 ml-2"
-          data-liked={ballot.viewer?.like ? "true" : "false"}
-        >
-          {"\u2764"}
-          {"\u00a0"}
-          {ballot.likeCount ?? 0}
-        </button>
-      </div>
+      <h3 className="font-bold text-lg leading-tight tracking-tight mb-2">
+        {ballot.record.title}
+      </h3>
 
       {ballot.record.topic && (
         <span className="tag eyebrow mb-2">{ballot.record.topic}</span>
@@ -79,11 +61,9 @@ function BallotCard({
 
 function BallotGrid({
   ballots,
-  onLike,
   router,
 }: {
   ballots: BallotWithMetadata[];
-  onLike: (b: BallotWithMetadata) => void;
   router: ReturnType<typeof useRouter>;
 }) {
   if (ballots.length === 0) return null;
@@ -101,7 +81,6 @@ function BallotGrid({
           <BallotCard
             key={ballot.uri}
             ballot={ballot}
-            onLike={onLike}
             onClick={() => rkey && router.push(`/ballot/${rkey}/arguments`)}
           />
         );
@@ -143,53 +122,6 @@ export default function Home() {
       setLoading(false);
     }
   };
-
-  const handleToggleLike = useCallback(async (ballot: BallotWithMetadata) => {
-    const isLiked = !!ballot.viewer?.like;
-
-    setBallots((prev) =>
-      prev.map((b) =>
-        b.uri === ballot.uri
-          ? {
-              ...b,
-              likeCount: (b.likeCount ?? 0) + (isLiked ? -1 : 1),
-              viewer: isLiked ? undefined : { like: "__pending__" },
-            }
-          : b,
-      ),
-    );
-
-    try {
-      if (isLiked) {
-        await unlikeBallot(ballot.viewer!.like!);
-        setBallots((prev) =>
-          prev.map((b) =>
-            b.uri === ballot.uri ? { ...b, viewer: undefined } : b,
-          ),
-        );
-      } else {
-        const likeUri = await likeBallot(ballot.uri, ballot.cid);
-        setBallots((prev) =>
-          prev.map((b) =>
-            b.uri === ballot.uri ? { ...b, viewer: { like: likeUri } } : b,
-          ),
-        );
-      }
-    } catch (err) {
-      console.error("Failed to toggle like:", err);
-      setBallots((prev) =>
-        prev.map((b) =>
-          b.uri === ballot.uri
-            ? {
-                ...b,
-                likeCount: (b.likeCount ?? 0) + (isLiked ? 1 : -1),
-                viewer: isLiked ? { like: ballot.viewer!.like! } : undefined,
-              }
-            : b,
-        ),
-      );
-    }
-  }, []);
 
   if (authLoading) {
     return (
@@ -259,11 +191,7 @@ export default function Home() {
               </span>
             </h2>
           </div>
-          <BallotGrid
-            ballots={upcoming}
-            onLike={handleToggleLike}
-            router={router}
-          />
+          <BallotGrid ballots={upcoming} router={router} />
         </section>
       )}
     </div>

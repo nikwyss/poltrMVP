@@ -7,6 +7,11 @@ interface User {
   did: string;
   handle: string;
   displayName: string;
+  // Non-sensitive profile fields cached for display only (from app_profiles).
+  canton?: string;
+  color?: string;
+  mountainFullname?: string;
+  height?: number;
 }
 
 interface AuthContextType {
@@ -43,6 +48,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!data.authenticated) {
           setUser(null);
           localStorage.removeItem('poltr_user');
+          return;
+        }
+        // Refresh the cached profile fields (e.g. the display name from
+        // app_profiles) so the header reflects the pseudonym, not the handle.
+        if (data.did) {
+          const fresh: User = {
+            did: data.did,
+            handle: data.handle ?? '',
+            displayName: data.displayName ?? '',
+            canton: data.canton ?? undefined,
+            color: data.color ?? undefined,
+            mountainFullname: data.mountainFullname ?? undefined,
+            height: data.height ?? undefined,
+          };
+          setUser((prev) => {
+            const merged = { ...prev, ...fresh };
+            localStorage.setItem('poltr_user', JSON.stringify(merged));
+            return merged;
+          });
         }
       })
       .catch(() => {

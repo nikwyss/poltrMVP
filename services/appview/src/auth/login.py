@@ -30,7 +30,14 @@ async def login_account(user_email: str) -> JSONResponse:
 
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT did, handle FROM auth_creds WHERE email = $1",
+            """
+            SELECT c.did, c.handle,
+                   p.display_name, p.canton, p.color,
+                   p.mountain_fullname, p.height
+            FROM auth_creds c
+            LEFT JOIN app_profiles p ON p.did = c.did
+            WHERE c.email = $1
+            """,
             user_email,
         )
 
@@ -43,7 +50,17 @@ async def login_account(user_email: str) -> JSONResponse:
             },
         )
 
-    response = await create_session_cookie(did=row["did"], handle=row["handle"])
+    response = await create_session_cookie(
+        did=row["did"],
+        handle=row["handle"],
+        display_name=row["display_name"],
+        profile={
+            "canton": row["canton"],
+            "color": row["color"],
+            "mountainFullname": row["mountain_fullname"],
+            "height": float(row["height"]) if row["height"] is not None else None,
+        },
+    )
     logger.debug(f"Login successful for {user_email}")
     return response
 
@@ -52,16 +69,26 @@ async def create_session_cookie(
     did: str,
     handle: str,
     display_name: str | None = None,
+    profile: dict | None = None,
 ) -> JSONResponse:
-    """Create a session and set the httpOnly cookie."""
+    """Create a session and set the httpOnly cookie.
+
+    `profile` carries non-sensitive app_profiles fields (canton, color,
+    mountainFullname, height) that the frontend caches for display only.
+    """
     session_token = secrets.token_urlsafe(48)
     session_token_hash = hash_token(session_token)
     session_expires = datetime.utcnow() + timedelta(days=APPVIEW_SESSION_LIFETIME_DAYS)
 
+    profile = profile or {}
     user_data = {
         "did": did,
         "handle": handle,
         "displayName": display_name or handle.split(".")[0],
+        "canton": profile.get("canton"),
+        "color": profile.get("color"),
+        "mountainFullname": profile.get("mountainFullname"),
+        "height": profile.get("height"),
     }
 
     # Store the hash in DB, send the original in the cookie

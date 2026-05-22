@@ -199,10 +199,40 @@ async def check_session(
     request: Request, session: TSession = Depends(verify_session_token)
 ):
     """Lightweight session validity check. Returns basic user info."""
+    handle = session.user.get("handle", "") if session.user else ""
+
+    # Read current profile fields so the header reflects the pseudonym even for
+    # sessions created before they were stored in user_data. Display only.
+    row = None
+    try:
+        if db.pool is None:
+            await db.init_pool()
+        async with db.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT display_name, canton, color, mountain_fullname, height
+                FROM app_profiles WHERE did = $1
+                """,
+                session.did,
+            )
+    except Exception:
+        pass
+
+    display_name = (row["display_name"] if row else None) or (
+        session.user.get("displayName") if session.user else None
+    ) or (handle.split(".")[0] if handle else "")
+
+    height = row["height"] if row else None
+
     return JSONResponse(content={
         "authenticated": True,
         "did": session.did,
-        "handle": session.user.get("handle", "") if session.user else "",
+        "handle": handle,
+        "displayName": display_name,
+        "canton": row["canton"] if row else None,
+        "color": row["color"] if row else None,
+        "mountainFullname": row["mountain_fullname"] if row else None,
+        "height": float(height) if height is not None else None,
     })
 
 

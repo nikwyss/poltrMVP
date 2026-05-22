@@ -67,6 +67,8 @@ function PostRow({
   onNavigate,
   onLikeToggle,
   onReply,
+  activeComposerUri,
+  renderComposer,
 }: {
   comment: CommentWithMetadata;
   focal?: boolean;
@@ -77,12 +79,15 @@ function PostRow({
   onNavigate?: (uri: string) => void;
   onLikeToggle?: (c: CommentWithMetadata) => void;
   onReply?: (uri: string) => void;
+  activeComposerUri?: string | null;
+  renderComposer?: () => React.ReactNode;
 }) {
   const tc = useTranslations("common");
   const isExtern = comment.origin === "extern";
   const liked = !!comment.viewer?.like;
 
   return (
+    <div>
     <div className="flex gap-3">
       {/* avatar + thread line rail */}
       <div className="flex flex-col items-center" style={{ width: AVATAR }}>
@@ -176,6 +181,10 @@ function PostRow({
         </div>
       </div>
     </div>
+    {comment.uri === activeComposerUri && renderComposer && (
+      <div className="pl-11 pb-3">{renderComposer()}</div>
+    )}
+    </div>
   );
 }
 
@@ -189,12 +198,16 @@ function ReplyTree({
   onNavigate,
   onLikeToggle,
   onReply,
+  activeComposerUri,
+  renderComposer,
 }: {
   comment: CommentWithMetadata;
   depth: number;
   onNavigate: (uri: string) => void;
   onLikeToggle: (c: CommentWithMetadata) => void;
   onReply: (uri: string) => void;
+  activeComposerUri?: string | null;
+  renderComposer?: () => React.ReactNode;
 }) {
   const showChildren =
     !!comment.replies && comment.replies.length > 0 && depth < 2;
@@ -207,6 +220,8 @@ function ReplyTree({
         onNavigate={onNavigate}
         onLikeToggle={onLikeToggle}
         onReply={onReply}
+        activeComposerUri={activeComposerUri}
+        renderComposer={renderComposer}
       />
       {showChildren && (
         <div className="pl-6">
@@ -218,6 +233,8 @@ function ReplyTree({
               onNavigate={onNavigate}
               onLikeToggle={onLikeToggle}
               onReply={onReply}
+              activeComposerUri={activeComposerUri}
+              renderComposer={renderComposer}
             />
           ))}
         </div>
@@ -348,7 +365,14 @@ export default function CommentDetailPage({
   const [error, setError] = useState("");
   const [replyText, setReplyText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // null = no composer open; otherwise the uri of the comment being replied to.
+  const [replyTarget, setReplyTarget] = useState<string | null>(null);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Focus the textarea whenever the composer opens.
+  useEffect(() => {
+    if (replyTarget) replyInputRef.current?.focus();
+  }, [replyTarget]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -388,6 +412,8 @@ export default function CommentDetailPage({
         setArgument(arg);
         setAncestors(chain);
         setDirectReplies(replies);
+        // Empty thread → open the composer under the focal comment right away.
+        setReplyTarget(replies.length === 0 ? comment.uri : null);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load comment");
       } finally {
@@ -504,15 +530,16 @@ export default function CommentDetailPage({
     router.push(`/ballot/${id}/arguments/${argument.rkey}`);
   }, [argument, onNavigateToArgument, id, router]);
 
-  const handleReply = useCallback(() => {
-    replyInputRef.current?.focus();
+  const handleReply = useCallback((uri: string) => {
+    setReplyTarget(uri);
   }, []);
 
   const handleSubmitReply = useCallback(async () => {
     if (!replyText.trim() || submitting || !focalComment || !argument) return;
+    const parentUri = replyTarget ?? focalComment.uri;
     setSubmitting(true);
     try {
-      await createComment(argument.uri, "", replyText.trim(), focalComment.uri);
+      await createComment(argument.uri, "", replyText.trim(), parentUri);
       setReplyText("");
       const allCmts = await listComments(argument.uri);
       const commentMap = new Map<string, CommentWithMetadata>();
@@ -528,12 +555,13 @@ export default function CommentDetailPage({
         .filter((c) => c.parentUri === focalComment.uri)
         .map((c) => commentMap.get(c.uri)!);
       setDirectReplies(replies);
+      setReplyTarget(null);
     } catch (err) {
       console.error("Failed to submit reply:", err);
     } finally {
       setSubmitting(false);
     }
-  }, [replyText, submitting, focalComment, argument]);
+  }, [replyText, submitting, focalComment, argument, replyTarget]);
 
   useScrollRestore(!isOverlay && !loading && !!focalComment);
 
@@ -562,6 +590,21 @@ export default function CommentDetailPage({
     />
   );
 
+  const renderComposer = () => (
+    <ReplyInput
+      ref={replyInputRef}
+      value={replyText}
+      onChange={setReplyText}
+      onSubmit={handleSubmitReply}
+      submitting={submitting}
+      placeholder={t("replyPlaceholder")}
+      onCancel={() => {
+        setReplyText("");
+        setReplyTarget(null);
+      }}
+    />
+  );
+
   const threadBlock = !loading && focalComment && argument && (
     <div>
       {/* Spine: ancestor chain → focal, connected by a vertical thread line */}
@@ -576,6 +619,8 @@ export default function CommentDetailPage({
           onNavigate={handleNavigateToComment}
           onLikeToggle={handleLikeToggle}
           onReply={handleReply}
+          activeComposerUri={replyTarget}
+          renderComposer={renderComposer}
         />
       ))}
 
@@ -585,6 +630,8 @@ export default function CommentDetailPage({
         showLineTop={ancestors.length > 0}
         onLikeToggle={handleLikeToggle}
         onReply={handleReply}
+        activeComposerUri={replyTarget}
+        renderComposer={renderComposer}
       />
 
       {/* Replies */}
@@ -601,27 +648,13 @@ export default function CommentDetailPage({
               onNavigate={handleNavigateToComment}
               onLikeToggle={handleLikeToggle}
               onReply={handleReply}
+              activeComposerUri={replyTarget}
+              renderComposer={renderComposer}
             />
           ))}
         </div>
       )}
     </div>
-  );
-
-  const replyBlock = !loading && focalComment && argument && (
-    <>
-      <div className="text-xs text-muted-foreground mb-1.5">
-        {t("replyToComment")}
-      </div>
-      <ReplyInput
-        ref={replyInputRef}
-        value={replyText}
-        onChange={setReplyText}
-        onSubmit={handleSubmitReply}
-        submitting={submitting}
-        placeholder={t("replyPlaceholder")}
-      />
-    </>
   );
 
   // ── Overlay layout (rendered inside Dialog) ─────────────────────────────────
@@ -640,7 +673,7 @@ export default function CommentDetailPage({
         </div>
 
         {/* Scrolling content */}
-        <div className="px-5 py-5 pb-28 space-y-5">
+        <div className="px-5 py-5 space-y-5">
           {error && (
             <Alert variant="destructive">
               <AlertDescription>
@@ -665,13 +698,6 @@ export default function CommentDetailPage({
             </>
           )}
         </div>
-
-        {/* Sticky reply composer */}
-        {loaded && (
-          <div className="sticky bottom-0 z-10 bg-background/95 backdrop-blur-sm border-t px-5 py-3">
-            {replyBlock}
-          </div>
-        )}
       </div>
     );
   }
@@ -710,10 +736,6 @@ export default function CommentDetailPage({
 
           <Card>
             <CardContent className="pt-5">{threadBlock}</CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-4 pb-3">{replyBlock}</CardContent>
           </Card>
         </>
       )}

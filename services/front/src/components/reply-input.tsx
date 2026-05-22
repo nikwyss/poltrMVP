@@ -11,7 +11,8 @@ export const ReplyInput = forwardRef<HTMLTextAreaElement, {
   onSubmit: () => void;
   submitting: boolean;
   placeholder: string;
-}>(function ReplyInput({ value, onChange, onSubmit, submitting, placeholder }, ref) {
+  onCancel?: () => void;
+}>(function ReplyInput({ value, onChange, onSubmit, submitting, placeholder, onCancel }, ref) {
   const [focused, setFocused] = useState(false);
   const tc = useTranslations('common');
 
@@ -28,11 +29,23 @@ export const ReplyInput = forwardRef<HTMLTextAreaElement, {
         className="flex-1 text-xs resize-none"
         onKeyDown={(e) => {
           if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSubmit(); }
+          else if (e.key === 'Escape' && onCancel) { e.preventDefault(); onCancel(); }
         }}
       />
+      {onCancel && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onCancel}
+        >
+          {tc('cancel')}
+        </Button>
+      )}
       {(focused || value) && (
         <Button
           size="sm"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={onSubmit}
           disabled={!value.trim() || submitting}
         >

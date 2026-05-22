@@ -526,7 +526,9 @@ async def list_comments(
     else:
         viewer_select = ",\n            NULL AS viewer_like"
 
-    params.append(limit)
+    # Deterministic fetch order; the per-user permutation is applied in Python
+    # below (same stable per-user shuffle as argument.list) so each user gets
+    # their own fixed ordering that never reshuffles when comments are added.
     sql = f"""
         SELECT c.*,
                p.display_name AS profile_display_name,
@@ -536,8 +538,7 @@ async def list_comments(
         FROM app_comments c
         LEFT JOIN app_profiles p ON p.did = c.did
         WHERE c.argument_uri = $1 AND NOT c.deleted
-        ORDER BY c.like_count DESC, c.created_at ASC
-        LIMIT ${len(params)};
+        ORDER BY c.created_at ASC, c.uri;
     """
 
     try:
@@ -589,6 +590,15 @@ async def list_comments(
             }
             comment = {k: v for k, v in comment_raw.items() if v is not None}
             comments.append(comment)
+
+        # Stable per-user shuffle: each comment's key depends only on the viewer
+        # DID and its own uri, so the order is stable per user and adding a
+        # comment never moves the others. viewer_did is realistically always set.
+        seed = viewer_did or ""
+        comments.sort(
+            key=lambda c: hashlib.md5(f"{seed}:{c['uri']}".encode()).hexdigest()
+        )
+        comments = comments[:limit]
 
         return JSONResponse(status_code=200, content={"comments": comments})
     except Exception as err:

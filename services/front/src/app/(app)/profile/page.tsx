@@ -133,6 +133,19 @@ function ProfileContent() {
           <CardContent>
             <p className="text-sm text-muted-foreground mb-3">
               {t("pseudonymExplanation")}
+              {user.mountainFullname && (
+                <>
+                  {" "}
+                  {t("pseudonymSource", {
+                    mountain: user.mountainFullname,
+                    canton: user.canton ?? "—",
+                    height:
+                      user.height != null
+                        ? Math.round(user.height).toLocaleString("de-CH")
+                        : "—",
+                  })}
+                </>
+              )}
             </p>
             <div className="space-y-1 text-sm">
               <p>

@@ -98,6 +98,7 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
     response = await create_session_cookie(
         did=did, handle=handle,
         display_name=pseudonym["displayName"],
+        profile=pseudonym,
     )
 
     logger.debug(f"Registration complete for {user_email}")

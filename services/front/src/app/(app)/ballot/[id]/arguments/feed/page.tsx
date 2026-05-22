@@ -10,8 +10,7 @@ import {
   markActivitySeen,
   createArgument,
 } from "@/lib/agent";
-import { likeBallot, unlikeBallot } from "@/lib/ballots";
-import { loadCached, patchCached } from "@/lib/pageCache";
+import { loadCached } from "@/lib/pageCache";
 import { useScrollRestore } from "@/lib/scrollRestore";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
 import type { BallotWithMetadata, ActivityItem } from "@/types/ballots";
@@ -746,54 +745,6 @@ export default function BallotFeed() {
     [openArgument, openComment],
   );
 
-  const handleToggleLike = useCallback(async () => {
-    if (!ballot) return;
-    const isLiked = !!ballot.viewer?.like;
-
-    setBallot((prev) =>
-      prev
-        ? {
-            ...prev,
-            likeCount: (prev.likeCount ?? 0) + (isLiked ? -1 : 1),
-            viewer: isLiked ? undefined : { like: "__pending__" },
-          }
-        : prev,
-    );
-
-    try {
-      if (isLiked) {
-        await unlikeBallot(ballot.viewer!.like!);
-        setBallot((prev) => (prev ? { ...prev, viewer: undefined } : prev));
-        patchCached<BallotWithMetadata>(`feed:ballot:${id}`, (b) => ({
-          ...b,
-          likeCount: Math.max(0, (b.likeCount ?? 0) - 1),
-          viewer: undefined,
-        }));
-      } else {
-        const likeUri = await likeBallot(ballot.uri, ballot.cid);
-        setBallot((prev) =>
-          prev ? { ...prev, viewer: { like: likeUri } } : prev,
-        );
-        patchCached<BallotWithMetadata>(`feed:ballot:${id}`, (b) => ({
-          ...b,
-          likeCount: (b.likeCount ?? 0) + 1,
-          viewer: { like: likeUri },
-        }));
-      }
-    } catch (err) {
-      console.error("Failed to toggle like:", err);
-      setBallot((prev) =>
-        prev
-          ? {
-              ...prev,
-              likeCount: (prev.likeCount ?? 0) + (isLiked ? 1 : -1),
-              viewer: isLiked ? { like: ballot.viewer!.like! } : undefined,
-            }
-          : prev,
-      );
-    }
-  }, [ballot, id]);
-
   useScrollRestore(!ballotLoading && !activityLoading && !!ballot);
 
   if (authLoading) {
@@ -856,24 +807,11 @@ export default function BallotFeed() {
                 <h1 className="m-0 text-2xl font-bold">
                   {ballot.record.title}
                 </h1>
-                <div className="flex items-center gap-2 shrink-0 ml-2">
-                  {ballot.record.language && (
+                {ballot.record.language && (
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
                     <Badge variant="secondary">{ballot.record.language}</Badge>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleToggleLike}
-                    className="bg-transparent border-none p-0.5 text-xl cursor-pointer transition-colors duration-200"
-                    style={{
-                      color: ballot.viewer?.like ? "var(--brand)" : "#b0bec5",
-                    }}
-                  >
-                    {ballot.viewer?.like ? "\u2764" : "\u2661"}
-                    {(ballot.likeCount ?? 0) > 0 && (
-                      <span className="text-xs ml-1">{ballot.likeCount}</span>
-                    )}
-                  </button>
-                </div>
+                  </div>
+                )}
               </div>
 
               {ballot.record.topic && (

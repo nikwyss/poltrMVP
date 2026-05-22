@@ -5,8 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import { getBallot, listArguments } from "@/lib/agent";
-import { likeBallot, unlikeBallot } from "@/lib/ballots";
-import { loadCached, patchCached } from "@/lib/pageCache";
+import { loadCached } from "@/lib/pageCache";
 import { useScrollRestore } from "@/lib/scrollRestore";
 import { formatDate } from "@/lib/utils";
 import type {
@@ -18,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
+import { ProContraBadge } from "@/components/pro-contra-badge";
 import {
   Dialog,
   DialogContent,
@@ -51,15 +51,13 @@ function attributionLine(
   if (kind === "official") {
     const section =
       arg.record.source && "section" in arg.record.source ? arg.record.source.section : undefined;
-    if (section) return `— ${section}`;
-    return arg.record.type === "PRO"
-      ? `— ${labels.bundesrat}`
-      : `— ${labels.initiativkomitee}`;
+    if (section) return section;
+    return arg.record.type === "PRO" ? labels.bundesrat : labels.initiativkomitee;
   }
   if (kind === "organization") {
     const orgKey =
       arg.record.source && "orgKey" in arg.record.source ? arg.record.source.orgKey : undefined;
-    return orgKey ? `— ${orgKey}` : `— ${labels.organization}`;
+    return orgKey ? orgKey : labels.organization;
   }
   return arg.author?.displayName || labels.anonymous;
 }
@@ -70,12 +68,10 @@ function attributionLine(
 
 function ArgumentCardCompact({
   arg,
-  index,
   kind,
   onClick,
 }: {
   arg: ArgumentWithMetadata;
-  index: number;
   kind: "official" | "organization" | "user";
   onClick: () => void;
 }) {
@@ -100,15 +96,14 @@ function ArgumentCardCompact({
     >
       <div className="na-card-header">
         <div className="na-card-title">{arg.record.title}</div>
-        <div className="na-card-number">
-          #{String(index + 1).padStart(2, "0")}
-        </div>
+        <ProContraBadge type={type.toLowerCase()} />
       </div>
-      <div className="na-card-author">{attributionLine(arg, kind, labels)}</div>
       <div className="na-card-body">{arg.record.body}</div>
       <div className="na-card-footer">
         <span>
-          {kind === "user" ? trs("preliminary") : trs("official")}
+          {kind === "user"
+            ? trs("preliminary")
+            : attributionLine(arg, kind, labels)}
         </span>
         <span className="na-helpful">
           {"↑"} {(arg.likeCount ?? 0)} {tc("helpful")}
@@ -185,11 +180,10 @@ function ArgumentSection({
 
       <div className="na-columns">
         <div className="na-column">
-          {proArgs.map((arg, i) => (
+          {proArgs.map((arg) => (
             <ArgumentCardCompact
               key={arg.uri}
               arg={arg}
-              index={i}
               kind={kind}
               onClick={() => onOpen(arg.uri.split("/").pop()!)}
             />
@@ -199,11 +193,10 @@ function ArgumentSection({
           )}
         </div>
         <div className="na-column">
-          {contraArgs.map((arg, i) => (
+          {contraArgs.map((arg) => (
             <ArgumentCardCompact
               key={arg.uri}
               arg={arg}
-              index={i}
               kind={kind}
               onClick={() => onOpen(arg.uri.split("/").pop()!)}
             />
@@ -350,64 +343,6 @@ export default function BallotDetailNewArguments() {
 
   useScrollRestore(!loading && !!ballot);
 
-  const handleToggleLike = useCallback(async () => {
-    if (!ballot) return;
-    const isLiked = !!ballot.viewer?.like;
-
-    setBallot((prev) =>
-      prev
-        ? {
-            ...prev,
-            likeCount: (prev.likeCount ?? 0) + (isLiked ? -1 : 1),
-            viewer: isLiked ? undefined : { like: "__pending__" },
-          }
-        : prev,
-    );
-
-    try {
-      if (isLiked) {
-        await unlikeBallot(ballot.viewer!.like!);
-        setBallot((prev) => (prev ? { ...prev, viewer: undefined } : prev));
-        patchCached<{ ballot: BallotWithMetadata; args: ArgumentWithMetadata[] }>(
-          `ballot:${id}`,
-          (c) => ({
-            ...c,
-            ballot: {
-              ...c.ballot,
-              likeCount: Math.max(0, (c.ballot.likeCount ?? 0) - 1),
-              viewer: undefined,
-            },
-          }),
-        );
-      } else {
-        const likeUri = await likeBallot(ballot.uri, ballot.cid);
-        setBallot((prev) => (prev ? { ...prev, viewer: { like: likeUri } } : prev));
-        patchCached<{ ballot: BallotWithMetadata; args: ArgumentWithMetadata[] }>(
-          `ballot:${id}`,
-          (c) => ({
-            ...c,
-            ballot: {
-              ...c.ballot,
-              likeCount: (c.ballot.likeCount ?? 0) + 1,
-              viewer: { like: likeUri },
-            },
-          }),
-        );
-      }
-    } catch (err) {
-      console.error("Failed to toggle like:", err);
-      setBallot((prev) =>
-        prev
-          ? {
-              ...prev,
-              likeCount: (prev.likeCount ?? 0) + (isLiked ? 1 : -1),
-              viewer: isLiked ? { like: ballot.viewer!.like! } : undefined,
-            }
-          : prev,
-      );
-    }
-  }, [ballot]);
-
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh] gap-3">
@@ -493,16 +428,6 @@ export default function BallotDetailNewArguments() {
                 {ballot.record.title}
               </h1>
               <div className="flex flex-col items-end gap-2.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleToggleLike}
-                  className="like-pill"
-                  data-liked={ballot.viewer?.like ? "true" : "false"}
-                >
-                  {"❤"}
-                  {" "}
-                  {ballot.likeCount ?? 0}
-                </button>
                 <div className="flex gap-1.5">
                   {(ballot.argumentCount ?? 0) > 0 && (
                     <span className="tag">
@@ -739,8 +664,8 @@ export default function BallotDetailNewArguments() {
         :global(.na-card-header) {
           display: flex;
           justify-content: space-between;
-          align-items: baseline;
-          margin-bottom: 4px;
+          align-items: flex-start;
+          margin-bottom: 8px;
           gap: 8px;
         }
         :global(.na-card-title) {
@@ -748,18 +673,6 @@ export default function BallotDetailNewArguments() {
           font-weight: 600;
           line-height: 1.3;
           flex: 1;
-        }
-        :global(.na-card-number) {
-          font-size: 10px;
-          color: #888;
-          font-variant-numeric: tabular-nums;
-          flex-shrink: 0;
-        }
-        :global(.na-card-author) {
-          font-size: 11px;
-          color: #888;
-          margin-bottom: 6px;
-          font-style: italic;
         }
         :global(.na-card-body) {
           font-size: 12px;

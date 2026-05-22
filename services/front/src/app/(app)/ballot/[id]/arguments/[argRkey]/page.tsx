@@ -29,18 +29,25 @@ import { Badge } from "@/components/ui/badge";
 // Comment node (recursive, clickable)
 // ---------------------------------------------------------------------------
 
+// Sentinel target for the top-level comment composer (vs. a comment uri reply).
+const ROOT_TARGET = "__root__";
+
 function CommentNode({
   comment,
   depth,
   onLikeToggle,
   onReply,
   onNavigate,
+  activeComposerUri,
+  renderComposer,
 }: {
   comment: CommentWithMetadata;
   depth: number;
   onLikeToggle: (c: CommentWithMetadata) => void;
   onReply: (parentUri: string) => void;
   onNavigate: (uri: string) => void;
+  activeComposerUri?: string | null;
+  renderComposer?: () => React.ReactNode;
 }) {
   const tc = useTranslations("common");
   const indent =
@@ -116,6 +123,9 @@ function CommentNode({
           </div>
         </div>
       </div>
+      {comment.uri === activeComposerUri && renderComposer && (
+        <div className="pl-9 pb-2">{renderComposer()}</div>
+      )}
       {comment.replies && comment.replies.length > 0 && (
         <div>
           {comment.replies.map((r) => (
@@ -126,6 +136,8 @@ function CommentNode({
               onLikeToggle={onLikeToggle}
               onReply={onReply}
               onNavigate={onNavigate}
+              activeComposerUri={activeComposerUri}
+              renderComposer={renderComposer}
             />
           ))}
         </div>
@@ -165,12 +177,20 @@ export default function ArgumentDetailPage({
   const [error, setError] = useState("");
   const [replyText, setReplyText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // null = composer closed; ROOT_TARGET = top-level comment composer;
+  // any other value = a comment uri the composer is replying to (inline).
+  const [replyTarget, setReplyTarget] = useState<string | null>(null);
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) router.push("/");
   }, [isAuthenticated, authLoading, router]);
+
+  // Focus the textarea whenever the composer opens.
+  useEffect(() => {
+    if (replyTarget) replyInputRef.current?.focus();
+  }, [replyTarget]);
 
   const loadComments = useCallback(async (argUri: string) => {
     const allCmts = await listComments(argUri);
@@ -193,7 +213,10 @@ export default function ArgumentDetailPage({
       try {
         const arg = await getArgument(ballotRkey, argRkey);
         setArgument(arg);
-        setComments(await loadComments(arg.uri));
+        const loaded = await loadComments(arg.uri);
+        setComments(loaded);
+        // No comments yet → open the top-level composer right away.
+        setReplyTarget(loaded.length === 0 ? ROOT_TARGET : null);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to load argument",
@@ -247,8 +270,8 @@ export default function ArgumentDetailPage({
     }
   }, []);
 
-  const handleReply = useCallback(() => {
-    replyInputRef.current?.focus();
+  const handleReply = useCallback((parentUri: string) => {
+    setReplyTarget(parentUri);
   }, []);
 
   const handleNavigateToComment = useCallback(
@@ -268,15 +291,33 @@ export default function ArgumentDetailPage({
     if (!replyText.trim() || submitting || !argument) return;
     setSubmitting(true);
     try {
-      await createComment(argument.uri, "", replyText.trim());
+      const parentUri =
+        replyTarget && replyTarget !== ROOT_TARGET ? replyTarget : undefined;
+      await createComment(argument.uri, "", replyText.trim(), parentUri);
       setReplyText("");
       setComments(await loadComments(argument.uri));
+      setReplyTarget(null);
     } catch (err) {
       console.error("Failed to submit comment:", err);
     } finally {
       setSubmitting(false);
     }
-  }, [replyText, submitting, argument, loadComments]);
+  }, [replyText, submitting, argument, loadComments, replyTarget]);
+
+  const renderComposer = () => (
+    <ReplyInput
+      ref={replyInputRef}
+      value={replyText}
+      onChange={setReplyText}
+      onSubmit={handleSubmitComment}
+      submitting={submitting}
+      placeholder={t("commentPlaceholder")}
+      onCancel={() => {
+        setReplyText("");
+        setReplyTarget(null);
+      }}
+    />
+  );
 
   useScrollRestore(!isOverlay && !loading && !!argument);
 
@@ -360,9 +401,10 @@ export default function ArgumentDetailPage({
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
                   {t("comments")}{comments.length > 0 ? ` (${comments.length})` : ""}
                 </div>
-                {comments.length === 0 ? (
+                {comments.length === 0 && replyTarget !== ROOT_TARGET && (
                   <p className="text-muted-foreground text-sm">{t("noComments")}</p>
-                ) : (
+                )}
+                {comments.length > 0 && (
                   <div className="space-y-0.5">
                     {comments.map((c) => (
                       <CommentNode
@@ -372,23 +414,27 @@ export default function ArgumentDetailPage({
                         onLikeToggle={handleLikeToggle}
                         onReply={handleReply}
                         onNavigate={handleNavigateToComment}
+                        activeComposerUri={replyTarget}
+                        renderComposer={renderComposer}
                       />
                     ))}
                   </div>
                 )}
-              </div>
 
-              {/* Comment input */}
-              <div className="pt-1 border-t">
-                <div className="text-xs text-muted-foreground mb-2">{t("addComment")}</div>
-                <ReplyInput
-                  ref={replyInputRef}
-                  value={replyText}
-                  onChange={setReplyText}
-                  onSubmit={handleSubmitComment}
-                  submitting={submitting}
-                  placeholder={t("commentPlaceholder")}
-                />
+                {/* Top-level composer / trigger */}
+                <div className={comments.length > 0 ? "pt-3 mt-3 border-t" : "pt-1"}>
+                  {replyTarget === ROOT_TARGET ? (
+                    renderComposer()
+                  ) : (
+                    <Button
+                      variant="outline"
+                      className="w-full justify-center"
+                      onClick={() => setReplyTarget(ROOT_TARGET)}
+                    >
+                      💬 {t("writeComment")}
+                    </Button>
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -473,11 +519,12 @@ export default function ArgumentDetailPage({
                 {comments.length > 0 ? `(${comments.length})` : ""}
               </div>
 
-              {comments.length === 0 ? (
+              {comments.length === 0 && replyTarget !== ROOT_TARGET && (
                 <p className="text-muted-foreground text-sm m-0">
                   {t("noComments")}
                 </p>
-              ) : (
+              )}
+              {comments.length > 0 &&
                 comments.map((c) => (
                   <CommentNode
                     key={c.uri}
@@ -486,26 +533,25 @@ export default function ArgumentDetailPage({
                     onLikeToggle={handleLikeToggle}
                     onReply={handleReply}
                     onNavigate={handleNavigateToComment}
+                    activeComposerUri={replyTarget}
+                    renderComposer={renderComposer}
                   />
-                ))
-              )}
-            </CardContent>
-          </Card>
+                ))}
 
-          {/* Comment input */}
-          <Card>
-            <CardContent className="pt-4 pb-3">
-              <div className="text-xs text-muted-foreground mb-1.5">
-                {t("addComment")}
+              {/* Top-level composer / trigger */}
+              <div className={comments.length > 0 ? "pt-3 mt-3 border-t" : "pt-1"}>
+                {replyTarget === ROOT_TARGET ? (
+                  renderComposer()
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-center"
+                    onClick={() => setReplyTarget(ROOT_TARGET)}
+                  >
+                    💬 {t("writeComment")}
+                  </Button>
+                )}
               </div>
-              <ReplyInput
-                ref={replyInputRef}
-                value={replyText}
-                onChange={setReplyText}
-                onSubmit={handleSubmitComment}
-                submitting={submitting}
-                placeholder={t("commentPlaceholder")}
-              />
             </CardContent>
           </Card>
         </>

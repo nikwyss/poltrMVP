@@ -23,7 +23,8 @@
     "loading": "Laden...",
     "close": "Schliessen",
     "backToArgument": "Zurück zum Argument",
-    "backToPost": "Zurück zum Post"
+    "backToPost": "Zurück zum Post",
+    "cancel": "Abbrechen"
   },
   "nav": {
     "home": "Start",
@@ -111,7 +112,8 @@
     "verificationFailed": "E-ID-Verifizierung fehlgeschlagen. Bitte versuche es erneut.",
     "appPasswordCreated": "App-Passwort erstellt!",
     "pds": "PDS",
-    "password": "Passwort"
+    "password": "Passwort",
+    "pseudonymSource": "Dein Anzeigename ist vom Berg «{mountain}» abgeleitet – {canton}, {height} m ü. M."
   },
   "ballots": {
     "title": "Abstimmungen",
@@ -140,7 +142,8 @@
     "noComments": "Noch keine Kommentare. Sei der Erste!",
     "addComment": "Kommentar hinzufügen:",
     "commentPlaceholder": "Schreibe einen Kommentar...",
-    "loadingArgument": "Lade Argument..."
+    "loadingArgument": "Lade Argument...",
+    "writeComment": "Kommentar verfassen"
   },
   "feed": {
     "addArgument": "Argument hinzufügen",

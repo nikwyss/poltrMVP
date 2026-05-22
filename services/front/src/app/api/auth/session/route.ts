@@ -31,7 +31,17 @@ export async function GET(request: NextRequest) {
       return response;
     }
 
-    return NextResponse.json({ authenticated: true });
+    const data = await res.json().catch(() => ({}));
+    return NextResponse.json({
+      authenticated: true,
+      did: data.did,
+      handle: data.handle,
+      displayName: data.displayName,
+      canton: data.canton,
+      color: data.color,
+      mountainFullname: data.mountainFullname,
+      height: data.height,
+    });
   } catch {
     // AppView unreachable — assume still valid to avoid false logouts
     return NextResponse.json({ authenticated: true });
