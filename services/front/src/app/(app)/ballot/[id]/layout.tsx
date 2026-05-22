@@ -10,7 +10,6 @@ const tabs = [
   { key: "info" as const, segment: "info" },
   { key: "chat" as const, segment: "chat" },
   { key: "arguments" as const, segment: "arguments" },
-  { key: "review" as const, segment: "review" },
 ] as const;
 
 export default function VorlageLayout({
