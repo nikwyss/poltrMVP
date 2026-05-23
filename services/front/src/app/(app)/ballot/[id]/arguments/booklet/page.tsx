@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import type { ReactNode } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
@@ -28,6 +29,24 @@ import CommentDetailPage from "../feed/comment/page";
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+// Section-Rail: the booklet's sections in document order. Drives both the
+// rendered sections and the fixed rail bars (which sections pin top/bottom).
+type SectionVariant = "official" | "community" | "evaluation";
+const BOOKLET_SECTIONS: ReadonlyArray<{
+  id: string;
+  variant: SectionVariant;
+  marker: string;
+  titleKey: string;
+}> = [
+  { id: "na-sec-official", variant: "official", marker: "★", titleKey: "officialTitle" },
+  { id: "na-sec-community", variant: "community", marker: "◐", titleKey: "communityTitle" },
+  { id: "na-sec-evaluation", variant: "evaluation", marker: "Σ", titleKey: "auswertungTitle" },
+];
+
+// Community-Sektion: initial sichtbare Karten je Spalte; dient zugleich als
+// Schrittweite für "Mehr anzeigen" (jeweils so viele weitere je Spalte).
+const COMMUNITY_ARGS_PAGE_SIZE = 7;
 
 function sourceKind(record: ArgumentWithMetadata["record"]): "official" | "organization" | "user" {
   const t = record.source?.$type;
@@ -118,31 +137,26 @@ function ArgumentCardCompact({
 }
 
 // ---------------------------------------------------------------------------
-// Section
+// Section shell — shared sticky-header chrome for all booklet sections.
 // ---------------------------------------------------------------------------
 
-function ArgumentSection({
+function SectionShell({
   id,
   variant,
   marker,
   title,
   subtitle,
-  proArgs,
-  contraArgs,
-  onOpen,
+  colHeaders,
+  children,
 }: {
   id: string;
-  variant: "official" | "community";
+  variant: "official" | "community" | "evaluation";
   marker: string;
   title: string;
   subtitle: string;
-  proArgs: ArgumentWithMetadata[];
-  contraArgs: ArgumentWithMetadata[];
-  onOpen: (rkey: string) => void;
+  colHeaders?: ReactNode;
+  children: ReactNode;
 }) {
-  const tc = useTranslations("common");
-  const t = useTranslations("ballotDetail");
-  const kind: "official" | "user" = variant === "official" ? "official" : "user";
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [isSticky, setIsSticky] = useState(false);
 
@@ -162,29 +176,88 @@ function ArgumentSection({
       {/* sentinel: when this leaves the viewport at 97px from top, header is sticky */}
       <div ref={sentinelRef} style={{ height: 0 }} />
 
-
       <div className={`na-section-sticky-header${isSticky ? " na-section-sticky-header--active" : ""}`}>
         <div className="na-section-header">
           <div className="na-section-marker">{marker}</div>
           <div className="na-section-title">{title}</div>
           <div className="na-section-subtitle">{subtitle}</div>
         </div>
-
-        <div className="na-section-col-headers">
-          <div className="na-section-col-label na-section-col-pro">
-            <span>{tc("pro")}</span>
-            <span className="na-col-count">{proArgs.length}</span>
-          </div>
-          <div className="na-section-col-label na-section-col-contra">
-            <span>{tc("contra")}</span>
-            <span className="na-col-count">{contraArgs.length}</span>
-          </div>
-        </div>
+        {colHeaders}
       </div>
 
+      {children}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Argument section — pro/contra columns of argument cards.
+// ---------------------------------------------------------------------------
+
+function ArgumentSection({
+  id,
+  variant,
+  marker,
+  title,
+  subtitle,
+  proArgs,
+  contraArgs,
+  onOpen,
+  limit,
+}: {
+  id: string;
+  variant: "official" | "community";
+  marker: string;
+  title: string;
+  subtitle: string;
+  proArgs: ArgumentWithMetadata[];
+  contraArgs: ArgumentWithMetadata[];
+  onOpen: (rkey: string) => void;
+  limit?: number;
+}) {
+  const tc = useTranslations("common");
+  const t = useTranslations("ballotDetail");
+  const tbk = useTranslations("booklet");
+  const kind: "official" | "user" = variant === "official" ? "official" : "user";
+
+  // Clientseitige Höhenbegrenzung: initial `limit` Karten je Spalte, "Mehr anzeigen"
+  // blendet etappenweise je `limit` weitere ein (die Argumente sind bereits geladen).
+  const [visibleCount, setVisibleCount] = useState(limit ?? Infinity);
+  const cap = limit ? visibleCount : Infinity;
+  const visiblePro = proArgs.slice(0, cap);
+  const visibleContra = contraArgs.slice(0, cap);
+  // Wie viele Karten die nächste Etappe einblenden würde (über beide Spalten, am Rest gekappt).
+  const nextBatchCount = limit
+    ? Math.min(proArgs.length, cap + limit) - visiblePro.length +
+      (Math.min(contraArgs.length, cap + limit) - visibleContra.length)
+    : 0;
+  const hasMore = nextBatchCount > 0;
+
+  const colHeaders = (
+    <div className="na-section-col-headers">
+      <div className="na-section-col-label na-section-col-pro">
+        <span>{tc("pro")}</span>
+        <span className="na-col-count">{proArgs.length}</span>
+      </div>
+      <div className="na-section-col-label na-section-col-contra">
+        <span>{tc("contra")}</span>
+        <span className="na-col-count">{contraArgs.length}</span>
+      </div>
+    </div>
+  );
+
+  return (
+    <SectionShell
+      id={id}
+      variant={variant}
+      marker={marker}
+      title={title}
+      subtitle={subtitle}
+      colHeaders={colHeaders}
+    >
       <div className="na-columns">
         <div className="na-column">
-          {proArgs.map((arg) => (
+          {visiblePro.map((arg) => (
             <ArgumentCardCompact
               key={arg.uri}
               arg={arg}
@@ -197,7 +270,7 @@ function ArgumentSection({
           )}
         </div>
         <div className="na-column">
-          {contraArgs.map((arg) => (
+          {visibleContra.map((arg) => (
             <ArgumentCardCompact
               key={arg.uri}
               arg={arg}
@@ -210,7 +283,47 @@ function ArgumentSection({
           )}
         </div>
       </div>
-    </section>
+
+      {hasMore && (
+        <button
+          type="button"
+          className="na-show-more"
+          onClick={() => setVisibleCount((c) => c + (limit ?? 0))}
+        >
+          {tbk("showMore", { count: nextBatchCount })}
+        </button>
+      )}
+    </SectionShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Evaluation section — placeholder for now (charts/stats come later).
+// ---------------------------------------------------------------------------
+
+function EvaluationSection({
+  id,
+  marker,
+  title,
+  subtitle,
+  placeholder,
+}: {
+  id: string;
+  marker: string;
+  title: string;
+  subtitle: string;
+  placeholder: string;
+}) {
+  return (
+    <SectionShell
+      id={id}
+      variant="evaluation"
+      marker={marker}
+      title={title}
+      subtitle={subtitle}
+    >
+      <p className="na-placeholder">{placeholder}</p>
+    </SectionShell>
   );
 }
 
@@ -234,10 +347,9 @@ export default function BallotDetailNewArguments() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Sticky-Section-Rail (Akkordeon): Official pinnt oben, sobald man daran vorbeiscrollt;
-  // Community ist am unteren Rand angepinnt, solange sie unter dem Fold liegt.
-  const [officialPinned, setOfficialPinned] = useState(false);
-  const [communityBelow, setCommunityBelow] = useState(false);
+  // Sticky-Section-Rail (Akkordeon): Abschnitte, an denen man vorbeigescrollt ist,
+  // pinnen oben; Abschnitte unter dem Fold pinnen unten. State pro Abschnitt-Id.
+  const [railState, setRailState] = useState<Record<string, "above" | "in" | "below">>({});
 
   // Overlay stack — encoded in the URL so browser-back and deep links work.
   // `?arg=<rkey>` is the (optional) bottom argument overlay; each `?comment=<uri>`
@@ -360,17 +472,26 @@ export default function BallotDetailNewArguments() {
     let raf = 0;
     const update = () => {
       raf = 0;
-      const off = document.getElementById("na-sec-official");
-      const com = document.getElementById("na-sec-community");
-      if (off) {
-        const r = off.getBoundingClientRect();
-        // Official ist „vorbeigescrollt", sobald sein unteres Ende die Stack-Linie erreicht.
-        setOfficialPinned(r.top < TOP && r.bottom <= TOP + BAR_H);
+      const next: Record<string, "above" | "in" | "below"> = {};
+      for (const sec of BOOKLET_SECTIONS) {
+        const el = document.getElementById(sec.id);
+        if (!el) continue;
+        const r = el.getBoundingClientRect();
+        if (r.top < TOP && r.bottom <= TOP + BAR_H) {
+          // vollständig nach oben weggescrollt → Top-Rail
+          next[sec.id] = "above";
+        } else if (r.top > window.innerHeight - BAR_H) {
+          // noch unter dem Fold → Bottom-Rail
+          next[sec.id] = "below";
+        } else {
+          next[sec.id] = "in";
+        }
       }
-      if (com) {
-        const r = com.getBoundingClientRect();
-        setCommunityBelow(r.top > window.innerHeight - BAR_H);
-      }
+      setRailState((prev) => {
+        // nur bei tatsächlicher Änderung neu setzen (Re-Renders sparen)
+        const changed = BOOKLET_SECTIONS.some((s) => prev[s.id] !== next[s.id]);
+        return changed ? next : prev;
+      });
     };
     const onScroll = () => {
       if (!raf) raf = requestAnimationFrame(update);
@@ -541,6 +662,16 @@ export default function BallotDetailNewArguments() {
             proArgs={userPro}
             contraArgs={userContra}
             onOpen={openArgument}
+            limit={COMMUNITY_ARGS_PAGE_SIZE}
+          />
+
+          {/* Section 3: Auswertung (Platzhalter — Inhalt folgt später) */}
+          <EvaluationSection
+            id="na-sec-evaluation"
+            marker="Σ"
+            title={tbk("auswertungTitle")}
+            subtitle={tbk("auswertungSubtitle")}
+            placeholder={tbk("auswertungPlaceholder")}
           />
 
           {arguments_.length === 0 && !loading && (
@@ -551,33 +682,58 @@ export default function BallotDetailNewArguments() {
             </Card>
           )}
 
-          {/* Section-Rail: Official oben angepinnt, während man in Community liest */}
-          {officialPinned && (
-            <div className="na-railbar na-railbar-top">
-              <button
-                type="button"
-                className="na-railbar-inner"
-                onClick={() => scrollToSection("na-sec-official")}
-              >
-                <span className="na-railbar-marker na-railbar-marker-official">★</span>
-                <span className="na-railbar-title">{tbk("officialTitle")}</span>
-              </button>
-            </div>
-          )}
-          {/* Community am unteren Rand angepinnt, solange unter dem Fold — klickbar zum Springen */}
-          {communityBelow && (
-            <div className="na-railbar na-railbar-bottom">
-              <button
-                type="button"
-                className="na-railbar-inner"
-                onClick={() => scrollToSection("na-sec-community")}
-              >
-                <span className="na-railbar-marker na-railbar-marker-community">◐</span>
-                <span className="na-railbar-title">{tbk("communityTitle")}</span>
-                <span className="na-railbar-hint">↓</span>
-              </button>
-            </div>
-          )}
+          {/* Section-Rail: vorbeigescrollte Abschnitte pinnen oben (gestapelt),
+              Abschnitte unter dem Fold pinnen unten — alle klickbar zum Springen. */}
+          {(() => {
+            const titles: Record<string, string> = {
+              "na-sec-official": tbk("officialTitle"),
+              "na-sec-community": tbk("communityTitle"),
+              "na-sec-evaluation": tbk("auswertungTitle"),
+            };
+            const above = BOOKLET_SECTIONS.filter((s) => railState[s.id] === "above");
+            const below = BOOKLET_SECTIONS.filter((s) => railState[s.id] === "below");
+            return (
+              <>
+                {above.map((s, i) => (
+                  <div
+                    key={s.id}
+                    className="na-railbar na-railbar-top"
+                    style={{ top: 102 + i * 40 }}
+                  >
+                    <button
+                      type="button"
+                      className="na-railbar-inner"
+                      onClick={() => scrollToSection(s.id)}
+                    >
+                      <span className={`na-railbar-marker na-railbar-marker-${s.variant}`}>
+                        {s.marker}
+                      </span>
+                      <span className="na-railbar-title">{titles[s.id]}</span>
+                    </button>
+                  </div>
+                ))}
+                {below.map((s, i) => (
+                  <div
+                    key={s.id}
+                    className="na-railbar na-railbar-bottom"
+                    style={{ bottom: (below.length - 1 - i) * 40 }}
+                  >
+                    <button
+                      type="button"
+                      className="na-railbar-inner"
+                      onClick={() => scrollToSection(s.id)}
+                    >
+                      <span className={`na-railbar-marker na-railbar-marker-${s.variant}`}>
+                        {s.marker}
+                      </span>
+                      <span className="na-railbar-title">{titles[s.id]}</span>
+                      <span className="na-railbar-hint">↓</span>
+                    </button>
+                  </div>
+                ))}
+              </>
+            );
+          })()}
         </>
       )}
 
@@ -601,6 +757,11 @@ export default function BallotDetailNewArguments() {
           background: var(--bg, #f9f9f8);
           /* unter der oben angepinnten Official-Leiste (102px) stapeln */
           top: 142px;
+        }
+        :global(.na-section-evaluation .na-section-sticky-header) {
+          background: var(--bg, #f9f9f8);
+          /* dritte Stapelebene unter Official (102) / Community (142) */
+          top: 182px;
         }
 
         /* ── Section-Rail: fixierte, klickbare Titel-Leisten ── */
@@ -649,7 +810,8 @@ export default function BallotDetailNewArguments() {
         }
         /* Railbars zeigen die eingeklappte (inaktive) Sektion → gedämpft grau */
         :global(.na-railbar-marker-official),
-        :global(.na-railbar-marker-community) {
+        :global(.na-railbar-marker-community),
+        :global(.na-railbar-marker-evaluation) {
           background: #888;
         }
         :global(.na-railbar-title) {
@@ -707,6 +869,9 @@ export default function BallotDetailNewArguments() {
         :global(.na-section-community .na-section-sticky-header--active::after) {
           background: linear-gradient(to bottom, var(--bg, #f9f9f8), rgba(249,249,248,0));
         }
+        :global(.na-section-evaluation .na-section-sticky-header--active::after) {
+          background: linear-gradient(to bottom, var(--bg, #f9f9f8), rgba(249,249,248,0));
+        }
 
         :global(.na-section) {
           margin-top: 6px;
@@ -720,6 +885,9 @@ export default function BallotDetailNewArguments() {
           // padding-top: 132px;
         }
         :global(.na-section-community) {
+          background: transparent;
+        }
+        :global(.na-section-evaluation) {
           background: transparent;
         }
 
@@ -749,6 +917,9 @@ export default function BallotDetailNewArguments() {
         :global(.na-section-community .na-section-marker) {
           background: #5a6b8a;
         }
+        :global(.na-section-evaluation .na-section-marker) {
+          background: #4a7a5a;
+        }
         :global(.na-section-title) {
           font-size: 0.9375rem;
           font-weight: 700;
@@ -759,6 +930,9 @@ export default function BallotDetailNewArguments() {
         }
         :global(.na-section-community .na-section-title) {
           color: #5a6b8a;
+        }
+        :global(.na-section-evaluation .na-section-title) {
+          color: #4a7a5a;
         }
         :global(.na-section-subtitle) {
           font-size: 0.75rem;
@@ -782,6 +956,31 @@ export default function BallotDetailNewArguments() {
           font-size: 0.875rem;
           color: #888;
           padding: 8px 4px;
+        }
+        :global(.na-placeholder) {
+          font-size: 0.875rem;
+          color: #888;
+          padding: 24px 4px;
+        }
+        :global(.na-show-more) {
+          width: 100%;
+          margin-top: 12px;
+          padding: 10px 0;
+          background: transparent;
+          border: 1px solid var(--line);
+          border-radius: 7px;
+          font: inherit;
+          font-size: 0.875rem;
+          font-weight: 600;
+          color: #5a6b8a;
+          cursor: pointer;
+          transition:
+            background 0.15s ease,
+            border-color 0.15s ease;
+        }
+        :global(.na-show-more:hover) {
+          border-color: var(--line-mid);
+          background: #fff;
         }
 
         :global(.na-card) {

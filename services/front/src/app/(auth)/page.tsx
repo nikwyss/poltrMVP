@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Spinner } from '@/components/spinner';
 
 export default function Login() {
   const router = useRouter();
@@ -55,6 +56,17 @@ export default function Login() {
       setLoading(false);
     }
   };
+
+  // While the session is still being verified, or once we know the user is
+  // authenticated (redirect to /home is in flight), show a wait screen instead
+  // of flashing the login form.
+  if (authLoading || isAuthenticated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen">

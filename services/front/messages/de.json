@@ -213,6 +213,10 @@
     "officialSubtitle": "aus dem Abstimmungsbüchlein der Bundeskanzlei",
     "communityTitle": "Community Argumente",
     "communitySubtitle": "Argumente von Userinnen und Usern",
+    "auswertungTitle": "Auswertung",
+    "auswertungSubtitle": "Welche Argumente überzeugen Sie am meisten? Welche kommen bei der community besonders gut an?",
+    "auswertungPlaceholder": "Die Auswertung wird in Kürze verfügbar sein.",
+    "showMore": "Mehr anzeigen (+{count})",
     "fallbackBundesrat": "Bundesrat",
     "fallbackInitiativkomitee": "Initiativkomitee",
     "fallbackOrganization": "Organisation"

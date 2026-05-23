@@ -213,6 +213,10 @@
     "officialSubtitle": "from the Federal Chancellery's ballot booklet",
     "communityTitle": "Community",
     "communitySubtitle": "Arguments from users",
+    "auswertungTitle": "Results",
+    "auswertungSubtitle": "coming soon",
+    "auswertungPlaceholder": "The evaluation will be available soon.",
+    "showMore": "Show more (+{count})",
     "fallbackBundesrat": "Federal Council",
     "fallbackInitiativkomitee": "Initiative Committee",
     "fallbackOrganization": "Organization"
