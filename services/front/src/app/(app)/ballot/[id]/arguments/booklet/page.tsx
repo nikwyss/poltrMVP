@@ -9,20 +9,18 @@ import { getBallot, listArguments } from "@/lib/agent";
 import { loadCached } from "@/lib/pageCache";
 import { useScrollRestore } from "@/lib/scrollRestore";
 import { formatDate } from "@/lib/utils";
-import type {
-  BallotWithMetadata,
-  ArgumentWithMetadata,
-} from "@/types/ballots";
+import type { BallotWithMetadata, ArgumentWithMetadata } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
-import { ProContraBadge } from "@/components/pro-contra-badge";
+import { ProContraColumnHeaders } from "@/components/pro-contra-column-headers";
 import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
+  relevanceLevel,
+  placeholderRelevance,
+} from "@/components/relevance-rating";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import ArgumentDetailPage from "../[argRkey]/page";
 import CommentDetailPage from "../feed/comment/page";
 
@@ -39,46 +37,38 @@ const BOOKLET_SECTIONS: ReadonlyArray<{
   marker: string;
   titleKey: string;
 }> = [
-  { id: "na-sec-official", variant: "official", marker: "★", titleKey: "officialTitle" },
-  { id: "na-sec-community", variant: "community", marker: "◐", titleKey: "communityTitle" },
-  { id: "na-sec-evaluation", variant: "evaluation", marker: "Σ", titleKey: "auswertungTitle" },
+  {
+    id: "na-sec-official",
+    variant: "official",
+    marker: "★",
+    titleKey: "officialTitle",
+  },
+  {
+    id: "na-sec-community",
+    variant: "community",
+    marker: "◐",
+    titleKey: "communityTitle",
+  },
+  {
+    id: "na-sec-evaluation",
+    variant: "evaluation",
+    marker: "Σ",
+    titleKey: "auswertungTitle",
+  },
 ];
 
 // Community-Sektion: initial sichtbare Karten je Spalte; dient zugleich als
 // Schrittweite für "Mehr anzeigen" (jeweils so viele weitere je Spalte).
 const COMMUNITY_ARGS_PAGE_SIZE = 7;
 
-function sourceKind(record: ArgumentWithMetadata["record"]): "official" | "organization" | "user" {
+function sourceKind(
+  record: ArgumentWithMetadata["record"],
+): "official" | "organization" | "user" {
   const t = record.source?.$type;
   if (t === "app.ch.poltr.ballot.argument#sourceOfficial") return "official";
-  if (t === "app.ch.poltr.ballot.argument#sourceOrganization") return "organization";
+  if (t === "app.ch.poltr.ballot.argument#sourceOrganization")
+    return "organization";
   return "user";
-}
-
-type AttributionLabels = {
-  bundesrat: string;
-  initiativkomitee: string;
-  organization: string;
-  anonymous: string;
-};
-
-function attributionLine(
-  arg: ArgumentWithMetadata,
-  kind: "official" | "organization" | "user",
-  labels: AttributionLabels,
-): string {
-  if (kind === "official") {
-    const section =
-      arg.record.source && "section" in arg.record.source ? arg.record.source.section : undefined;
-    if (section) return section;
-    return arg.record.type === "PRO" ? labels.bundesrat : labels.initiativkomitee;
-  }
-  if (kind === "organization") {
-    const orgKey =
-      arg.record.source && "orgKey" in arg.record.source ? arg.record.source.orgKey : undefined;
-    return orgKey ? orgKey : labels.organization;
-  }
-  return arg.author?.displayName || labels.anonymous;
 }
 
 // ---------------------------------------------------------------------------
@@ -87,51 +77,51 @@ function attributionLine(
 
 function ArgumentCardCompact({
   arg,
-  kind,
   onClick,
 }: {
   arg: ArgumentWithMetadata;
-  kind: "official" | "organization" | "user";
   onClick: () => void;
 }) {
-  const tc = useTranslations("common");
-  const trs = useTranslations("reviewStatus");
   const tbk = useTranslations("booklet");
-  const tf = useTranslations("feed");
   const type = arg.record.type;
-  const labels: AttributionLabels = {
-    bundesrat: tbk("fallbackBundesrat"),
-    initiativkomitee: tbk("fallbackInitiativkomitee"),
-    organization: tbk("fallbackOrganization"),
-    anonymous: tc("anonymous"),
-  };
+  // Relevanz-Bewertung des Users (1–100) oder null, wenn noch nicht bewertet.
+  // Bewertet/unbewertet ist die einzige Statusachse — alles daraus abgeleitet.
+  const relevance = placeholderRelevance(arg);
+  const level = relevance !== null ? relevanceLevel(relevance) : null;
+  const rated = relevance !== null;
 
   return (
     <div
-      className={`na-card na-card-${type.toLowerCase()}`}
+      className={`na-card na-card-${type.toLowerCase()} na-card-${rated ? "rated" : "unrated"}`}
       onClick={onClick}
       role="button"
       tabIndex={0}
     >
-      <div className="na-card-header">
-        <div className="na-card-title">{arg.record.title}</div>
-        <ProContraBadge type={type.toLowerCase()} />
-      </div>
-      <div className="na-card-body">{arg.record.body}</div>
-      <div className="na-card-footer">
-        <span>
-          {kind === "user"
-            ? trs("preliminary")
-            : attributionLine(arg, kind, labels)}
-        </span>
-        <span className="na-helpful">
-          {/* {"↑"} {(arg.likeCount ?? 0)} {tc("helpful")} */}
-          {(arg.commentCount ?? 0) > 0 && (
-            // <> ·</>
-            <> {tf("comments", { count: arg.commentCount ?? 0 })}</>
+      <div className="na-card-top">
+        <div className="na-card-top-left">
+          {!rated && (
+            <span
+              className="na-dot"
+              role="img"
+              aria-label={tbk("statusUnread")}
+              title={tbk("statusUnread")}
+            />
           )}
-        </span>
+          <span className="na-badge">
+            {type === "PRO" ? tbk("proArgument") : tbk("contraArgument")}
+          </span>
+        </div>
       </div>
+      <div className="na-card-title">{arg.record.title}</div>
+      {relevance !== null && (
+        <span
+          className={`na-card-index na-card-index-${level}`}
+          title={tbk("relevanceTitle")}
+          aria-label={`${tbk("relevanceTitle")}: ${relevance}`}
+        >
+          {relevance}
+        </span>
+      )}
     </div>
   );
 }
@@ -176,7 +166,9 @@ function SectionShell({
       {/* sentinel: when this leaves the viewport at 97px from top, header is sticky */}
       <div ref={sentinelRef} style={{ height: 0 }} />
 
-      <div className={`na-section-sticky-header${isSticky ? " na-section-sticky-header--active" : ""}`}>
+      <div
+        className={`na-section-sticky-header${isSticky ? " na-section-sticky-header--active" : ""}`}
+      >
         <div className="na-section-header">
           <div className="na-section-marker">{marker}</div>
           <div className="na-section-title">{title}</div>
@@ -215,10 +207,8 @@ function ArgumentSection({
   onOpen: (rkey: string) => void;
   limit?: number;
 }) {
-  const tc = useTranslations("common");
   const t = useTranslations("ballotDetail");
   const tbk = useTranslations("booklet");
-  const kind: "official" | "user" = variant === "official" ? "official" : "user";
 
   // Clientseitige Höhenbegrenzung: initial `limit` Karten je Spalte, "Mehr anzeigen"
   // blendet etappenweise je `limit` weitere ein (die Argumente sind bereits geladen).
@@ -228,22 +218,17 @@ function ArgumentSection({
   const visibleContra = contraArgs.slice(0, cap);
   // Wie viele Karten die nächste Etappe einblenden würde (über beide Spalten, am Rest gekappt).
   const nextBatchCount = limit
-    ? Math.min(proArgs.length, cap + limit) - visiblePro.length +
+    ? Math.min(proArgs.length, cap + limit) -
+      visiblePro.length +
       (Math.min(contraArgs.length, cap + limit) - visibleContra.length)
     : 0;
   const hasMore = nextBatchCount > 0;
 
   const colHeaders = (
-    <div className="na-section-col-headers">
-      <div className="na-section-col-label na-section-col-pro">
-        <span>{tc("pro")}</span>
-        <span className="na-col-count">{proArgs.length}</span>
-      </div>
-      <div className="na-section-col-label na-section-col-contra">
-        <span>{tc("contra")}</span>
-        <span className="na-col-count">{contraArgs.length}</span>
-      </div>
-    </div>
+    <ProContraColumnHeaders
+      proCount={proArgs.length}
+      contraCount={contraArgs.length}
+    />
   );
 
   return (
@@ -261,7 +246,6 @@ function ArgumentSection({
             <ArgumentCardCompact
               key={arg.uri}
               arg={arg}
-              kind={kind}
               onClick={() => onOpen(arg.uri.split("/").pop()!)}
             />
           ))}
@@ -274,7 +258,6 @@ function ArgumentSection({
             <ArgumentCardCompact
               key={arg.uri}
               arg={arg}
-              kind={kind}
               onClick={() => onOpen(arg.uri.split("/").pop()!)}
             />
           ))}
@@ -349,7 +332,9 @@ export default function BallotDetailNewArguments() {
 
   // Sticky-Section-Rail (Akkordeon): Abschnitte, an denen man vorbeigescrollt ist,
   // pinnen oben; Abschnitte unter dem Fold pinnen unten. State pro Abschnitt-Id.
-  const [railState, setRailState] = useState<Record<string, "above" | "in" | "below">>({});
+  const [railState, setRailState] = useState<
+    Record<string, "above" | "in" | "below">
+  >({});
 
   // Overlay stack — encoded in the URL so browser-back and deep links work.
   // `?arg=<rkey>` is the (optional) bottom argument overlay; each `?comment=<uri>`
@@ -445,10 +430,7 @@ export default function BallotDetailNewArguments() {
       const { ballot: ballotData, args: argsData } = await loadCached(
         `ballot:${id}`,
         async () => {
-          const [b, a] = await Promise.all([
-            getBallot(id),
-            listArguments(id),
-          ]);
+          const [b, a] = await Promise.all([getBallot(id), listArguments(id)]);
           return { ballot: b, args: a };
         },
       );
@@ -585,7 +567,9 @@ export default function BallotDetailNewArguments() {
               {ballot.record.topic && (
                 <span className="tag eyebrow">{ballot.record.topic}</span>
               )}
-              <span className="label">{formatDate(ballot.record.voteDate)}</span>
+              <span className="label">
+                {formatDate(ballot.record.voteDate)}
+              </span>
             </div>
 
             <div className="flex justify-between items-start gap-6 mb-5">
@@ -690,8 +674,12 @@ export default function BallotDetailNewArguments() {
               "na-sec-community": tbk("communityTitle"),
               "na-sec-evaluation": tbk("auswertungTitle"),
             };
-            const above = BOOKLET_SECTIONS.filter((s) => railState[s.id] === "above");
-            const below = BOOKLET_SECTIONS.filter((s) => railState[s.id] === "below");
+            const above = BOOKLET_SECTIONS.filter(
+              (s) => railState[s.id] === "above",
+            );
+            const below = BOOKLET_SECTIONS.filter(
+              (s) => railState[s.id] === "below",
+            );
             return (
               <>
                 {above.map((s, i) => (
@@ -705,7 +693,9 @@ export default function BallotDetailNewArguments() {
                       className="na-railbar-inner"
                       onClick={() => scrollToSection(s.id)}
                     >
-                      <span className={`na-railbar-marker na-railbar-marker-${s.variant}`}>
+                      <span
+                        className={`na-railbar-marker na-railbar-marker-${s.variant}`}
+                      >
                         {s.marker}
                       </span>
                       <span className="na-railbar-title">{titles[s.id]}</span>
@@ -723,7 +713,9 @@ export default function BallotDetailNewArguments() {
                       className="na-railbar-inner"
                       onClick={() => scrollToSection(s.id)}
                     >
-                      <span className={`na-railbar-marker na-railbar-marker-${s.variant}`}>
+                      <span
+                        className={`na-railbar-marker na-railbar-marker-${s.variant}`}
+                      >
                         {s.marker}
                       </span>
                       <span className="na-railbar-title">{titles[s.id]}</span>
@@ -824,36 +816,9 @@ export default function BallotDetailNewArguments() {
           color: var(--text-faint);
           font-size: 0.875rem;
         }
-        :global(.na-section-col-headers) {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
-          margin-top: 8px;
-        }
-        :global(.na-section-col-label) {
-          padding: 5px 10px;
-          border-radius: 6px;
-          font-size: 0.78125rem;
-          font-weight: 600;
-          letter-spacing: 0.01em;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-        :global(.na-section-col-pro) {
-          background: var(--pro-dim);
-          color: var(--pro);
-          border: 1px solid var(--pro-border);
-        }
-        :global(.na-section-col-contra) {
-          background: var(--contra-dim);
-          color: var(--contra);
-          border: 1px solid var(--contra-border);
-        }
-
         /* fade only when sticky is active */
         :global(.na-section-sticky-header--active::after) {
-          content: '';
+          content: "";
           position: absolute;
           bottom: -24px;
           left: 0;
@@ -863,14 +828,30 @@ export default function BallotDetailNewArguments() {
           z-index: 3;
         }
         :global(.na-section-official .na-section-sticky-header--active::after) {
-          background: linear-gradient(to bottom, var(--bg, #f9f9f8), rgba(249,249,248,0));
+          background: linear-gradient(
+            to bottom,
+            var(--bg, #f9f9f8),
+            rgba(249, 249, 248, 0)
+          );
           // background: linear-gradient(to bottom, var(--bg), transparent);
         }
-        :global(.na-section-community .na-section-sticky-header--active::after) {
-          background: linear-gradient(to bottom, var(--bg, #f9f9f8), rgba(249,249,248,0));
+        :global(
+          .na-section-community .na-section-sticky-header--active::after
+        ) {
+          background: linear-gradient(
+            to bottom,
+            var(--bg, #f9f9f8),
+            rgba(249, 249, 248, 0)
+          );
         }
-        :global(.na-section-evaluation .na-section-sticky-header--active::after) {
-          background: linear-gradient(to bottom, var(--bg, #f9f9f8), rgba(249,249,248,0));
+        :global(
+          .na-section-evaluation .na-section-sticky-header--active::after
+        ) {
+          background: linear-gradient(
+            to bottom,
+            var(--bg, #f9f9f8),
+            rgba(249, 249, 248, 0)
+          );
         }
 
         :global(.na-section) {
@@ -958,9 +939,15 @@ export default function BallotDetailNewArguments() {
           padding: 8px 4px;
         }
         :global(.na-placeholder) {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 100vh;
           font-size: 0.875rem;
           color: #888;
-          padding: 24px 4px;
+          text-align: center;
+          border: 1px dashed var(--line);
+          border-radius: 10px;
         }
         :global(.na-show-more) {
           width: 100%;
@@ -983,59 +970,127 @@ export default function BallotDetailNewArguments() {
           background: #fff;
         }
 
+        /* Würdevolle Card: großzügig, zweizeilig, Serif-Titel, Index als Wasserzeichen */
         :global(.na-card) {
+          position: relative;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          gap: 11px;
           background: #fff;
           border: 1px solid var(--line);
-          border-radius: 7px;
-          padding: 12px 14px;
+          border-left: 5px solid var(--line);
+          border-radius: 12px;
+          padding: 16px 20px 18px;
           cursor: pointer;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
           transition:
             transform 0.15s ease,
             box-shadow 0.15s ease,
-            border-color 0.15s ease;
+            border-color 0.15s ease,
+            opacity 0.15s ease;
         }
         :global(.na-card:hover) {
           transform: translateY(-1px);
-          border-color: var(--line-mid);
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 2px 10px rgba(0, 0, 0, 0.05);
+          box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
         }
-        :global(.na-card-header) {
+        :global(.na-card-top) {
+          position: relative;
+          z-index: 1;
           display: flex;
+          align-items: center;
           justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 10px;
-          padding-bottom: 9px;
-          border-bottom: 1px solid var(--line);
-          gap: 8px;
+          gap: 10px;
+        }
+        :global(.na-card-top-left) {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+        }
+        /* Ungelesen-Marker: kleiner warmer Pergament-/Goldpunkt (E-Mail-Metapher) */
+        :global(.na-dot) {
+          width: 9px;
+          height: 9px;
+          border-radius: 50%;
+          background: #b8862b;
+          flex-shrink: 0;
+          box-shadow: 0 0 0 3px rgba(184, 134, 43, 0.14);
         }
         :global(.na-card-title) {
-          font-size: 1rem;
+          position: relative;
+          z-index: 1;
+          font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+          font-size: 1.25rem;
           font-weight: 600;
-          line-height: 1.3;
-          flex: 1;
+          line-height: 1.25;
+          letter-spacing: -0.01em;
         }
-        :global(.na-card-body) {
-          font-size: 0.9375rem;
-          color: #555;
-          line-height: 1.5;
-          margin-bottom: 10px;
-          display: -webkit-box;
-          -webkit-line-clamp: 4;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
+
+        /* Relevanz-Wert als grosse Score-Zahl rechts (vertikal zentriert).
+           Lesbar, aber zurückgenommen, damit der Titel führend bleibt. */
+        :global(.na-card-index) {
+          position: absolute;
+          right: 20px;
+          top: 50%;
+          transform: translateY(-50%);
+          z-index: 0;
+          font-family: var(--font-serif), Georgia, serif;
+          font-size: 3.25rem;
+          font-weight: 700;
+          line-height: 1;
+          color: rgba(26, 24, 20, 0.16);
+          user-select: none;
         }
-        :global(.na-card-footer) {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-size: 0.8125rem;
-          color: #888;
-          padding-top: 8px;
-          border-top: 1px solid var(--line);
+        /* Stufenfarben: gering (grau), mittel (gedämpft), gross (warmes Gold) */
+        :global(.na-card-index-low) {
+          color: rgba(26, 24, 20, 0.13);
         }
-        :global(.na-helpful) {
-          color: #555;
+        :global(.na-card-index-medium) {
+          color: rgba(90, 107, 138, 0.32);
+        }
+        :global(.na-card-index-high) {
+          color: rgba(184, 134, 43, 0.5);
+        }
+
+        /* Pro/Contra-Badge + Farbe auf dem linken Balken */
+        :global(.na-badge) {
+          flex-shrink: 0;
+          font-size: 0.6875rem;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          padding: 3px 10px;
+          border-radius: var(--r-full, 999px);
+        }
+        :global(.na-card-pro) {
+          border-left-color: var(--green);
+        }
+        :global(.na-card-pro .na-badge) {
+          background: var(--green-dim);
+          color: var(--green);
+        }
+        :global(.na-card-contra) {
+          border-left-color: var(--red);
+        }
+        :global(.na-card-contra .na-badge) {
+          background: var(--red-dim);
+          color: var(--red);
+        }
+
+        /* Unbewertet → warmer Pergament-/Creme-Ton: hebt offene Argumente ab, ohne zu
+           schreien, und passt zum Serif-Dossier. Goldpunkt + fetter, dunkler Titel. */
+        :global(.na-card-unrated) {
+          background: #fff7edfc;
+          border-top-color: #ecddbb;
+          border-right-color: #ecddbb;
+          border-bottom-color: #ecddbb;
+        }
+        :global(.na-card-unrated .na-card-title) {
+          font-weight: 700;
+          color: var(--text);
+        }
+        /* Bewertet → Titel leichter, damit Unbewertetes von selbst heraussticht */
+        :global(.na-card-rated .na-card-title) {
+          font-weight: 500;
         }
 
         /* Mobile: collapse to single column, interleave PRO/CONTRA */
@@ -1085,24 +1140,6 @@ export default function BallotDetailNewArguments() {
           }
           :global(.na-column:last-child .na-card:nth-child(6)) {
             order: 12;
-          }
-
-          /* Pro/Contra dot before title since column header is hidden */
-          :global(.na-card-title::before) {
-            content: "";
-            display: inline-block;
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            margin-right: 7px;
-            vertical-align: middle;
-            transform: translateY(-1px);
-          }
-          :global(.na-card-pro .na-card-title::before) {
-            background: var(--pro);
-          }
-          :global(.na-card-contra .na-card-title::before) {
-            background: var(--contra);
           }
         }
       `}</style>

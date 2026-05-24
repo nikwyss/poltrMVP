@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Unread-Card Vorschau</title>
+<style>
+  :root {
+    --r-full: 100px;
+    --bg: #f4f2ef;
+    --surface-up: #f0ede9;
+    --text: #1a1814;
+    --text-mid: #7a7168;
+    --text-faint: #b0a99f;
+    --line: #e2ddd7;
+    --line-mid: #ccc7bf;
+    --red: #e5303f;
+    --red-dim: #fdf0f1;
+    --red-border: #f5c2c6;
+    --green: #1a8a5a;
+    --green-dim: #eef7f2;
+    --green-border: #b3ddc8;
+    --font-serif: Georgia, "Times New Roman", serif;
+  }
+  body {
+    background: var(--bg);
+    font-family: -apple-system, system-ui, sans-serif;
+    color: var(--text);
+    margin: 0;
+    padding: 40px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px; }
+  h2 { font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: var(--text-mid); margin: 22px 0 2px; }
+
+  /* ── exakt aus page.tsx ── */
+  .na-card {
+    position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 11px;
+    background: #fff; border: 1px solid var(--line); border-left: 5px solid var(--line);
+    border-radius: 12px; padding: 16px 20px 18px; cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    transition: transform .15s, box-shadow .15s, border-color .15s, opacity .15s;
+  }
+  .na-card:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.07); }
+  .na-card-top { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .na-card-top-left { display: flex; align-items: center; gap: 9px; }
+  .na-dot { width: 9px; height: 9px; border-radius: 50%; background: #b8862b; flex-shrink: 0; box-shadow: 0 0 0 3px rgba(184,134,43,.14); }
+  .na-card-title { position: relative; z-index: 1; font-family: var(--font-serif); font-size: 1.25rem; font-weight: 600; line-height: 1.25; letter-spacing: -.01em; }
+  .na-card-index { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); z-index: 0; font-family: var(--font-serif); font-size: 4rem; font-weight: 700; line-height: 1; color: rgba(26,24,20,.045); pointer-events: none; user-select: none; }
+  .na-badge { flex-shrink: 0; font-size: .6875rem; font-weight: 700; letter-spacing: .02em; padding: 3px 10px; border-radius: var(--r-full); }
+  .na-card-pro { border-left-color: var(--green); }
+  .na-card-pro .na-badge { background: var(--green-dim); color: var(--green); }
+  .na-card-contra { border-left-color: var(--red); }
+  .na-card-contra .na-badge { background: var(--red-dim); color: var(--red); }
+  .na-status { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; font-size: .875rem; font-weight: 600; white-space: nowrap; }
+
+  /* unread → Pergament */
+  .na-card-unread { background: #fbf5e7; border-top-color: #ecddbb; border-right-color: #ecddbb; border-bottom-color: #ecddbb; }
+  .na-card-unread .na-card-title { font-weight: 700; color: var(--text); }
+  .na-card-important .na-card-title { font-weight: 500; }
+  .na-status-important { color: var(--green); font-weight: 700; }
+  .na-status-archived { color: var(--text-faint); font-weight: 500; }
+  .na-card-archived { opacity: .55; }
+  .na-card-archived:hover { opacity: .8; }
+  .na-card-archived .na-card-title { color: var(--text-mid); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h2>Unbewertet (Pergament)</h2>
+  <div class="na-card na-card-pro na-card-unread">
+    <div class="na-card-top">
+      <div class="na-card-top-left"><span class="na-dot"></span><span class="na-badge">Pro-Argument</span></div>
+    </div>
+    <div class="na-card-title">Ein Anfang muss gemacht werden</div>
+    <span class="na-card-index">6C</span>
+  </div>
+  <div class="na-card na-card-contra na-card-unread">
+    <div class="na-card-top">
+      <div class="na-card-top-left"><span class="na-dot"></span><span class="na-badge">Contra-Argument</span></div>
+    </div>
+    <div class="na-card-title">Weltweit statt nur Schweizweit</div>
+    <span class="na-card-index">6D</span>
+  </div>
+
+  <h2>Für wichtig befunden (gelesen)</h2>
+  <div class="na-card na-card-pro na-card-important">
+    <div class="na-card-top">
+      <div class="na-card-top-left"><span class="na-badge">Pro-Argument</span></div>
+      <span class="na-status na-status-important">Für wichtig befunden</span>
+    </div>
+    <div class="na-card-title">Stärkt die direkte Demokratie</div>
+    <span class="na-card-index">6E</span>
+  </div>
+
+  <h2>Archiviert (erledigt)</h2>
+  <div class="na-card na-card-contra na-card-archived">
+    <div class="na-card-top">
+      <div class="na-card-top-left"><span class="na-badge">Contra-Argument</span></div>
+      <span class="na-status na-status-archived">▢ Archiviert</span>
+    </div>
+    <div class="na-card-title">Zu einseitig</div>
+    <span class="na-card-index">6F</span>
+  </div>
+
+</div>
+</body>
+</html>

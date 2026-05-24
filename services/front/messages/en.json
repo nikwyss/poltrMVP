@@ -143,7 +143,18 @@
     "addComment": "Add a comment:",
     "commentPlaceholder": "Write a comment...",
     "loadingArgument": "Loading argument...",
-    "writeComment": "Write a comment"
+    "writeComment": "Write a comment",
+    "yourRating": "Your rating"
+  },
+  "relevance": {
+    "low": "Low relevance",
+    "medium": "Medium relevance",
+    "high": "High relevance",
+    "notRated": "Not yet rated",
+    "intro": "How relevant do you find this argument? Rate it by moving the slider.",
+    "increase": "Increase relevance",
+    "decrease": "Decrease relevance",
+    "ariaLabel": "Relevance rating"
   },
   "feed": {
     "addArgument": "Add argument",
@@ -217,6 +228,10 @@
     "auswertungSubtitle": "coming soon",
     "auswertungPlaceholder": "The evaluation will be available soon.",
     "showMore": "Show more (+{count})",
+    "proArgument": "Pro argument",
+    "contraArgument": "Contra argument",
+    "statusUnread": "Review",
+    "relevanceTitle": "Your relevance rating",
     "fallbackBundesrat": "Federal Council",
     "fallbackInitiativkomitee": "Initiative Committee",
     "fallbackOrganization": "Organization"

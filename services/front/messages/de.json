@@ -143,7 +143,18 @@
     "addComment": "Kommentar hinzufügen:",
     "commentPlaceholder": "Schreibe einen Kommentar...",
     "loadingArgument": "Lade Argument...",
-    "writeComment": "Kommentar verfassen"
+    "writeComment": "Kommentar verfassen",
+    "yourRating": "Ihre Bewertung"
+  },
+  "relevance": {
+    "low": "Geringe Relevanz",
+    "medium": "Mittlere Relevanz",
+    "high": "Grosse Relevanz",
+    "notRated": "Noch nicht bewertet",
+    "intro": "Wie relevant finden Sie dieses Argument? Bewerten Sie das Argument, indem Sie den Regler verschieben.",
+    "increase": "Relevanz erhöhen",
+    "decrease": "Relevanz verringern",
+    "ariaLabel": "Relevanz-Bewertung"
   },
   "feed": {
     "addArgument": "Argument hinzufügen",
@@ -217,6 +228,10 @@
     "auswertungSubtitle": "Welche Argumente überzeugen Sie am meisten? Welche kommen bei der community besonders gut an?",
     "auswertungPlaceholder": "Die Auswertung wird in Kürze verfügbar sein.",
     "showMore": "Mehr anzeigen (+{count})",
+    "proArgument": "Pro-Argument",
+    "contraArgument": "Contra-Argument",
+    "statusUnread": "Bewerten",
+    "relevanceTitle": "Ihre Relevanz-Bewertung",
     "fallbackBundesrat": "Bundesrat",
     "fallbackInitiativkomitee": "Initiativkomitee",
     "fallbackOrganization": "Organisation"

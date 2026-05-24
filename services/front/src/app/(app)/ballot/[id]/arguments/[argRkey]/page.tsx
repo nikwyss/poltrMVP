@@ -23,6 +23,10 @@ import {
 } from "@/components/pro-contra-badge";
 import { CommentAvatar, CommentContent } from "@/components/comment-content";
 import { ReplyInput } from "@/components/reply-input";
+import {
+  RelevanceRating,
+  placeholderRelevance,
+} from "@/components/relevance-rating";
 
 // ---------------------------------------------------------------------------
 // Comment node (recursive, clickable)
@@ -121,6 +125,9 @@ export default function ArgumentDetailPage({
   const [argument, setArgument] = useState<ArgumentWithMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Relevanz-Bewertung des Users (1–100) oder null, wenn noch nicht bewertet.
+  // PLATZHALTER bis das Backend-Feld existiert: initial aus der Argument-URI.
+  const [relevance, setRelevance] = useState<number | null>(null);
 
   const {
     comments,
@@ -155,6 +162,7 @@ export default function ArgumentDetailPage({
       try {
         const arg = await getArgument(ballotRkey, argRkey);
         setArgument(arg);
+        setRelevance(placeholderRelevance(arg));
         const loaded = await reload(arg.uri);
         // No comments yet → open the top-level composer right away.
         setReplyTarget(loaded.length === 0 ? ROOT_TARGET : null);
@@ -319,6 +327,14 @@ export default function ArgumentDetailPage({
                 </div>
               </div>
 
+              {/* Relevanz-Bewertung */}
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
+                  {t("yourRating")}
+                </div>
+                <RelevanceRating value={relevance} onChange={setRelevance} />
+              </div>
+
               <Separator />
 
               {/* Comments */}
@@ -400,6 +416,16 @@ export default function ArgumentDetailPage({
                 )}
                 <ReviewStatusBadge status={argument.reviewStatus} />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Relevanz-Bewertung */}
+          <Card>
+            <CardContent className="pt-5">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
+                {t("yourRating")}
+              </div>
+              <RelevanceRating value={relevance} onChange={setRelevance} />
             </CardContent>
           </Card>
 
