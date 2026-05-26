@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Spinner } from '@/components/spinner';
+import { PageBackdrop } from '@/components/page-backdrop';
 
 export default function Login() {
   const router = useRouter();
@@ -70,12 +71,7 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen">
-      <img
-        src="/images/arcades_fine.svg"
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none fixed bottom-0 left-0 -z-10 h-[60vh] w-auto select-none opacity-[0.18]"
-      />
+      <PageBackdrop />
 
       {/* Logo + login form combined horizontally in one card */}
       <div className="flex w-full flex-col items-center justify-center p-8">

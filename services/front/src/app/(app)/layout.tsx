@@ -31,7 +31,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col">
       <AppNav />
       <main className="mx-auto w-full flex-1" style={{ maxWidth: 'var(--page-max)', padding: '0 var(--page-px) 100px' }}>
         {children}

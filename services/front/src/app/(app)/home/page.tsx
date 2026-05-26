@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MessageCircle } from "lucide-react";
 import { Spinner } from "@/components/spinner";
+import { PageBackdrop } from "@/components/page-backdrop";
 
 function BallotCard({
   ballot,
@@ -144,12 +145,7 @@ export default function Home() {
         gap: "calc(var(--gap) * 2)",
       }}
     >
-      <img
-        src="/images/arcades_fine.svg"
-        alt=""
-        aria-hidden="true"
-        className="pointer-events-none fixed bottom-0 left-0 -z-10 h-[60vh] w-auto select-none opacity-[0.18]"
-      />
+      <PageBackdrop />
 
       <h1 className="text-2xl font-bold tracking-tight pt-5">
         {th("hello", { name: user.displayName })}
