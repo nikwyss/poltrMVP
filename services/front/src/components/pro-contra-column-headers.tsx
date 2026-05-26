@@ -16,8 +16,8 @@ function ColumnHeader({
   count: number;
 }) {
   const isPro = type === "pro";
-  const color = isPro ? "var(--green)" : "var(--red)";
-  const dim = isPro ? "var(--green-dim)" : "var(--red-dim)";
+  const color = isPro ? "var(--pro)" : "var(--contra)";
+  const dim = isPro ? "var(--pro-dim)" : "var(--contra-dim)";
 
   return (
     <div className="flex items-center gap-3">

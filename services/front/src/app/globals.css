@@ -54,14 +54,14 @@
   --sand: #e7dcc6;           /* aktiver Sandstein-Quader (Füllung) */
   --sand-edge: #d6c7a8;      /* Quader-Schattenfuge / Schlussstein */
   /* Pro/Contra — in die Steinpalette eingebettet (gedämpftes Salbei + Terrakotta) */
-  --pro: #5b7a55;            /* Moos-/Salbeigrün */
-  --pro-dim: #eef2ea;
-  --pro-border: #cbd8c4;
-  --pro-tint: #f1f4ee;       /* getönter Kartenhintergrund */
-  --contra: #a6614a;         /* erdiges Terrakotta */
-  --contra-dim: #f5ece7;
-  --contra-border: #e3cdc1;
-  --contra-tint: #f7efe9;
+  --pro: #3E7C5A;            /* Pro-Grün (Backstein-Palette) */
+  --pro-dim: #e8f1ec;
+  --pro-border: #c2d8ca;
+  --pro-tint: #eef4f0;       /* getönter Kartenhintergrund */
+  --contra: #A14334;         /* Contra-Rot (Backstein) */
+  --contra-dim: #f6eae6;
+  --contra-border: #e4c9c1;
+  --contra-tint: #f7efeb;
 
   /* ── shadcn mappings ── */
   --radius: var(--r);

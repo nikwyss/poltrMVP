@@ -285,9 +285,8 @@ export default function ArgumentDetailPage({
   if (!isAuthenticated) return null;
 
   const isPro = argument?.record.type === "PRO";
+  // Argumentfarbe (Pro/Contra) — für Karten-Balken, Badge und Slider.
   const accentColor = isPro ? "var(--pro)" : "var(--contra)";
-  // Linker Karten-Balken wie im Booklet (kräftiges Grün/Rot, nicht das gedämpfte Pro/Contra).
-  const cardAccent = isPro ? "var(--green)" : "var(--red)";
 
   // ── Shared comments block (used by both overlay and full-page layouts) ──────
   const commentsBlock = (
@@ -331,7 +330,7 @@ export default function ArgumentDetailPage({
     return (
       <div
         className="ov-card"
-        style={{ borderLeft: `5px solid ${argument ? cardAccent : "var(--line)"}` }}
+        style={{ borderLeft: `5px solid ${argument ? accentColor : "var(--line)"}` }}
       >
         {/* Karten-Optik wie im Booklet — lokal gescoped, damit das Overlay aus Feed
             wie Booklet identisch aussieht (na-* Klassen sind dort nicht verfügbar). */}
@@ -365,12 +364,12 @@ export default function ArgumentDetailPage({
             border-radius: var(--r-full, 999px);
           }
           .ov-badge-pro {
-            background: var(--green-dim);
-            color: var(--green);
+            background: var(--pro-dim);
+            color: var(--pro);
           }
           .ov-badge-contra {
-            background: var(--red-dim);
-            color: var(--red);
+            background: var(--contra-dim);
+            color: var(--contra);
           }
           .ov-arg-title {
             margin: 0;

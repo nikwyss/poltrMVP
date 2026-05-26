@@ -54,8 +54,8 @@ export function RelevanceRating({
   // Farbkonzept = Argumentfarbe. Per Inline-Style gesetzt (statt gescopter Klasse),
   // damit die Custom Properties zuverlässig in den Radix-Slider hineinvererben.
   const accentStyle = {
-    "--rng-accent": accent === "contra" ? "var(--red)" : "var(--green)",
-    "--rng-deep": accent === "contra" ? "#8e2a1e" : "#1f5c40",
+    "--rng-accent": accent === "contra" ? "var(--contra)" : "var(--pro)",
+    "--rng-deep": accent === "contra" ? "#76301f" : "#2c5a41",
   } as CSSProperties;
 
   return (

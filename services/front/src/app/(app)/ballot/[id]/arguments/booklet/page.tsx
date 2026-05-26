@@ -1079,18 +1079,18 @@ export default function BallotDetailNewArguments() {
           border-radius: var(--r-full, 999px);
         }
         :global(.na-card-pro) {
-          border-left-color: var(--green);
+          border-left-color: var(--pro);
         }
         :global(.na-card-pro .na-badge) {
-          background: var(--green-dim);
-          color: var(--green);
+          background: var(--pro-dim);
+          color: var(--pro);
         }
         :global(.na-card-contra) {
-          border-left-color: var(--red);
+          border-left-color: var(--contra);
         }
         :global(.na-card-contra .na-badge) {
-          background: var(--red-dim);
-          color: var(--red);
+          background: var(--contra-dim);
+          color: var(--contra);
         }
 
         /* Unbewertet → warmer Pergament-/Creme-Ton: hebt offene Argumente ab, ohne zu
