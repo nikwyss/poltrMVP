@@ -16,6 +16,7 @@ import httpx
 
 from src.core import db
 from src.atproto.pds_creds import decrypt_app_password, encrypt_app_password
+from src.atproto.errors import from_network_error, from_response
 
 logger = logging.getLogger("governance_pds")
 
@@ -44,14 +45,18 @@ async def _create_session(client: httpx.AsyncClient, did: str) -> str:
     """Create a PDS session for a governance account. Returns access JWT."""
     password = await _get_governance_password(did)
 
-    resp = await client.post(
-        f"{_pds_internal_url()}/xrpc/com.atproto.server.createSession",
-        json={"identifier": did, "password": password},
-    )
+    try:
+        resp = await client.post(
+            f"{_pds_internal_url()}/xrpc/com.atproto.server.createSession",
+            json={"identifier": did, "password": password},
+        )
+    except httpx.RequestError as exc:
+        raise from_network_error(exc, op="governance.createSession", did=did) from exc
     if resp.status_code != 200:
-        raise RuntimeError(
+        logger.error(
             f"Governance createSession failed for {did} ({resp.status_code}): {resp.text}"
         )
+        raise from_response(resp, op="governance.createSession", did=did)
 
     access_jwt = resp.json()["accessJwt"]
     expires_at = asyncio.get_event_loop().time() + 90 * 60
@@ -70,29 +75,45 @@ async def get_governance_token(client: httpx.AsyncClient, did: str) -> str:
 
 
 async def create_governance_record(
-    client: httpx.AsyncClient, did: str, collection: str, record: dict
+    client: httpx.AsyncClient,
+    did: str,
+    collection: str,
+    record: dict,
+    rkey: str | None = None,
 ) -> dict:
-    """Write a record to a governance account's PDS repo. Returns {uri, cid}."""
+    """Write a record to a governance account's PDS repo. Returns {uri, cid}.
+
+    When `rkey` is given, createRecord is create-only at that key: a second
+    write to the same (collection, rkey) is rejected by the PDS *before* any
+    commit is written. This both makes the record immutable at the source and
+    makes redundant re-writes impossible (no firehose commit on conflict).
+    """
     token = await get_governance_token(client, did)
 
-    resp = await client.post(
-        f"{_pds_internal_url()}/xrpc/com.atproto.repo.createRecord",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        },
-        json={
-            "repo": did,
-            "collection": collection,
-            "record": record,
-        },
-    )
+    body = {"repo": did, "collection": collection, "record": record}
+    if rkey is not None:
+        body["rkey"] = rkey
+
+    try:
+        resp = await client.post(
+            f"{_pds_internal_url()}/xrpc/com.atproto.repo.createRecord",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
+            json=body,
+        )
+    except httpx.RequestError as exc:
+        raise from_network_error(
+            exc, op=f"governance.createRecord:{collection}", did=did
+        ) from exc
 
     if resp.status_code != 200:
-        raise RuntimeError(
+        logger.error(
             f"Governance createRecord failed for {collection} "
             f"({resp.status_code}): {resp.text}"
         )
+        raise from_response(resp, op=f"governance.createRecord:{collection}", did=did)
 
     return resp.json()
 
@@ -104,25 +125,31 @@ async def put_governance_record(
     Returns {uri, cid}."""
     token = await get_governance_token(client, did)
 
-    resp = await client.post(
-        f"{_pds_internal_url()}/xrpc/com.atproto.repo.putRecord",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        },
-        json={
-            "repo": did,
-            "collection": collection,
-            "rkey": rkey,
-            "record": record,
-        },
-    )
+    try:
+        resp = await client.post(
+            f"{_pds_internal_url()}/xrpc/com.atproto.repo.putRecord",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
+            json={
+                "repo": did,
+                "collection": collection,
+                "rkey": rkey,
+                "record": record,
+            },
+        )
+    except httpx.RequestError as exc:
+        raise from_network_error(
+            exc, op=f"governance.putRecord:{collection}", did=did
+        ) from exc
 
     if resp.status_code != 200:
-        raise RuntimeError(
+        logger.error(
             f"Governance putRecord failed for {collection}/{rkey} "
             f"({resp.status_code}): {resp.text}"
         )
+        raise from_response(resp, op=f"governance.putRecord:{collection}", did=did)
 
     return resp.json()
 

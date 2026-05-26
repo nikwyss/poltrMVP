@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listComments, createComment } from "@/lib/agent";
 import { likeContent, unlikeContent } from "@/lib/ballots";
+import { isPdsError, type PdsError } from "@/lib/pdsError";
 import type { CommentWithMetadata } from "@/types/ballots";
+
+const asPdsError = (e: unknown): PdsError =>
+  isPdsError(e) ? e : { code: "unknown", status: 0 };
 
 /**
  * Shared thread state for the argument- and comment-detail views.
@@ -13,8 +17,14 @@ import type { CommentWithMetadata } from "@/types/ballots";
  * (optimistic update + rollback) and the inline composer state. Because the
  * list is flat, like toggles apply to any comment — top-level or nested.
  */
-export function useCommentThread() {
+export function useCommentThread(options?: {
+  // Called when a like toggle fails (after rollback) — e.g. to show a toast.
+  onError?: (e: PdsError) => void;
+}) {
   const [comments, setComments] = useState<CommentWithMetadata[]>([]);
+  // Last comment-submit failure, for an inline alert in the composer
+  // (the typed text is preserved). Cleared on a new attempt / success.
+  const [commentError, setCommentError] = useState<PdsError | null>(null);
 
   // Composer: replyText, submit-in-flight, and the uri the composer targets.
   // `replyTarget` semantics are owned by the caller (a comment uri, or a
@@ -65,14 +75,14 @@ export function useCommentThread() {
           patchComment(c.uri, { viewer: { like: likeUri } });
         }
       } catch (err) {
-        console.error("Failed to toggle like:", err);
         patchComment(c.uri, {
           likeCount: c.likeCount ?? 0,
           viewer: c.viewer,
         });
+        options?.onError?.(asPdsError(err));
       }
     },
-    [patchComment],
+    [patchComment, options],
   );
 
   /**
@@ -83,13 +93,15 @@ export function useCommentThread() {
     async (argumentUri: string, parentUri?: string) => {
       if (!replyText.trim() || submitting) return;
       setSubmitting(true);
+      setCommentError(null);
       try {
         await createComment(argumentUri, "", replyText.trim(), parentUri);
         setReplyText("");
         await reload(argumentUri);
         setReplyTarget(null);
       } catch (err) {
-        console.error("Failed to submit comment:", err);
+        // Keep the typed text; surface an inline error in the composer.
+        setCommentError(asPdsError(err));
       } finally {
         setSubmitting(false);
       }
@@ -110,5 +122,7 @@ export function useCommentThread() {
     replyTarget,
     setReplyTarget,
     replyInputRef,
+    commentError,
+    setCommentError,
   };
 }

@@ -112,7 +112,9 @@ export const handleEvent = async (evt) => {
     //   return;
     // }
 
-    // || action === "update"
+    // Create-only: invitations are immutable once issued. The peer-review loop
+    // writes them via createRecord at a deterministic rkey, so there is never an
+    // "update" event for an invitation (a second write is rejected by the PDS).
     if (action === "create") {
       const record = evt.record;
       if (!record) return;
@@ -126,7 +128,6 @@ export const handleEvent = async (evt) => {
     //   return;
     // }
 
-    // || action === "update"
     if (action === "create") {
       const record = evt.record;
       if (!record) return;

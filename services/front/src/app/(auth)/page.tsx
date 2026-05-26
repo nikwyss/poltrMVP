@@ -70,23 +70,31 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen">
-      {/* Left: logo */}
-      <div className="hidden md:flex md:w-1/2 items-center justify-center bg-muted/30">
-        <img src="/logo5.svg" alt="Poltr" className="w-72 h-72 lg:w-96 lg:h-96" />
-      </div>
+      <img
+        src="/images/arcades_fine.svg"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none fixed bottom-0 left-0 -z-10 h-[60vh] w-auto select-none opacity-[0.18]"
+      />
 
-      {/* Right: login form */}
-      <div className="flex w-full md:w-1/2 flex-col items-center justify-center p-8">
-        <img src="/logo5.svg" alt="Poltr" className="w-32 h-32 mb-6 md:hidden" />
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">{t('title')}</CardTitle>
-            <CardDescription>
-              {t('description')}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Logo + login form combined horizontally in one card */}
+      <div className="flex w-full flex-col items-center justify-center p-8">
+        <Card className="w-full max-w-2xl">
+          <div className="flex flex-col items-center gap-6 p-6 md:flex-row md:items-center md:gap-8">
+            <img
+              src="/logo5.svg"
+              alt="Poltr"
+              className="w-32 h-32 shrink-0 md:w-48 md:h-48"
+            />
+            <div className="w-full max-w-sm">
+              <CardHeader className="text-center px-0">
+                <CardTitle className="text-2xl">{t('title')}</CardTitle>
+                <CardDescription>
+                  {t('description')}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="px-0">
+                <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-medium">
                   {t('emailLabel')}
@@ -119,8 +127,10 @@ export default function Login() {
                   {t('noAccount')}
                 </Button>
               </div>
-            </form>
-          </CardContent>
+              </form>
+              </CardContent>
+            </div>
+          </div>
         </Card>
       </div>
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
@@ -23,10 +23,10 @@ import {
 } from "@/components/pro-contra-badge";
 import { CommentAvatar, CommentContent } from "@/components/comment-content";
 import { ReplyInput } from "@/components/reply-input";
-import {
-  RelevanceRating,
-  placeholderRelevance,
-} from "@/components/relevance-rating";
+import { RelevanceRating } from "@/components/relevance-rating";
+import { rateContent } from "@/lib/ballots";
+import { isPdsError, pdsErrorKey, type PdsError } from "@/lib/pdsError";
+import { notifyPdsError } from "@/lib/toast";
 
 // ---------------------------------------------------------------------------
 // Comment node (recursive, clickable)
@@ -106,12 +106,16 @@ export default function ArgumentDetailPage({
   onClose,
   argRkeyOverride,
   onNavigateToComment,
+  onRated,
   backLabel,
 }: {
   isOverlay?: boolean;
   onClose?: () => void;
   argRkeyOverride?: string;
   onNavigateToComment?: (uri: string) => void;
+  // Called after a rating changes so a host (e.g. the booklet list) can reflect
+  // it live without a refetch. `null` = rating cleared / rolled back to unrated.
+  onRated?: (argUri: string, preference: number | null) => void;
   backLabel?: string;
 } = {}) {
   const { isAuthenticated, loading: authLoading } = useAuth();
@@ -121,13 +125,16 @@ export default function ArgumentDetailPage({
   const argRkey = argRkeyOverride ?? (params.argRkey as string);
   const t = useTranslations("argumentDetail");
   const tc = useTranslations("common");
+  const te = useTranslations("errors");
 
   const [argument, setArgument] = useState<ArgumentWithMetadata | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   // Relevanz-Bewertung des Users (1–100) oder null, wenn noch nicht bewertet.
-  // PLATZHALTER bis das Backend-Feld existiert: initial aus der Argument-URI.
+  // Initial aus `argument.viewer.preference` (vom AppView angereichert).
   const [relevance, setRelevance] = useState<number | null>(null);
+  // Letzter erfolgreich persistierter Wert — Rollback-Baseline bei Fehlern.
+  const committedRelevance = useRef<number | null>(null);
 
   const {
     comments,
@@ -140,7 +147,8 @@ export default function ArgumentDetailPage({
     replyTarget,
     setReplyTarget,
     replyInputRef,
-  } = useCommentThread();
+    commentError,
+  } = useCommentThread({ onError: (e) => notifyPdsError(te, e) });
 
   // Derive the top-level comment tree from the flat list.
   const roots = useMemo(() => {
@@ -162,7 +170,8 @@ export default function ArgumentDetailPage({
       try {
         const arg = await getArgument(ballotRkey, argRkey);
         setArgument(arg);
-        setRelevance(placeholderRelevance(arg));
+        setRelevance(arg.viewer?.preference ?? null);
+        committedRelevance.current = arg.viewer?.preference ?? null;
         const loaded = await reload(arg.uri);
         // No comments yet → open the top-level composer right away.
         setReplyTarget(loaded.length === 0 ? ROOT_TARGET : null);
@@ -193,6 +202,29 @@ export default function ArgumentDetailPage({
     );
   };
 
+  // Bewertung persistieren (beim Loslassen des Reglers / +–-Buttons).
+  // Idempotent serverseitig (deterministischer rkey) — fire-and-forget.
+  const handleRateCommit = (value: number) => {
+    if (!argument) return;
+    const uri = argument.uri;
+    // Roll back to the last successfully persisted value (null = was unrated).
+    const prev = committedRelevance.current;
+    setRelevance(value);
+    onRated?.(uri, value);
+    rateContent(uri, argument.cid, value)
+      .then(() => {
+        committedRelevance.current = value;
+      })
+      .catch((err) => {
+        setRelevance(prev);
+        onRated?.(uri, prev);
+        notifyPdsError(
+          te,
+          isPdsError(err) ? err : ({ code: "unknown", status: 0 } as PdsError),
+        );
+      });
+  };
+
   const handleSubmitComment = () => {
     if (!argument) return;
     const parentUri =
@@ -201,18 +233,25 @@ export default function ArgumentDetailPage({
   };
 
   const renderComposer = () => (
-    <ReplyInput
-      ref={replyInputRef}
-      value={replyText}
-      onChange={setReplyText}
-      onSubmit={handleSubmitComment}
-      submitting={submitting}
-      placeholder={t("commentPlaceholder")}
-      onCancel={() => {
-        setReplyText("");
-        setReplyTarget(null);
-      }}
-    />
+    <div className="space-y-2">
+      {commentError && (
+        <Alert variant="destructive">
+          <AlertDescription>{te(pdsErrorKey(commentError))}</AlertDescription>
+        </Alert>
+      )}
+      <ReplyInput
+        ref={replyInputRef}
+        value={replyText}
+        onChange={setReplyText}
+        onSubmit={handleSubmitComment}
+        submitting={submitting}
+        placeholder={t("commentPlaceholder")}
+        onCancel={() => {
+          setReplyText("");
+          setReplyTarget(null);
+        }}
+      />
+    </div>
   );
 
   useScrollRestore(!isOverlay && !loading && !!argument);
@@ -332,7 +371,11 @@ export default function ArgumentDetailPage({
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
                   {t("yourRating")}
                 </div>
-                <RelevanceRating value={relevance} onChange={setRelevance} />
+                <RelevanceRating
+                  value={relevance}
+                  onChange={setRelevance}
+                  onCommit={handleRateCommit}
+                />
               </div>
 
               <Separator />
@@ -425,7 +468,11 @@ export default function ArgumentDetailPage({
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
                 {t("yourRating")}
               </div>
-              <RelevanceRating value={relevance} onChange={setRelevance} />
+              <RelevanceRating
+                value={relevance}
+                onChange={setRelevance}
+                onCommit={handleRateCommit}
+              />
             </CardContent>
           </Card>
 

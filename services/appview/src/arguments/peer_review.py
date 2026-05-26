@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 import httpx
 
 from src.core.db import get_pool
-from src.atproto.governance import put_governance_record, compose_review_rkey
+from src.atproto.governance import create_governance_record, compose_review_rkey
 
 logger = logging.getLogger("peer_review")
 
@@ -141,22 +141,48 @@ async def _invite_for_argument(
 
         selected = random.random() <= probability
         rkey = compose_review_rkey(argument_uri, user_did)
+        created_at = datetime.now(timezone.utc)
         invitation_record = {
             "$type": "app.ch.poltr.review.invitation",
             "argument": argument_uri,
             "invitee": user_did,
             "invited": selected,
-            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "createdAt": created_at.isoformat(),
         }
 
         try:
-            result = await put_governance_record(
+            # create-only at a deterministic rkey: a second write to the same
+            # (argument, invitee) is rejected by the PDS before any commit is
+            # written → the invitation is immutable AND a runaway re-write is
+            # structurally impossible (no firehose commit on conflict).
+            result = await create_governance_record(
                 client,
                 gov_did,
                 "app.ch.poltr.review.invitation",
-                rkey,
                 invitation_record,
+                rkey=rkey,
             )
+            # Record the invitation synchronously so the dedup guards above
+            # (existing_count / eligible_users / the exists check) take effect
+            # immediately — independent of the async indexer round-trip. Without
+            # this, a lagging/broken indexer leaves the guards blind and the loop
+            # re-writes the same invitation every cycle (the storage-full bug).
+            # Mirrors the indexer's upsertReviewInvitationDb; idempotent.
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO app_review_invitations
+                      (uri, cid, argument_uri, invitee_did, invited, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    ON CONFLICT DO NOTHING
+                    """,
+                    result.get("uri"),
+                    result.get("cid"),
+                    argument_uri,
+                    user_did,
+                    selected,
+                    created_at,
+                )
             if selected:
                 logger.info(
                     f"Invited {user_did} to review {argument_uri}: {result.get('uri')}"

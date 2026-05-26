@@ -29,7 +29,8 @@ spec:
                   key: PDS_HOSTNAME
 
           ports:
-            - containerPort: 3000
+            # Admin/backfill HTTP server listens on BACKFILL_PORT (3001).
+            - containerPort: 3001
               protocol: TCP
           resources:
             requests:
@@ -50,4 +51,4 @@ spec:
   ports:
     - name: http
       port: 80
-      targetPort: 3000
+      targetPort: 3001

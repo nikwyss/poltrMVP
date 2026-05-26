@@ -216,16 +216,10 @@ async def submit_review(
     # Remove None values
     review_record = {k: v for k, v in review_record.items() if v is not None}
 
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            result = await put_governance_record(
-                client, gov_did, "app.ch.poltr.review.response", rkey, review_record
-            )
-    except Exception as err:
-        logger.error(f"Failed to write review to governance PDS: {err}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": "pds_error", "message": str(err)},
+    # PDS failures raise PDSError → handled centrally (see core/fastapi.py).
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        result = await put_governance_record(
+            client, gov_did, "app.ch.poltr.review.response", rkey, review_record
         )
 
     # The review is now on the governance PDS. The indexer will pick it up

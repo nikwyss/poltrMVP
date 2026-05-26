@@ -136,6 +136,13 @@
     "noArguments": "No arguments have been submitted yet.",
     "loadingBallot": "Loading ballot..."
   },
+  "errors": {
+    "auth_required": "Your session expired. Please log in again.",
+    "pds_unavailable": "The service is temporarily unavailable. Please try again shortly.",
+    "invalid_request": "That request couldn't be processed.",
+    "generic": "Something went wrong. Please try again.",
+    "reLogin": "Log in again"
+  },
   "argumentDetail": {
     "backToBallot": "Back to Ballot",
     "comments": "Comments",

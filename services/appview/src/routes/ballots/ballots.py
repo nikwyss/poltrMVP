@@ -20,7 +20,11 @@ from src.core.fastapi import logger
 from src.core.db import get_pool
 from src.core.cursor import encode_cursor
 from src.core.lib import get_string, get_date_iso, get_number, get_array, get_object
-from src.atproto.atproto_api import pds_create_record, pds_delete_record
+from src.atproto.atproto_api import (
+    pds_create_record,
+    pds_delete_record,
+    pds_put_record_session,
+)
 from src.atproto.governance import create_governance_record, get_did_for_ballot
 
 router = APIRouter(prefix="/xrpc", tags=["poltr"])
@@ -273,6 +277,9 @@ def _serialize_argument_row(row: dict, peer_review_on: bool) -> dict:
     viewer_obj = {}
     if row.get("viewer_like"):
         viewer_obj["like"] = row["viewer_like"]
+    viewer_preference = row.get("viewer_preference")
+    if viewer_preference is not None:
+        viewer_obj["preference"] = get_number(row, "viewer_preference")
 
     if source_type == "user":
         author_raw = {
@@ -348,7 +355,12 @@ async def list_arguments(
                 SELECT uri FROM app_likes
                 WHERE subject_uri = a.uri AND did = {viewer_param} AND NOT deleted
                 LIMIT 1
-            ) AS viewer_like"""
+            ) AS viewer_like,
+            (
+                SELECT preference FROM app_likes
+                WHERE subject_uri = a.uri AND did = {viewer_param} AND NOT deleted
+                LIMIT 1
+            ) AS viewer_preference"""
         if peer_review_on:
             review_filter = (
                 f"AND (a.source_type IN ('official','organization') "
@@ -358,7 +370,7 @@ async def list_arguments(
         else:
             review_filter = ""
     else:
-        viewer_select = ",\n            NULL AS viewer_like"
+        viewer_select = ",\n            NULL AS viewer_like,\n            NULL AS viewer_preference"
         if peer_review_on:
             review_filter = (
                 "AND (a.source_type IN ('official','organization') "
@@ -462,9 +474,14 @@ async def get_argument(
                 SELECT uri FROM app_likes
                 WHERE subject_uri = a.uri AND did = {viewer_param} AND NOT deleted
                 LIMIT 1
-            ) AS viewer_like"""
+            ) AS viewer_like,
+            (
+                SELECT preference FROM app_likes
+                WHERE subject_uri = a.uri AND did = {viewer_param} AND NOT deleted
+                LIMIT 1
+            ) AS viewer_preference"""
     else:
-        viewer_select = ",\n            NULL AS viewer_like"
+        viewer_select = ",\n            NULL AS viewer_like,\n            NULL AS viewer_preference"
 
     sql = f"""
         SELECT a.*,
@@ -524,7 +541,7 @@ async def list_comments(
                 LIMIT 1
             ) AS viewer_like"""
     else:
-        viewer_select = ",\n            NULL AS viewer_like"
+        viewer_select = ",\n            NULL AS viewer_like,\n            NULL AS viewer_preference"
 
     # Deterministic fetch order; the per-user permutation is applied in Python
     # below (same stable per-user shuffle as argument.list) so each user gets
@@ -786,15 +803,8 @@ async def create_comment(
     if parent_uri:
         record["parent"] = parent_uri
 
-    try:
-        result = await pds_create_record(session, "app.ch.poltr.comment", record)
-    except Exception as err:
-        logger.error(f"Failed to create comment: {err}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": "pds_error", "message": str(err)},
-        )
-
+    # PDS failures raise PDSError → handled centrally (see core/fastapi.py).
+    result = await pds_create_record(session, "app.ch.poltr.comment", record)
     return JSONResponse(status_code=200, content=result)
 
 
@@ -858,16 +868,10 @@ async def create_argument(
         },
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            result = await create_governance_record(
-                client, gov_did, "app.ch.poltr.ballot.argument", record
-            )
-    except Exception as err:
-        logger.error(f"Failed to create argument: {err}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": "pds_error", "message": str(err)},
+    # PDS failures raise PDSError → handled centrally (see core/fastapi.py).
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        result = await create_governance_record(
+            client, gov_did, "app.ch.poltr.ballot.argument", record
         )
 
     return JSONResponse(status_code=200, content=result)
@@ -883,7 +887,16 @@ async def create_like(
     request: Request,
     session: TSession = Depends(verify_session_token),
 ):
-    """Create a like record on the PDS for the authenticated user."""
+    """Create/update a rating record on the PDS for the authenticated user.
+
+    Generic content rating: `preference` is the user's preference on a canonical
+    0–100 scale (a binary "like" is simply preference=100). Differing input
+    scales (binary, 5-grade, 100) are normalised to 0–100 by the caller.
+
+    The rating is written at a deterministic rkey derived from the subject, so
+    re-rating the same content overwrites in place (idempotent) — independent of
+    indexer lag. One rating per (user, subject).
+    """
     body = await request.json()
     subject = body.get("subject")
 
@@ -896,22 +909,27 @@ async def create_like(
             },
         )
 
+    # Normalise/clamp preference to the canonical 0–100 range.
+    try:
+        preference = max(0, min(100, int(body.get("preference", 100))))
+    except (TypeError, ValueError):
+        preference = 100
+
     record = {
         "$type": "app.ch.poltr.content.rating",
         "subject": subject,
-        "preference": body.get("preference", 100),
+        "preference": preference,
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
 
-    try:
-        result = await pds_create_record(session, "app.ch.poltr.content.rating", record)
-    except Exception as err:
-        logger.error(f"Failed to create like: {err}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": "pds_error", "message": str(err)},
-        )
+    # Deterministic rkey = subject's rkey (a TID, unique per record), so a given
+    # user has at most one rating per subject and re-rating is an in-place update.
+    rkey = subject["uri"].rstrip("/").split("/")[-1]
 
+    # PDS failures raise PDSError → handled centrally (see core/fastapi.py).
+    result = await pds_put_record_session(
+        session, "app.ch.poltr.content.rating", rkey, record
+    )
     return JSONResponse(status_code=200, content=result)
 
 
@@ -957,14 +975,8 @@ async def delete_like(
     except Exception as err:
         logger.warning(f"Failed to look up bsky_like_uri (non-blocking): {err}")
 
-    try:
-        await pds_delete_record(session, "app.ch.poltr.content.rating", rkey)
-    except Exception as err:
-        logger.error(f"Failed to delete like: {err}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": "pds_error", "message": str(err)},
-        )
+    # PDS failures raise PDSError → handled centrally (see core/fastapi.py).
+    await pds_delete_record(session, "app.ch.poltr.content.rating", rkey)
 
     # Best-effort delete the Bluesky cross-like
     if bsky_like_uri:

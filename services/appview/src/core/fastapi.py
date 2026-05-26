@@ -2,7 +2,7 @@ import os
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -10,6 +10,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import src.core.db as db
+from src.atproto.errors import PDSError
 from src.atproto.crosspost import start_crosspost_loop, stop_crosspost_loop
 from src.arguments.peer_review import start_peer_review_loop, stop_peer_review_loop
 # from src.arguments import start_participation_loops, stop_participation_loops
@@ -57,6 +58,23 @@ app = FastAPI(lifespan=lifespan)
 # Add rate limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# Shared handler for categorized PDS failures: serializes a stable machine code
+# (no DID / no raw PDS text) and the matching HTTP status + Retry-After. Full
+# diagnostic detail is logged server-side only. This lets the user-write
+# endpoints simply let PDSError bubble up instead of each repeating a try/except.
+async def _pds_error_handler(request: Request, exc: PDSError):
+    logger.error("PDS op failed [%s]: %s", exc.code, exc.log_detail)
+    headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else None
+    return JSONResponse(
+        status_code=exc.http_status,
+        content={"error": exc.code},
+        headers=headers,
+    )
+
+
+app.add_exception_handler(PDSError, _pds_error_handler)
 
 # Configure allowed origins: include local dev and production fronts; allow override via APP_ALLOW_ORIGINS env (comma-separated)
 allowed = [

@@ -9,6 +9,8 @@ import { useScrollRestore, smartBack } from "@/lib/scrollRestore";
 import { cn } from "@/lib/utils";
 import { buildCommentMap, buildAncestorChain } from "@/lib/commentThread";
 import { useCommentThread } from "@/hooks/useCommentThread";
+import { pdsErrorKey } from "@/lib/pdsError";
+import { notifyPdsError } from "@/lib/toast";
 import type { CommentWithMetadata } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -198,6 +200,7 @@ export default function CommentDetailPage({
   const commentUri = commentUriOverride ?? searchParams.get("uri") ?? "";
   const t = useTranslations("commentDetail");
   const tc = useTranslations("common");
+  const te = useTranslations("errors");
 
   const [argument, setArgument] = useState<ArgumentInfo | null>(null);
   const [focalUri, setFocalUri] = useState("");
@@ -218,7 +221,8 @@ export default function CommentDetailPage({
     replyTarget,
     setReplyTarget,
     replyInputRef,
-  } = useCommentThread();
+    commentError,
+  } = useCommentThread({ onError: (e) => notifyPdsError(te, e) });
 
   // Derive the thread spine (ancestors → focal → direct replies) from the
   // flat comment list. Likes/replies update the list, so this stays in sync.
@@ -329,18 +333,25 @@ export default function CommentDetailPage({
   );
 
   const renderComposer = () => (
-    <ReplyInput
-      ref={replyInputRef}
-      value={replyText}
-      onChange={setReplyText}
-      onSubmit={handleSubmitReply}
-      submitting={submitting}
-      placeholder={t("replyPlaceholder")}
-      onCancel={() => {
-        setReplyText("");
-        setReplyTarget(null);
-      }}
-    />
+    <div className="space-y-2">
+      {commentError && (
+        <Alert variant="destructive">
+          <AlertDescription>{te(pdsErrorKey(commentError))}</AlertDescription>
+        </Alert>
+      )}
+      <ReplyInput
+        ref={replyInputRef}
+        value={replyText}
+        onChange={setReplyText}
+        onSubmit={handleSubmitReply}
+        submitting={submitting}
+        placeholder={t("replyPlaceholder")}
+        onCancel={() => {
+          setReplyText("");
+          setReplyTarget(null);
+        }}
+      />
+    </div>
   );
 
   const threadBlock = !loading && focalComment && argument && (

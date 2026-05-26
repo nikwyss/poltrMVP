@@ -6,7 +6,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import { getBallot, listArguments } from "@/lib/agent";
-import { loadCached } from "@/lib/pageCache";
+import { loadCached, patchCached } from "@/lib/pageCache";
 import { useScrollRestore } from "@/lib/scrollRestore";
 import { formatDate } from "@/lib/utils";
 import type { BallotWithMetadata, ArgumentWithMetadata } from "@/types/ballots";
@@ -16,10 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
 import { ProContraColumnHeaders } from "@/components/pro-contra-column-headers";
-import {
-  relevanceLevel,
-  placeholderRelevance,
-} from "@/components/relevance-rating";
+import { relevanceLevel } from "@/components/relevance-rating";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import ArgumentDetailPage from "../[argRkey]/page";
 import CommentDetailPage from "../feed/comment/page";
@@ -86,7 +83,7 @@ function ArgumentCardCompact({
   const type = arg.record.type;
   // Relevanz-Bewertung des Users (1–100) oder null, wenn noch nicht bewertet.
   // Bewertet/unbewertet ist die einzige Statusachse — alles daraus abgeleitet.
-  const relevance = placeholderRelevance(arg);
+  const relevance = arg.viewer?.preference ?? null;
   const level = relevance !== null ? relevanceLevel(relevance) : null;
   const rated = relevance !== null;
 
@@ -391,6 +388,26 @@ export default function BallotDetailNewArguments() {
   const openArgument = useCallback(
     (rkey: string) => router.push(`?arg=${rkey}`, { scroll: false }),
     [router],
+  );
+
+  // Bewertung im Overlay vergeben → Card live aktualisieren (State) und den
+  // Seiten-Cache nachziehen (für Back-Navigation / Remount), ohne Refetch.
+  const handleArgRated = useCallback(
+    (argUri: string, preference: number | null) => {
+      const apply = (a: ArgumentWithMetadata): ArgumentWithMetadata => {
+        if (a.uri !== argUri) return a;
+        const viewer = { ...a.viewer };
+        if (preference === null) delete viewer.preference;
+        else viewer.preference = preference;
+        return { ...a, viewer };
+      };
+      setArguments((prev) => prev.map(apply));
+      patchCached<{ ballot: BallotWithMetadata; args: ArgumentWithMetadata[] }>(
+        `ballot:${id}`,
+        (cur) => ({ ...cur, args: cur.args.map(apply) }),
+      );
+    },
+    [id],
   );
 
   const openComment = useCallback(
@@ -1161,6 +1178,7 @@ export default function BallotDetailNewArguments() {
               onClose={closeOverlay}
               argRkeyOverride={displayedArgRkey}
               onNavigateToComment={openComment}
+              onRated={handleArgRated}
               backLabel={tc("close")}
             />
           )}

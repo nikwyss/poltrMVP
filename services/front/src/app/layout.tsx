@@ -3,6 +3,7 @@ import { DM_Sans, Lora } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/AuthContext";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "sonner";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 
@@ -28,6 +29,7 @@ export default async function RootLayout({
         <NextIntlClientProvider messages={messages}>
           <AuthProvider>
             <TooltipProvider>{children}</TooltipProvider>
+            <Toaster position="bottom-center" richColors />
           </AuthProvider>
         </NextIntlClientProvider>
       </body>

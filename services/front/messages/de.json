@@ -39,7 +39,7 @@
     "emailLabel": "E-Mail-Adresse",
     "emailPlaceholder": "deine@email.com",
     "sending": "Wird gesendet...",
-    "sendMagicLink": "Magic Link senden",
+    "sendMagicLink": "Einloggen",
     "noAccount": "Noch kein Konto? Registrieren",
     "serverError": "Serverfehler — bitte versuche es später erneut",
     "failedToSend": "Magic Link konnte nicht gesendet werden"
@@ -135,6 +135,13 @@
     "noContraArguments": "Noch keine Contra-Argumente.",
     "noArguments": "Es wurden noch keine Argumente eingereicht.",
     "loadingBallot": "Lade Abstimmung..."
+  },
+  "errors": {
+    "auth_required": "Sitzung abgelaufen. Bitte erneut anmelden.",
+    "pds_unavailable": "Dienst vorübergehend nicht erreichbar. Bitte gleich erneut versuchen.",
+    "invalid_request": "Anfrage konnte nicht verarbeitet werden.",
+    "generic": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
+    "reLogin": "Erneut anmelden"
   },
   "argumentDetail": {
     "backToBallot": "Zurück zur Abstimmung",

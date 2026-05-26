@@ -3,7 +3,6 @@
 import { useTranslations } from "next-intl";
 import { Minus, Plus } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
-import type { ArgumentWithMetadata } from "@/types/ballots";
 
 // Relevanz-Stufen auf der 1–100-Skala: gering / mittel / gross.
 // (Schwellen so gewählt, dass z. B. 64 bereits als "gross" zählt.)
@@ -13,34 +12,24 @@ export function relevanceLevel(value: number): "low" | "medium" | "high" {
   return "high";
 }
 
-// PLATZHALTER: Die echte Relevanz-Bewertung des Users folgt später (Backend-Feld).
-// Liefert `null`, wenn das Argument noch nicht bewertet wurde — sonst einen Wert
-// (1–100), deterministisch aus der URI abgeleitet, damit Liste und Detailansicht
-// übereinstimmen. „Noch nicht bewertet“ ist an denselben Fall gekoppelt wie der
-// „unread“-Status der Card (URI-Endzeichen % 3 === 0).
-export function placeholderRelevance(arg: ArgumentWithMetadata): number | null {
-  const code = arg.uri.charCodeAt(arg.uri.length - 1) || 0;
-  if (code % 3 === 0) return null; // noch nicht bewertet
-  let h = 0;
-  for (let i = 0; i < arg.uri.length; i++) {
-    h = (h * 31 + arg.uri.charCodeAt(i)) >>> 0;
-  }
-  return (h % 100) + 1;
-}
-
 const clamp = (v: number) => Math.min(100, Math.max(1, Math.round(v)));
 
 /**
  * Bewertungs-Regler: Argument auf einer Skala von 1–100 nach Relevanz bewerten.
  * Über dem Regler schwebt eine Pille mit der qualitativen Stufe und dem Wert.
+ *
+ * `onChange` aktualisiert laufend (smooth UI), `onCommit` feuert beim Loslassen
+ * bzw. bei den +/–-Buttons — dort wird die Bewertung persistiert.
  */
 export function RelevanceRating({
   value,
   onChange,
+  onCommit,
   showIntro = true,
 }: {
   value: number | null;
   onChange: (value: number) => void;
+  onCommit?: (value: number) => void;
   showIntro?: boolean;
 }) {
   const t = useTranslations("relevance");
@@ -67,7 +56,11 @@ export function RelevanceRating({
           type="button"
           className="na-rating-step"
           aria-label={t("decrease")}
-          onClick={() => onChange(clamp(display - 1))}
+          onClick={() => {
+            const next = clamp(display - 1);
+            onChange(next);
+            onCommit?.(next);
+          }}
         >
           <Minus size={16} strokeWidth={2.5} />
         </button>
@@ -93,6 +86,7 @@ export function RelevanceRating({
             step={1}
             value={[display]}
             onValueChange={(v) => onChange(clamp(v[0]))}
+            onValueCommit={(v) => onCommit?.(clamp(v[0]))}
             aria-label={t("ariaLabel")}
           />
         </div>
@@ -101,7 +95,11 @@ export function RelevanceRating({
           type="button"
           className="na-rating-step"
           aria-label={t("increase")}
-          onClick={() => onChange(clamp(display + 1))}
+          onClick={() => {
+            const next = clamp(display + 1);
+            onChange(next);
+            onCommit?.(next);
+          }}
         >
           <Plus size={16} strokeWidth={2.5} />
         </button>

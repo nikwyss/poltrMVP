@@ -63,6 +63,8 @@ export interface ArgumentWithMetadata {
   indexedAt?: string;
   viewer?: {
     like?: string;
+    // User's own rating on the canonical 0–100 preference scale (undefined = not rated).
+    preference?: number;
   };
 }
 

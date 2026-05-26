@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-05-25
+
+### Argument relevance rating: 1–100 slider wired to per-user PDS ratings (`services/appview`, `services/front`)
+- **Generic content rating, fully wired.** The pre-existing `app.ch.poltr.content.rating` record (carrying a `preference` field) is now used as a generic, scale-agnostic preference signal on any subject. Convention: **`preference` is always stored normalised to the canonical 0–100 scale** (a binary "like" = `preference=100`); differing input scales (binary, 5-grade, 100) are normalised by the caller. Differentiation by content kind comes from the `subject` strongRef, not from separate record types
+- **AppView write (`routes/ballots/ballots.py` `create_like`)**: now clamps `preference` to 0–100 and writes via the new `pds_put_record_session()` (`atproto/atproto_api.py`) at a **deterministic rkey = the subject's rkey**, so re-rating overwrites in place (idempotent, immune to indexer lag). One rating per (user, subject). Still written into the user's own PDS repo
+- **AppView read**: `argument.list` + `argument.get` viewer subqueries now also return `preference` → new `viewer.preference` field in `_serialize_argument_row` (undefined when the user hasn't rated). No DB change — `app_likes.preference` already existed
+- **Frontend**: new `rateContent(uri, cid, preference)` in `lib/ballots.ts`. The `RelevanceRating` slider (`components/relevance-rating.tsx`) gained an `onCommit` callback fired on pointer-release / +–-buttons; the argument detail view persists via `rateContent`, seeding the initial value from `viewer.preference`. The booklet card reads the real `viewer.preference` (placeholder hashing removed). `ArgumentWithMetadata.viewer.preference` added to `types/ballots.ts`
+- **Note**: ratings on arguments mean `like_count` (count of rating rows) now reads as "number of ratings". Aggregate average relevance (for the Auswertung section) is not yet implemented
+
 ## 2026-05-13
 
 ### Argument sources: official BK arguments alongside user-submitted ones (`lexicons`, `services/appview`, `services/indexer`, `services/cms`, `services/front`, `infra`)

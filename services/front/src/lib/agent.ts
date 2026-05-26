@@ -1,4 +1,5 @@
 import type { BallotWithMetadata, ArgumentWithMetadata, CommentWithMetadata, ActivityItem, ReviewCriterion, ReviewInvitation, ReviewStatus, ReviewCriterionRating } from '../types/ballots';
+import { toPdsError } from './pdsError';
 
 /**
  * Get authenticated fetch handler that routes through Next.js API proxy.
@@ -102,7 +103,7 @@ export async function createArgument(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ballot: ballotUri, title, body, type }),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw await toPdsError(res);
   return res.json();
 }
 
@@ -156,7 +157,7 @@ export async function createComment(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw await toPdsError(res);
   return res.json();
 }
 
@@ -221,7 +222,7 @@ export async function submitReview(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ argumentUri, criteria, vote, justification }),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw await toPdsError(res);
   return res.json();
 }
 

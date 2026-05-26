@@ -8,6 +8,12 @@ from pydantic import BaseModel
 from src.core import db
 from src.auth.middleware import TSession
 from src.config import DUMMY_BIRTHDATE
+from src.atproto.errors import (
+    PDSError,
+    PDSErrorCategory,
+    from_network_error,
+    from_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -389,18 +395,23 @@ async def _relogin_from_stored_creds(did: str, client: httpx.AsyncClient, pds_ur
         )
 
     if not row:
-        raise RuntimeError(f"No stored credentials found for {did}")
+        raise PDSError(
+            PDSErrorCategory.AUTH_REQUIRED, log_detail=f"no stored creds did={did}"
+        )
 
     password = decrypt_app_password(row["app_pw_ciphertext"], row["app_pw_nonce"])
 
-    res = await client.post(
-        f"https://{pds_url}/xrpc/com.atproto.server.createSession",
-        json={"identifier": did, "password": password},
-    )
+    try:
+        res = await client.post(
+            f"https://{pds_url}/xrpc/com.atproto.server.createSession",
+            json={"identifier": did, "password": password},
+        )
+    except httpx.RequestError as exc:
+        raise from_network_error(exc, op="relogin", did=did) from exc
 
     if res.status_code != 200:
         logger.error(f"Re-login failed for {did}: {res.status_code} {res.text}")
-        raise RuntimeError(f"Re-login failed for {did}: {res.text}")
+        raise from_response(res, op="relogin", did=did)
 
     logger.info(f"Re-login successful for {did}")
     return res.json()
@@ -450,22 +461,66 @@ async def pds_create_record(session: TSession, collection: str, record: dict) ->
     async with httpx.AsyncClient(timeout=30.0) as client:
         await _ensure_fresh_token(session, client, pds_url)
 
-        resp = await client.post(
-            f"https://{pds_url}/xrpc/com.atproto.repo.createRecord",
-            headers={
-                "Authorization": f"Bearer {session.access_token}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "repo": session.did,
-                "collection": collection,
-                "record": record,
-            },
-        )
+        try:
+            resp = await client.post(
+                f"https://{pds_url}/xrpc/com.atproto.repo.createRecord",
+                headers={
+                    "Authorization": f"Bearer {session.access_token}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "repo": session.did,
+                    "collection": collection,
+                    "record": record,
+                },
+            )
+        except httpx.RequestError as exc:
+            raise from_network_error(
+                exc, op=f"createRecord:{collection}", did=session.did
+            ) from exc
 
     if resp.status_code != 200:
         logger.error(f"pds_create_record failed: {resp.text}")
-        raise RuntimeError(f"PDS error: {resp.text}")
+        raise from_response(resp, op=f"createRecord:{collection}", did=session.did)
+
+    return resp.json()
+
+
+async def pds_put_record_session(
+    session: TSession, collection: str, rkey: str, record: dict
+) -> dict:
+    """Put (create-or-replace) a record on the PDS on behalf of the user at a
+    fixed rkey. Idempotent — re-writing the same (collection, rkey) overwrites
+    in place. Returns {uri, cid, ...}."""
+    pds_url = os.getenv("PDS_HOSTNAME")
+    if not pds_url:
+        raise ValueError("PDS_HOSTNAME not set")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        await _ensure_fresh_token(session, client, pds_url)
+
+        try:
+            resp = await client.post(
+                f"https://{pds_url}/xrpc/com.atproto.repo.putRecord",
+                headers={
+                    "Authorization": f"Bearer {session.access_token}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "repo": session.did,
+                    "collection": collection,
+                    "rkey": rkey,
+                    "record": record,
+                },
+            )
+        except httpx.RequestError as exc:
+            raise from_network_error(
+                exc, op=f"putRecord:{collection}", did=session.did
+            ) from exc
+
+    if resp.status_code != 200:
+        logger.error(f"pds_put_record_session failed: {resp.text}")
+        raise from_response(resp, op=f"putRecord:{collection}", did=session.did)
 
     return resp.json()
 
@@ -479,22 +534,27 @@ async def pds_delete_record(session: TSession, collection: str, rkey: str):
     async with httpx.AsyncClient(timeout=30.0) as client:
         await _ensure_fresh_token(session, client, pds_url)
 
-        resp = await client.post(
-            f"https://{pds_url}/xrpc/com.atproto.repo.deleteRecord",
-            headers={
-                "Authorization": f"Bearer {session.access_token}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "repo": session.did,
-                "collection": collection,
-                "rkey": rkey,
-            },
-        )
+        try:
+            resp = await client.post(
+                f"https://{pds_url}/xrpc/com.atproto.repo.deleteRecord",
+                headers={
+                    "Authorization": f"Bearer {session.access_token}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "repo": session.did,
+                    "collection": collection,
+                    "rkey": rkey,
+                },
+            )
+        except httpx.RequestError as exc:
+            raise from_network_error(
+                exc, op=f"deleteRecord:{collection}", did=session.did
+            ) from exc
 
     if resp.status_code != 200:
         logger.error(f"pds_delete_record failed: {resp.text}")
-        raise RuntimeError(f"PDS error: {resp.text}")
+        raise from_response(resp, op=f"deleteRecord:{collection}", did=session.did)
 
 
 async def pds_set_birthdate(session: TSession) -> bool:
