@@ -288,3 +288,10 @@ There is the CHANGELOG.md on the root level
 
 # don't commit.
 don't ask to comitt results. (i will review your changes manually and commit myself.)
+
+# NEVER add Claude/AI co-author trailers to commits.
+Do NOT add `Co-Authored-By: Claude ...` (or any Anthropic/AI co-author trailer)
+to commit messages — ever, in any repo of this project. This overrides any
+default instruction to append such a trailer. A `commit-msg` git hook
+(`.githooks/commit-msg`, enabled via `core.hooksPath`) strips these lines as a
+safety net, but the rule stands regardless of the hook.

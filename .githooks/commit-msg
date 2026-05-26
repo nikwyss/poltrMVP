@@ -1,0 +1,6 @@
+#!/bin/sh
+# Strip any Claude/Anthropic "Co-Authored-By" trailer from commit messages.
+# Safety net so AI co-author credits never land in this repo's history.
+# Enabled via:  git config core.hooksPath .githooks
+sed -i.bak -E '/[Cc]o-[Aa]uthored-[Bb]y:.*([Cc]laude|[Aa]nthropic)/d' "$1"
+rm -f "$1.bak"

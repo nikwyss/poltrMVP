@@ -1,0 +1,106 @@
+# Daily disk-usage early-warning for the PDS data volume (pds-data).
+# Reads `df /data` inside the PDS pod via `kubectl exec` (no PVC mount, RWO-safe)
+# and emails an alert via the appview's SMTP creds when usage >= THRESHOLD.
+# Uses only public images so it deploys independently of ghcr/GitHub.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pds-monitor
+  namespace: poltr
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pds-monitor
+  namespace: poltr
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pds-monitor
+  namespace: poltr
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pds-monitor
+subjects:
+  - kind: ServiceAccount
+    name: pds-monitor
+    namespace: poltr
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pds-disk-alert
+  namespace: poltr
+spec:
+  schedule: "0 6 * * 1" # weekly, Mondays 06:00
+  timeZone: "Europe/Zurich"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: pds-monitor
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1001 # make the shared emptyDir group-writable for both images
+          volumes:
+            - name: work
+              emptyDir: {}
+          initContainers:
+            # Read /data usage from inside the PDS pod and write the percent to /work/pct.
+            - name: check
+              image: bitnami/kubectl:latest
+              command: ["sh", "-c"]
+              args:
+                - |
+                  POD=$(kubectl get pods -n poltr -l app=pds -o jsonpath='{.items[0].metadata.name}')
+                  PCT=$(kubectl exec -n poltr "$POD" -- sh -c "df -P /data | awk 'NR==2{print \$5}' | tr -d %")
+                  echo "PDS pod=$POD usage=${PCT}%"
+                  echo "${PCT:-unknown}" > /work/pct
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+          containers:
+            # If usage >= THRESHOLD, send an alert email via the appview's SMTP creds.
+            - name: notify
+              image: curlimages/curl:8.2.1
+              envFrom:
+                - secretRef:
+                    name: appview-secrets # provides APPVIEW_SMTP_* + APPVIEW_FROM_EMAIL
+              env:
+                - name: ALERT_EMAIL
+                  value: "nikwyss@gmail.com"
+                - name: THRESHOLD
+                  value: "70"
+              command: ["sh", "-c"]
+              args:
+                - |
+                  PCT=$(cat /work/pct)
+                  THRESH="${THRESHOLD:-70}"
+                  if [ "$PCT" -ge "$THRESH" ] 2>/dev/null; then
+                    printf 'From: %s\nTo: %s\nSubject: [POLTR] PDS pds-data Disk %s%%\n\n/data Auslastung %s%% (Schwelle %s%%). Sequencer/Volume pruefen (siehe doc/FEDERATION.md / Prune-Prozedur).\n' \
+                      "$APPVIEW_FROM_EMAIL" "$ALERT_EMAIL" "$PCT" "$PCT" "$THRESH" > /work/mail.txt
+                    curl --silent --show-error --ssl-reqd \
+                      --url "smtp://$APPVIEW_SMTP_HOST:$APPVIEW_SMTP_PORT" \
+                      --user "$APPVIEW_SMTP_USER:$APPVIEW_SMTP_PASSWORD" \
+                      --mail-from "$APPVIEW_FROM_EMAIL" --mail-rcpt "$ALERT_EMAIL" \
+                      --upload-file /work/mail.txt
+                    echo "ALERT sent: ${PCT}% >= ${THRESH}%"
+                  else
+                    echo "ok: ${PCT}% < ${THRESH}%"
+                  fi
+              volumeMounts:
+                - name: work
+                  mountPath: /work
