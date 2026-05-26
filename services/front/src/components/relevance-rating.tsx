@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 import { Minus, Plus } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
@@ -50,8 +51,15 @@ export function RelevanceRating({
   // Horizontale Position der Pille = Position des Reglerknopfes (1 → 0 %, 100 → 100 %).
   const pct = ((display - 1) / 99) * 100;
 
+  // Farbkonzept = Argumentfarbe. Per Inline-Style gesetzt (statt gescopter Klasse),
+  // damit die Custom Properties zuverlässig in den Radix-Slider hineinvererben.
+  const accentStyle = {
+    "--rng-accent": accent === "contra" ? "var(--red)" : "var(--green)",
+    "--rng-deep": accent === "contra" ? "#8e2a1e" : "#1f5c40",
+  } as CSSProperties;
+
   return (
-    <div className={`na-rating na-rating-${accent}`}>
+    <div className="na-rating" style={accentStyle}>
       {showIntro && <p className="na-rating-intro">{t("intro")}</p>}
 
       <div className="na-rating-control">
@@ -112,13 +120,6 @@ export function RelevanceRating({
         .na-rating {
           width: 100%;
         }
-        /* Farbkonzept: Akzent = Argumentfarbe (Pro grün, Contra rot) */
-        .na-rating-pro {
-          --rng-accent: var(--green);
-        }
-        .na-rating-contra {
-          --rng-accent: var(--red);
-        }
         .na-rating-intro {
           margin: 0 0 14px;
           font-size: 0.875rem;
@@ -171,7 +172,7 @@ export function RelevanceRating({
           gap: 8px;
           padding: 5px 13px;
           border-radius: var(--r-full, 999px);
-          background: #475331;
+          background: var(--rng-deep);
           color: #fff;
           font-size: 0.8125rem;
           font-weight: 600;
@@ -187,7 +188,7 @@ export function RelevanceRating({
           left: 50%;
           transform: translateX(-50%);
           border: 5px solid transparent;
-          border-top-color: #475331;
+          border-top-color: var(--rng-deep);
         }
         /* Noch nicht bewertet: zurückgenommene, helle Pille statt voller Akzent */
         .na-rating-pill-unrated {
