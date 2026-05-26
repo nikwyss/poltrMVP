@@ -563,6 +563,7 @@ export default function ArgumentDetailPage({
                 value={relevance}
                 onChange={setRelevance}
                 onCommit={handleRateCommit}
+                accent={isPro ? "pro" : "contra"}
               />
             </CardContent>
           </Card>

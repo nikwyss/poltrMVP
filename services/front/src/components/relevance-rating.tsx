@@ -26,11 +26,14 @@ export function RelevanceRating({
   onChange,
   onCommit,
   showIntro = true,
+  accent = "pro",
 }: {
   value: number | null;
   onChange: (value: number) => void;
   onCommit?: (value: number) => void;
   showIntro?: boolean;
+  // Farbkonzept: Füllung + Daumen in der Argumentfarbe (Pro = grün, Contra = rot).
+  accent?: "pro" | "contra";
 }) {
   const t = useTranslations("relevance");
   const rated = value !== null;
@@ -48,7 +51,7 @@ export function RelevanceRating({
   const pct = ((display - 1) / 99) * 100;
 
   return (
-    <div className="na-rating">
+    <div className={`na-rating na-rating-${accent}`}>
       {showIntro && <p className="na-rating-intro">{t("intro")}</p>}
 
       <div className="na-rating-control">
@@ -109,6 +112,13 @@ export function RelevanceRating({
         .na-rating {
           width: 100%;
         }
+        /* Farbkonzept: Akzent = Argumentfarbe (Pro grün, Contra rot) */
+        .na-rating-pro {
+          --rng-accent: var(--green);
+        }
+        .na-rating-contra {
+          --rng-accent: var(--red);
+        }
         .na-rating-intro {
           margin: 0 0 14px;
           font-size: 0.875rem;
@@ -121,6 +131,10 @@ export function RelevanceRating({
           gap: 14px;
           /* Platz für die über dem Regler schwebende Pille */
           margin-top: 40px;
+          /* Breite begrenzen statt volle Seitenbreite, zentriert */
+          max-width: 440px;
+          margin-left: auto;
+          margin-right: auto;
         }
         .na-rating-step {
           flex-shrink: 0;
@@ -196,15 +210,16 @@ export function RelevanceRating({
         /* Slider-Optik an das Dossier angleichen: heller Track, dunkle Füllung */
         :global(.na-rating-slider [data-slot="slider-track"]) {
           background: var(--surface-up, #ece9e3);
-          height: 6px;
+          height: 8px;
+          border-radius: 8px;
         }
         :global(.na-rating-slider [data-slot="slider-range"]) {
-          background: #475331;
+          background: var(--rng-accent);
         }
         :global(.na-rating-slider [data-slot="slider-thumb"]) {
           width: 18px;
           height: 18px;
-          border-color: #475331;
+          border-color: var(--rng-accent);
           box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
           cursor: grab;
         }
