@@ -24,6 +24,7 @@ import {
 import { CommentAvatar, CommentContent } from "@/components/comment-content";
 import { ReplyInput } from "@/components/reply-input";
 import { RelevanceRating } from "@/components/relevance-rating";
+import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { rateContent } from "@/lib/ballots";
 import { isPdsError, pdsErrorKey, type PdsError } from "@/lib/pdsError";
 import { notifyPdsError } from "@/lib/toast";
@@ -34,6 +35,10 @@ import { notifyPdsError } from "@/lib/toast";
 
 // Sentinel target for the top-level comment composer (vs. a comment uri reply).
 const ROOT_TARGET = "__root__";
+
+// Bewertungen werden gebündelt: schnelle Reglerbewegungen / +–-Klicks lösen nur
+// EINEN Netzwerk-Write aus (letzter Wert), nach dieser Ruhephase in ms.
+const RATE_DEBOUNCE_MS = 1000;
 
 function CommentNode({
   comment,
@@ -126,6 +131,7 @@ export default function ArgumentDetailPage({
   const t = useTranslations("argumentDetail");
   const tc = useTranslations("common");
   const te = useTranslations("errors");
+  const tbk = useTranslations("booklet");
 
   const [argument, setArgument] = useState<ArgumentWithMetadata | null>(null);
   const [loading, setLoading] = useState(true);
@@ -202,27 +208,39 @@ export default function ArgumentDetailPage({
     );
   };
 
+  // Gebündelter Netzwerk-Write (idempotent serverseitig, deterministischer rkey).
+  // Das optimistische UI-Update hat `handleRateCommit` bereits angewandt; hier feuert
+  // nur noch der eigentliche POST — nach RATE_DEBOUNCE_MS Ruhe mit dem letzten Wert.
+  const { debounced: debouncedRate } = useDebouncedCallback(
+    (uri: string, cid: string, value: number) => {
+      // Rollback-Baseline = letzter erfolgreich persistierter Wert. Zwischenschritte
+      // berühren `committedRelevance` nicht, daher stimmt der Wert hier.
+      const prev = committedRelevance.current;
+      rateContent(uri, cid, value)
+        .then(() => {
+          committedRelevance.current = value;
+        })
+        .catch((err) => {
+          setRelevance(prev);
+          onRated?.(uri, prev);
+          notifyPdsError(
+            te,
+            isPdsError(err)
+              ? err
+              : ({ code: "unknown", status: 0 } as PdsError),
+          );
+        });
+    },
+    RATE_DEBOUNCE_MS,
+  );
+
   // Bewertung persistieren (beim Loslassen des Reglers / +–-Buttons).
-  // Idempotent serverseitig (deterministischer rkey) — fire-and-forget.
   const handleRateCommit = (value: number) => {
     if (!argument) return;
     const uri = argument.uri;
-    // Roll back to the last successfully persisted value (null = was unrated).
-    const prev = committedRelevance.current;
-    setRelevance(value);
-    onRated?.(uri, value);
-    rateContent(uri, argument.cid, value)
-      .then(() => {
-        committedRelevance.current = value;
-      })
-      .catch((err) => {
-        setRelevance(prev);
-        onRated?.(uri, prev);
-        notifyPdsError(
-          te,
-          isPdsError(err) ? err : ({ code: "unknown", status: 0 } as PdsError),
-        );
-      });
+    setRelevance(value); // sofortiges optimistisches UI
+    onRated?.(uri, value); // sofortiges Update des Eltern-Elements (Booklet-Karte)
+    debouncedRate(uri, argument.cid, value); // gebündelter Netzwerk-Write
   };
 
   const handleSubmitComment = () => {
@@ -268,6 +286,8 @@ export default function ArgumentDetailPage({
 
   const isPro = argument?.record.type === "PRO";
   const accentColor = isPro ? "var(--pro)" : "var(--contra)";
+  // Linker Karten-Balken wie im Booklet (kräftiges Grün/Rot, nicht das gedämpfte Pro/Contra).
+  const cardAccent = isPro ? "var(--green)" : "var(--red)";
 
   // ── Shared comments block (used by both overlay and full-page layouts) ──────
   const commentsBlock = (
@@ -309,9 +329,76 @@ export default function ArgumentDetailPage({
   // ── Overlay layout (rendered inside Dialog) ────────────────────────────────
   if (isOverlay) {
     return (
-      <div className="flex flex-col">
+      <div
+        className="ov-card"
+        style={{ borderLeft: `5px solid ${argument ? cardAccent : "var(--line)"}` }}
+      >
+        {/* Karten-Optik wie im Booklet — lokal gescoped, damit das Overlay aus Feed
+            wie Booklet identisch aussieht (na-* Klassen sind dort nicht verfügbar). */}
+        <style jsx>{`
+          .ov-card {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: #fff8ef;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            overflow-y: auto;
+            box-shadow: 0 30px 70px -20px rgba(45, 35, 22, 0.45);
+          }
+          .ov-arg {
+            display: flex;
+            flex-direction: column;
+            gap: 11px;
+          }
+          .ov-arg-top {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+          }
+          .ov-badge {
+            flex-shrink: 0;
+            font-size: 0.6875rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            padding: 3px 10px;
+            border-radius: var(--r-full, 999px);
+          }
+          .ov-badge-pro {
+            background: var(--green-dim);
+            color: var(--green);
+          }
+          .ov-badge-contra {
+            background: var(--red-dim);
+            color: var(--red);
+          }
+          .ov-arg-title {
+            margin: 0;
+            font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+            font-size: 1.25rem;
+            font-weight: 600;
+            line-height: 1.25;
+            letter-spacing: -0.01em;
+            color: var(--text);
+          }
+          .ov-arg-body {
+            margin: 0;
+            font-size: 0.9375rem;
+            line-height: 1.55;
+            color: var(--text-mid);
+          }
+          .ov-arg-meta {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+            font-size: 0.75rem;
+            color: var(--text-mid);
+          }
+        `}</style>
+
         {/* Sticky header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b flex items-center px-5 py-3">
+        <div className="sticky top-0 z-10 bg-[#fff8ef]/95 backdrop-blur-sm border-b flex items-center px-5 py-3">
           <button
             onClick={onClose}
             className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -333,34 +420,37 @@ export default function ArgumentDetailPage({
           {loading && (
             <div className="flex items-center justify-center py-16 gap-3">
               <Spinner />
-              <span className="text-muted-foreground">{t("loadingArgument")}</span>
+              <span className="text-muted-foreground">
+                {t("loadingArgument")}
+              </span>
             </div>
           )}
 
           {!loading && argument && (
             <>
-              {/* Argument — prominent accent block */}
-              <div
-                className="pl-5 pr-2 py-1"
-                style={{ borderLeft: `4px solid ${accentColor}` }}
-              >
-                <div className="flex items-start gap-3 mb-3">
-                  <h2 className="text-xl font-bold flex-1 leading-snug m-0">
-                    {argument.record.title}
-                  </h2>
-                  <ProContraBadge type={argument.record.type?.toLowerCase()} />
+              {/* Argument — gleiche Optik wie die Booklet-Karten (Badge + Serif-Titel) */}
+              <div className="ov-arg">
+                <div className="ov-arg-top">
+                  <span
+                    className={`ov-badge ov-badge-${isPro ? "pro" : "contra"}`}
+                  >
+                    {isPro ? tbk("proArgument") : tbk("contraArgument")}
+                  </span>
                 </div>
+                <h2 className="ov-arg-title">{argument.record.title}</h2>
                 {argument.record.body && (
-                  <p className="text-sm text-muted-foreground leading-relaxed m-0 mb-3">
-                    {argument.record.body}
-                  </p>
+                  <p className="ov-arg-body">{argument.record.body}</p>
                 )}
-                <div className="flex gap-4 text-xs text-muted-foreground items-center flex-wrap">
+                <div className="ov-arg-meta">
                   {(argument.likeCount ?? 0) > 0 && (
-                    <span>{"♡"} {argument.likeCount}</span>
+                    <span>
+                      {"♡"} {argument.likeCount}
+                    </span>
                   )}
                   {(argument.commentCount ?? 0) > 0 && (
-                    <span>{"💬"} {argument.commentCount}</span>
+                    <span>
+                      {"💬"} {argument.commentCount}
+                    </span>
                   )}
                   <ReviewStatusBadge status={argument.reviewStatus} />
                 </div>
@@ -383,7 +473,8 @@ export default function ArgumentDetailPage({
               {/* Comments */}
               <div>
                 <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
-                  {t("comments")}{roots.length > 0 ? ` (${roots.length})` : ""}
+                  {t("comments")}
+                  {roots.length > 0 ? ` (${roots.length})` : ""}
                 </div>
                 {commentsBlock}
               </div>
@@ -480,8 +571,7 @@ export default function ArgumentDetailPage({
           <Card>
             <CardContent className="pt-5">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 border-b pb-2">
-                {t("comments")}{" "}
-                {roots.length > 0 ? `(${roots.length})` : ""}
+                {t("comments")} {roots.length > 0 ? `(${roots.length})` : ""}
               </div>
               {commentsBlock}
             </CardContent>

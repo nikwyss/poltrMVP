@@ -411,7 +411,7 @@ export default function CommentDetailPage({
     return (
       <div className="flex flex-col">
         {/* Sticky header */}
-        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b flex items-center px-5 py-3">
+        <div className="sticky top-0 z-10 bg-[#fff8ef]/95 backdrop-blur-sm border-b flex items-center px-5 py-3">
           <button
             onClick={onClose}
             className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"

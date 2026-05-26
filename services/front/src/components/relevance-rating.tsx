@@ -157,12 +157,12 @@ export function RelevanceRating({
           gap: 8px;
           padding: 5px 13px;
           border-radius: var(--r-full, 999px);
-          background: #2f2d2a;
+          background: #475331;
           color: #fff;
           font-size: 0.8125rem;
           font-weight: 600;
           white-space: nowrap;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+          box-shadow: 0 2px 8px rgba(58, 45, 30, 0.22);
           pointer-events: none;
         }
         /* kleiner Zeiger unter der Pille zum Reglerknopf */
@@ -173,7 +173,7 @@ export function RelevanceRating({
           left: 50%;
           transform: translateX(-50%);
           border: 5px solid transparent;
-          border-top-color: #2f2d2a;
+          border-top-color: #475331;
         }
         /* Noch nicht bewertet: zurückgenommene, helle Pille statt voller Akzent */
         .na-rating-pill-unrated {
@@ -199,12 +199,12 @@ export function RelevanceRating({
           height: 6px;
         }
         :global(.na-rating-slider [data-slot="slider-range"]) {
-          background: #3a3733;
+          background: #475331;
         }
         :global(.na-rating-slider [data-slot="slider-thumb"]) {
           width: 18px;
           height: 18px;
-          border-color: #3a3733;
+          border-color: #475331;
           box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
           cursor: grab;
         }

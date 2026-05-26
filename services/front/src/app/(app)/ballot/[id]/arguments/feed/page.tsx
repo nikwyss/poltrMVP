@@ -961,7 +961,7 @@ export default function BallotFeed() {
       >
         <DialogContent
           showCloseButton={false}
-          className="sm:max-w-4xl w-full h-[92vh] overflow-y-auto p-0 flex flex-col gap-0"
+          className="sm:max-w-4xl w-full h-[92vh] p-0 bg-transparent border-0 shadow-none"
         >
           {displayedArgRkey && (
             <ArgumentDetailPage
@@ -984,7 +984,7 @@ export default function BallotFeed() {
       >
         <DialogContent
           showCloseButton={false}
-          className="sm:max-w-4xl w-full h-[92vh] overflow-y-auto p-0 flex flex-col gap-0"
+          className="sm:max-w-4xl w-full h-[92vh] overflow-y-auto p-0 flex flex-col gap-0 bg-[#fff8ef] rounded-2xl shadow-[0_30px_70px_-20px_rgba(45,35,22,0.45)]"
         >
           {displayedCommentUri && (
             <CommentDetailPage
