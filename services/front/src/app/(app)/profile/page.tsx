@@ -110,13 +110,7 @@ function ProfileContent() {
   };
 
   return (
-    <div className="flex flex-col md:flex-row gap-8 pt-6">
-      {/* Left: logo */}
-      <div className="flex items-start justify-center md:w-64 shrink-0">
-        <img src="/logo5.svg" alt="Poltr" className="w-32 h-32 md:w-48 md:h-48" />
-      </div>
-
-      {/* Right: content */}
+    <div className="flex flex-col gap-8 pt-6">
       <div className="flex-1 space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">
           {t("hello", { name: user.displayName })}

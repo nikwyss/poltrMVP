@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-05-26
+
+### PDS error handling overhaul (`services/appview`, `services/front`)
+- **Categorized, sanitized PDS errors.** New `services/appview/src/atproto/errors.py`: `PDSError` with categories `auth_required`→401, `pds_unavailable`→503 (+`Retry-After`), `invalid_request`→400, `internal`→500; `from_response()`/`from_network_error()` map the PDS's own XRPC errors and transport failures. The DID + raw PDS text go **only to server logs**, never to the client
+- **De-duplicated handling.** `atproto/atproto_api.py` + `atproto/governance.py` user/governance write helpers now raise `PDSError` instead of `RuntimeError`; `core/fastapi.py` registers **one** shared `PDSError` exception handler; the 5 PDS-write endpoints (comment/argument/rating/unrating/review.submit) dropped their copy-pasted `try/except … "pds_error"` blocks
+- **Contract change:** clients now receive `{"error":"auth_required|pds_unavailable|invalid_request|internal"}` with the matching HTTP status (the only consumer is our own frontend)
+- **Frontend feedback + rollback.** New `lib/pdsError.ts` (`toPdsError` → typed error; dispatches `poltr:session-expired` on 401 — now also for likes/ratings, which previously bypassed it) and `lib/toast.ts` (`notifyPdsError`). Added `sonner` + `<Toaster>` in `app/layout.tsx`. Write helpers (`lib/ballots.ts`, `lib/agent.ts`) throw structured `PdsError`. Rating-commit and comment-like now **roll back** the optimistic UI on failure + toast; the comment composer keeps the typed text + shows an inline `Alert`. New `errors` i18n namespace (`messages/{de,en}.json`)
+
+### PDS storage-full incident: peer-review invitation runaway (`services/appview`, `services/indexer`, `infra`)
+- **Root cause.** The peer-review invitation loop (`arguments/peer_review.py`, every 60 s) re-wrote review-invitation records via `putRecord` (deterministic rkey) on every cycle because its dedup table `app_review_invitations` was only fed by the indexer (create-only) and that feedback had gaps. Each rewrite emitted a fresh firehose commit; **~225 k redundant events accumulated in `sequencer.sqlite` (945 MB)** and filled the 1 GiB `pds-data` volume → all repo ops (incl. `createSession`) returned 500. The actual repos stayed tiny (3.4 MB) — *many commits, no data*
+- **Fix.** `peer_review.py` now writes invitations via **`createRecord`** at a deterministic rkey (immutable; a duplicate write is rejected *before* any commit → a runaway is structurally impossible) and **synchronously inserts the dedup row** into `app_review_invitations` (indexer-independent). `governance.create_governance_record()` gained an optional `rkey` param. The indexer stays create-only for invitations (immutability)
+- **One-time remediation (ops).** Pruned ~210 k stale `append` events from the sequencer (kept the last 20 k + all identity/account/sync; `integrity_check` ok; **945 MB→86 MB, `/data` 100%→9%**); reconciled leftover PDS invitation records into `app_review_invitations`. `infra/kube/secrets.yaml`: `APPVIEW_PEER_REVIEW_ENABLED` toggled off during remediation, back on after the fixed appview image was deployed
+
+### Indexer backfill fix + PDS disk monitoring (`infra/kube`)
+- **Backfill cronjob fixed** (`indexer.yaml`): Service `targetPort` + `containerPort` 3000→**3001**. The admin/backfill HTTP server listens on `BACKFILL_PORT=3001`, but the Service targeted 3000, so `indexer-backfill-nightly`'s curl to `:80` failed with connection-refused
+- **Disk early-warning** — new `infra/kube/pds-monitoring.yaml`: weekly CronJob `pds-disk-alert` (+ minimal SA/Role/RoleBinding) reads `df /data` in the PDS pod via `kubectl exec` and emails an alert (appview SMTP creds) when usage ≥ 70 %. Public images only (no ghcr build needed)
+
+### Repo policy: no AI co-author trailers
+- Commits must **never** carry `Co-Authored-By: Claude …` (or any Anthropic/AI co-author). Documented in `CLAUDE.md`; enforced by a `commit-msg` hook (`.githooks/commit-msg`, via `core.hooksPath`) that strips such lines
+
 ## 2026-05-25
 
 ### Argument relevance rating: 1–100 slider wired to per-user PDS ratings (`services/appview`, `services/front`)

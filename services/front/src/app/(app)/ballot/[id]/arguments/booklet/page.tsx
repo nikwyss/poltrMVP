@@ -16,7 +16,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
 import { ProContraColumnHeaders } from "@/components/pro-contra-column-headers";
-import { relevanceLevel } from "@/components/relevance-rating";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import ArgumentDetailPage from "../[argRkey]/page";
 import CommentDetailPage from "../feed/comment/page";
@@ -80,12 +79,19 @@ function ArgumentCardCompact({
   onClick: () => void;
 }) {
   const tbk = useTranslations("booklet");
+  const trs = useTranslations("reviewStatus");
   const type = arg.record.type;
   // Relevanz-Bewertung des Users (1–100) oder null, wenn noch nicht bewertet.
   // Bewertet/unbewertet ist die einzige Statusachse — alles daraus abgeleitet.
   const relevance = arg.viewer?.preference ?? null;
-  const level = relevance !== null ? relevanceLevel(relevance) : null;
   const rated = relevance !== null;
+
+  // Review-Status oben rechts (z. B. "Begutachtet"). reviewStatus → i18n-Key.
+  const statusKey = arg.reviewStatus
+    ? { preliminary: "preliminary", approved: "peerReviewed", rejected: "rejected" }[
+        arg.reviewStatus
+      ]
+    : null;
 
   return (
     <div
@@ -96,29 +102,28 @@ function ArgumentCardCompact({
     >
       <div className="na-card-top">
         <div className="na-card-top-left">
-          {!rated && (
-            <span
-              className="na-dot"
-              role="img"
-              aria-label={tbk("statusUnread")}
-              title={tbk("statusUnread")}
-            />
-          )}
           <span className="na-badge">
             {type === "PRO" ? tbk("proArgument") : tbk("contraArgument")}
           </span>
         </div>
+        {statusKey && <span className="na-card-status">{trs(statusKey)}</span>}
       </div>
-      <div className="na-card-title">{arg.record.title}</div>
-      {relevance !== null && (
-        <span
-          className={`na-card-index na-card-index-${level}`}
-          title={tbk("relevanceTitle")}
-          aria-label={`${tbk("relevanceTitle")}: ${relevance}`}
-        >
-          {relevance}
-        </span>
-      )}
+
+      <div className="na-card-body">
+        <div className="na-card-title">{arg.record.title}</div>
+        {rated && (
+          <div
+            className="na-card-score"
+            aria-label={`${tbk("relevanceTitle")}: ${relevance}`}
+          >
+            <span className="na-card-index">
+              {relevance}
+              <span className="na-card-index-max">/100</span>
+            </span>
+            <span className="na-card-score-label">{tbk("relevanceForYou")}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -940,7 +945,10 @@ export default function BallotDetailNewArguments() {
 
         :global(.na-columns) {
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          /* minmax(0, 1fr) statt 1fr: verhindert, dass eine lange, nicht umbrechbare
+             Überschrift (z. B. "Versorgungssicherheit") die Spalte über ihren Anteil
+             hinaus aufbläht und rechts über den Rand schiebt. */
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
           gap: 12px;
           position: relative;
           z-index: 1;
@@ -1024,15 +1032,24 @@ export default function BallotDetailNewArguments() {
           align-items: center;
           gap: 9px;
         }
-        /* Ungelesen-Marker: kleiner warmer Pergament-/Goldpunkt (E-Mail-Metapher) */
-        :global(.na-dot) {
-          width: 9px;
-          height: 9px;
-          border-radius: 50%;
-          background: #b8862b;
-          flex-shrink: 0;
-          box-shadow: 0 0 0 3px rgba(184, 134, 43, 0.14);
-        }
+        /* Ungelesen-Marker: kleiner Punkt in der Argumentfarbe (Pro grün / Contra rot) */
+        // :global(.na-dot) {
+        //   width: 9px;
+        //   height: 9px;
+        //   border-radius: 50%;
+        //   background: #b8862b;
+        //   flex-shrink: 0;
+        //   box-shadow: 0 0 0 3px rgba(184, 134, 43, 0.14);
+        // }
+        // :global(.na-card-pro .na-dot) {
+        //   background: var(--pro);
+        //   box-shadow: 0 0 0 3px color-mix(in srgb, var(--pro) 16%, transparent);
+        // }
+        // :global(.na-card-contra .na-dot) {
+        //   background: var(--contra);
+        //   box-shadow: 0 0 0 3px
+        //     color-mix(in srgb, var(--contra) 16%, transparent);
+        // }
         :global(.na-card-title) {
           position: relative;
           z-index: 1;
@@ -1043,30 +1060,65 @@ export default function BallotDetailNewArguments() {
           letter-spacing: -0.01em;
         }
 
-        /* Relevanz-Wert als grosse Score-Zahl rechts (vertikal zentriert).
-           Lesbar, aber zurückgenommen, damit der Titel führend bleibt. */
-        :global(.na-card-index) {
-          position: absolute;
-          right: 20px;
-          top: 50%;
-          transform: translateY(-50%);
-          z-index: 0;
-          font-family: var(--font-serif), Georgia, serif;
-          font-size: 3.25rem;
-          font-weight: 700;
+        /* Review-Status oben rechts (dezenter Text, z. B. "Begutachtet") */
+        :global(.na-card-status) {
+          flex-shrink: 0;
+          font-size: 0.6875rem;
+          font-weight: 500;
+          letter-spacing: 0.01em;
+          color: var(--text-faint);
+        }
+
+        /* Inhalt: Titel links, persönliche Bewertung unten rechts */
+        :global(.na-card-body) {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 16px;
+        }
+        :global(.na-card-body .na-card-title) {
+          flex: 1;
+          min-width: 0;
+          overflow-wrap: break-word;
+        }
+        /* Persönliche Relevanz-Bewertung unten rechts (Zahl in Argumentfarbe + Label) */
+        :global(.na-card-score) {
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
           line-height: 1;
-          color: rgba(26, 24, 20, 0.16);
+        }
+        :global(.na-card-index) {
+          font-family: var(--font-serif), Georgia, serif;
+          font-size: 1.875rem;
+          font-weight: 700;
+          line-height: 0.9;
+          color: var(--text);
           user-select: none;
+          white-space: nowrap;
         }
-        /* Stufenfarben: gering (grau), mittel (gedämpft), gross (warmes Gold) */
-        :global(.na-card-index-low) {
-          color: rgba(26, 24, 20, 0.13);
+        /* "/100" als zurückgenommener Nenner an der Score-Zahl */
+        :global(.na-card-index-max) {
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: var(--text-faint);
         }
-        :global(.na-card-index-medium) {
-          color: rgba(90, 107, 138, 0.32);
+        :global(.na-card-pro .na-card-index) {
+          color: var(--pro);
         }
-        :global(.na-card-index-high) {
-          color: rgba(184, 134, 43, 0.5);
+        :global(.na-card-contra .na-card-index) {
+          color: var(--contra);
+        }
+        :global(.na-card-score-label) {
+          margin-top: 5px;
+          font-size: 0.625rem;
+          font-weight: 600;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: var(--text-faint);
         }
 
         /* Pro/Contra-Badge + Farbe auf dem linken Balken */

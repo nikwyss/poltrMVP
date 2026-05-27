@@ -31,9 +31,15 @@ export function AppNav() {
     router.push("/");
   };
 
-  const initials = user?.handle
-    ? user.handle.substring(0, 2).toUpperCase()
-    : "?";
+  // Initialen aus dem Anzeigenamen (z. B. "C. Mönchsbüffel" → "CM"), sonst aus dem
+  // Handle. Mehrteilig: erster + letzter Wortanfang; einteilig: erste zwei Zeichen.
+  const initials = (() => {
+    const source = user?.displayName?.trim() || user?.handle || "";
+    const parts = source.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  })();
 
   return (
     <header className="sticky top-0 z-50 w-full bg-[var(--bg)]/88 backdrop-blur-xl supports-[backdrop-filter]:bg-[var(--bg)]/60">

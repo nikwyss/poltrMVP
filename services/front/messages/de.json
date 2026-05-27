@@ -113,7 +113,7 @@
     "appPasswordCreated": "App-Passwort erstellt!",
     "pds": "PDS",
     "password": "Passwort",
-    "pseudonymSource": "Dein Anzeigename ist vom Berg «{mountain}» abgeleitet – {canton}, {height} m ü. M."
+    "pseudonymSource": "Dein Anzeigename ist vom {height} Meter hohen Berg «{mountain}» ({canton}) abgeleitet."
   },
   "ballots": {
     "title": "Abstimmungen",
@@ -239,6 +239,7 @@
     "contraArgument": "Contra-Argument",
     "statusUnread": "Bewerten",
     "relevanceTitle": "Ihre Relevanz-Bewertung",
+    "relevanceForYou": "Relevanz für Sie",
     "fallbackBundesrat": "Bundesrat",
     "fallbackInitiativkomitee": "Initiativkomitee",
     "fallbackOrganization": "Organisation"
