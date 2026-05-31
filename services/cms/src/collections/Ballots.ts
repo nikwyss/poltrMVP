@@ -4,7 +4,7 @@ export const Ballots: CollectionConfig = {
   slug: 'ballots',
   admin: {
     useAsTitle: 'title',
-    defaultColumns: ['title', 'voteDate', 'status', 'governanceDid', 'updatedAt'],
+    defaultColumns: ['title', 'voteDate', 'status', 'actions', 'updatedAt'],
     listSearchableFields: ['title', 'topic'],
   },
   access: {
@@ -122,6 +122,18 @@ export const Ballots: CollectionConfig = {
         position: 'sidebar',
         readOnly: true,
         description: 'ATProto Governance Account Handle',
+      },
+    },
+    {
+      // Virtual field: renders per-row "Bearbeiten" + "Argumente" actions in
+      // the list view (no stored data). See components/BallotRowActions.tsx.
+      name: 'actions',
+      type: 'ui',
+      label: 'Aktionen',
+      admin: {
+        components: {
+          Cell: '/components/BallotRowActions#BallotRowActions',
+        },
       },
     },
   ],

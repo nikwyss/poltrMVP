@@ -10,7 +10,7 @@ import { Media } from './collections/Media'
 import { Pages } from './collections/Pages'
 import { Blocks } from './collections/Blocks'
 import { Ballots } from './collections/Ballots'
-import { ImportedArguments } from './collections/ImportedArguments'
+import { OfficialArguments } from './collections/OfficialArguments'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -22,7 +22,7 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media, Pages, Blocks, Ballots, ImportedArguments],
+  collections: [Users, Media, Pages, Blocks, Ballots, OfficialArguments],
   editor: lexicalEditor(),
   secret: process.env.CMS_SECRET || '',
   typescript: {

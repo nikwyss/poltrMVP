@@ -30,6 +30,23 @@ export function ProContraBadge({ type, variant = "solid" }: { type?: string; var
   )
 }
 
+const OFFICIAL_SOURCE = "app.ch.poltr.ballot.argument#sourceOfficial"
+
+/** True for arguments curated by the authorities (Bundeskanzlei) — these
+ *  bypass peer review and are shown as "Offiziell" rather than a review state. */
+export function isOfficialArgument(source?: { $type?: string }): boolean {
+  return source?.$type === OFFICIAL_SOURCE
+}
+
+export function OfficialBadge() {
+  const t = useTranslations('reviewStatus')
+  return (
+    <Badge variant="outline" className="text-xs bg-amber-50 text-amber-800 border-0">
+      ★ {t('official')}
+    </Badge>
+  )
+}
+
 export function ReviewStatusBadge({ status }: { status?: string }) {
   const t = useTranslations('reviewStatus')
   if (!status) return null

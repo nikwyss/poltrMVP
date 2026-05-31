@@ -488,15 +488,22 @@ export async function upsertReviewResponseDb(clientOrPool, params) {
 async function checkReviewQuorum(clientOrPool, argumentUri) {
   const quorum = parseInt(process.env.APPVIEW_PEER_REVIEW_QUORUM || "10", 10);
 
+  // Only count responses backed by an issued invitation (invited=true) for the
+  // same (argument, reviewer). Defense in depth: even if a response record ever
+  // reaches the DB without a matching invitation, it must not sway the quorum.
   const counts = await dbQuery(
     clientOrPool,
     `
     SELECT
-      COUNT(*) FILTER (WHERE vote = 'APPROVE') AS approvals,
-      COUNT(*) FILTER (WHERE vote = 'REJECT') AS rejections,
+      COUNT(*) FILTER (WHERE rr.vote = 'APPROVE') AS approvals,
+      COUNT(*) FILTER (WHERE rr.vote = 'REJECT') AS rejections,
       COUNT(*) AS total
-    FROM app_review_responses
-    WHERE argument_uri = $1
+    FROM app_review_responses rr
+    JOIN app_review_invitations ri
+      ON ri.argument_uri = rr.argument_uri
+     AND ri.invitee_did  = rr.reviewer_did
+     AND ri.invited      = true
+    WHERE rr.argument_uri = $1
     `,
     [argumentUri],
   );

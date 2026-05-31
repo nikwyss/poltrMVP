@@ -216,6 +216,13 @@
     "noReviews": "No pending reviews. Check back later.",
     "ballot": "Ballot: {rkey}"
   },
+  "ballotType": {
+    "obligatorisches_referendum": "Mandatory referendum",
+    "fakultatives_referendum": "Optional referendum",
+    "volksinitiative": "Federal popular initiative",
+    "direkter_gegenentwurf": "Direct counter-proposal",
+    "stichfrage": "Tie-breaker question"
+  },
   "reviewStatus": {
     "preliminary": "Preliminary",
     "peerReviewed": "Peer-reviewed",
@@ -227,6 +234,10 @@
     "booklet": "Booklet"
   },
   "booklet": {
+    "argumentsLabel": "Arguments",
+    "commentsLabel": "Comments",
+    "readMore": "Read more",
+    "readLess": "Read less",
     "officialTitle": "Official arguments",
     "officialSubtitle": "from the Federal Chancellery's ballot booklet",
     "communityTitle": "Community",

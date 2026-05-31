@@ -12,18 +12,20 @@
 export function PageBackdrop({
   src = "/images/arcades_fine.svg",
   opacity = 0.18,
+  marginTop = 300,
 }: {
   /** Bildpfad in `public/` (Default: feine Arkaden-Grafik). */
   src?: string;
   /** Deckkraft 0–1 (Default 0.18 — dezentes Wasserzeichen). */
   opacity?: number;
+  marginTop?: number;
 } = {}) {
   return (
     <img
       src={src}
       alt=""
       aria-hidden="true"
-      style={{ opacity }}
+      style={{ opacity, marginTop }}
       className="pointer-events-none fixed bottom-0 left-0 -z-10 h-[60vh] w-auto select-none"
     />
   );

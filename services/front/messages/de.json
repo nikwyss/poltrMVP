@@ -216,23 +216,34 @@
     "noReviews": "Keine ausstehenden Reviews. Schau später nochmal vorbei.",
     "ballot": "Abstimmung: {rkey}"
   },
+  "ballotType": {
+    "obligatorisches_referendum": "Obligatorisches Referendum",
+    "fakultatives_referendum": "Fakultatives Referendum",
+    "volksinitiative": "Eidgenössische Volksinitiative",
+    "direkter_gegenentwurf": "Direkter Gegenentwurf",
+    "stichfrage": "Stichfrage"
+  },
   "reviewStatus": {
     "preliminary": "Unter Begutachtung",
     "peerReviewed": "Begutachtet",
     "rejected": "Abgelehnt",
-    "official": "Aus der Abstimmungsbrochüre"
+    "official": "Offiziell"
   },
   "viewToggle": {
     "feed": "Feed",
     "booklet": "Büchlein"
   },
   "booklet": {
+    "argumentsLabel": "Argumente",
+    "commentsLabel": "Kommentare",
+    "readMore": "Mehr anzeigen",
+    "readLess": "Weniger anzeigen",
     "officialTitle": "Offizielle Argumente",
     "officialSubtitle": "aus dem Abstimmungsbüchlein der Bundeskanzlei",
     "communityTitle": "Community Argumente",
     "communitySubtitle": "Argumente von Userinnen und Usern",
     "auswertungTitle": "Auswertung",
-    "auswertungSubtitle": "Welche Argumente überzeugen Sie am meisten? Welche kommen bei der community besonders gut an?",
+    "auswertungSubtitle": "Welche Argumente überzeugen Sie am meisten?",
     "auswertungPlaceholder": "Die Auswertung wird in Kürze verfügbar sein.",
     "showMore": "Mehr anzeigen (+{count})",
     "proArgument": "Pro-Argument",

@@ -20,6 +20,8 @@ import { Spinner } from "@/components/spinner";
 import {
   ProContraBadge,
   ReviewStatusBadge,
+  OfficialBadge,
+  isOfficialArgument,
 } from "@/components/pro-contra-badge";
 import { CommentAvatar, CommentContent } from "@/components/comment-content";
 import { ReplyInput } from "@/components/reply-input";
@@ -285,6 +287,7 @@ export default function ArgumentDetailPage({
   if (!isAuthenticated) return null;
 
   const isPro = argument?.record.type === "PRO";
+  const isOfficial = isOfficialArgument(argument?.record.source);
   // Argumentfarbe (Pro/Contra) — für Karten-Balken, Badge und Slider.
   const accentColor = isPro ? "var(--pro)" : "var(--contra)";
 
@@ -451,7 +454,11 @@ export default function ArgumentDetailPage({
                       {"💬"} {argument.commentCount}
                     </span>
                   )}
-                  <ReviewStatusBadge status={argument.reviewStatus} />
+                  {isOfficial ? (
+                    <OfficialBadge />
+                  ) : (
+                    <ReviewStatusBadge status={argument.reviewStatus} />
+                  )}
                 </div>
               </div>
 
@@ -548,7 +555,11 @@ export default function ArgumentDetailPage({
                     {"💬"} {argument.commentCount}
                   </span>
                 )}
-                <ReviewStatusBadge status={argument.reviewStatus} />
+                {isOfficial ? (
+                  <OfficialBadge />
+                ) : (
+                  <ReviewStatusBadge status={argument.reviewStatus} />
+                )}
               </div>
             </CardContent>
           </Card>

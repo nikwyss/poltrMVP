@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
 import { ProContraColumnHeaders } from "@/components/pro-contra-column-headers";
+import { PageBackdrop } from "@/components/page-backdrop";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import ArgumentDetailPage from "../[argRkey]/page";
 import CommentDetailPage from "../feed/comment/page";
@@ -68,6 +69,47 @@ function sourceKind(
 }
 
 // ---------------------------------------------------------------------------
+// Expandable description — clamps to 5 lines, "mehr/weniger"-Toggle. Der
+// Button erscheint nur, wenn der Text tatsächlich über 5 Zeilen hinausgeht.
+// ---------------------------------------------------------------------------
+
+function ExpandableText({ text }: { text: string }) {
+  const tbk = useTranslations("booklet");
+  const [expanded, setExpanded] = useState(false);
+  const [clamped, setClamped] = useState(false);
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setClamped(el.scrollHeight > el.clientHeight + 1);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, [text]);
+
+  return (
+    <div className="mb-5 max-w-2xl">
+      <p
+        ref={ref}
+        className={`text-base text-[var(--text-mid)] leading-relaxed ${expanded ? "" : "line-clamp-5"}`}
+      >
+        {text}
+      </p>
+      {(clamped || expanded) && (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="mt-1.5 text-xs font-semibold text-[var(--text-faint)] hover:text-[var(--text)] transition-colors"
+        >
+          {expanded ? tbk("readLess") : tbk("readMore")}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Card
 // ---------------------------------------------------------------------------
 
@@ -86,12 +128,19 @@ function ArgumentCardCompact({
   const relevance = arg.viewer?.preference ?? null;
   const rated = relevance !== null;
 
+  // Offizielle Argumente (Bundeskanzlei) durchlaufen kein Verfahren — sie werden
+  // als "Offiziell" ausgewiesen, nicht mit einem Review-Status.
+  const isOfficial = sourceKind(arg.record) === "official";
+
   // Review-Status oben rechts (z. B. "Begutachtet"). reviewStatus → i18n-Key.
-  const statusKey = arg.reviewStatus
-    ? { preliminary: "preliminary", approved: "peerReviewed", rejected: "rejected" }[
-        arg.reviewStatus
-      ]
-    : null;
+  const statusKey =
+    !isOfficial && arg.reviewStatus
+      ? {
+          preliminary: "preliminary",
+          approved: "peerReviewed",
+          rejected: "rejected",
+        }[arg.reviewStatus]
+      : null;
 
   return (
     <div
@@ -106,7 +155,16 @@ function ArgumentCardCompact({
             {type === "PRO" ? tbk("proArgument") : tbk("contraArgument")}
           </span>
         </div>
-        {statusKey && <span className="na-card-status">{trs(statusKey)}</span>}
+        {rated &&
+          (isOfficial ? (
+            <span className="na-card-status na-card-status--official">
+              {trs("official")}
+            </span>
+          ) : (
+            statusKey && (
+              <span className="na-card-status">{trs(statusKey)}</span>
+            )
+          ))}
       </div>
 
       <div className="na-card-body">
@@ -120,7 +178,9 @@ function ArgumentCardCompact({
               {relevance}
               <span className="na-card-index-max">/100</span>
             </span>
-            <span className="na-card-score-label">{tbk("relevanceForYou")}</span>
+            <span className="na-card-score-label">
+              {tbk("relevanceForYou")}
+            </span>
           </div>
         )}
       </div>
@@ -323,9 +383,9 @@ export default function BallotDetailNewArguments() {
   const searchParams = useSearchParams();
   const id = params.id as string;
   const t = useTranslations("ballotDetail");
-  const tb = useTranslations("ballots");
   const tc = useTranslations("common");
   const tbk = useTranslations("booklet");
+  const tbt = useTranslations("ballotType");
 
   const [ballot, setBallot] = useState<BallotWithMetadata | null>(null);
   const [arguments_, setArguments] = useState<ArgumentWithMetadata[]>([]);
@@ -554,6 +614,8 @@ export default function BallotDetailNewArguments() {
       className="max-w-[var(--page-max)] mx-auto"
       style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}
     >
+      <PageBackdrop src="/images/schrattenfluh.svg" />
+
       {/* View-Toggle (Titel steckt in der Hero-Card darunter) */}
       <nav className="flex items-center justify-end gap-2 pt-5 text-xs label">
         <ViewToggle active="booklet" ballotId={id} />
@@ -586,64 +648,54 @@ export default function BallotDetailNewArguments() {
           {/* Hero card */}
           <div className="bg-card border border-border rounded-[calc(var(--r)+6px)] px-8 py-8 md:px-11 md:py-9 animate-fade-up overflow-hidden">
             <div className="flex items-center gap-2 mb-3.5">
-              {ballot.record.topic && (
-                <span className="tag eyebrow">{ballot.record.topic}</span>
-              )}
               <span className="label">
                 {formatDate(ballot.record.voteDate)}
               </span>
+              {ballot.record.ballotType && (
+                <>
+                  <span className="label">·</span>
+                  <span className="text-[0.8125rem] font-semibold text-[var(--brand)]">
+                    {tbt(ballot.record.ballotType)}
+                  </span>
+                </>
+              )}
             </div>
 
             <div className="flex justify-between items-start gap-6 mb-5">
-              <h1 className="text-4xl md:text-[2.75rem] font-bold tracking-tight leading-[0.92]">
+              <h1
+                className="text-4xl md:text-[2.75rem] font-bold tracking-tight leading-[0.92]"
+                style={{
+                  fontFamily:
+                    'var(--font-serif), Georgia, "Times New Roman", serif',
+                }}
+              >
                 {ballot.record.title}
               </h1>
-              <div className="flex flex-col items-end gap-2.5 shrink-0">
-                <div className="flex gap-1.5">
-                  {(ballot.argumentCount ?? 0) > 0 && (
-                    <span className="tag">
-                      {tb("arguments", { count: ballot.argumentCount ?? 0 })}
+              <div className="flex gap-8 shrink-0 pt-1">
+                {(ballot.argumentCount ?? 0) > 0 && (
+                  <div className="flex flex-col items-center">
+                    <span className="text-3xl font-bold leading-none tracking-tight text-[var(--text)]">
+                      {ballot.argumentCount}
                     </span>
-                  )}
-                  {(ballot.commentCount ?? 0) > 0 && (
-                    <span className="tag">
-                      {tb("comments", { count: ballot.commentCount ?? 0 })}
+                    <span className="mt-2 text-sm text-[var(--text-faint)]">
+                      {tbk("argumentsLabel")}
                     </span>
-                  )}
-                </div>
+                  </div>
+                )}
+                {(ballot.commentCount ?? 0) > 0 && (
+                  <div className="flex flex-col items-center">
+                    <span className="text-3xl font-bold leading-none tracking-tight text-[var(--text)]">
+                      {ballot.commentCount}
+                    </span>
+                    <span className="mt-2 text-sm text-[var(--text-faint)]">
+                      {tbk("commentsLabel")}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
-            {ballot.record.text && (
-              <p className="text-sm text-[var(--text-mid)] leading-relaxed mb-5 max-w-2xl">
-                {ballot.record.text}
-              </p>
-            )}
-
-            {totalArgs > 0 && (
-              <div className="mt-1">
-                <div className="flex justify-between mb-2">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--pro)]">
-                    <span className="inline-block size-[7px] rounded-sm bg-[var(--pro)]" />
-                    {tc("pro")} — {proArgs.length}
-                  </div>
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--contra)]">
-                    {tc("contra")} — {contraArgs.length}
-                    <span className="inline-block size-[7px] rounded-sm bg-[var(--contra)]" />
-                  </div>
-                </div>
-                <div className="h-[5px] rounded-[var(--r-full)] bg-[var(--surface-up)] border border-border overflow-hidden flex">
-                  <div
-                    className="h-full rounded-l-[var(--r-full)] bg-[var(--pro)] transition-all duration-500"
-                    style={{ width: `${proPercent}%` }}
-                  />
-                  <div
-                    className="h-full rounded-r-[var(--r-full)] bg-[var(--contra)] transition-all duration-500"
-                    style={{ width: `${100 - proPercent}%` }}
-                  />
-                </div>
-              </div>
-            )}
+            {ballot.record.text && <ExpandableText text={ballot.record.text} />}
           </div>
 
           {/* Section 1: Official */}
@@ -1068,6 +1120,11 @@ export default function BallotDetailNewArguments() {
           letter-spacing: 0.01em;
           color: var(--text-faint);
         }
+        /* Offiziell-Marker: Bernstein/Gold, passend zur ★-Official-Sektion */
+        :global(.na-card-status--official) {
+          font-weight: 700;
+          color: #8a6b2b;
+        }
 
         /* Inhalt: Titel links, persönliche Bewertung unten rechts */
         :global(.na-card-body) {
@@ -1092,7 +1149,9 @@ export default function BallotDetailNewArguments() {
           line-height: 1;
         }
         :global(.na-card-index) {
-          font-family: var(--font-serif), Georgia, serif;
+          /* Sans (erbt von der Card) — passt zu den "111/159"-Zählern oben;
+             die Farbe (grün/rot) trägt hier den Charakter. */
+          font-family: inherit;
           font-size: 1.875rem;
           font-weight: 700;
           line-height: 0.9;

@@ -123,6 +123,10 @@ export const handleEvent = async (evt) => {
   }
 
   if (collection === COLLECTION_REVIEW_RESPONSE) {
+    if (!isGovernanceDid(did)) {
+      console.log(`Ignoring review response from non-governance repo: ${did}`);
+      return;
+    }
     // if (action === "delete") {
     //   await markReviewResponseDeleted(uri);
     //   return;

@@ -9,12 +9,16 @@ import type { CollectionConfig } from 'payload'
  * the record into the ballot's governance PDS account so it shows up
  * alongside user-submitted arguments via the same firehose-driven path.
  */
-export const ImportedArguments: CollectionConfig = {
+export const OfficialArguments: CollectionConfig = {
   slug: 'imported-arguments',
   labels: {
-    singular: 'Imported Argument',
-    plural: 'Imported Arguments',
+    singular: 'Offizielles Argument',
+    plural: 'Offizielle Argumente',
   },
+  // Audit trail: every change to an official argument is versioned (author +
+  // timestamp). Publication is governed by the `status` field below, so the
+  // built-in draft system stays off.
+  versions: { drafts: false },
   admin: {
     useAsTitle: 'title',
     defaultColumns: ['title', 'ballot', 'sourceType', 'type', 'status', 'updatedAt'],
@@ -121,41 +125,59 @@ export const ImportedArguments: CollectionConfig = {
   ],
   hooks: {
     afterChange: [
-      async ({ doc, previousDoc, req, operation, context }) => {
+      async ({ doc, req, operation, context }) => {
         // Skip recursive invocations triggered by the inner payload.update()
         // calls below — they share the outer transaction (via `req`) and
         // would otherwise re-enter this hook.
         if (context?.skipPublishHook) return doc
 
-        // Publish on first transition to 'published' that hasn't been published yet.
-        const wasPublished = previousDoc?.status === 'published'
         const isPublished = doc.status === 'published'
-        const justPublished =
-          isPublished && !wasPublished && !doc.pdsUri
-
-        if (!justPublished) return doc
+        const alreadyOnPds = !!doc.pdsUri
 
         try {
-          const { publishImportedArgument } = await import('../lib/atproto-publish')
-          const { uri, cid } = await publishImportedArgument(req.payload, doc)
+          const lib = await import('../lib/atproto-publish')
 
-          await req.payload.update({
-            collection: 'imported-arguments',
-            id: doc.id,
-            data: { pdsUri: uri, pdsCid: cid },
-            req,
-            context: { skipPublishHook: true },
-          })
-
-          req.payload.logger.info(
-            `Imported argument ${doc.id} published to PDS: ${uri}`,
-          )
+          if (isPublished && !alreadyOnPds) {
+            // First publish → create the record on the PDS.
+            const { uri, cid } = await lib.publishImportedArgument(req.payload, doc)
+            await req.payload.update({
+              collection: 'imported-arguments',
+              id: doc.id,
+              data: { pdsUri: uri, pdsCid: cid },
+              req,
+              context: { skipPublishHook: true },
+            })
+            req.payload.logger.info(`Imported argument ${doc.id} published to PDS: ${uri}`)
+          } else if (isPublished && alreadyOnPds) {
+            // Edit of a published record → keep the public PDS record in sync.
+            const { cid } = await lib.updateImportedArgument(req.payload, doc)
+            if (cid && cid !== doc.pdsCid) {
+              await req.payload.update({
+                collection: 'imported-arguments',
+                id: doc.id,
+                data: { pdsCid: cid },
+                req,
+                context: { skipPublishHook: true },
+              })
+            }
+            req.payload.logger.info(`Imported argument ${doc.id} updated on PDS`)
+          } else if (!isPublished && alreadyOnPds) {
+            // Set back to draft → unpublish (remove from PDS) so "published in
+            // the CMS" stays equivalent to "publicly visible".
+            await lib.deleteImportedArgument(req.payload, doc)
+            await req.payload.update({
+              collection: 'imported-arguments',
+              id: doc.id,
+              data: { pdsUri: null, pdsCid: null },
+              req,
+              context: { skipPublishHook: true },
+            })
+            req.payload.logger.info(`Imported argument ${doc.id} unpublished from PDS`)
+          }
         } catch (err) {
-          req.payload.logger.error(
-            `Failed to publish imported argument ${doc.id}: ${err}`,
-          )
-          // Roll status back to draft so the user notices something went wrong.
-          if (operation === 'update') {
+          req.payload.logger.error(`Failed to sync imported argument ${doc.id} to PDS: ${err}`)
+          // On a failed *first* publish, roll status back so the user notices.
+          if (operation === 'update' && isPublished && !alreadyOnPds) {
             await req.payload.update({
               collection: 'imported-arguments',
               id: doc.id,
@@ -167,6 +189,20 @@ export const ImportedArguments: CollectionConfig = {
         }
 
         return doc
+      },
+    ],
+    afterDelete: [
+      async ({ doc, req }) => {
+        // Remove the corresponding PDS record so a deleted official argument
+        // stops being served publicly.
+        if (!doc?.pdsUri) return
+        try {
+          const { deleteImportedArgument } = await import('../lib/atproto-publish')
+          await deleteImportedArgument(req.payload, doc)
+          req.payload.logger.info(`Imported argument ${doc.id} deleted from PDS`)
+        } catch (err) {
+          req.payload.logger.error(`Failed to delete imported argument ${doc.id} from PDS: ${err}`)
+        }
       },
     ],
   },

@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import { Copy, Check, Mountain } from "lucide-react";
+import { PageBackdrop } from "@/components/page-backdrop";
 
 function CopyField({
   label,
@@ -44,7 +45,9 @@ function CopyField({
         variant="ghost"
         size="icon"
         onClick={handleCopy}
-        title={copied ? tc("copied") : tc("copy", { label: label.toLowerCase() })}
+        title={
+          copied ? tc("copied") : tc("copy", { label: label.toLowerCase() })
+        }
         className="h-8 w-8 shrink-0"
       >
         {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -66,7 +69,9 @@ function ProfileContent() {
     handleCreateAppPassword,
   } = useAppPassword();
   const [verificationLoading, setVerificationLoading] = useState(false);
-  const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [verificationError, setVerificationError] = useState<string | null>(
+    null,
+  );
   const [verificationSuccess, setVerificationSuccess] = useState(false);
 
   useEffect(() => {
@@ -103,7 +108,7 @@ function ProfileContent() {
       window.location.href = redirect_url;
     } catch (err) {
       setVerificationError(
-        err instanceof Error ? err.message : "Failed to start verification"
+        err instanceof Error ? err.message : "Failed to start verification",
       );
       setVerificationLoading(false);
     }
@@ -111,6 +116,7 @@ function ProfileContent() {
 
   return (
     <div className="flex flex-col gap-8 pt-6">
+      <PageBackdrop src="/images/eiger.svg" />
       <div className="flex-1 space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">
           {t("hello", { name: user.displayName })}
@@ -159,11 +165,15 @@ function ProfileContent() {
             <div className="space-y-1 text-sm">
               <p>
                 <strong>{t("did")}:</strong>{" "}
-                <span className="font-mono text-muted-foreground">{user.did}</span>
+                <span className="font-mono text-muted-foreground">
+                  {user.did}
+                </span>
               </p>
               <p>
                 <strong>{t("handle")}:</strong>{" "}
-                <span className="font-mono text-muted-foreground">{user.handle}</span>
+                <span className="font-mono text-muted-foreground">
+                  {user.handle}
+                </span>
               </p>
             </div>
           </CardContent>
@@ -187,7 +197,9 @@ function ProfileContent() {
               onClick={handleCreateAppPassword}
               disabled={appPasswordLoading}
             >
-              {appPasswordLoading ? t("creatingPassword") : t("createAppPassword")}
+              {appPasswordLoading
+                ? t("creatingPassword")
+                : t("createAppPassword")}
             </Button>
           )}
         </div>
@@ -214,23 +226,25 @@ function ProfileContent() {
             </Alert>
           )}
 
-        {process.env.NEXT_PUBLIC_APP_PASSWORD_ENABLED === "true" && appPassword && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg text-green-800">
-                {t("appPasswordCreated")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CopyField
-                label={t("pds")}
-                value="https://pds2.poltr.info"
-              />
-              <CopyField label={t("handle")} value={user.handle} />
-              <CopyField label={t("password")} value={appPassword.password} breakAll />
-            </CardContent>
-          </Card>
-        )}
+        {process.env.NEXT_PUBLIC_APP_PASSWORD_ENABLED === "true" &&
+          appPassword && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg text-green-800">
+                  {t("appPasswordCreated")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CopyField label={t("pds")} value="https://pds2.poltr.info" />
+                <CopyField label={t("handle")} value={user.handle} />
+                <CopyField
+                  label={t("password")}
+                  value={appPassword.password}
+                  breakAll
+                />
+              </CardContent>
+            </Card>
+          )}
       </div>
     </div>
   );

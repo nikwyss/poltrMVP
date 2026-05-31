@@ -265,6 +265,48 @@ async function pdsCreateRecord(
   return resp.json() as Promise<{ uri: string; cid: string }>
 }
 
+async function pdsPutRecord(
+  did: string,
+  accessJwt: string,
+  collection: string,
+  rkey: string,
+  record: Record<string, unknown>,
+): Promise<{ uri: string; cid: string }> {
+  const pdsUrl = env('PDS_INTERNAL_URL')
+  const resp = await fetch(`${pdsUrl}/xrpc/com.atproto.repo.putRecord`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessJwt}`,
+    },
+    body: JSON.stringify({ repo: did, collection, rkey, record }),
+  })
+  if (!resp.ok) {
+    throw new Error(`putRecord failed (${resp.status}): ${await resp.text()}`)
+  }
+  return resp.json() as Promise<{ uri: string; cid: string }>
+}
+
+async function pdsDeleteRecord(
+  did: string,
+  accessJwt: string,
+  collection: string,
+  rkey: string,
+): Promise<void> {
+  const pdsUrl = env('PDS_INTERNAL_URL')
+  const resp = await fetch(`${pdsUrl}/xrpc/com.atproto.repo.deleteRecord`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessJwt}`,
+    },
+    body: JSON.stringify({ repo: did, collection, rkey }),
+  })
+  if (!resp.ok) {
+    throw new Error(`deleteRecord failed (${resp.status}): ${await resp.text()}`)
+  }
+}
+
 type ImportedArgumentDoc = {
   id: string | number
   ballot: unknown
@@ -274,6 +316,48 @@ type ImportedArgumentDoc = {
   body: string
   documentRef?: string | null
   section?: string | null
+  createdAt?: string | null
+  pdsUri?: string | null
+}
+
+/** Build the `source` union for an imported argument record. */
+function buildArgumentSource(doc: ImportedArgumentDoc): Record<string, unknown> {
+  if (doc.sourceType === 'official') {
+    const source: Record<string, unknown> = {
+      $type: `${ARGUMENT_NSID}#sourceOfficial`,
+    }
+    if (doc.documentRef) source.documentRef = doc.documentRef
+    if (doc.section) source.section = doc.section
+    return source
+  }
+  // 'organization' is reserved but not yet exposed in the CMS UI.
+  throw new Error(
+    `sourceType '${doc.sourceType}' is not yet supported for imported arguments`,
+  )
+}
+
+/** Compose the full argument record. `createdAt` stays stable across edits
+ *  (uses the CMS doc's createdAt) so the indexed created_at never drifts. */
+function buildArgumentRecord(
+  doc: ImportedArgumentDoc,
+  ballotRkey: string,
+): Record<string, unknown> {
+  return {
+    $type: ARGUMENT_NSID,
+    title: doc.title,
+    body: doc.body,
+    type: doc.type,
+    ballot: ballotRkey,
+    createdAt: doc.createdAt || new Date().toISOString(),
+    source: buildArgumentSource(doc),
+  }
+}
+
+/** Extract the rkey from an AT URI (at://did/collection/rkey). */
+function rkeyFromUri(uri: string): string {
+  const rkey = uri.split('/').pop()
+  if (!rkey) throw new Error(`Cannot extract rkey from URI: ${uri}`)
+  return rkey
 }
 
 /**
@@ -317,29 +401,44 @@ export async function publishImportedArgument(
 ): Promise<{ uri: string; cid: string }> {
   const ballotRkey = await resolveBallotRkey(payload, doc.ballot)
   const { did, password } = await loadGovernanceCreds(ballotRkey)
-
-  let source: Record<string, unknown>
-  if (doc.sourceType === 'official') {
-    source = { $type: `${ARGUMENT_NSID}#sourceOfficial` }
-    if (doc.documentRef) source.documentRef = doc.documentRef
-    if (doc.section) source.section = doc.section
-  } else {
-    // 'organization' is reserved but not yet exposed in the CMS UI.
-    throw new Error(
-      `sourceType '${doc.sourceType}' is not yet supported by publishImportedArgument`,
-    )
-  }
-
-  const record = {
-    $type: ARGUMENT_NSID,
-    title: doc.title,
-    body: doc.body,
-    type: doc.type,
-    ballot: ballotRkey,
-    createdAt: new Date().toISOString(),
-    source,
-  }
+  const record = buildArgumentRecord(doc, ballotRkey)
 
   const { accessJwt } = await pdsCreateSession(did, password)
   return pdsCreateRecord(did, accessJwt, ARGUMENT_NSID, record)
+}
+
+/**
+ * Re-publish an already-published imported argument after a CMS edit
+ * (putRecord at its existing rkey). Keeps the public PDS record in sync
+ * with the CMS source of truth. Requires `doc.pdsUri`.
+ */
+export async function updateImportedArgument(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload: any,
+  doc: ImportedArgumentDoc,
+): Promise<{ uri: string; cid: string }> {
+  if (!doc.pdsUri) throw new Error('updateImportedArgument requires pdsUri')
+  const ballotRkey = await resolveBallotRkey(payload, doc.ballot)
+  const { did, password } = await loadGovernanceCreds(ballotRkey)
+  const record = buildArgumentRecord(doc, ballotRkey)
+
+  const { accessJwt } = await pdsCreateSession(did, password)
+  return pdsPutRecord(did, accessJwt, ARGUMENT_NSID, rkeyFromUri(doc.pdsUri), record)
+}
+
+/**
+ * Remove a published imported argument from the PDS (deleteRecord) so it
+ * stops being served publicly. Requires `doc.pdsUri`.
+ */
+export async function deleteImportedArgument(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload: any,
+  doc: ImportedArgumentDoc,
+): Promise<void> {
+  if (!doc.pdsUri) return // never published — nothing to remove
+  const ballotRkey = await resolveBallotRkey(payload, doc.ballot)
+  const { did, password } = await loadGovernanceCreds(ballotRkey)
+
+  const { accessJwt } = await pdsCreateSession(did, password)
+  await pdsDeleteRecord(did, accessJwt, ARGUMENT_NSID, rkeyFromUri(doc.pdsUri))
 }

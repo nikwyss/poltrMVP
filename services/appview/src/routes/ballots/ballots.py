@@ -1101,7 +1101,12 @@ async def list_activity(
                 NULL::int AS parent_like_count,
                 NULL::int AS parent_reply_count
             FROM app_arguments a
-            WHERE a.ballot_rkey = $1 AND NOT a.deleted AND a.review_status = 'approved'
+            -- "Community-bestätigt"-Meilenstein nur für User-Argumente, die das
+            -- Begutachtungsverfahren durchlaufen haben. Offizielle/Organisations-
+            -- Argumente sind per se 'approved' (kein Review) und dürfen daher
+            -- keinen solchen Meilenstein erzeugen.
+            WHERE a.ballot_rkey = $1 AND NOT a.deleted
+              AND a.review_status = 'approved' AND a.source_type = 'user'
 
             UNION ALL
 

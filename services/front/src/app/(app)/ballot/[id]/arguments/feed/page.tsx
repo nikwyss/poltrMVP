@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/spinner";
 import { ProContraBadge } from "@/components/pro-contra-badge";
+import { PageBackdrop } from "@/components/page-backdrop";
 
 import { ViewToggle } from "@/components/view-toggle";
 import {
@@ -575,14 +576,18 @@ export default function BallotFeed() {
   const argIsTop = !!argRkeyParam && commentChain.length === 0;
 
   const [sheetOpen, setSheetOpen] = useState(argIsTop);
-  const [displayedArgRkey, setDisplayedArgRkey] = useState<string | null>(argRkeyParam);
+  const [displayedArgRkey, setDisplayedArgRkey] = useState<string | null>(
+    argRkeyParam,
+  );
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [commentSheetOpen, setCommentSheetOpen] = useState(!!topCommentUri);
   const [displayedCommentUri, setDisplayedCommentUri] = useState<string | null>(
     topCommentUri,
   );
-  const commentCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commentCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // Label for the visible overlay's back button: reflects the view revealed on
   // close — an argument, another post, or (nothing left) just "close".
@@ -600,7 +605,10 @@ export default function BallotFeed() {
     } else {
       setSheetOpen(false);
       if (!argRkeyParam) {
-        closeTimerRef.current = setTimeout(() => setDisplayedArgRkey(null), 350);
+        closeTimerRef.current = setTimeout(
+          () => setDisplayedArgRkey(null),
+          350,
+        );
       }
     }
     return () => {
@@ -691,9 +699,8 @@ export default function BallotFeed() {
       try {
         const currentCursor = reset ? undefined : cursor;
         const result = reset
-          ? await loadCached(
-              `feed:activity:${id}:${selectedFilter}`,
-              () => listActivity(id, selectedFilter, undefined),
+          ? await loadCached(`feed:activity:${id}:${selectedFilter}`, () =>
+              listActivity(id, selectedFilter, undefined),
             )
           : await listActivity(id, selectedFilter, currentCursor);
         if (reset) {
@@ -765,6 +772,7 @@ export default function BallotFeed() {
 
   return (
     <div className="space-y-5">
+      <PageBackdrop src="/images/kleinemythe.svg" />
       {/* Breadcrumb + view toggle */}
       <nav className="flex items-center justify-between text-sm text-muted-foreground">
         <div className="flex items-center gap-1.5 min-w-0">
