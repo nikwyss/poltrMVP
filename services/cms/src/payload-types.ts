@@ -94,10 +94,15 @@ export interface Config {
   db: {
     defaultIDType: number;
   };
-  fallbackLocale: null;
+  fallbackLocale:
+    | ('false' | 'none' | 'null')
+    | false
+    | null
+    | ('de' | 'fr' | 'it' | 'rm' | 'en')
+    | ('de' | 'fr' | 'it' | 'rm' | 'en')[];
   globals: {};
   globalsSelect: {};
-  locale: null;
+  locale: 'de' | 'fr' | 'it' | 'rm' | 'en';
   user: User & {
     collection: 'users';
   };
@@ -267,7 +272,7 @@ export interface Block {
 export interface Ballot {
   id: number;
   /**
-   * Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for governance account handle (ballot-{rkey}.id.poltr.ch).
+   * Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for the governance account handle — dots are replaced with hyphens (e.g. "133.3" → ballot-133-3.id.poltr.ch).
    */
   rkey: string;
   title: string;
@@ -310,14 +315,14 @@ export interface Ballot {
    * Referenz auf offizielle Unterlagen (URL)
    */
   officialRef?: string | null;
-  language?: ('de' | 'fr' | 'it' | 'en') | null;
+  originLanguage: 'de' | 'fr' | 'it' | 'rm' | 'en';
   status: 'draft' | 'published';
   /**
-   * ATProto Governance Account DID (auto-created on publish)
+   * ATProto Governance Account DID (auto-created on publish — reload the page after publishing to see the value).
    */
   governanceDid?: string | null;
   /**
-   * ATProto Governance Account Handle
+   * ATProto Governance Account Handle (auto-created on publish — reload the page after publishing to see the value).
    */
   governanceHandle?: string | null;
   updatedAt: string;
@@ -348,6 +353,10 @@ export interface ImportedArgument {
    * Optional: Kapitel/Seite in der Quelle, z.B. "Argumente Befürworter, S. 14".
    */
   section?: string | null;
+  /**
+   * Quellsprache des Arguments. Bestimmt, welche Locale beim Publish als Original (Top-Level title/body + langs) in den ATProto-Record geht; alle übrigen befüllten Locales landen als translations[].
+   */
+  originLanguage: 'de' | 'fr' | 'it' | 'rm' | 'en';
   /**
    * Auf "Published" setzen, um den Record auf den PDS zu schreiben.
    */
@@ -537,7 +546,7 @@ export interface BallotsSelect<T extends boolean = true> {
   ballotType?: T;
   voteDate?: T;
   officialRef?: T;
-  language?: T;
+  originLanguage?: T;
   status?: T;
   governanceDid?: T;
   governanceHandle?: T;
@@ -556,6 +565,7 @@ export interface ImportedArgumentsSelect<T extends boolean = true> {
   body?: T;
   documentRef?: T;
   section?: T;
+  originLanguage?: T;
   status?: T;
   pdsUri?: T;
   pdsCid?: T;

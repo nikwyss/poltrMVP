@@ -1,4 +1,4 @@
-import type { BallotWithMetadata, ArgumentWithMetadata, CommentWithMetadata, ActivityItem, ReviewCriterion, ReviewInvitation, ReviewStatus, ReviewCriterionRating } from '../types/ballots';
+import type { Ballot, ArgumentWithMetadata, CommentWithMetadata, ActivityItem, ReviewCriterion, ReviewInvitation, ReviewStatus, ReviewCriterionRating } from '../types/ballots';
 import { toPdsError } from './pdsError';
 
 /**
@@ -25,24 +25,32 @@ function getAuthenticatedFetch(): typeof fetch {
 // Ballot API
 // ---------------------------------------------------------------------------
 
-export async function getBallot(rkey: string): Promise<BallotWithMetadata> {
+/**
+ * Ballots use the REST `/api/poltr/ballots*` proxy (basis-app layer).
+ * Pseudo-XRPC URLs are gone — Ballots are CMS content, not ATProto records.
+ * `lang` defaults to the cookie-resolved locale on the server side; pass
+ * explicitly to override (e.g. preview).
+ */
+export async function getBallot(rkey: string, lang?: string): Promise<Ballot> {
   const authenticatedFetch = getAuthenticatedFetch();
-  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.ballot.get?rkey=${encodeURIComponent(rkey)}`);
+  const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+  const res = await authenticatedFetch(`/api/poltr/ballots/${encodeURIComponent(rkey)}${qs}`);
   if (!res.ok) throw new Error(await res.text());
   const content = await res.json();
   if (!content?.ballot) {
-    throw new Error('Invalid response from ballot.get endpoint');
+    throw new Error('Invalid response from /api/poltr/ballots/<rkey>');
   }
   return content.ballot;
 }
 
-export async function listBallots(): Promise<BallotWithMetadata[]> {
+export async function listBallots(lang?: string): Promise<Ballot[]> {
   const authenticatedFetch = getAuthenticatedFetch();
-  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.ballot.list`);
+  const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+  const res = await authenticatedFetch(`/api/poltr/ballots${qs}`);
   if (!res.ok) throw new Error(await res.text());
   const content = await res.json();
   if (!content?.ballots) {
-    throw new Error('Invalid response from ballot.list endpoint');
+    throw new Error('Invalid response from /api/poltr/ballots');
   }
   return content.ballots;
 }
@@ -92,16 +100,19 @@ export async function listArguments(
 }
 
 export async function createArgument(
-  ballotUri: string,
+  ballotRkey: string,
   title: string,
   body: string,
   type: 'PRO' | 'CONTRA',
+  langs?: string[],
 ): Promise<{ uri: string; cid: string }> {
   const authenticatedFetch = getAuthenticatedFetch();
+  const payload: Record<string, unknown> = { ballot: ballotRkey, title, body, type };
+  if (langs && langs.length) payload.langs = langs;
   const res = await authenticatedFetch('/api/xrpc/app.ch.poltr.argument.create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ballot: ballotUri, title, body, type }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) throw await toPdsError(res);
   return res.json();

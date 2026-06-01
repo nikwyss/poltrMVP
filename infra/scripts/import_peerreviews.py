@@ -126,7 +126,7 @@ def load_governance_creds(db_url: str, ballot_rkey: str, master_key_b64: str) ->
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT did, handle, pw_ciphertext, pw_nonce FROM governance_accounts WHERE ballot_rkey = %s",
+                "SELECT did, handle, pw_ciphertext, pw_nonce FROM auth.governance_accounts WHERE ballot_rkey = %s",
                 (ballot_rkey,),
             )
             row = cur.fetchone()
@@ -154,11 +154,13 @@ def load_governance_creds(db_url: str, ballot_rkey: str, master_key_b64: str) ->
 
 class PeerReviewImporter:
     def __init__(self, pds_host: str, gov_handle: str, gov_password: str,
-                 ballot_uri: str, dry_run: bool = False, max_responses: int = 0):
+                 ballot_uri: str, ballot_rkey: str,
+                 dry_run: bool = False, max_responses: int = 0):
         self.pds_host = pds_host
         self.gov_handle = gov_handle
         self.gov_password = gov_password
         self.ballot_uri = ballot_uri
+        self.ballot_rkey = ballot_rkey
         self.dry_run = dry_run
         self.max_responses = max_responses
         self.gov_did: Optional[str] = None
@@ -244,7 +246,9 @@ class PeerReviewImporter:
                     uri = rec.get("uri", "")
                     rkey = uri.split("/")[-1]
                     ballot_ref = rec.get("value", {}).get("ballot", "")
-                    if rkey and ballot_ref == self.ballot_uri:
+                    # Accept both the new rkey-only format ("663.0") and the
+                    # legacy AT-URI format ("at://…/app.ch.poltr.ballot.entry/663.0").
+                    if rkey and (ballot_ref == self.ballot_rkey or ballot_ref == self.ballot_uri):
                         try:
                             content_id = int(rkey)
                             self.content_id_to_argument_uri[content_id] = uri
@@ -478,7 +482,7 @@ def main():
     print()
 
     importer = PeerReviewImporter(pds_host, gov_handle, gov_password,
-                                  ballot_uri, dry_run, max_responses)
+                                  ballot_uri, ballot_rkey, dry_run, max_responses)
 
     if not importer.authenticate():
         sys.exit(1)

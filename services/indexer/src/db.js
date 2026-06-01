@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { Pool } from "pg";
 import process from "node:process";
+import { SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE } from "./languages.js";
 
 export const pool = new Pool({
   connectionString: process.env.INDEXER_POSTGRES_URL,
@@ -72,6 +73,59 @@ export async function markLikeDeleted(uri) {
 }
 
 const ARGUMENT_NSID = "app.ch.poltr.ballot.argument";
+
+/**
+ * Derive translation_status from a record's `langs` (original) + `translations` array.
+ *
+ *   - `pending`     : only the original language(s) are present
+ *   - `partial`     : at least one translation but not all SUPPORTED_LANGUAGES covered
+ *   - `complete`    : every SUPPORTED_LANGUAGES code is either an original or a translation
+ *   - `manual_only` : complete AND every translation has source='manual' (frozen, no AI run)
+ *
+ * Driven by the dynamic SUPPORTED_LANGUAGES list — adding a language flips
+ * previously-complete records to 'partial' automatically (the worker will pick
+ * them up on the next firehose event or via a one-shot SQL backfill).
+ */
+function deriveTranslationStatus(langs, translations) {
+  const origin = Array.isArray(langs) && langs.length ? langs : [DEFAULT_LANGUAGE];
+  const tx = Array.isArray(translations) ? translations : [];
+  const covered = new Set([
+    ...origin,
+    ...tx.map((t) => t?.lang).filter(Boolean),
+  ]);
+  const allCovered = SUPPORTED_LANGUAGES.every((l) => covered.has(l));
+  if (allCovered) {
+    const allManual = tx.length > 0 && tx.every((t) => t?.source === "manual");
+    return allManual ? "manual_only" : "complete";
+  }
+  return tx.length > 0 ? "partial" : "pending";
+}
+
+/**
+ * Normalize a record's `langs` field: accept array, fall back to [DEFAULT_LANGUAGE].
+ * Returned value is suitable for direct binding to a Postgres TEXT[] column.
+ */
+function normalizeLangs(langs) {
+  if (Array.isArray(langs) && langs.length) {
+    return langs.filter((l) => typeof l === "string" && l.length > 0);
+  }
+  return [DEFAULT_LANGUAGE];
+}
+
+/**
+ * Normalize a record's `translations` field for JSONB storage.
+ * Drops malformed entries (missing lang/title-or-text/body); returns [] if absent.
+ */
+function normalizeTranslations(translations, { requireTitle = true } = {}) {
+  if (!Array.isArray(translations)) return [];
+  return translations.filter((t) => {
+    if (!t || typeof t !== "object") return false;
+    if (typeof t.lang !== "string") return false;
+    if (requireTitle && typeof t.title !== "string") return false;
+    if (typeof t.body !== "string") return false;
+    return true;
+  });
+}
 
 /**
  * Parse the source union of an argument record into flat DB fields.
@@ -152,17 +206,21 @@ export async function upsertArgumentDb(clientOrPool, params) {
   // so the peer-review workflow can promote them later.
   const reviewStatus = src.sourceType === "user" ? "preliminary" : "approved";
 
+  const langs = normalizeLangs(record.langs);
+  const translations = normalizeTranslations(record.translations);
+  const translationStatus = deriveTranslationStatus(langs, translations);
+
   await dbQuery(
     clientOrPool,
     `
     INSERT INTO app_arguments
       (uri, cid, did, rkey, author_did, title, body, type, ballot_uri, ballot_rkey,
        source_type, source_org_key, source_doc_ref, source_section, source_verified_did,
-       review_status, created_at, deleted)
+       review_status, langs, translations, translation_status, created_at, deleted)
     VALUES
       ($1,  $2,  $3,  $4,  $5,  $6,    $7,   $8,   $9,         $10,
        $11, $12, $13, $14, $15,
-       $16, $17, false)
+       $16, $17, $18::jsonb, $19, $20, false)
     ON CONFLICT (uri) DO UPDATE SET
       cid                  = EXCLUDED.cid,
       author_did           = EXCLUDED.author_did,
@@ -176,6 +234,9 @@ export async function upsertArgumentDb(clientOrPool, params) {
       source_doc_ref       = EXCLUDED.source_doc_ref,
       source_section       = EXCLUDED.source_section,
       source_verified_did  = EXCLUDED.source_verified_did,
+      langs                = EXCLUDED.langs,
+      translations         = EXCLUDED.translations,
+      translation_status   = EXCLUDED.translation_status,
       created_at           = EXCLUDED.created_at,
       deleted              = false,
       indexed_at           = now()
@@ -197,6 +258,9 @@ export async function upsertArgumentDb(clientOrPool, params) {
       src.sourceSection,
       src.sourceVerifiedDid,
       reviewStatus,
+      langs,
+      JSON.stringify(translations),
+      translationStatus,
       createdAt,
     ],
   );
@@ -314,15 +378,17 @@ export async function upsertCommentDb(clientOrPool, params) {
     }
   }
 
+  const langs = normalizeLangs(record.langs);
+
   await dbQuery(
     clientOrPool,
     `
     INSERT INTO app_comments
       (uri, cid, did, rkey, origin, title, text, ballot_uri, ballot_rkey,
-       parent_uri, argument_uri, created_at, deleted)
+       parent_uri, argument_uri, langs, created_at, deleted)
     VALUES
       ($1,  $2,  $3,  $4,  'intern', $5,  $6,  $7,         $8,
-       $9, $10,  $11, false)
+       $9, $10,  $11, $12, false)
     ON CONFLICT (uri) DO UPDATE SET
       cid          = EXCLUDED.cid,
       title        = EXCLUDED.title,
@@ -331,6 +397,7 @@ export async function upsertCommentDb(clientOrPool, params) {
       ballot_rkey  = EXCLUDED.ballot_rkey,
       parent_uri   = EXCLUDED.parent_uri,
       argument_uri = EXCLUDED.argument_uri,
+      langs        = EXCLUDED.langs,
       created_at   = EXCLUDED.created_at,
       deleted      = false,
       indexed_at   = now()
@@ -346,13 +413,130 @@ export async function upsertCommentDb(clientOrPool, params) {
       ballotRkey,
       parentUri,
       argumentUri,
+      langs,
       createdAt,
     ],
   );
 
+  // Recompute translation_status against the (separately indexed) sidecar
+  // table. Safe on out-of-order firehose: sidecars indexed before their parent
+  // also call back into this function (via upsertCommentTranslationDb).
+  await recomputeCommentTranslationStatus(clientOrPool, uri);
+
   if (argumentUri) {
     await refreshCommentCount(clientOrPool, argumentUri);
   }
+}
+
+/**
+ * Upsert a sidecar-translation record for a comment.
+ * NSID: app.ch.poltr.comment.translation
+ *
+ * The unique `(subject_uri, lang)` constraint guarantees one translation per
+ * (comment, language) pair; the worker's composed rkey `{commentRkey}-{lang}`
+ * makes putRecord overwrite idempotent on the PDS side too.
+ */
+export async function upsertCommentTranslationDb(clientOrPool, params) {
+  const { uri, cid, record } = params;
+
+  const subjectUri = record?.subject?.uri ?? null;
+  if (!subjectUri) return; // malformed record — drop silently
+
+  const ballotRkey = record.ballot ?? null;
+  const lang = record.lang ?? null;
+  const body = record.body ?? null;
+  const source = record.source === "manual" ? "manual" : "ai";
+  const model = record.model ?? null;
+  const translatedAt = record.translatedAt
+    ? new Date(record.translatedAt)
+    : new Date();
+
+  if (!lang || !body) return;
+
+  await dbQuery(
+    clientOrPool,
+    `
+    INSERT INTO app_comment_translations
+      (uri, cid, subject_uri, ballot_rkey, lang, body, source, model, translated_at, deleted)
+    VALUES
+      ($1,  $2,  $3,          $4,          $5,   $6,   $7,     $8,    $9,            false)
+    ON CONFLICT (uri) DO UPDATE SET
+      cid           = EXCLUDED.cid,
+      subject_uri   = EXCLUDED.subject_uri,
+      ballot_rkey   = EXCLUDED.ballot_rkey,
+      lang          = EXCLUDED.lang,
+      body          = EXCLUDED.body,
+      source        = EXCLUDED.source,
+      model         = EXCLUDED.model,
+      translated_at = EXCLUDED.translated_at,
+      deleted       = false,
+      indexed_at    = now()
+    `,
+    [uri, cid, subjectUri, ballotRkey, lang, body, source, model, translatedAt],
+  );
+
+  await recomputeCommentTranslationStatus(clientOrPool, subjectUri);
+}
+
+/**
+ * Soft-delete a comment translation sidecar and recompute parent status.
+ */
+export async function markCommentTranslationDeleted(uri) {
+  const res = await pool.query(
+    `UPDATE app_comment_translations
+     SET deleted = true, indexed_at = now()
+     WHERE uri = $1
+     RETURNING subject_uri`,
+    [uri],
+  );
+  const subjectUri = res.rows?.[0]?.subject_uri;
+  if (subjectUri) {
+    await recomputeCommentTranslationStatus(pool, subjectUri);
+  }
+}
+
+/**
+ * Compute translation_status for a comment by union-ing its original `langs`
+ * with the set of non-deleted sidecar translations pointing at its URI.
+ *
+ * Status semantics mirror Arguments: pending → partial → complete. The
+ * sidecar-source vs. inline-source distinction is invisible at this layer.
+ */
+async function recomputeCommentTranslationStatus(clientOrPool, commentUri) {
+  const cRes = await dbQuery(
+    clientOrPool,
+    `SELECT langs FROM app_comments WHERE uri = $1`,
+    [commentUri],
+  );
+  if (!cRes.rows.length) return; // parent not yet indexed; will recompute later
+  const originLangs = cRes.rows[0].langs || [DEFAULT_LANGUAGE];
+
+  const tRes = await dbQuery(
+    clientOrPool,
+    `SELECT lang, source FROM app_comment_translations
+     WHERE subject_uri = $1 AND NOT deleted`,
+    [commentUri],
+  );
+  const txLangs = tRes.rows.map((r) => r.lang);
+  const txSources = tRes.rows.map((r) => r.source);
+
+  const covered = new Set([...originLangs, ...txLangs]);
+  const allCovered = SUPPORTED_LANGUAGES.every((l) => covered.has(l));
+
+  let status;
+  if (allCovered) {
+    const allManual =
+      txSources.length > 0 && txSources.every((s) => s === "manual");
+    status = allManual ? "manual_only" : "complete";
+  } else {
+    status = txLangs.length > 0 ? "partial" : "pending";
+  }
+
+  await dbQuery(
+    clientOrPool,
+    `UPDATE app_comments SET translation_status = $1 WHERE uri = $2`,
+    [status, commentUri],
+  );
 }
 
 /**

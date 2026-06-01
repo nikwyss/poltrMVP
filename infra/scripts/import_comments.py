@@ -41,6 +41,9 @@ import psycopg2
 import requests
 
 
+COMMENT_BODY_MAX_LEN = 5000  # must match app.ch.poltr.comment lexicon body.maxLength
+
+
 @dataclass
 class Comment:
     id: int
@@ -238,10 +241,15 @@ class CommentImporter:
         Returns the AT-URI of the created record, or None on failure."""
         rkey = str(comment.id)
 
+        body_text = comment.body.strip()
+        if len(body_text) > COMMENT_BODY_MAX_LEN:
+            print(f"  Trimmed body from {len(body_text)} to {COMMENT_BODY_MAX_LEN} chars (id={comment.id})")
+            body_text = body_text[:COMMENT_BODY_MAX_LEN]
+
         record = {
             "$type": "app.ch.poltr.comment",
             "title": comment.title.strip(),
-            "body": comment.body.strip(),
+            "body": body_text,
             "argument": argument_uri,
             "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4] + "Z",
         }

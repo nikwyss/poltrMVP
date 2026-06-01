@@ -1,0 +1,49 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.comment",
+  "description": "Ein Kommentar zu einem Argument. Native Comments leben in den User-Repos. Externe Bluesky-Replies auf gecrossposte Argument-Threads werden vom Indexer ohne separaten Record als Comment mit origin='extern' indexiert. Threading via optionalem `parent`-Feld.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["body", "argument", "createdAt"],
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000,
+            "description": "Kommentartext."
+          },
+          "argument": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "AT-URI des Argument-Records, zu dem der Kommentar gehört."
+          },
+          "parent": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "Optional: AT-URI eines anderen Comment-Records für Threading (Reply-auf-Reply). Ohne dieses Feld ist der Kommentar ein direkter Top-Level-Kommentar zum Argument."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "UNSTABLE/TBD: Optionaler Kommentartitel. Stammt aus dem ursprünglichen Demokratiefabrik-Dump (content.xlsx) und wird vom aktuellen Frontend nicht angezeigt. Verhalten dieses Felds ist noch nicht final — kann in einer späteren Iteration entfernt oder formalisiert werden."
+          },
+          "langs": {
+            "type": "array",
+            "maxLength": 3,
+            "items": { "type": "string", "format": "language" },
+            "description": "Sprachen des Original-Inhalts in body (BCP-47). Folgt dem Bluesky-Standard app.bsky.feed.post. Default ['de'] wenn fehlend. Übersetzungen leben nicht im Record selbst, sondern als Sidecar-Records app.ch.poltr.comment.translation im governance-Account des Ballots."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Erstellungszeitpunkt (ISO 8601)."
+          }
+        }
+      }
+    }
+  }
+}

@@ -9,7 +9,7 @@ import { getBallot, listArguments } from "@/lib/agent";
 import { loadCached, patchCached } from "@/lib/pageCache";
 import { useScrollRestore } from "@/lib/scrollRestore";
 import { formatDate } from "@/lib/utils";
-import type { BallotWithMetadata, ArgumentWithMetadata } from "@/types/ballots";
+import type { Ballot, ArgumentWithMetadata } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -387,7 +387,7 @@ export default function BallotDetailNewArguments() {
   const tbk = useTranslations("booklet");
   const tbt = useTranslations("ballotType");
 
-  const [ballot, setBallot] = useState<BallotWithMetadata | null>(null);
+  const [ballot, setBallot] = useState<Ballot | null>(null);
   const [arguments_, setArguments] = useState<ArgumentWithMetadata[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -467,7 +467,7 @@ export default function BallotDetailNewArguments() {
         return { ...a, viewer };
       };
       setArguments((prev) => prev.map(apply));
-      patchCached<{ ballot: BallotWithMetadata; args: ArgumentWithMetadata[] }>(
+      patchCached<{ ballot: Ballot; args: ArgumentWithMetadata[] }>(
         `ballot:${id}`,
         (cur) => ({ ...cur, args: cur.args.map(apply) }),
       );
@@ -649,13 +649,13 @@ export default function BallotDetailNewArguments() {
           <div className="bg-card border border-border rounded-[calc(var(--r)+6px)] px-8 py-8 md:px-11 md:py-9 animate-fade-up overflow-hidden">
             <div className="flex items-center gap-2 mb-3.5">
               <span className="label">
-                {formatDate(ballot.record.voteDate)}
+                {formatDate(ballot.voteDate)}
               </span>
-              {ballot.record.ballotType && (
+              {ballot.ballotType && (
                 <>
                   <span className="label">·</span>
                   <span className="text-[0.8125rem] font-semibold text-[var(--brand)]">
-                    {tbt(ballot.record.ballotType)}
+                    {tbt(ballot.ballotType)}
                   </span>
                 </>
               )}
@@ -669,7 +669,7 @@ export default function BallotDetailNewArguments() {
                     'var(--font-serif), Georgia, "Times New Roman", serif',
                 }}
               >
-                {ballot.record.title}
+                {ballot.title}
               </h1>
               <div className="flex gap-8 shrink-0 pt-1">
                 {(ballot.argumentCount ?? 0) > 0 && (
@@ -695,7 +695,7 @@ export default function BallotDetailNewArguments() {
               </div>
             </div>
 
-            {ballot.record.text && <ExpandableText text={ballot.record.text} />}
+            {ballot.description && <ExpandableText text={ballot.description} />}
           </div>
 
           {/* Section 1: Official */}

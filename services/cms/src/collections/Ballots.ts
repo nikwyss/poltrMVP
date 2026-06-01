@@ -20,7 +20,7 @@ export const Ballots: CollectionConfig = {
       required: true,
       unique: true,
       admin: {
-        description: 'Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for governance account handle (ballot-{rkey}.id.poltr.ch).',
+        description: 'Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for the governance account handle — dots are replaced with hyphens (e.g. "133.3" → ballot-133-3.id.poltr.ch).',
       },
       validate: (value: unknown) => {
         if (typeof value !== 'string') return 'rkey is required'
@@ -34,14 +34,17 @@ export const Ballots: CollectionConfig = {
       name: 'title',
       type: 'text',
       required: true,
+      localized: true,
     },
     {
       name: 'description',
       type: 'richText',
+      localized: true,
     },
     {
       name: 'topic',
       type: 'text',
+      localized: true,
       admin: {
         description: 'Themenbereich (z.B. Umwelt, Soziales)',
       },
@@ -80,17 +83,35 @@ export const Ballots: CollectionConfig = {
       },
     },
     {
-      name: 'language',
+      // Quelle der ursprünglichen Texterstellung (z.B. amtssprache der Bundeskanzlei-
+      // Vorlage). Die Edit-Maske bietet via Payload-Localization einen Sprach-
+      // Switcher für alle Locales; `originLanguage` markiert, welche davon der
+      // Quelltext ist. Frontend nutzt das für "Original auf X / Übersetzt"-Badges.
+      name: 'originLanguage',
       type: 'select',
+      required: true,
       defaultValue: 'de',
       options: [
         { label: 'Deutsch', value: 'de' },
         { label: 'Français', value: 'fr' },
         { label: 'Italiano', value: 'it' },
+        { label: 'Rumantsch', value: 'rm' },
         { label: 'English', value: 'en' },
       ],
       admin: {
         position: 'sidebar',
+      },
+    },
+    {
+      // Virtual sidebar widget: shows DE ✓ FR ✓ IT ✗ RM ✗ EN ✓ for the doc.
+      name: 'translationStatus',
+      type: 'ui',
+      label: 'Übersetzungs-Status',
+      admin: {
+        position: 'sidebar',
+        components: {
+          Field: '/components/TranslationStatus#TranslationStatusField',
+        },
       },
     },
     {
@@ -112,7 +133,7 @@ export const Ballots: CollectionConfig = {
       admin: {
         position: 'sidebar',
         readOnly: true,
-        description: 'ATProto Governance Account DID (auto-created on publish)',
+        description: 'ATProto Governance Account DID (auto-created on publish — reload the page after publishing to see the value).',
       },
     },
     {
@@ -121,7 +142,7 @@ export const Ballots: CollectionConfig = {
       admin: {
         position: 'sidebar',
         readOnly: true,
-        description: 'ATProto Governance Account Handle',
+        description: 'ATProto Governance Account Handle (auto-created on publish — reload the page after publishing to see the value).',
       },
     },
     {

@@ -81,6 +81,12 @@ CREATE TABLE app_arguments (
   source_doc_ref     text,              -- URL to leaflet / org publication
   source_section     text,              -- Page/section within the source document
   source_verified_did text,             -- Optional DID that vouches for the record
+  -- Multilingual content: original languages (BCP-47, Bluesky-compatible `langs` array)
+  -- plus inline translations. translation_status drives the background worker queue.
+  langs              text[] NOT NULL DEFAULT ARRAY['de'],
+  translations       jsonb  NOT NULL DEFAULT '[]'::jsonb,
+  translation_status text   NOT NULL DEFAULT 'pending'
+    CHECK (translation_status IN ('pending', 'partial', 'complete', 'manual_only')),
   created_at    timestamptz NOT NULL,
   indexed_at    timestamptz NOT NULL DEFAULT now(),
   deleted       boolean NOT NULL DEFAULT false,
@@ -100,6 +106,12 @@ CREATE INDEX app_arguments_review_status_idx ON app_arguments (review_status);
 CREATE INDEX app_arguments_source_type_idx   ON app_arguments (source_type);
 CREATE INDEX app_arguments_source_org_key_idx ON app_arguments (source_org_key)
   WHERE source_org_key IS NOT NULL;
+-- Translation worker queue: partial index on the subset the worker needs to process.
+CREATE INDEX app_arguments_translation_status_idx
+  ON app_arguments (translation_status)
+  WHERE NOT deleted AND translation_status IN ('pending', 'partial');
+-- GIN index for filtering by language (e.g. WHERE 'fr' = ANY(langs)).
+CREATE INDEX app_arguments_langs_idx ON app_arguments USING GIN (langs);
 
 CREATE TABLE app_review_invitations (
   uri           text PRIMARY KEY,
@@ -153,6 +165,13 @@ CREATE TABLE app_comments (
   bsky_like_count   integer NOT NULL DEFAULT 0,
   bsky_repost_count integer NOT NULL DEFAULT 0,
   bsky_reply_count  integer NOT NULL DEFAULT 0,
+  -- Multilingual content: only the original-language declaration lives on
+  -- the row. Translations are SIDECAR records (see app_comment_translations
+  -- below) because comments live in foreign repos (user or Bluesky) that
+  -- POLTR cannot write to.
+  langs              text[] NOT NULL DEFAULT ARRAY['de'],
+  translation_status text   NOT NULL DEFAULT 'pending'
+    CHECK (translation_status IN ('pending', 'partial', 'complete', 'manual_only')),
   created_at        timestamptz NOT NULL,
   indexed_at        timestamptz NOT NULL DEFAULT now(),
   deleted           boolean NOT NULL DEFAULT false
@@ -163,6 +182,36 @@ CREATE INDEX app_comments_ballot_rkey_idx ON app_comments (ballot_rkey);
 CREATE INDEX app_comments_parent_uri_idx ON app_comments (parent_uri);
 CREATE INDEX app_comments_argument_uri_idx ON app_comments (argument_uri);
 CREATE INDEX app_comments_did_idx ON app_comments (did);
+CREATE INDEX app_comments_translation_status_idx
+  ON app_comments (translation_status)
+  WHERE NOT deleted AND translation_status IN ('pending', 'partial');
+CREATE INDEX app_comments_langs_idx ON app_comments USING GIN (langs);
+
+-- ---------------------------------------------------------------------------
+-- Sidecar translations for comments. Owned by the ballot's governance account
+-- on the PDS (NSID: app.ch.poltr.comment.translation), populated here from the
+-- firehose. Original comment records stay untouched in their foreign repo.
+-- ---------------------------------------------------------------------------
+CREATE TABLE app_comment_translations (
+  uri           text PRIMARY KEY,    -- AT URI of the sidecar record itself
+  cid           text NOT NULL,
+  subject_uri   text NOT NULL,        -- AT URI of the comment being translated
+  ballot_rkey   text,                  -- denormalized for fast filter
+  lang          text NOT NULL,
+  body          text NOT NULL,
+  source        text NOT NULL CHECK (source IN ('manual', 'ai')),
+  model         text,
+  translated_at timestamptz NOT NULL,
+  indexed_at    timestamptz NOT NULL DEFAULT now(),
+  deleted       boolean NOT NULL DEFAULT false
+);
+
+CREATE UNIQUE INDEX app_comment_translations_subject_lang_uniq
+  ON app_comment_translations (subject_uri, lang) WHERE NOT deleted;
+CREATE INDEX app_comment_translations_subject_idx
+  ON app_comment_translations (subject_uri) WHERE NOT deleted;
+CREATE INDEX app_comment_translations_ballot_rkey_idx
+  ON app_comment_translations (ballot_rkey) WHERE NOT deleted;
 
 CREATE TABLE app_activity_seen (
   did            text NOT NULL,

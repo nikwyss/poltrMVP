@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import {
   getBallot,
@@ -13,7 +13,7 @@ import {
 import { loadCached } from "@/lib/pageCache";
 import { useScrollRestore } from "@/lib/scrollRestore";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
-import type { BallotWithMetadata, ActivityItem } from "@/types/ballots";
+import type { Ballot, ActivityItem } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,18 +48,19 @@ import {
 // ---------------------------------------------------------------------------
 
 function AddArgumentModal({
-  ballotUri,
+  ballotRkey,
   open,
   onOpenChange,
   onCreated,
 }: {
-  ballotUri: string;
+  ballotRkey: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
 }) {
   const t = useTranslations("feed");
   const tc = useTranslations("common");
+  const currentLocale = useLocale();
   const [argType, setArgType] = useState<"PRO" | "CONTRA">("PRO");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -71,7 +72,7 @@ function AddArgumentModal({
     setSubmitting(true);
     setError("");
     try {
-      await createArgument(ballotUri, title.trim(), body.trim(), argType);
+      await createArgument(ballotRkey, title.trim(), body.trim(), argType, [currentLocale]);
       onCreated();
       onOpenChange(false);
     } catch (err) {
@@ -547,7 +548,7 @@ export default function BallotFeed() {
   const t = useTranslations("feed");
   const tc = useTranslations("common");
 
-  const [ballot, setBallot] = useState<BallotWithMetadata | null>(null);
+  const [ballot, setBallot] = useState<Ballot | null>(null);
   const [ballotLoading, setBallotLoading] = useState(true);
   const [ballotError, setBallotError] = useState("");
 
@@ -777,7 +778,7 @@ export default function BallotFeed() {
       <nav className="flex items-center justify-between text-sm text-muted-foreground">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-foreground font-medium truncate">
-            {ballot?.record.title ?? "..."}
+            {ballot?.title ?? "..."}
           </span>
         </div>
         <ViewToggle active="feed" ballotId={id} />
@@ -813,24 +814,37 @@ export default function BallotFeed() {
             <CardContent className="pt-6">
               <div className="flex justify-between items-start mb-4">
                 <h1 className="m-0 text-2xl font-bold">
-                  {ballot.record.title}
+                  {ballot.title}
                 </h1>
-                {ballot.record.language && (
-                  <div className="flex items-center gap-2 shrink-0 ml-2">
-                    <Badge variant="secondary">{ballot.record.language}</Badge>
+                {ballot.availableLangs && ballot.availableLangs.length > 0 && (
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    {ballot.availableLangs.map((code) => (
+                      <Badge
+                        key={code}
+                        variant={code === ballot.originLanguage ? "default" : "secondary"}
+                        className="uppercase text-[0.625rem]"
+                        title={
+                          code === ballot.originLanguage
+                            ? `Original (${code})`
+                            : `Übersetzung verfügbar (${code})`
+                        }
+                      >
+                        {code}
+                      </Badge>
+                    ))}
                   </div>
                 )}
               </div>
 
-              {ballot.record.topic && (
+              {ballot.topic && (
                 <p className="text-sm text-muted-foreground mb-2">
-                  <strong>{t("topic")}</strong> {ballot.record.topic}
+                  <strong>{t("topic")}</strong> {ballot.topic}
                 </p>
               )}
 
-              {ballot.record.text && (
+              {ballot.description && (
                 <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-                  {ballot.record.text}
+                  {ballot.description}
                 </p>
               )}
 
@@ -839,11 +853,11 @@ export default function BallotFeed() {
               <div className="flex justify-between items-center">
                 <div className="text-sm text-muted-foreground">
                   <strong>{t("voteDate")}</strong>{" "}
-                  {formatDate(ballot.record.voteDate)}
+                  {formatDate(ballot.voteDate)}
                 </div>
-                {ballot.record.officialRef && (
+                {ballot.officialRef && (
                   <span className="text-xs text-muted-foreground">
-                    {t("ref")} {ballot.record.officialRef}
+                    {t("ref")} {ballot.officialRef}
                   </span>
                 )}
               </div>
@@ -953,7 +967,7 @@ export default function BallotFeed() {
       {/* Add argument dialog */}
       {ballot && (
         <AddArgumentModal
-          ballotUri={ballot.uri}
+          ballotRkey={ballot.rkey}
           open={showAddModal}
           onOpenChange={setShowAddModal}
           onCreated={() => loadActivities(filter, true)}

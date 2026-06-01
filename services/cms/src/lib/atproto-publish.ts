@@ -159,9 +159,12 @@ export async function publishGovernanceAccount(
   ballotId: string,
 ): Promise<{ did: string; handle: string }> {
   const domain = env('PDS_PUBLIC_HANDLE', 'id.poltr.ch')
-  const handle = `ballot-${ballotId}.${domain}`
+  // Dots in the rkey (e.g. counter-proposals "133.3") would create multi-label
+  // handles that break the *.id.poltr.ch wildcard and ATProto handle rules.
+  const handleSlug = ballotId.replace(/\./g, '-')
+  const handle = `ballot-${handleSlug}.${domain}`
   const password = generatePassword()
-  const email = `ballot-${ballotId}@poltr.ch`
+  const email = `ballot-${handleSlug}@poltr.ch`
 
   // Create PDS account
   const { did } = await pdsCreateAccount(handle, password, email)
@@ -181,6 +184,13 @@ export async function publishGovernanceAccount(
 // ---------------------------------------------------------------------------
 
 const ARGUMENT_NSID = 'app.ch.poltr.ballot.argument'
+
+// Mirror of services/appview/src/core/languages.py / indexer/languages.js —
+// keep the env name aligned so a single ConfigMap drives all three services.
+const SUPPORTED_LANGUAGES = (process.env.POLTR_LANGUAGES || 'de,fr,it,rm,en')
+  .split(',')
+  .map((c) => c.trim())
+  .filter(Boolean)
 
 function decryptGovernancePassword(ciphertext: Buffer, nonce: Buffer): string {
   const keyB64 = env('APPVIEW_PDS_CREDS_MASTER_KEY_B64')
@@ -316,8 +326,37 @@ type ImportedArgumentDoc = {
   body: string
   documentRef?: string | null
   section?: string | null
+  originLanguage?: string | null
   createdAt?: string | null
   pdsUri?: string | null
+}
+
+type LocalizedArgumentSnapshot = {
+  title: string | null
+  body: string | null
+}
+
+/**
+ * Load the (title, body) pair for a given locale **without** falling back to
+ * defaultLocale — we need to know precisely which locales the editor actually
+ * filled in. Used to assemble the `translations[]` array.
+ */
+async function loadLocaleSnapshot(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload: any,
+  id: string | number,
+  locale: string,
+): Promise<LocalizedArgumentSnapshot> {
+  const doc = await payload.findByID({
+    collection: 'imported-arguments',
+    id,
+    locale,
+    fallbackLocale: false,
+  })
+  return {
+    title: doc?.title ?? null,
+    body: doc?.body ?? null,
+  }
 }
 
 /** Build the `source` union for an imported argument record. */
@@ -336,21 +375,56 @@ function buildArgumentSource(doc: ImportedArgumentDoc): Record<string, unknown> 
   )
 }
 
-/** Compose the full argument record. `createdAt` stays stable across edits
- *  (uses the CMS doc's createdAt) so the indexed created_at never drifts. */
-function buildArgumentRecord(
+/**
+ * Compose the full argument record.
+ *
+ * - `createdAt` stays stable across edits (uses the CMS doc's createdAt) so
+ *   the indexed created_at never drifts.
+ * - Top-level `title`/`body` come from the `originLanguage` locale; that
+ *   locale also goes into `langs: [origin]` (Bluesky-compatible).
+ * - All other SUPPORTED_LANGUAGES that have non-empty (title, body) for this
+ *   document are emitted as `translations: [{lang, title, body, source:'manual', translatedAt}]`.
+ */
+async function buildArgumentRecord(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload: any,
   doc: ImportedArgumentDoc,
   ballotRkey: string,
-): Record<string, unknown> {
-  return {
+): Promise<Record<string, unknown>> {
+  const origin = doc.originLanguage || 'de'
+  const originSnap = await loadLocaleSnapshot(payload, doc.id, origin)
+  const originTitle = originSnap.title ?? doc.title
+  const originBody = originSnap.body ?? doc.body
+
+  const now = new Date().toISOString()
+  const translations: Array<Record<string, unknown>> = []
+
+  for (const lang of SUPPORTED_LANGUAGES) {
+    if (lang === origin) continue
+    const snap = await loadLocaleSnapshot(payload, doc.id, lang)
+    if (!snap.title || !snap.body) continue
+    if (snap.title === originTitle && snap.body === originBody) continue
+    translations.push({
+      lang,
+      title: snap.title,
+      body: snap.body,
+      source: 'manual',
+      translatedAt: now,
+    })
+  }
+
+  const record: Record<string, unknown> = {
     $type: ARGUMENT_NSID,
-    title: doc.title,
-    body: doc.body,
+    title: originTitle,
+    body: originBody,
     type: doc.type,
     ballot: ballotRkey,
-    createdAt: doc.createdAt || new Date().toISOString(),
+    langs: [origin],
+    createdAt: doc.createdAt || now,
     source: buildArgumentSource(doc),
   }
+  if (translations.length) record.translations = translations
+  return record
 }
 
 /** Extract the rkey from an AT URI (at://did/collection/rkey). */
@@ -401,7 +475,7 @@ export async function publishImportedArgument(
 ): Promise<{ uri: string; cid: string }> {
   const ballotRkey = await resolveBallotRkey(payload, doc.ballot)
   const { did, password } = await loadGovernanceCreds(ballotRkey)
-  const record = buildArgumentRecord(doc, ballotRkey)
+  const record = await buildArgumentRecord(payload, doc, ballotRkey)
 
   const { accessJwt } = await pdsCreateSession(did, password)
   return pdsCreateRecord(did, accessJwt, ARGUMENT_NSID, record)
@@ -420,7 +494,7 @@ export async function updateImportedArgument(
   if (!doc.pdsUri) throw new Error('updateImportedArgument requires pdsUri')
   const ballotRkey = await resolveBallotRkey(payload, doc.ballot)
   const { did, password } = await loadGovernanceCreds(ballotRkey)
-  const record = buildArgumentRecord(doc, ballotRkey)
+  const record = await buildArgumentRecord(payload, doc, ballotRkey)
 
   const { accessJwt } = await pdsCreateSession(did, password)
   return pdsPutRecord(did, accessJwt, ARGUMENT_NSID, rkeyFromUri(doc.pdsUri), record)

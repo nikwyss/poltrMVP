@@ -15,6 +15,18 @@
           "type":      { "type": "string", "knownValues": ["PRO", "CONTRA"] },
           "ballot":    { "type": "string", "description": "Ballot-ID (rkey)." },
           "createdAt": { "type": "string", "format": "datetime" },
+          "langs": {
+            "type": "array",
+            "maxLength": 3,
+            "items": { "type": "string", "format": "language" },
+            "description": "Sprachen des Original-Inhalts in title/body (BCP-47). Folgt dem Bluesky-Standard app.bsky.feed.post. Default ['de'] wenn fehlend."
+          },
+          "translations": {
+            "type": "array",
+            "maxLength": 10,
+            "items": { "type": "ref", "ref": "#translation" },
+            "description": "Übersetzungen des Original-Inhalts (POLTR-spezifische Erweiterung). maxLength bewusst über aktuell unterstützten Sprachen, damit Erweiterungen ohne Lexicon-Bump möglich sind."
+          },
           "source": {
             "type": "union",
             "closed": true,
@@ -30,6 +42,20 @@
             "description": "DEPRECATED: pre-source-Union Feld. Verwende source#sourceUser.authorDid. Wird vom Indexer als Fallback ausgewertet."
           }
         }
+      }
+    },
+
+    "translation": {
+      "type": "object",
+      "description": "Eine Übersetzung des Original-Inhalts in eine andere Sprache. Eine Übersetzung ist immer in genau einer Zielsprache.",
+      "required": ["lang", "title", "body", "source"],
+      "properties": {
+        "lang":         { "type": "string", "format": "language" },
+        "title":        { "type": "string", "minLength": 1, "maxLength": 300 },
+        "body":         { "type": "string", "minLength": 1, "maxLength": 10000 },
+        "source":       { "type": "string", "knownValues": ["manual", "ai"] },
+        "model":        { "type": "string", "description": "Modellkennung wenn source='ai', z.B. 'claude-haiku-4-5'." },
+        "translatedAt": { "type": "string", "format": "datetime" }
       }
     },
 

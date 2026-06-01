@@ -31,7 +31,7 @@ export default getRequestConfig(async () => {
   const cookieLocale = cookieStore.get('locale')?.value;
 
   let locale: string;
-  if (cookieLocale && locales.includes(cookieLocale as any)) {
+  if (cookieLocale && (locales as readonly string[]).includes(cookieLocale)) {
     locale = cookieLocale;
   } else {
     const headerStore = await headers();

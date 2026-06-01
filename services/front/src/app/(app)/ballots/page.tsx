@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import { listBallots } from "@/lib/agent";
 import { formatDate } from "@/lib/utils";
-import type { BallotWithMetadata } from "@/types/ballots";
+import type { Ballot } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -17,7 +17,7 @@ function BallotCard({
   ballot,
   onClick,
 }: {
-  ballot: BallotWithMetadata;
+  ballot: Ballot;
   onClick: () => void;
 }) {
   const t = useTranslations("ballots");
@@ -27,21 +27,21 @@ function BallotCard({
       onClick={onClick}
     >
       <h3 className="font-bold text-lg leading-tight tracking-tight mb-2">
-        {ballot.record.title}
+        {ballot.title}
       </h3>
 
-      {ballot.record.topic && (
-        <span className="tag eyebrow mb-2">{ballot.record.topic}</span>
+      {ballot.topic && (
+        <span className="tag eyebrow mb-2">{ballot.topic}</span>
       )}
 
-      {ballot.record.text && (
+      {ballot.description && (
         <p className="text-[0.78125rem] text-[var(--text-mid)] mb-3 leading-relaxed line-clamp-3">
-          {ballot.record.text}
+          {ballot.description}
         </p>
       )}
 
       <div className="flex justify-between items-center pt-3 border-t border-border">
-        <span className="label">{formatDate(ballot.record.voteDate)}</span>
+        <span className="label">{formatDate(ballot.voteDate)}</span>
         <div className="flex gap-1.5">
           {(ballot.argumentCount ?? 0) > 0 && (
             <span className="tag">
@@ -63,7 +63,7 @@ function BallotGrid({
   ballots,
   router,
 }: {
-  ballots: BallotWithMetadata[];
+  ballots: Ballot[];
   router: ReturnType<typeof useRouter>;
 }) {
   if (ballots.length === 0) return null;
@@ -75,16 +75,13 @@ function BallotGrid({
         gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
       }}
     >
-      {ballots.map((ballot) => {
-        const rkey = ballot.uri.split("/").pop();
-        return (
-          <BallotCard
-            key={ballot.uri}
-            ballot={ballot}
-            onClick={() => rkey && router.push(`/ballot/${rkey}/arguments`)}
-          />
-        );
-      })}
+      {ballots.map((ballot) => (
+        <BallotCard
+          key={ballot.rkey}
+          ballot={ballot}
+          onClick={() => router.push(`/ballot/${ballot.rkey}/arguments`)}
+        />
+      ))}
     </div>
   );
 }
@@ -94,7 +91,7 @@ export default function BallotSearch() {
   const router = useRouter();
   const t = useTranslations("ballots");
   const tc = useTranslations("common");
-  const [ballots, setBallots] = useState<BallotWithMetadata[]>([]);
+  const [ballots, setBallots] = useState<Ballot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -114,7 +111,7 @@ export default function BallotSearch() {
     setError("");
 
     try {
-      const ballots: BallotWithMetadata[] = await listBallots();
+      const ballots: Ballot[] = await listBallots();
       setBallots(ballots || []);
     } catch (err) {
       console.error("Error loading ballots:", err);
@@ -135,8 +132,8 @@ export default function BallotSearch() {
   if (!isAuthenticated || !user) return null;
 
   const today = new Date().toISOString().split("T")[0];
-  const upcoming = ballots.filter((b) => b.record.voteDate >= today);
-  const archived = ballots.filter((b) => b.record.voteDate < today);
+  const upcoming = ballots.filter((b) => b.voteDate >= today);
+  const archived = ballots.filter((b) => b.voteDate < today);
 
   return (
     <div

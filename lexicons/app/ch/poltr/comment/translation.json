@@ -1,0 +1,34 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.comment.translation",
+  "description": "Sidecar-Übersetzung eines app.ch.poltr.comment-Records. Comments leben in User-Repos (intern) bzw. fremden Bluesky-Repos (extern); POLTR darf dort nicht schreiben. Stattdessen werden Übersetzungen als eigenständige Records im governance-Account des Ballots gespeichert, die per subject.uri auf den Ziel-Comment zeigen. Eine Übersetzung pro Record (kein Array), composed rkey ({commentRkey}-{lang}) → idempotente Re-Runs.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "any",
+      "record": {
+        "type": "object",
+        "required": ["subject", "lang", "body", "source", "translatedAt"],
+        "properties": {
+          "subject": {
+            "type": "object",
+            "required": ["uri"],
+            "properties": {
+              "uri": { "type": "string", "format": "at-uri", "description": "AT-URI des Comment-Records, der übersetzt wird. Kann auch ein fremder Bluesky-Post-URI sein (für externe Replies)." },
+              "cid": { "type": "string", "format": "cid", "description": "Optionale Content-Adressierung des Subjects zum Zeitpunkt der Übersetzung." }
+            }
+          },
+          "ballot": {
+            "type": "string",
+            "description": "Ballot rkey, denormalisiert für schnellen Filter beim Indexer (keine Auflösung über das subject nötig)."
+          },
+          "lang":         { "type": "string", "format": "language" },
+          "body":         { "type": "string", "minLength": 1, "maxLength": 10000 },
+          "source":       { "type": "string", "knownValues": ["manual", "ai"] },
+          "model":        { "type": "string", "description": "Modellkennung wenn source='ai', z.B. 'claude-haiku-4-5'." },
+          "translatedAt": { "type": "string", "format": "datetime" }
+        }
+      }
+    }
+  }
+}

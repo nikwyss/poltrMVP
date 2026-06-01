@@ -1,0 +1,271 @@
+{
+  "metadata": {
+    "title": "Abstimmungsdossier-Plattform",
+    "description": "ATProto-basierte Civic-Tech-Plattform für Schweizer Abstimmungen"
+  },
+  "common": {
+    "error": "Fehler",
+    "retry": "Erneut versuchen",
+    "restoringSession": "Sitzung wird wiederhergestellt...",
+    "send": "Senden",
+    "submitting": "...",
+    "pro": "Pro",
+    "contra": "Contra",
+    "anonymous": "Anonym",
+    "reply": "Antworten",
+    "impressum": "Impressum",
+    "copied": "Kopiert!",
+    "copy": "{label} kopieren",
+    "bluesky": "Bluesky",
+    "backToLogin": "Zurück zum Login",
+    "helpful": "Hilfreich",
+    "voted": "abgestimmt",
+    "loading": "Laden...",
+    "close": "Schliessen",
+    "backToArgument": "Zurück zum Argument",
+    "backToPost": "Zurück zum Post",
+    "cancel": "Abbrechen"
+  },
+  "nav": {
+    "home": "Start",
+    "ballots": "Abstimmungen",
+    "review": "Begutachtung",
+    "logOut": "Abmelden",
+    "profile": "Profil"
+  },
+  "login": {
+    "title": "Bei POLTR anmelden",
+    "description": "Gib deine E-Mail-Adresse ein, um dich bei POLTR anzumelden.",
+    "emailLabel": "E-Mail-Adresse",
+    "emailPlaceholder": "deine@email.com",
+    "sending": "Wird gesendet...",
+    "sendMagicLink": "Einloggen",
+    "noAccount": "Noch kein Konto? Registrieren",
+    "serverError": "Serverfehler — bitte versuche es später erneut",
+    "failedToSend": "Magic Link konnte nicht gesendet werden"
+  },
+  "register": {
+    "title": "POLTR-Konto erstellen",
+    "description": "Deine Zugangsdaten werden aus Sicherheitsgründen zufällig generiert",
+    "emailLabel": "E-Mail",
+    "emailPlaceholder": "deine@email.com",
+    "creating": "Konto wird erstellt...",
+    "createAccount": "Konto erstellen",
+    "hasAccount": "Bereits ein Konto? Anmelden",
+    "failed": "Registrierung fehlgeschlagen",
+    "failedGeneric": "Konto konnte nicht erstellt werden"
+  },
+  "magicLink": {
+    "checkEmail": "Prüfe deine E-Mails!",
+    "sentConfirmation": "Wir haben einen Bestätigungslink gesendet an:",
+    "sentMagic": "Wir haben einen Magic Link gesendet an:",
+    "clickToRegister": "Klicke auf den Link in der E-Mail, um deine Registrierung abzuschliessen. Der Link ist 30 Minuten gültig.",
+    "clickToLogin": "Klicke auf den Link in der E-Mail, um dich anzumelden. Der Link ist 15 Minuten gültig.",
+    "orEnterCode": "Oder gib deinen 6-stelligen Code ein:",
+    "codePlaceholder": "z.B. A3B7KM",
+    "verifyCode": "Code bestätigen",
+    "verifying": "Wird überprüft...",
+    "invalidCode": "Ungültiger Code. {remaining} Versuche übrig.",
+    "invalidCodeGeneric": "Ungültiger oder abgelaufener Code.",
+    "tooManyAttempts": "Zu viele Fehlversuche. Bitte fordere einen neuen Code an."
+  },
+  "verifyLogin": {
+    "invalidToken": "Ungültiger oder fehlender Token",
+    "verificationFailed": "Verifizierung fehlgeschlagen",
+    "verifying": "Dein Magic Link wird verifiziert...",
+    "success": "Erfolgreich!",
+    "redirecting": "Du wirst zur App weitergeleitet...",
+    "failed": "Verifizierung fehlgeschlagen"
+  },
+  "verifyRegistration": {
+    "invalidToken": "Ungültiger oder fehlender Token",
+    "verificationFailed": "Verifizierung fehlgeschlagen",
+    "verifying": "Deine Registrierung wird verifiziert...",
+    "success": "Registrierung abgeschlossen!",
+    "redirecting": "Du wirst zur App weitergeleitet...",
+    "failed": "Verifizierung fehlgeschlagen"
+  },
+  "callback": {
+    "noSession": "Keine Sitzung vom Callback erhalten",
+    "authError": "Authentifizierungsfehler",
+    "tryAgain": "Erneut versuchen",
+    "authenticating": "Authentifizierung..."
+  },
+  "home": {
+    "hello": "Hallo {name}!",
+    "noBallots": "Aktuell sind keine Abstimmungen eingestellt. Schau bald wieder vorbei!",
+    "viewArchived": "Archivierte Abstimmungen ansehen"
+  },
+  "profile": {
+    "hello": "Hallo {name}!",
+    "pseudonym": "Dein Pseudonym",
+    "pseudonymExplanation": "Dein Pseudonym ist ein zufällig gewählter Schweizer Bergname. Er schützt deine Identität und bleibt immer gleich.",
+    "displayName": "Anzeigename",
+    "identity": "Technische Identität",
+    "did": "DID",
+    "handle": "Handle",
+    "swiyuVerification": "swiyu-Verifizierung",
+    "starting": "Wird gestartet...",
+    "createAppPassword": "App-Passwort erstellen",
+    "creatingPassword": "Wird erstellt...",
+    "verificationSuccess": "E-ID-Verifizierung erfolgreich! Dein Konto ist jetzt verifiziert.",
+    "verificationFailed": "E-ID-Verifizierung fehlgeschlagen. Bitte versuche es erneut.",
+    "appPasswordCreated": "App-Passwort erstellt!",
+    "pds": "PDS",
+    "password": "Passwort",
+    "pseudonymSource": "Dein Anzeigename ist vom {height} Meter hohen Berg «{mountain}» ({canton}) abgeleitet."
+  },
+  "ballots": {
+    "title": "Abstimmungen",
+    "loading": "Lade Abstimmungen...",
+    "noneFound": "Keine Abstimmungen gefunden.",
+    "current": "Aktuell",
+    "noCurrent": "Keine aktuellen Abstimmungen.",
+    "archived": "Archiviert",
+    "noArchived": "Keine archivierten Abstimmungen.",
+    "arguments": "{count} Argumente",
+    "comments": "{count} Kommentare"
+  },
+  "ballotDetail": {
+    "breadcrumbBallots": "Abstimmungen",
+    "arguments": "Argumente",
+    "proArguments": "{count} Argumente",
+    "addArgument": "+ Argument hinzufügen",
+    "noProArguments": "Noch keine Pro-Argumente.",
+    "noContraArguments": "Noch keine Contra-Argumente.",
+    "noArguments": "Es wurden noch keine Argumente eingereicht.",
+    "loadingBallot": "Lade Abstimmung..."
+  },
+  "errors": {
+    "auth_required": "Sitzung abgelaufen. Bitte erneut anmelden.",
+    "pds_unavailable": "Dienst vorübergehend nicht erreichbar. Bitte gleich erneut versuchen.",
+    "invalid_request": "Anfrage konnte nicht verarbeitet werden.",
+    "generic": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
+    "reLogin": "Erneut anmelden"
+  },
+  "argumentDetail": {
+    "backToBallot": "Zurück zur Abstimmung",
+    "comments": "Kommentare",
+    "noComments": "Noch keine Kommentare. Sei der Erste!",
+    "addComment": "Kommentar hinzufügen:",
+    "commentPlaceholder": "Schreibe einen Kommentar...",
+    "loadingArgument": "Lade Argument...",
+    "writeComment": "Kommentar verfassen",
+    "yourRating": "Ihre Bewertung"
+  },
+  "relevance": {
+    "low": "Geringe Relevanz",
+    "medium": "Mittlere Relevanz",
+    "high": "Grosse Relevanz",
+    "notRated": "Noch nicht bewertet",
+    "intro": "Wie relevant finden Sie dieses Argument? Bewerten Sie das Argument, indem Sie den Regler verschieben.",
+    "increase": "Relevanz erhöhen",
+    "decrease": "Relevanz verringern",
+    "ariaLabel": "Relevanz-Bewertung"
+  },
+  "feed": {
+    "addArgument": "Argument hinzufügen",
+    "titlePlaceholder": "Titel",
+    "yourArgument": "Dein Argument...",
+    "cancel": "Abbrechen",
+    "create": "Erstellen",
+    "creating": "Erstellen...",
+    "replyingTo": "Antwort auf {name}",
+    "viewFullThread": "Vollständigen Thread ansehen",
+    "communityApproved": "Community-bestätigt",
+    "topic": "Thema:",
+    "voteDate": "Abstimmungsdatum:",
+    "ref": "Ref:",
+    "arguments": "{count} Argumente",
+    "comments": "{count} Kommentare",
+    "allActivity": "Alle Aktivitäten",
+    "argumentsFilter": "Argumente",
+    "commentsFilter": "Kommentare",
+    "plusArgument": "+ Argument",
+    "loadingActivity": "Lade Aktivitäten...",
+    "loadingBallot": "Lade Abstimmung...",
+    "noActivity": "Noch keine Aktivitäten für diese Abstimmung.",
+    "noCommentActivity": "Noch keine Kommentar-Aktivitäten.",
+    "noArgumentActivity": "Noch keine Argument-Aktivitäten.",
+    "loadMore": "Mehr laden"
+  },
+  "commentDetail": {
+    "backToFeed": "Zurück zum Aktivitäts-Feed",
+    "thread": "Thread",
+    "replyToComment": "Auf diesen Kommentar antworten:",
+    "replyPlaceholder": "Schreibe eine Antwort...",
+    "loadingComment": "Lade Kommentar...",
+    "backToArgument": "Zurück zum Argument",
+    "replies": "Antworten"
+  },
+  "review": {
+    "title": "Peer Review",
+    "justificationRequired": "Eine Begründung ist bei Ablehnung erforderlich.",
+    "submitSuccess": "Review eingereicht. Das Ergebnis wird angezeigt, sobald genügend Reviews vorliegen.",
+    "criteriaAssessment": "Kriterienbewertung",
+    "ratingValue": "{rating}/5",
+    "decision": "Entscheidung",
+    "approve": "Genehmigen",
+    "reject": "Ablehnen",
+    "justificationRequiredLabel": "Begründung (erforderlich)",
+    "justificationOptionalLabel": "Begründung (optional)",
+    "justificationPlaceholder": "Erkläre deine Entscheidung...",
+    "submitting": "Wird eingereicht...",
+    "submitReview": "Review einreichen",
+    "loadingReviews": "Lade ausstehende Reviews...",
+    "noReviews": "Keine ausstehenden Reviews. Schau später nochmal vorbei.",
+    "ballot": "Abstimmung: {rkey}"
+  },
+  "ballotType": {
+    "obligatorisches_referendum": "Obligatorisches Referendum",
+    "fakultatives_referendum": "Fakultatives Referendum",
+    "volksinitiative": "Eidgenössische Volksinitiative",
+    "direkter_gegenentwurf": "Direkter Gegenentwurf",
+    "stichfrage": "Stichfrage"
+  },
+  "reviewStatus": {
+    "preliminary": "Unter Begutachtung",
+    "peerReviewed": "Begutachtet",
+    "rejected": "Abgelehnt",
+    "official": "Offiziell"
+  },
+  "viewToggle": {
+    "feed": "Feed",
+    "booklet": "Büchlein"
+  },
+  "booklet": {
+    "argumentsLabel": "Argumente",
+    "commentsLabel": "Kommentare",
+    "readMore": "Mehr anzeigen",
+    "readLess": "Weniger anzeigen",
+    "officialTitle": "Offizielle Argumente",
+    "officialSubtitle": "aus dem Abstimmungsbüchlein der Bundeskanzlei",
+    "communityTitle": "Community Argumente",
+    "communitySubtitle": "Argumente von Userinnen und Usern",
+    "auswertungTitle": "Auswertung",
+    "auswertungSubtitle": "Welche Argumente überzeugen Sie am meisten?",
+    "auswertungPlaceholder": "Die Auswertung wird in Kürze verfügbar sein.",
+    "showMore": "Mehr anzeigen (+{count})",
+    "proArgument": "Pro-Argument",
+    "contraArgument": "Contra-Argument",
+    "statusUnread": "Bewerten",
+    "relevanceTitle": "Ihre Relevanz-Bewertung",
+    "relevanceForYou": "Relevanz für Sie",
+    "fallbackBundesrat": "Bundesrat",
+    "fallbackInitiativkomitee": "Initiativkomitee",
+    "fallbackOrganization": "Organisation"
+  },
+  "vorlage": {
+    "backToHome": "Startseite",
+    "info": "Infos",
+    "chat": "Chatbot",
+    "arguments": "Argumente",
+    "review": "Begutachtung",
+    "comingSoon": "Dieser Bereich wird bald verfügbar sein."
+  },
+  "notFound": {
+    "title": "Seite nicht gefunden",
+    "message": "Die angeforderte Seite existiert nicht.",
+    "backHome": "Zurück zur Startseite"
+  }
+}

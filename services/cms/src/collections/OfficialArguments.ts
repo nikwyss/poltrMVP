@@ -70,12 +70,14 @@ export const OfficialArguments: CollectionConfig = {
       type: 'text',
       required: true,
       maxLength: 300,
+      localized: true,
     },
     {
       name: 'body',
       type: 'textarea',
       required: true,
       maxLength: 10000,
+      localized: true,
     },
     {
       name: 'documentRef',
@@ -92,6 +94,24 @@ export const OfficialArguments: CollectionConfig = {
       },
     },
     {
+      name: 'originLanguage',
+      type: 'select',
+      required: true,
+      defaultValue: 'de',
+      options: [
+        { label: 'Deutsch', value: 'de' },
+        { label: 'Français', value: 'fr' },
+        { label: 'Italiano', value: 'it' },
+        { label: 'Rumantsch', value: 'rm' },
+        { label: 'English', value: 'en' },
+      ],
+      admin: {
+        position: 'sidebar',
+        description:
+          'Quellsprache des Arguments. Bestimmt, welche Locale beim Publish als Original (Top-Level title/body + langs) in den ATProto-Record geht; alle übrigen befüllten Locales landen als translations[].',
+      },
+    },
+    {
       name: 'status',
       type: 'select',
       required: true,
@@ -103,6 +123,18 @@ export const OfficialArguments: CollectionConfig = {
       admin: {
         position: 'sidebar',
         description: 'Auf "Published" setzen, um den Record auf den PDS zu schreiben.',
+      },
+    },
+    {
+      // Virtual sidebar widget: shows DE ✓ FR ✓ IT ✗ RM ✗ EN ✓ for the doc.
+      name: 'translationStatus',
+      type: 'ui',
+      label: 'Übersetzungs-Status',
+      admin: {
+        position: 'sidebar',
+        components: {
+          Field: '/components/TranslationStatus#TranslationStatusField',
+        },
       },
     },
     {

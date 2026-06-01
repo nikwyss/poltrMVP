@@ -10,7 +10,7 @@
  * `<PageBackdrop />` ein (Login + Home), andere bleiben schlicht.
  */
 export function PageBackdrop({
-  src = "/images/arcades_fine.svg",
+  src = "/images/kleinemythe.svg",
   opacity = 0.18,
   marginTop = 300,
 }: {

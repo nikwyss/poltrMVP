@@ -13,6 +13,7 @@ import src.core.db as db
 from src.atproto.errors import PDSError
 from src.atproto.crosspost import start_crosspost_loop, stop_crosspost_loop
 from src.arguments.peer_review import start_peer_review_loop, stop_peer_review_loop
+from src.translation.translator import start_translation_loop, stop_translation_loop
 # from src.arguments import start_participation_loops, stop_participation_loops
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env")
@@ -31,9 +32,11 @@ limiter = Limiter(key_func=get_remote_address)
 def start_participation_loops():
     start_crosspost_loop()
     start_peer_review_loop()
+    start_translation_loop()
 
 
 def stop_participation_loops():
+    stop_translation_loop()
     stop_peer_review_loop()
     stop_crosspost_loop()
 

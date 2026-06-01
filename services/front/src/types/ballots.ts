@@ -7,16 +7,35 @@ export type BallotType =
   | 'direkter_gegenentwurf'
   | 'stichfrage';
 
-export interface BallotRecord {
-  $type: 'app.ch.poltr.ballot.entry';
+/**
+ * Ballot — flat REST shape (NOT an ATProto record).
+ *
+ * Source: services/appview/src/routes/ballots/ballots.py::_serialize_ballot
+ *
+ * Multilingual handling: text fields (title, description, topic) are returned
+ * already localized to the requested language by the AppView. `originLanguage`
+ * marks the source language, `availableLangs` lists which locales are filled
+ * in. Use both to render "Original auf X" badges where appropriate.
+ */
+export interface Ballot {
+  rkey: string;
   title: string;
+  description?: string;
   topic?: string;
   ballotType?: BallotType;
-  text?: string;
-  officialRef: string;
-  voteDate: string; // ISO date string
-  language?: 'de-CH' | 'fr-CH' | 'it-CH' | 'rm-CH';
+  voteDate: string;
+  officialRef?: string;
+  originLanguage: string;
+  langs: string[];
+  availableLangs: string[];
   createdAt?: string;
+  updatedAt?: string;
+  /** Bridge to the deliberation layer: governance account DID for this ballot. */
+  governanceDid?: string;
+  argumentCount?: number;
+  commentCount?: number;
+  likeCount?: number;
+  viewer?: { like?: string };
 }
 
 export type ArgumentSource =
@@ -44,6 +63,11 @@ export interface ArgumentRecord {
   ballot: string; // AT URI of the ballot
   createdAt?: string;
   source?: ArgumentSource;
+  /** Original languages of the record (BCP-47, Bluesky-compatible). */
+  langs?: string[];
+  /** Set when the title/body returned by AppView is a translation, not the original. */
+  translatedFrom?: string;
+  translationSource?: 'manual' | 'ai';
 }
 
 export interface ArgumentWithMetadata {
@@ -66,6 +90,10 @@ export interface ArgumentWithMetadata {
     // User's own rating on the canonical 0–100 preference scale (undefined = not rated).
     preference?: number;
   };
+  /** Locales for which an original or translation exists (badges use this). */
+  availableLangs?: string[];
+  /** Same as record.translationSource — hoisted to make the UI lookup trivial. */
+  translationSource?: 'manual' | 'ai';
 }
 
 export interface CommentRecord {
@@ -75,6 +103,9 @@ export interface CommentRecord {
   argument: string;
   parent?: string;
   createdAt?: string;
+  langs?: string[];
+  translatedFrom?: string;
+  translationSource?: 'manual' | 'ai';
 }
 
 export interface CommentWithMetadata {
@@ -97,6 +128,8 @@ export interface CommentWithMetadata {
     like?: string;
   };
   replies?: CommentWithMetadata[];
+  availableLangs?: string[];
+  translationSource?: 'manual' | 'ai';
 }
 
 export interface ActivityItem {
@@ -183,22 +216,5 @@ export interface ReviewStatus {
   reviews?: ReviewResponse[];
 }
 
-export interface BallotWithMetadata {
-  uri: string;
-  cid: string;
-  record: BallotRecord;
-  author?: {
-    did: string;
-    labels: string[];
-  };
-  indexedAt?: string;
-  likeCount?: number;
-  argumentCount?: number;
-  commentCount?: number;
-  replyCount?: number;
-  bookmarkCount?: number;
-  labels?: string[];
-  viewer?: {
-    like?: string; // AT-URI of the viewer's like record
-  };
-}
+// BallotWithMetadata removed — Ballots are now CMS REST content (flat shape),
+// not ATProto records. Use `Ballot` directly.

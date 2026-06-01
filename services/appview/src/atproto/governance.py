@@ -187,9 +187,12 @@ async def create_ballot_account(ballot_rkey: str) -> str:
     """
     from src.atproto.atproto_api import pds_admin_create_account, wait_for_plc_resolution
 
-    handle = f"ballot-{ballot_rkey}.id.poltr.ch"
+    # Dots in the rkey (e.g. counter-proposals "133.3") would create multi-label
+    # handles that break the *.id.poltr.ch wildcard and ATProto handle rules.
+    handle_slug = ballot_rkey.replace(".", "-")
+    handle = f"ballot-{handle_slug}.id.poltr.ch"
     password = _generate_password()
-    email = f"ballot-{ballot_rkey}@poltr.ch"
+    email = f"ballot-{handle_slug}@poltr.ch"
 
     # Create PDS account
     result = await pds_admin_create_account(handle, password, email)

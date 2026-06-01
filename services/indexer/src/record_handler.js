@@ -8,6 +8,8 @@ import {
   markArgumentDeleted,
   upsertCommentDb,
   markCommentDeleted,
+  upsertCommentTranslationDb,
+  markCommentTranslationDeleted,
   upsertReviewInvitationDb,
   markReviewInvitationDeleted,
   upsertReviewResponseDb,
@@ -17,6 +19,7 @@ import {
 const COLLECTION_ARGUMENT = "app.ch.poltr.ballot.argument";
 const COLLECTION_RATING = "app.ch.poltr.content.rating";
 const COLLECTION_COMMENT = "app.ch.poltr.comment";
+const COLLECTION_COMMENT_TRANSLATION = "app.ch.poltr.comment.translation";
 const COLLECTION_REVIEW_INVITATION = "app.ch.poltr.review.invitation";
 const COLLECTION_REVIEW_RESPONSE = "app.ch.poltr.review.response";
 
@@ -49,6 +52,7 @@ export const handleEvent = async (evt) => {
     collection !== COLLECTION_ARGUMENT &&
     collection !== COLLECTION_RATING &&
     collection !== COLLECTION_COMMENT &&
+    collection !== COLLECTION_COMMENT_TRANSLATION &&
     collection !== COLLECTION_REVIEW_INVITATION &&
     collection !== COLLECTION_REVIEW_RESPONSE
   )
@@ -85,6 +89,27 @@ export const handleEvent = async (evt) => {
       const record = evt.record;
       if (!record) return;
       await upsertCommentDb(pool, { uri, cid: cidString, did, rkey, record });
+    }
+  }
+
+  if (collection === COLLECTION_COMMENT_TRANSLATION) {
+    // Sidecar translations live in the ballot's governance account; reject
+    // any record from a non-governance DID to keep moderation/auth invariants
+    // identical to arguments/reviews.
+    if (!isGovernanceDid(did)) {
+      console.log(
+        `Ignoring comment.translation from non-governance repo: ${did}`,
+      );
+      return;
+    }
+    if (action === "delete") {
+      await markCommentTranslationDeleted(uri);
+      return;
+    }
+    if (action === "create" || action === "update") {
+      const record = evt.record;
+      if (!record) return;
+      await upsertCommentTranslationDb(pool, { uri, cid: cidString, record });
     }
   }
 
