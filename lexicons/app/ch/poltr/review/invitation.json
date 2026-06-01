@@ -1,0 +1,36 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.review.invitation",
+  "description": "Eine Einladung an einen Benutzer, ein bestimmtes Argument zu begutachten. Wird vom Backend-Peer-Review-Job auf dem Governance-Konto des zugehörigen Ballots geschrieben. Mit deterministischem rkey aus (argument-rkey, invitee-did), womit Doppelt-Einladungen strukturell unmöglich sind.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["argument", "invitee", "createdAt"],
+        "properties": {
+          "argument": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "AT-URI des app.ch.poltr.ballot.argument-Records, der begutachtet werden soll."
+          },
+          "invitee": {
+            "type": "string",
+            "format": "did",
+            "description": "DID des eingeladenen Benutzers."
+          },
+          "invited": {
+            "type": "boolean",
+            "default": true,
+            "description": "true = aktiv eingeladen (zählt für Quorum-Berechnung); false = Benutzer war Kandidat im Reviewer-Pool, wurde aber vom Auswahlalgorithmus nicht ausgewählt. Backend-Bookkeeping zur Dedup-Guard (verhindert, dass derselbe (argument, invitee)-Pool-Kandidat in mehreren Job-Läufen erneut betrachtet wird). Fehlt das Feld, gilt true."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    }
+  }
+}

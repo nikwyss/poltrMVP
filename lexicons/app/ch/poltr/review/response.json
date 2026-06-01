@@ -1,0 +1,72 @@
+{
+  "lexicon": 1,
+  "id": "app.ch.poltr.review.response",
+  "description": "Die Antwort eines eingeladenen Reviewers auf eine app.ch.poltr.review.invitation. Enthält das finale Votum (APPROVE/REJECT) sowie die Bewertung der einzelnen Kriterien. Mit deterministischem rkey aus (argument-rkey, reviewer-did), womit Doppel-Stimmen strukturell unmöglich sind. Wird auf dem Governance-Konto des zugehörigen Ballots gespeichert.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["argument", "reviewer", "criteria", "vote", "createdAt"],
+        "properties": {
+          "argument": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "AT-URI des begutachteten app.ch.poltr.ballot.argument-Records."
+          },
+          "reviewer": {
+            "type": "string",
+            "format": "did",
+            "description": "DID des Reviewers. Muss mit einer existierenden invitee-DID in app.ch.poltr.review.invitation übereinstimmen, sonst zählt die Antwort nicht fürs Quorum (Indexer-Check)."
+          },
+          "vote": {
+            "type": "string",
+            "knownValues": ["APPROVE", "REJECT"],
+            "description": "Finales Votum. APPROVE = Argument soll im Diskurs sichtbar bleiben; REJECT = Argument soll ausgeblendet werden (Quorum-Mechanik in services/indexer/src/db.js)."
+          },
+          "criteria": {
+            "type": "array",
+            "minLength": 1,
+            "items": { "type": "ref", "ref": "#criterion" },
+            "description": "Bewertung einzelner Kriterien. Die kanonische Liste der Kriterien wird vom AppView via app.ch.poltr.review.criteria bereitgestellt."
+          },
+          "justification": {
+            "type": "string",
+            "maxLength": 2000,
+            "description": "Optionale Begründung in Freitext. Pflicht bei vote=REJECT (AppView-seitig validiert)."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime"
+          }
+        }
+      }
+    },
+
+    "criterion": {
+      "type": "object",
+      "description": "Bewertung eines einzelnen Kriteriums.",
+      "required": ["key", "rating"],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "Stabiler Slug des Kriteriums (z.B. 'factual_accuracy', 'relevance', 'clarity', 'unity_of_thought', 'non_duplication'). Definiert via AppView-Konfiguration."
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Menschenlesbares Label zum Zeitpunkt der Bewertung. Im Lexicon redundant zum key (kann sich beim Refactoring ändern), aber für Reproduzierbarkeit in alten Records gespeichert."
+        },
+        "rating": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "Bewertung auf einer 1–5-Skala. 1 = ungenügend, 5 = ausgezeichnet. Legacy-Importe aus Demokratiefabrik mappen 0/1 auf 1/5."
+        }
+      }
+    }
+  }
+}
