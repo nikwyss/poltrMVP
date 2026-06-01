@@ -179,7 +179,13 @@ def main() -> int:
             ballot_rkey = row[0]
 
             cur.execute(
-                "SELECT lower(title) FROM imported_arguments WHERE ballot_id = %s",
+                """
+                SELECT lower(l.title)
+                FROM imported_arguments a
+                JOIN imported_arguments_locales l
+                  ON l._parent_id = a.id AND l._locale = 'de'
+                WHERE a.ballot_id = %s
+                """,
                 (ballot_cms_id,),
             )
             existing_titles = {r[0] for r in cur.fetchall()}
@@ -235,26 +241,36 @@ def main() -> int:
             res = create_record(pds_host, gov_did, jwt, record)
             uri, cid = res["uri"], res["cid"]
 
-            # 2. Insert into CMS DB
+            # 2. Insert into CMS DB. Title/body live in the localized side
+            # table (Payload localization) keyed by (_parent_id, _locale).
             with cms_conn.cursor() as cur:
                 cur.execute(
                     """
                     INSERT INTO imported_arguments
-                      (ballot_id, source_type, type, title, body, document_ref,
-                       section, status, pds_uri, pds_cid, created_at, updated_at)
-                    VALUES (%s, 'official', %s, %s, %s, %s, %s, 'published',
-                            %s, %s, now(), now())
+                      (ballot_id, source_type, type, document_ref, section,
+                       status, pds_uri, pds_cid, origin_language,
+                       created_at, updated_at)
+                    VALUES (%s, 'official', %s, %s, %s, 'published',
+                            %s, %s, 'de', now(), now())
+                    RETURNING id
                     """,
                     (
                         ballot_cms_id,
                         arg["type"],
-                        arg["title"],
-                        arg["body"],
                         doc_ref,
                         section,
                         uri,
                         cid,
                     ),
+                )
+                new_id = cur.fetchone()[0]
+                cur.execute(
+                    """
+                    INSERT INTO imported_arguments_locales
+                      (title, body, _locale, _parent_id)
+                    VALUES (%s, %s, 'de', %s)
+                    """,
+                    (arg["title"], arg["body"], new_id),
                 )
             cms_conn.commit()
             n_done += 1

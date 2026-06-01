@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { APIError } from 'payload'
 
 export const Ballots: CollectionConfig = {
   slug: 'ballots',
@@ -169,8 +170,11 @@ export const Ballots: CollectionConfig = {
 
         if (!isPublishing) return doc
 
+        const { publishGovernanceAccount, HandleAlreadyTakenError } = await import(
+          '../lib/atproto-publish'
+        )
+
         try {
-          const { publishGovernanceAccount } = await import('../lib/atproto-publish')
           const { did, handle } = await publishGovernanceAccount(doc.rkey)
 
           // Update the document with governance account info — share the
@@ -193,6 +197,21 @@ export const Ballots: CollectionConfig = {
         } catch (err) {
           req.payload.logger.error(
             `Failed to create governance account for ballot ${doc.id}: ${err}`
+          )
+          if (err instanceof HandleAlreadyTakenError) {
+            throw new APIError(
+              `Governance-Account konnte nicht angelegt werden: Handle "${err.handle}" ist auf dem PDS bereits vergeben (vermutlich Waise aus einem früheren, halbgelungenen Save). Bitte den PDS-Account löschen oder in auth.governance_accounts adoptieren.`,
+              409,
+              undefined,
+              true,
+            )
+          }
+          const msg = err instanceof Error ? err.message : String(err)
+          throw new APIError(
+            `Governance-Account konnte nicht angelegt werden: ${msg}`,
+            500,
+            undefined,
+            true,
           )
         }
 

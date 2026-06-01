@@ -47,6 +47,13 @@ async function pdsAdminCreateInvite(): Promise<string> {
   return data.code
 }
 
+export class HandleAlreadyTakenError extends Error {
+  constructor(public handle: string) {
+    super(`Handle ${handle} ist auf dem PDS bereits vergeben`)
+    this.name = 'HandleAlreadyTakenError'
+  }
+}
+
 async function pdsCreateAccount(
   handle: string,
   password: string,
@@ -68,7 +75,11 @@ async function pdsCreateAccount(
   })
 
   if (!resp.ok) {
-    throw new Error(`createAccount failed (${resp.status}): ${await resp.text()}`)
+    const body = await resp.text()
+    if (/HandleNotAvailable|handle.*(taken|already)/i.test(body)) {
+      throw new HandleAlreadyTakenError(handle)
+    }
+    throw new Error(`createAccount failed (${resp.status}): ${body}`)
   }
 
   const data = (await resp.json()) as { did: string; accessJwt: string }

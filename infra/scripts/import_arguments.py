@@ -99,7 +99,10 @@ class ArgumentImporter:
             "body": arg.body.strip(),
             "type": arg.type,
             "ballot": self.ballot_uri,
-            "authorDid": author_did,
+            "source": {
+                "$type": "app.ch.poltr.ballot.argument#sourceUser",
+                "authorDid": author_did,
+            },
             "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4] + "Z",
         }
 
