@@ -480,7 +480,7 @@ function NewArgumentActivityCard({ item, onNavigate }: ActivityCardProps) {
 function MilestoneActivityCard({ item, onNavigate }: ActivityCardProps) {
   const t = useTranslations("feed");
   const unseen = !item.viewer?.seen;
-  const isRejected = item.argument.reviewStatus === "rejected";
+  const isRejected = item.argument.peerreviewStatus === "rejected";
   return (
     <div
       onClick={() => onNavigate(item)}

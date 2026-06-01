@@ -121,8 +121,8 @@ def _serialize_argument_row(row: dict, peer_review_on: bool, requested_lang: str
         "author": author,
         "likeCount": get_number(row, "like_count"),
         "commentCount": get_number(row, "comment_count"),
-        "reviewStatus": (
-            get_string(row, "review_status") if peer_review_on else None
+        "peerreviewStatus": (
+            get_string(row, "peerreview_status") if peer_review_on else None
         ),
         "indexedAt": get_date_iso(row, "indexed_at"),
         "viewer": viewer_obj if viewer_obj else None,

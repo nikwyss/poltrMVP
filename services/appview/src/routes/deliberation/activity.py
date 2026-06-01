@@ -84,7 +84,7 @@ async def list_activity(
                 a.type AS argument_type,
                 a.like_count AS argument_like_count,
                 a.comment_count AS argument_comment_count,
-                a.review_status AS argument_review_status,
+                a.peerreview_status AS argument_peerreview_status,
                 a.rkey AS argument_rkey,
                 NULL::text AS comment_uri,
                 NULL::text AS comment_text,
@@ -112,7 +112,7 @@ async def list_activity(
                 a.type AS argument_type,
                 a.like_count AS argument_like_count,
                 a.comment_count AS argument_comment_count,
-                a.review_status AS argument_review_status,
+                a.peerreview_status AS argument_peerreview_status,
                 a.rkey AS argument_rkey,
                 NULL::text AS comment_uri,
                 NULL::text AS comment_text,
@@ -128,7 +128,7 @@ async def list_activity(
             -- "Community-bestätigt"- und "Community-verworfen"-Meilensteine nur
             -- für User-Argumente, die das Begutachtungsverfahren durchlaufen haben.
             WHERE a.ballot_rkey = $1 AND NOT a.deleted
-              AND a.review_status IN ('approved', 'rejected')
+              AND a.peerreview_status IN ('approved', 'rejected')
               AND a.source_type = 'user'
 
             UNION ALL
@@ -144,7 +144,7 @@ async def list_activity(
                 a.type AS argument_type,
                 a.like_count AS argument_like_count,
                 a.comment_count AS argument_comment_count,
-                a.review_status AS argument_review_status,
+                a.peerreview_status AS argument_peerreview_status,
                 a.rkey AS argument_rkey,
                 c.uri AS comment_uri,
                 c.text AS comment_text,
@@ -173,7 +173,7 @@ async def list_activity(
                 a.type AS argument_type,
                 a.like_count AS argument_like_count,
                 a.comment_count AS argument_comment_count,
-                a.review_status AS argument_review_status,
+                a.peerreview_status AS argument_peerreview_status,
                 a.rkey AS argument_rkey,
                 c.uri AS comment_uri,
                 c.text AS comment_text,
@@ -234,7 +234,7 @@ async def list_activity(
                 "type": get_string(row, "argument_type"),
                 "likeCount": get_number(row, "argument_like_count"),
                 "commentCount": get_number(row, "argument_comment_count"),
-                "reviewStatus": get_string(row, "argument_review_status"),
+                "peerreviewStatus": get_string(row, "argument_peerreview_status"),
             }
             argument = {k: v for k, v in argument_raw.items() if v is not None}
 

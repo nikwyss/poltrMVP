@@ -10,35 +10,62 @@ The mechanism aims to make collusion expensive: even if a small clique tried to 
 
 ## Lifecycle
 
+Two parallel state surfaces:
+
+- **`app_peerreviews.state`** — the *lifecycle* (`open` → `provisional_closed` → `closed`).
+- **`app_arguments.review_status`** — the *outcome* (`preliminary` until the finaliser runs, then `approved` or `rejected`).
+
+Quorum sets the **ceiling** on responses before the lifecycle flips from `open` to `provisional_closed`. The flip can happen earlier when the outcome is mathematically locked (one side can no longer be caught up — see [Closure](#closure--two-step)). Either way, quorum has no effect on how many invitations are issued.
+
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│ User submits argument                                                 │
-│   → record on user PDS (app.ch.poltr.ballot.argument)                 │
-│   → indexer writes row, review_status = 'preliminary'                  │
+│ User submits argument                                                  │
+│   → record on user PDS (app.ch.poltr.ballot.argument)                  │
+│   → indexer writes app_arguments row + app_peerreviews row             │
+│     (state = 'open', quorum captured from env at creation)             │
 └────────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ Other users make authenticated requests                               │
-│   → auth middleware fires peer_review_assign hook (throttled 30 s)    │
-│   → eligible candidates get probabilistically selected                │
+│ Other users make authenticated requests                                │
+│   → auth middleware fires peer_review_assign hook (throttled 30 s)     │
+│   → eligible candidates get probabilistically selected                 │
 │   → invitation record (invited=true | false) on governance PDS         │
+│   No per-argument cap — invitations keep flowing until enough          │
+│   responses arrive.                                                    │
 └────────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ Invited reviewer submits app.ch.poltr.review.response                 │
-│   → AppView validates: has invitation, no prior response, quorum not  │
-│     yet reached                                                       │
+│ Invited reviewer checks in (POST .review.checkIn)                      │
+│   → grants submit-rights, even if quorum hits while they're typing     │
+│   → typing fires .review.activity, sliding grace_until forward         │
+└────────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ Reviewer submits app.ch.poltr.review.response                          │
+│   → AppView validates: invited, checked in, state ≠ closed             │
 │   → record on governance PDS                                           │
-│   → indexer indexes + runs quorum check                                │
+│   → indexer indexes; flip state to provisional_closed if quorum        │
+│     reached OR outcome mathematically locked, then open grace window   │
 └────────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│ Once QUORUM valid responses are collected:                            │
-│   majority → review_status = 'approved'                                │
-│   tie / minority → review_status = 'rejected'                          │
+│ During grace window (state = 'provisional_closed')                     │
+│   → no new check-ins accepted                                          │
+│   → already-checked-in reviewers can still submit                      │
+│   → real typing slides grace_until = NOW() + GRACE_PERIOD              │
+│   → review may overshoot (Q+1, Q+2, …) — accepted, more data is good   │
+└────────────────────────────────────────────────────────────────────────┘
+                                  │  grace_until < NOW(),
+                                  │  next finaliser cron tick (1 / min)
+                                  ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│ state = 'closed', outcome written:                                     │
+│   approvals > rejections → review_status = 'approved'                  │
+│   tie / minority         → review_status = 'rejected'                  │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -53,14 +80,12 @@ There is **no background worker** for reviewer selection. The check is triggered
 
 The hook is fire-and-forget (`asyncio.create_task`), so the user's request never waits on it.
 
-### Why activity-triggered instead of worker-polled
+### Why activity-triggered
 
-A worker-based design (the previous implementation) had to repeatedly evaluate every active user against every preliminary argument on a fixed interval. This had two practical problems for POLTR:
+A worker-based design (the original implementation) had to repeatedly evaluate every active user against every preliminary argument on a fixed interval. Two practical problems for POLTR:
 
-1. **Magic-link sessions are long-lived** — explicit logins are rare. A pure on-login hook would never fire for users who keep their cookie. Middleware-on-every-request catches all real activity, login or not.
-2. **Worker work is wasted on inactive users** — slots assigned to users who never come back never get filled. Activity-driven assignment automatically self-limits to the engaged subset of the user base.
-
-The previous worker file (`services/appview/src/arguments/peer_review.py`) was deleted. See [History](#history).
+1. **Magic-link sessions are long-lived** — explicit logins are rare. A pure on-login hook would never fire for users who keep their cookie. Middleware-on-every-request catches all real activity.
+2. **Worker work is wasted on inactive users** — slots assigned to users who never come back never get filled. Activity-driven assignment automatically self-limits to the engaged subset.
 
 ### Algorithm per hook call
 
@@ -76,11 +101,10 @@ def maybe_assign_reviews_for_user(did):
     slots_left = DAILY_LIMIT - recent_active
     if slots_left <= 0:                 return       # daily cap reached
 
-    candidates = SELECT preliminary arguments WHERE
-                   source_type = 'user'
+    candidates = SELECT user arguments WHERE
+                   app_peerreviews.state = 'open'
                  AND author != did
                  AND no existing invitation for (argument, did)
-                 AND argument has < QUORUM active invitations
                  ORDER BY created_at ASC
                  LIMIT 100
 
@@ -97,64 +121,122 @@ Pool entries with `invited=false` are intentional: they record that this (argume
 ### Key properties
 
 - **Idempotent**: deterministic `rkey = compose_review_rkey(argument_uri, did)` → second write to the same `(argument, user)` is rejected by the PDS before any commit is produced (`createRecord` only, no `putRecord`).
-- **Quorum-aware**: candidate query excludes arguments that already have `QUORUM` active invitations.
+- **Quorum is *not* an invitation cap.** Quorum only gates the closure trigger (responses ≥ quorum → `provisional_closed`). Slow-to-respond reviews keep accumulating fresh invitations from newly-active users until enough actually respond. Invitation rate is bounded purely by `DAILY_LIMIT` (per user) and `INVITE_PROBABILITY` (per dice roll).
 - **Bounded effort**: each hook call considers at most 100 candidates and writes at most `DAILY_LIMIT` active invitations (currently 3).
 - **Throttled per user**: 30 s between hook executions for the same did, using an in-memory cache. Lost on pod restart, which is harmless — the next request just re-runs the hook once.
 
+## Check-in
+
+A reviewer must explicitly check in on a review **before** they can submit. Check-in is the contract that protects in-flight work from racing the closure decision.
+
+| Endpoint | Behaviour |
+|---|---|
+| `POST /xrpc/app.ch.poltr.review.checkIn` | Required before showing the review form. Stamps `app_review_invitations.checked_in_at` if unset, refreshes `last_activity_at`. Returns `200 + state + quorum + graceUntil` on success; `403 not_invited` if no active invitation; `409 too_late` if `state='provisional_closed'` and the user wasn't already checked in; `409 closed` if `state='closed'`. |
+| `POST /xrpc/app.ch.poltr.review.activity` | Called by the frontend on real `input`/`change` events (throttled). Refreshes `last_activity_at`. While `state='provisional_closed'`, also slides `grace_until = NOW() + GRACE_PERIOD`. Returns the fresh `graceUntil`. |
+| `GET /xrpc/app.ch.poltr.review.status` | Returns `state`, `quorum`, `provisionalClosedAt`, `graceUntil`, `closedAt`, vote counts, and the caller's `checkedInAt` / `lastActivityAt`. |
+
+Check-ins are unrestricted while `state='open'`; only `provisional_closed` refuses new check-ins. That's what gives previously-checked-in reviewers a guaranteed minimum window to finish.
+
 ## Submission
 
-Reviewers submit through `POST /xrpc/app.ch.poltr.review.submit` ([reviews.py:124](../services/appview/src/routes/deliberation/reviews.py#L124)). The endpoint validates:
+`POST /xrpc/app.ch.poltr.review.submit` ([reviews.py:351](../services/appview/src/routes/deliberation/reviews.py#L351)). The endpoint validates atomically (with `FOR UPDATE` on the peerreview row):
 
 | Check | Failure response |
 |---|---|
 | `argumentUri`, `criteria`, valid `vote` present | `400 invalid_request` |
 | `justification` present if `vote='REJECT'` | `400 invalid_request` |
-| Invitation exists with `invited=true` for this (argument, reviewer) | `403 not_invited` |
+| `app_peerreviews` row exists | `404 not_found` |
+| `state != 'closed'` | `409 review_closed` (with `closedAt` + `acceptedDraft` echo of the body) |
+| Invitation exists with `invited=true` | `403 not_invited` |
+| `checked_in_at IS NOT NULL` | `409 not_checked_in` |
 | No prior response from this reviewer | `409 already_reviewed` |
-| `QUORUM` valid responses haven't already been collected | `409 quorum_reached` |
 
-The last check is critical: it closes the ballot at submit-time, mirroring the indexer's closure semantics. Even if a late vote slipped past the AppView (e.g. a direct PDS write bypassing AppView), the indexer's `WHERE review_status='preliminary'` guard prevents it from flipping a terminal status.
+If the review is `provisional_closed` but the reviewer was checked in *before* the flip, submit proceeds — their `checked_in_at` is already non-null. The `acceptedDraft` echo on `409 review_closed` lets the frontend show the user their work even when the server can't accept it.
 
-## Closure
+## Closure — two-step
 
-Located in [indexer/src/db.js::checkReviewQuorum](../services/indexer/src/db.js):
+### Step 1: per-response trigger (indexer)
+
+[`checkReviewQuorum` in db.js](../services/indexer/src/db.js) runs after every indexed response. It reads `quorum` from the per-review `app_peerreviews.quorum` column (captured at row-creation from env default — see [Configuration](#configuration)), counts approvals/rejections backed by an active invitation, and flips the lifecycle to `provisional_closed` whenever any of three conditions holds:
+
+| Trigger | Condition | Meaning |
+|---|---|---|
+| `quorum` | `total ≥ quorum` | Regular case — the configured number of responses has arrived |
+| `locked_approve` | `approvals > rejections + remaining` | Even if every remaining invitee rejects, the approve side still wins |
+| `locked_reject` | `rejections ≥ approvals + remaining` | Even if every remaining invitee approves, the best case is a tie (counts as reject) |
+
+`remaining = max(0, quorum - total)`. At or beyond quorum, `remaining = 0` and the locked-conditions reduce to the regular at-quorum decision — one of them is always true, so the three conditions form a single coherent rule.
+
+Worked examples for `quorum = 10`:
+
+| Responses so far | A | R | remaining | Trigger? |
+|---|---|---|---|---|
+| `5R, 0A` | 0 | 5 | 5 | `locked_reject` — `5 ≥ 0+5` ✓ |
+| `4R, 0A` | 0 | 4 | 6 | none — `4 < 0+6` |
+| `6A, 0R` | 6 | 0 | 4 | `locked_approve` — `6 > 0+4` ✓ |
+| `4A, 4R` | 4 | 4 | 2 | none — `4 < 4+2` and `4 < 4+2` |
+| `5A, 5R` | 5 | 5 | 0 | `quorum` (and falls into `locked_reject`: `5 ≥ 5+0`) |
 
 ```sql
+SELECT quorum FROM app_peerreviews
+WHERE argument_uri = $1 AND state = 'open';
+
 SELECT
-  COUNT(*) FILTER (WHERE vote='APPROVE') AS approvals,
-  COUNT(*) FILTER (WHERE vote='REJECT')  AS rejections,
-  COUNT(*)                               AS total
+  COUNT(*) FILTER (WHERE rr.vote = 'APPROVE') AS approvals,
+  COUNT(*) FILTER (WHERE rr.vote = 'REJECT')  AS rejections,
+  COUNT(*) AS total
 FROM app_review_responses rr
 JOIN app_review_invitations ri
   ON ri.argument_uri = rr.argument_uri
  AND ri.invitee_did  = rr.reviewer_did
- AND ri.invited      = true               -- only active invitations count
-WHERE rr.argument_uri = $1
+ AND ri.invited      = true             -- only active invitations count
+WHERE rr.argument_uri = $1;
+
+-- if any trigger holds:
+UPDATE app_peerreviews
+   SET state                 = 'provisional_closed',
+       provisional_closed_at = now(),
+       grace_until           = now() + GRACE_PERIOD
+ WHERE argument_uri = $1 AND state = 'open';
 ```
 
-Decision:
+The `JOIN ... invited=true` is defense-in-depth: a stray response without a matching active invitation never sways the math. The `WHERE state='open'` on the UPDATE serialises concurrent closure-triggering submits — both write a response, both observe `state='open'`, and the database picks one as the winner of the lifecycle flip. Both responses still count; we may overshoot to Q+1, which is intentional and welcome.
 
-| Condition | Result |
-|---|---|
-| `total < QUORUM` | stay `preliminary` |
-| `total = QUORUM` and `approvals > rejections` | `approved` |
-| `total = QUORUM` and `approvals ≤ rejections` (incl. tie) | `rejected` |
+**A "lock" is locked *at trigger time*, not forever.** Once the review is `provisional_closed`, no new check-ins join, but already-checked-in reviewers can still submit during the grace window — and their votes still count in the finaliser's outcome calculation. So a `locked_reject` triggered at `R=5/A=0` can in principle become an approve at the end if enough late approves arrive from reviewers who were already in the room. That's by design: we trigger as soon as the math closes, but never silence votes already in flight.
 
-Ties count as rejection — the proposal must earn its acceptance.
+### Step 2: finaliser cron (every minute)
 
-The `JOIN ... invited=true` is defense-in-depth: a stray response without a matching active invitation never sways the quorum.
+[`finalizeExpiredPeerReviews` in db.js](../services/indexer/src/db.js), triggered by the [`peerreview-finalize` cronjob](../infra/kube/cronjobs.yaml):
+
+```sql
+UPDATE app_peerreviews
+   SET state = 'closed', closed_at = now()
+ WHERE state = 'provisional_closed' AND grace_until < now()
+ RETURNING argument_uri;
+
+-- then per closed argument:
+UPDATE app_arguments
+   SET review_status = CASE WHEN approvals > rejections THEN 'approved' ELSE 'rejected' END
+ WHERE uri = $1 AND review_status = 'preliminary';
+```
+
+Ties count as rejection — the proposal must earn its acceptance. The `review_status='preliminary'` guard on the outcome write makes the finaliser idempotent and never demotes a manually-set terminal state.
+
+The cron is **not** a trigger because the transition is time-based, not event-based. It is **not** a worker because the work is sparse and stateless — a per-minute Kubernetes `CronJob` is the right granularity.
 
 ## Configuration
 
 | Env var | Default | Where applied |
 |---|---|---|
 | `APPVIEW_PEER_REVIEW_ENABLED` | `false` | Master switch for the assignment hook. When false, no new invitations are written |
-| `APPVIEW_PEER_REVIEW_QUORUM` | `10` | Both: candidate filter ("< QUORUM active invitations") and closure threshold |
+| `APPVIEW_PEER_REVIEW_QUORUM` | `10` | Default closure threshold for **new** peer reviews. Captured into `app_peerreviews.quorum` at row creation (indexer-side), so changing the env affects only future arguments — existing rows retain their captured value |
 | `APPVIEW_PEER_REVIEW_DAILY_LIMIT` | `3` | Max active invitations a user can receive in any sliding 24 h window |
 | `APPVIEW_PEER_REVIEW_INVITE_PROBABILITY` | `0.35` | Per-candidate dice roll. Lower → more anti-collusion friction, slower quorum convergence |
 | `APPVIEW_PEER_REVIEW_HOOK_THROTTLE_SECONDS` | `30` | In-memory per-user throttle |
+| `APPVIEW_PEER_REVIEW_GRACE_PERIOD_SECONDS` | `600` (10 min) | Initial grace window on `provisional_close` and per-activity extension |
+| `APPVIEW_PEER_REVIEW_CRITERIA` | (5 defaults) | JSON array of review criteria. See [reviews.py:47](../services/appview/src/routes/deliberation/reviews.py#L47) |
 
-`APPVIEW_PEER_REVIEW_QUORUM` is read by **two services** (AppView and Indexer). They must be set consistently in both. The indexer reads it from `process.env`, the AppView from `os.getenv`; both default to 10.
+Quorum is no longer a cross-service "must match" value — once captured per row it's authoritative, and both the per-response trigger and the candidate filter read it from the row. `APPVIEW_PEER_REVIEW_GRACE_PERIOD_SECONDS` is read by the indexer; the rest by AppView.
 
 ## Eligibility
 
@@ -177,35 +259,57 @@ These could be added later as additional WHERE clauses in the candidate SELECT.
 
 ### Race when user makes parallel requests
 
-Two concurrent requests for the same user pass the `last_check` throttle if they hit within the same 30 s window after a previous check. Both then read the same `recent_active` count and may each write up to `slots_left` invitations. In the worst case the user ends up with `2 × DAILY_LIMIT` invitations on that one day. Accepted as low-probability and low-impact; the throttle dict-write happens before the SQL work, so the second request almost always sees a fresh timestamp and skips. If it ever becomes an issue, an advisory lock on `(did,)` would close it.
+Two concurrent requests for the same user pass the `last_check` throttle if they hit within the same 30 s window after a previous check. Both then read the same `recent_active` count and may each write up to `slots_left` invitations. In the worst case the user ends up with `2 × DAILY_LIMIT` invitations on that one day. Accepted as low-probability and low-impact; the throttle dict-write happens before the SQL work, so the second request almost always sees a fresh timestamp and skips.
 
 ### Empty candidate set
 
-If no preliminary user-arguments are open at the moment of a hook call, the user simply doesn't get any invitations from that call. The throttle still updates, so the next opportunity is 30 s later. With user activity throughout the day this becomes effectively "checked many times per day", so they get assigned promptly once a new argument enters the system.
+If no `open` user-arguments are available at the moment of a hook call, the user simply doesn't get any invitations from that call. The throttle still updates, so the next opportunity is 30 s later.
 
 ### Pool exhaustion
 
-If a user is rolled against every open argument and all rolls miss, they accumulate `invited=false` entries for everything. They won't be re-rolled — that's the dedup point of the pool. New arguments added afterwards will trigger fresh rolls. With `INVITE_PROBABILITY=0.35` and 99 arguments, the probability of zero hits across the whole pool is `(0.65)^99 ≈ 6×10⁻¹⁹` — effectively impossible.
+If a user is rolled against every open argument and all rolls miss, they accumulate `invited=false` entries for everything. They won't be re-rolled — that's the dedup point of the pool. New arguments added afterwards trigger fresh rolls. With `INVITE_PROBABILITY=0.35` and 99 arguments, the probability of zero hits across the whole pool is `(0.65)^99 ≈ 6×10⁻¹⁹` — effectively impossible.
 
-### Inactive users at the time of argument creation
+### Inactive users at argument creation
 
-When a new argument enters the system, it has zero invitations. The assignment hook only fires when *some* user is active. If a steady trickle of activity exists across the user base, the argument will quickly get rolled against many users. If no one is active for hours, the argument waits — which is the right behavior (no point assigning slots to users who aren't there).
+When a new argument enters the system, it has zero invitations. The assignment hook only fires when *some* user is active. With a steady trickle of activity, the argument quickly gets rolled against many users. No activity → the argument waits, which is the right behavior.
 
-### Quorum-vs-Daily-Limit interaction
+### Quorum-vs-Daily-Limit sizing
 
-`DAILY_LIMIT × user_count × INVITE_PROBABILITY` should comfortably exceed `QUORUM × new_arguments_per_day`. Otherwise some arguments will never reach quorum. Rule of thumb for current defaults (3, P=0.35, Q=10): you want at least ~10 actively-clicking users per new argument per day.
+`DAILY_LIMIT × user_count × INVITE_PROBABILITY` should comfortably exceed `QUORUM × new_arguments_per_day`, otherwise quorum convergence is slow. Rule of thumb for current defaults (3, P=0.35, Q=10): you want at least ~10 actively-clicking users per new argument per day. Since invitations are not capped at quorum, the sizing only governs *time to closure*, not *whether* closure happens.
+
+### Reviewer checks in and disappears
+
+`last_activity_at` doesn't get refreshed. The finaliser still closes on the original `grace_until` — no infinite hang.
+
+### Two simultaneous quorum-hitting submits
+
+Both write a response, both observe `state = 'open'` and both attempt to flip it. The `WHERE state='open'` guard means whichever commits second is a no-op on state; both responses still count. We may overshoot to Q+1, which is intentional and welcome.
+
+### Activity vs cron race
+
+If a user types one millisecond before the cron tick, the cron may still close (its `grace_until < NOW()` snapshot was taken before the activity write). With 1-minute granularity and a 10-minute default grace, the window is vanishingly small. Accepted.
+
+### Reviewer rejoins after closure
+
+They see "review closed" and a read-only view of the outcome (via `GET .review.status`).
 
 ## Data model
 
 | Table | Purpose | Where written | Closure-relevant filter |
 |---|---|---|---|
-| `app_review_invitations` | Tracks pool membership + active invitations | AppView (assign hook), Indexer (firehose) | `WHERE invited=true` |
+| `app_peerreviews` | Per-argument lifecycle (state, quorum, grace_until) | Indexer (`upsertArgumentDb`, `checkReviewQuorum`, `finalizeExpiredPeerReviews`) | `WHERE state IN ('open', 'provisional_closed')` |
+| `app_review_invitations` | Pool membership + active invitations + check-in tracking | AppView (assign hook, checkIn, activity), Indexer (firehose) | `WHERE invited=true` |
 | `app_review_responses` | Reviewer's vote + criteria scores | AppView (submit endpoint), Indexer (firehose) | joined to `invitations` with `invited=true` |
-| `app_arguments.review_status` | Terminal state | Indexer (`checkReviewQuorum`) | `WHERE review_status='preliminary'` on update |
+| `app_arguments.review_status` | Terminal outcome (`preliminary` / `approved` / `rejected`) | Indexer (`finalizeExpiredPeerReviews`) | `WHERE review_status='preliminary'` on update |
 
-`(argument_uri, invitee_did)` is structurally unique because `compose_review_rkey` generates the same rkey from the same inputs — PDS's `createRecord` rejects duplicates before any commit is created.
+`app_peerreviews` is keyed on `argument_uri` (1:1) and inserted in the same indexer transaction that inserts a user-submitted `app_arguments` row. Curated content has no peerreview row.
 
-Same for `(argument_uri, reviewer_did)` on responses.
+`(argument_uri, invitee_did)` is structurally unique on invitations because `compose_review_rkey` generates the same rkey from the same inputs — PDS's `createRecord` rejects duplicates before any commit is created. Same for `(argument_uri, reviewer_did)` on responses.
+
+Check-in columns on `app_review_invitations`:
+
+- `checked_in_at` — set on first `POST .review.checkIn`; immutable after that.
+- `last_activity_at` — slides forward on each `POST .review.activity` (or re-check-in).
 
 ## Implementation pointers
 
@@ -213,34 +317,47 @@ Same for `(argument_uri, reviewer_did)` on responses.
 |---|---|
 | Activity-triggered assignment | [services/appview/src/arguments/peer_review_assign.py](../services/appview/src/arguments/peer_review_assign.py) |
 | Middleware hook | [services/appview/src/auth/middleware.py:90](../services/appview/src/auth/middleware.py#L90) |
-| Submit endpoint + late-vote block | [services/appview/src/routes/deliberation/reviews.py:124](../services/appview/src/routes/deliberation/reviews.py#L124) |
-| Quorum closure | [services/indexer/src/db.js — `checkReviewQuorum`](../services/indexer/src/db.js) |
+| Check-in / activity / submit / status endpoints | [services/appview/src/routes/deliberation/reviews.py](../services/appview/src/routes/deliberation/reviews.py) |
+| Per-response quorum trigger | [services/indexer/src/db.js — `checkReviewQuorum`](../services/indexer/src/db.js) |
+| Finaliser | [services/indexer/src/db.js — `finalizeExpiredPeerReviews`](../services/indexer/src/db.js), [main.js — `/peerreview-finalize` route](../services/indexer/src/main.js) |
+| Finaliser cronjob | [infra/kube/cronjobs.yaml — `peerreview-finalize`](../infra/kube/cronjobs.yaml) |
+| Migration | [infra/scripts/postgres/migrate-peer-review-grace.sql](../infra/scripts/postgres/migrate-peer-review-grace.sql) |
 | Rkey composer | [services/appview/src/atproto/governance.py — `compose_review_rkey`](../services/appview/src/atproto/governance.py) |
 | Lexicons | [lexicons/app/ch/poltr/review/invitation.json](../lexicons/app/ch/poltr/review/invitation.json), [response.json](../lexicons/app/ch/poltr/review/response.json), [note.json](../lexicons/app/ch/poltr/review/note.json) |
-| Listing the user's open reviews (read endpoint) | [services/appview/src/routes/deliberation/reviews.py](../services/appview/src/routes/deliberation/reviews.py) |
 
 ## Frontend integration
 
-The argument feed reads `review_status` on every argument and renders:
+### Argument feed
+
+Reads `review_status` on every argument and renders:
 
 - `approved` → green check + 🎉 "Community-bestätigt" milestone
 - `rejected` → small red dot + "Community-verworfen" milestone
 - `preliminary` → no badge
 
-Both milestone variants share `MilestoneActivityCard` in [services/front/src/app/(app)/ballot/[id]/arguments/feed/page.tsx](../services/front/src/app/(app)/ballot/[id]/arguments/feed/page.tsx). Rejected arguments are visible to everyone — the previous "hide rejected from non-authors" filter was removed.
+Both milestone variants share `MilestoneActivityCard` in [services/front/src/app/(app)/ballot/[id]/arguments/feed/page.tsx](../services/front/src/app/(app)/ballot/[id]/arguments/feed/page.tsx). Rejected arguments are visible to everyone.
+
+### Review form
+
+- On review-page open: call `checkIn`. If it returns `409 too_late` or `409 closed`, show "this review just closed" and skip the form.
+- During typing: throttle a call to `activity` (e.g. one per 30 s while typing). The response includes the refreshed `graceUntil`.
+- When `state === 'provisional_closed'`: show a discreet countdown derived client-side from `graceUntil`. No polling needed — the deadline is a fixed timestamp from the server; `setTimeout` against it and reset on each `activity` response.
+- localStorage backup of the in-progress draft so even an unhandled `409 review_closed` doesn't lose the user's text.
 
 ## History
 
 | Date | Event |
 |---|---|
 | pre-2026-06 | Background worker (`services/appview/src/arguments/peer_review.py`) polled every 60 s, iterated preliminary arguments × active users, rolled probabilistic invitations. Indexer used early-termination quorum logic (`approvals > QUORUM/2` → approved; symmetric for rejected) |
-| 2026-06-01 | Indexer closure logic rewritten to wait-for-QUORUM semantics. AppView submit endpoint added late-vote guard. Worker replaced by activity-triggered hook in auth middleware. `DAILY_LIMIT` introduced as per-user cap |
+| 2026-06-01 | Indexer closure logic rewritten to wait-for-QUORUM semantics. AppView submit endpoint added a late-vote guard (`409 quorum_reached`). Worker replaced by activity-triggered hook in auth middleware. `DAILY_LIMIT` introduced as per-user cap. Candidate query capped invitations per argument at QUORUM — same value as the closure threshold — which made reviews with non-responders get stuck forever once the cap was reached |
+| 2026-06 | **Check-in & grace-period closure landed.** New `app_peerreviews` table holds the lifecycle (`open` → `provisional_closed` → `closed`). Per-argument invitation cap dropped, decoupling QUORUM from invitation count: QUORUM now means *only* "responses needed before provisional close". Submit endpoint rewritten around explicit check-in instead of late-vote-block. `peerreview-finalize` cronjob added to promote provisional closures and write the outcome on `app_arguments.review_status`. Quorum is now per-review (captured at argument creation), so changing `APPVIEW_PEER_REVIEW_QUORUM` only affects new arguments |
+| 2026-06 | **Early-termination re-added** in `checkReviewQuorum`. In addition to "quorum reached", the indexer now also flips to `provisional_closed` when one side has accumulated more votes than the other can catch up with given the remaining slots. Safe under the check-in/grace model because already-checked-in reviewers still finish (and their late votes can still flip the outcome inside the grace window) |
 
-### Migration note
+### Old terminal statuses
 
-The 9 terminal review statuses on ballot 663-0 (6 approved + 3 rejected) were assigned under the old early-termination logic. Some of them have fewer than `QUORUM=10` responses and would not be terminal under current rules. The `WHERE review_status='preliminary'` filter in `checkReviewQuorum` means they remain frozen as-is and are not re-evaluated.
+The 9 terminal review statuses on ballot 663-0 (6 approved + 3 rejected) were assigned under the original early-termination logic. Some have fewer than `QUORUM=10` responses and would not be terminal under current rules. The `WHERE review_status='preliminary'` guard in the finaliser means they remain frozen as-is and are not re-evaluated.
 
-A one-time backfill could reset those to `preliminary` so the new closure logic decides them — call this as needed:
+A one-time backfill could reset those to `preliminary` so the new closure logic decides them — call as needed:
 
 ```sql
 UPDATE app_arguments
@@ -255,4 +372,12 @@ WHERE review_status IN ('approved', 'rejected')
      AND ri.invited      = true
     WHERE rr.argument_uri = app_arguments.uri
   ) < 10;
+
+-- Also reopen the peerreview lifecycle so the new closure logic can run:
+UPDATE app_peerreviews
+SET state = 'open', provisional_closed_at = NULL, grace_until = NULL, closed_at = NULL
+WHERE argument_uri IN (
+  SELECT uri FROM app_arguments
+  WHERE ballot_rkey = '663.0' AND review_status = 'preliminary'
+);
 ```

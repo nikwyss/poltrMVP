@@ -134,12 +134,12 @@ function ArgumentCardCompact({
 
   // Review-Status oben rechts (z. B. "Begutachtet"). reviewStatus → i18n-Key.
   const statusKey =
-    !isOfficial && arg.reviewStatus
+    !isOfficial && arg.peerreviewStatus
       ? {
           preliminary: "preliminary",
           approved: "peerReviewed",
           rejected: "rejected",
-        }[arg.reviewStatus]
+        }[arg.peerreviewStatus]
       : null;
 
   return (

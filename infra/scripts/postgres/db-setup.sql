@@ -72,7 +72,7 @@ CREATE TABLE app_arguments (
   like_count       integer NOT NULL DEFAULT 0,
   comment_count    integer NOT NULL DEFAULT 0,
   bsky_reply_count integer NOT NULL DEFAULT 0,
-  review_status text NOT NULL DEFAULT 'preliminary' CHECK (review_status IN ('preliminary', 'approved', 'rejected')),
+  peerreview_status text NOT NULL DEFAULT 'preliminary' CHECK (peerreview_status IN ('preliminary', 'approved', 'rejected')),
   -- Source discriminator: 'user' = user-submitted, 'official' = Bundeskanzlei leaflet,
   -- 'organization' = party/association/NGO (schema reserved, not yet wired up).
   source_type        text NOT NULL DEFAULT 'user'
@@ -102,7 +102,7 @@ CREATE INDEX app_arguments_ballot_rkey_idx   ON app_arguments (ballot_rkey);
 CREATE INDEX app_arguments_did_idx           ON app_arguments (did);
 CREATE INDEX app_arguments_author_did_idx    ON app_arguments (author_did);
 CREATE INDEX app_arguments_type_idx          ON app_arguments (type);
-CREATE INDEX app_arguments_review_status_idx ON app_arguments (review_status);
+CREATE INDEX app_arguments_peerreview_status_idx ON app_arguments (peerreview_status);
 CREATE INDEX app_arguments_source_type_idx   ON app_arguments (source_type);
 CREATE INDEX app_arguments_source_org_key_idx ON app_arguments (source_org_key)
   WHERE source_org_key IS NOT NULL;
@@ -113,22 +113,32 @@ CREATE INDEX app_arguments_translation_status_idx
 -- GIN index for filtering by language (e.g. WHERE 'fr' = ANY(langs)).
 CREATE INDEX app_arguments_langs_idx ON app_arguments USING GIN (langs);
 
-CREATE TABLE app_review_invitations (
-  uri           text PRIMARY KEY,
-  cid           text NOT NULL,
-  argument_uri  text NOT NULL,
-  invitee_did   text NOT NULL,
-  invited       boolean NOT NULL,               -- true = invited, false = not selected (immutable)
-  created_at    timestamptz NOT NULL,
-  indexed_at    timestamptz NOT NULL DEFAULT now()
+CREATE TABLE app_peerreview_invitations (
+  uri              text PRIMARY KEY,
+  cid              text NOT NULL,
+  argument_uri     text NOT NULL,
+  invitee_did      text NOT NULL,
+  invited          boolean NOT NULL,            -- true = invited, false = not selected (immutable)
+  -- Check-in protects in-flight reviewers from losing work when quorum closes
+  -- the review mid-typing. checked_in_at is set when the user opens the review
+  -- form (POST .review.checkIn); last_activity_at slides forward on each real
+  -- input event (POST .review.activity) and drives the grace-window extension
+  -- on app_peerreviews.grace_until. Both NULL until first check-in.
+  checked_in_at    timestamptz,
+  last_activity_at timestamptz,
+  created_at       timestamptz NOT NULL,
+  indexed_at       timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX app_review_invitations_arg_invitee_uniq
-  ON app_review_invitations (argument_uri, invitee_did);
-CREATE INDEX app_review_invitations_argument_uri_idx ON app_review_invitations (argument_uri);
-CREATE INDEX app_review_invitations_invitee_did_idx  ON app_review_invitations (invitee_did);
+CREATE UNIQUE INDEX app_peerreview_invitations_arg_invitee_uniq
+  ON app_peerreview_invitations (argument_uri, invitee_did);
+CREATE INDEX app_peerreview_invitations_argument_uri_idx ON app_peerreview_invitations (argument_uri);
+CREATE INDEX app_peerreview_invitations_invitee_did_idx  ON app_peerreview_invitations (invitee_did);
+CREATE INDEX app_peerreview_invitations_checked_in_idx
+  ON app_peerreview_invitations (argument_uri, checked_in_at)
+  WHERE checked_in_at IS NOT NULL;
 
-CREATE TABLE app_review_responses (
+CREATE TABLE app_peerreview_responses (
   uri           text PRIMARY KEY,
   cid           text NOT NULL,
   argument_uri  text NOT NULL,
@@ -140,10 +150,64 @@ CREATE TABLE app_review_responses (
   indexed_at    timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX app_review_responses_arg_reviewer_uniq
-  ON app_review_responses (argument_uri, reviewer_did);
-CREATE INDEX app_review_responses_argument_uri_idx ON app_review_responses (argument_uri);
-CREATE INDEX app_review_responses_reviewer_did_idx ON app_review_responses (reviewer_did);
+CREATE UNIQUE INDEX app_peerreview_responses_arg_reviewer_uniq
+  ON app_peerreview_responses (argument_uri, reviewer_did);
+CREATE INDEX app_peerreview_responses_argument_uri_idx ON app_peerreview_responses (argument_uri);
+CREATE INDEX app_peerreview_responses_reviewer_did_idx ON app_peerreview_responses (reviewer_did);
+
+-- Per-argument peer-review lifecycle row. One row per user-submitted argument,
+-- inserted by the indexer in the same firehose transaction that inserts the
+-- argument itself (curated content skips peer review and therefore has no row).
+--
+-- Lifecycle transitions:
+--   open                    : initial state; new reviewers can check in
+--   open               → provisional_closed : indexer sets this on the response
+--                            that hits `quorum`. New check-ins refused from now
+--                            on; already-checked-in users keep submit rights
+--                            within the grace window.
+--   provisional_closed → closed              : finaliser cron flips this once
+--                            grace_until < NOW(); the same SQL writes
+--                            app_arguments.review_status from majority vote.
+--
+-- The grace window slides forward on real reviewer activity (POST
+-- .review.activity), so a reviewer who keeps typing is never cut off mid
+-- sentence.
+CREATE TABLE app_peerreviews (
+  argument_uri          text PRIMARY KEY REFERENCES app_arguments(uri) ON DELETE CASCADE,
+  state                 text NOT NULL DEFAULT 'open'
+    CHECK (state IN ('open', 'provisional_closed', 'closed')),
+  quorum                int  NOT NULL,           -- captured at row-creation from env default; per-review configurable
+  opened_at             timestamptz NOT NULL DEFAULT now(),
+  provisional_closed_at timestamptz,
+  grace_until           timestamptz,
+  closed_at             timestamptz,
+  CONSTRAINT app_peerreviews_grace_when_provisional CHECK (
+    (state = 'provisional_closed' AND grace_until IS NOT NULL AND provisional_closed_at IS NOT NULL)
+    OR (state <> 'provisional_closed')
+  ),
+  CONSTRAINT app_peerreviews_closed_at_when_closed CHECK (
+    (state = 'closed' AND closed_at IS NOT NULL) OR (state <> 'closed')
+  )
+);
+
+CREATE INDEX app_peerreviews_state_idx       ON app_peerreviews (state);
+-- Finaliser cron's hot path: grab all rows whose grace window has expired.
+CREATE INDEX app_peerreviews_grace_until_idx ON app_peerreviews (grace_until)
+  WHERE state = 'provisional_closed';
+
+-- Backfill: one row per existing user-submitted argument so the new code can
+-- assume "every user-arg has a peerreview row". Arguments that are already
+-- decided land directly in 'closed'; the rest become 'open' with the current
+-- env-default quorum baked in.
+INSERT INTO app_peerreviews (argument_uri, state, quorum, opened_at, closed_at)
+SELECT a.uri,
+       CASE WHEN a.peerreview_status IN ('approved', 'rejected') THEN 'closed' ELSE 'open' END,
+       10,
+       a.created_at,
+       CASE WHEN a.peerreview_status IN ('approved', 'rejected') THEN a.indexed_at ELSE NULL END
+FROM app_arguments a
+WHERE a.source_type = 'user' AND NOT a.deleted
+ON CONFLICT (argument_uri) DO NOTHING;
 
 CREATE TABLE app_comments (
   uri               text PRIMARY KEY,

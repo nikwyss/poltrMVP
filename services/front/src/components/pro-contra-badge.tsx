@@ -47,7 +47,7 @@ export function OfficialBadge() {
   )
 }
 
-export function ReviewStatusBadge({ status }: { status?: string }) {
+export function PeerreviewStatusBadge({ status }: { status?: string }) {
   const t = useTranslations('reviewStatus')
   if (!status) return null
 

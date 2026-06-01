@@ -1,4 +1,4 @@
-import type { Ballot, ArgumentWithMetadata, CommentWithMetadata, ActivityItem, ReviewCriterion, ReviewInvitation, ReviewStatus, ReviewCriterionRating } from '../types/ballots';
+import type { Ballot, ArgumentWithMetadata, CommentWithMetadata, ActivityItem, PeerreviewCriterion, PeerreviewInvitation, PeerreviewStatus, PeerreviewCriterionRating } from '../types/ballots';
 import { toPdsError } from './pdsError';
 
 /**
@@ -132,7 +132,7 @@ export async function getComment(uri: string): Promise<{
     type?: 'PRO' | 'CONTRA';
     likeCount?: number;
     commentCount?: number;
-    reviewStatus?: string;
+    peerreviewStatus?: string;
     ballotRkey: string;
   };
 }> {
@@ -205,30 +205,30 @@ export async function markActivitySeen(uris: string[]): Promise<void> {
 // Peer-review API
 // ---------------------------------------------------------------------------
 
-export async function getReviewCriteria(): Promise<ReviewCriterion[]> {
+export async function getPeerreviewCriteria(): Promise<PeerreviewCriterion[]> {
   const authenticatedFetch = getAuthenticatedFetch();
-  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.review.criteria`);
+  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.peerreview.criteria`);
   if (!res.ok) throw new Error(await res.text());
   const content = await res.json();
   return content.criteria;
 }
 
-export async function getPendingReviews(): Promise<ReviewInvitation[]> {
+export async function getPendingPeerreviews(): Promise<PeerreviewInvitation[]> {
   const authenticatedFetch = getAuthenticatedFetch();
-  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.review.pending`);
+  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.peerreview.pending`);
   if (!res.ok) throw new Error(await res.text());
   const content = await res.json();
   return content.invitations;
 }
 
-export async function submitReview(
+export async function submitPeerreview(
   argumentUri: string,
-  criteria: ReviewCriterionRating[],
+  criteria: PeerreviewCriterionRating[],
   vote: 'APPROVE' | 'REJECT',
   justification?: string,
 ): Promise<{ uri: string }> {
   const authenticatedFetch = getAuthenticatedFetch();
-  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.review.submit`, {
+  const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.peerreview.submit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ argumentUri, criteria, vote, justification }),
@@ -237,10 +237,10 @@ export async function submitReview(
   return res.json();
 }
 
-export async function getReviewStatus(argumentUri: string): Promise<ReviewStatus> {
+export async function getPeerreviewStatus(argumentUri: string): Promise<PeerreviewStatus> {
   const authenticatedFetch = getAuthenticatedFetch();
   const res = await authenticatedFetch(
-    `/api/xrpc/app.ch.poltr.review.status?argumentUri=${encodeURIComponent(argumentUri)}`
+    `/api/xrpc/app.ch.poltr.peerreview.status?argumentUri=${encodeURIComponent(argumentUri)}`
   );
   if (!res.ok) throw new Error(await res.text());
   return res.json();

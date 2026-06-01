@@ -10,18 +10,22 @@ import {
   markCommentDeleted,
   upsertCommentTranslationDb,
   markCommentTranslationDeleted,
-  upsertReviewInvitationDb,
-  markReviewInvitationDeleted,
-  upsertReviewResponseDb,
-  markReviewResponseDeleted,
+  upsertPeerreviewInvitationDb,
+  markPeerreviewInvitationDeleted,
+  upsertPeerreviewResponseDb,
+  markPeerreviewResponseDeleted,
 } from "./db.js";
 
 const COLLECTION_ARGUMENT = "app.ch.poltr.ballot.argument";
 const COLLECTION_RATING = "app.ch.poltr.content.rating";
 const COLLECTION_COMMENT = "app.ch.poltr.comment";
 const COLLECTION_COMMENT_TRANSLATION = "app.ch.poltr.comment.translation";
-const COLLECTION_REVIEW_INVITATION = "app.ch.poltr.review.invitation";
-const COLLECTION_REVIEW_RESPONSE = "app.ch.poltr.review.response";
+const COLLECTION_PEERREVIEW_INVITATION = "app.ch.poltr.peerreview.invitation";
+const COLLECTION_PEERREVIEW_RESPONSE = "app.ch.poltr.peerreview.response";
+// Legacy NSIDs: existing records on PDS remain under these. Kept so the firehose
+// backfill path can re-index any records that landed before the rename.
+const COLLECTION_REVIEW_INVITATION_LEGACY = "app.ch.poltr.review.invitation";
+const COLLECTION_REVIEW_RESPONSE_LEGACY = "app.ch.poltr.review.response";
 
 // Per-ballot governance accounts: loaded from DB
 let governanceDids = new Set();
@@ -53,8 +57,10 @@ export const handleEvent = async (evt) => {
     collection !== COLLECTION_RATING &&
     collection !== COLLECTION_COMMENT &&
     collection !== COLLECTION_COMMENT_TRANSLATION &&
-    collection !== COLLECTION_REVIEW_INVITATION &&
-    collection !== COLLECTION_REVIEW_RESPONSE
+    collection !== COLLECTION_PEERREVIEW_INVITATION &&
+    collection !== COLLECTION_PEERREVIEW_RESPONSE &&
+    collection !== COLLECTION_REVIEW_INVITATION_LEGACY &&
+    collection !== COLLECTION_REVIEW_RESPONSE_LEGACY
   )
     return;
 
@@ -125,42 +131,35 @@ export const handleEvent = async (evt) => {
     }
   }
 
-  if (collection === COLLECTION_REVIEW_INVITATION) {
+  if (
+    collection === COLLECTION_PEERREVIEW_INVITATION ||
+    collection === COLLECTION_REVIEW_INVITATION_LEGACY
+  ) {
     if (!isGovernanceDid(did)) {
       console.log(
-        `Ignoring review invitation from non-governance repo: ${did}`,
+        `Ignoring peerreview invitation from non-governance repo: ${did}`,
       );
       return;
     }
-    // if (action === "delete") {
-    //   await markReviewInvitationDeleted(uri);
-    //   return;
-    // }
-
-    // Create-only: invitations are immutable once issued. The peer-review loop
-    // writes them via createRecord at a deterministic rkey, so there is never an
-    // "update" event for an invitation (a second write is rejected by the PDS).
     if (action === "create") {
       const record = evt.record;
       if (!record) return;
-      await upsertReviewInvitationDb(pool, { uri, cid: cidString, record });
+      await upsertPeerreviewInvitationDb(pool, { uri, cid: cidString, record });
     }
   }
 
-  if (collection === COLLECTION_REVIEW_RESPONSE) {
+  if (
+    collection === COLLECTION_PEERREVIEW_RESPONSE ||
+    collection === COLLECTION_REVIEW_RESPONSE_LEGACY
+  ) {
     if (!isGovernanceDid(did)) {
-      console.log(`Ignoring review response from non-governance repo: ${did}`);
+      console.log(`Ignoring peerreview response from non-governance repo: ${did}`);
       return;
     }
-    // if (action === "delete") {
-    //   await markReviewResponseDeleted(uri);
-    //   return;
-    // }
-
     if (action === "create") {
       const record = evt.record;
       if (!record) return;
-      await upsertReviewResponseDb(pool, {
+      await upsertPeerreviewResponseDb(pool, {
         uri,
         cid: cidString,
         did,

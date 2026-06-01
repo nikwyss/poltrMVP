@@ -186,8 +186,21 @@ function parseArgumentSource(record) {
   };
 }
 
+function _peerReviewQuorum() {
+  return parseInt(process.env.APPVIEW_PEER_REVIEW_QUORUM || "10", 10);
+}
+
+function _peerReviewGraceSeconds() {
+  return parseInt(
+    process.env.APPVIEW_PEER_REVIEW_GRACE_PERIOD_SECONDS || "600",
+    10,
+  );
+}
+
 /**
- * Upsert an argument record into app_arguments.
+ * Upsert an argument record into app_arguments. For user-submitted arguments
+ * we also seed the app_peerreviews lifecycle row in the same transaction so
+ * downstream code can rely on "every user argument has a peerreview row".
  */
 export async function upsertArgumentDb(clientOrPool, params) {
   const { uri, cid, did, rkey, record } = params;
@@ -216,7 +229,7 @@ export async function upsertArgumentDb(clientOrPool, params) {
     INSERT INTO app_arguments
       (uri, cid, did, rkey, author_did, title, body, type, ballot_uri, ballot_rkey,
        source_type, source_org_key, source_doc_ref, source_section, source_verified_did,
-       review_status, langs, translations, translation_status, created_at, deleted)
+       peerreview_status, langs, translations, translation_status, created_at, deleted)
     VALUES
       ($1,  $2,  $3,  $4,  $5,  $6,    $7,   $8,   $9,         $10,
        $11, $12, $13, $14, $15,
@@ -264,6 +277,22 @@ export async function upsertArgumentDb(clientOrPool, params) {
       createdAt,
     ],
   );
+
+  // Seed the peer-review lifecycle row for user-submitted arguments. ON CONFLICT
+  // DO NOTHING because firehose replay may re-upsert the argument, but the row
+  // is immutable here — its lifecycle is only ever advanced by the response /
+  // finaliser code paths.
+  if (src.sourceType === "user") {
+    await dbQuery(
+      clientOrPool,
+      `
+      INSERT INTO app_peerreviews (argument_uri, state, quorum, opened_at)
+      VALUES ($1, 'open', $2, $3)
+      ON CONFLICT (argument_uri) DO NOTHING
+      `,
+      [uri, _peerReviewQuorum(), createdAt],
+    );
+  }
 }
 
 /**
@@ -594,7 +623,7 @@ export async function refreshLikeCount(clientOrPool, subjectUri) {
  * - ON CONFLICT (uri): do nothing (ignore re-indexing of the same record)
  * - ON CONFLICT (argument_uri, invitee_did): do nothing (one decision per user per argument, forever)
  */
-export async function upsertReviewInvitationDb(clientOrPool, params) {
+export async function upsertPeerreviewInvitationDb(clientOrPool, params) {
   const { uri, cid, record } = params;
 
   const argumentUri = record.argument ?? null;
@@ -605,7 +634,7 @@ export async function upsertReviewInvitationDb(clientOrPool, params) {
   await dbQuery(
     clientOrPool,
     `
-    INSERT INTO app_review_invitations
+    INSERT INTO app_peerreview_invitations
       (uri, cid, argument_uri, invitee_did, invited, created_at)
     VALUES
       ($1,  $2,  $3,           $4,          $5,      $6)
@@ -618,15 +647,15 @@ export async function upsertReviewInvitationDb(clientOrPool, params) {
 /**
  * Ignore deletion of review invitations — decisions are immutable.
  */
-export async function markReviewInvitationDeleted(uri) {
+export async function markPeerreviewInvitationDeleted(uri) {
   console.log(`Ignoring delete for review invitation (immutable): ${uri}`);
 }
 
 /**
- * Upsert a review response into app_review_responses.
- * After indexing, runs a quorum check and updates review_status if a decision is reached.
+ * Upsert a review response into app_peerreview_responses.
+ * After indexing, runs a quorum check and updates peerreview_status if a decision is reached.
  */
-export async function upsertReviewResponseDb(clientOrPool, params) {
+export async function upsertPeerreviewResponseDb(clientOrPool, params) {
   const { uri, cid, record } = params;
 
   const argumentUri = record.argument ?? null;
@@ -639,7 +668,7 @@ export async function upsertReviewResponseDb(clientOrPool, params) {
   const result = await dbQuery(
     clientOrPool,
     `
-    INSERT INTO app_review_responses
+    INSERT INTO app_peerreview_responses
       (uri, cid, argument_uri, reviewer_did, criteria, vote, justification, created_at)
     VALUES
       ($1,  $2,  $3,           $4,           $5,       $6,   $7,            $8)
@@ -666,34 +695,57 @@ export async function upsertReviewResponseDb(clientOrPool, params) {
 }
 
 /**
- * Decide a peer review once QUORUM valid responses have been collected.
+ * Per-response post-index hook: if the response just landed completes the
+ * review (either by reaching quorum or by mathematically locking the outcome),
+ * transition the review from 'open' to 'provisional_closed' and open a grace
+ * window. The final outcome (approved/rejected) is computed later by
+ * finalizeExpiredPeerReviews when grace_until expires — the goal of the
+ * grace window is to let already-checked-in reviewers finish without losing
+ * work.
  *
- * Semantics:
- *  - Closure happens only when exactly QUORUM responses (joined to an
- *    invitation with invited=true) have been recorded. Before that the
- *    argument stays 'preliminary' — partial leads don't close the ballot.
- *  - approvals > rejections → approved
- *  - approvals ≤ rejections (incl. ties) → rejected
- *    (a tie counts as rejection: the proposal must earn its acceptance)
- *  - Late votes (after QUORUM was reached) are ignored: AppView blocks them
- *    at submit time, and the UPDATE here is guarded with
- *    review_status='preliminary' so any race condition can't flip the result.
+ * Three closure triggers (any one suffices):
+ *   - quorum reached:  total >= quorum
+ *   - locked approve:  approvals  > rejections + remaining
+ *   - locked reject:   rejections >= approvals + remaining
+ * where remaining = max(0, quorum - total). At/past quorum, remaining = 0 and
+ * the locked-conditions reduce to the regular at-quorum decision (one of them
+ * is always true). Locks are "locked at trigger time" — already-checked-in
+ * reviewers can still submit during the grace window and may even flip the
+ * outcome math, which is by design.
+ *
+ * Only counts responses backed by an issued invitation (invited=true) for the
+ * same (argument, reviewer). Defense in depth: stray responses without a
+ * matching invitation must not sway the quorum.
+ *
+ * The UPDATE is guarded with state='open' so concurrent closure-triggering
+ * submits both observe a consistent transition: whichever commits second is a
+ * no-op for the state column, and grace_until is overwritten with a near-
+ * identical value (harmless). Over-counted responses (Q+1, Q+2, …) are
+ * intentional and welcome — more data, no loss.
  */
 async function checkReviewQuorum(clientOrPool, argumentUri) {
-  const quorum = parseInt(process.env.APPVIEW_PEER_REVIEW_QUORUM || "10", 10);
+  const graceSeconds = _peerReviewGraceSeconds();
 
-  // Only count responses backed by an issued invitation (invited=true) for the
-  // same (argument, reviewer). Defense in depth: even if a response record ever
-  // reaches the DB without a matching invitation, it must not sway the quorum.
+  // Quorum is per-review: app_peerreviews.quorum captures the env default at
+  // row creation. Reading the column (not the env) here makes future per-ballot
+  // tuning take effect and implicitly skips already-closed reviews.
+  const pr = await dbQuery(
+    clientOrPool,
+    `SELECT quorum FROM app_peerreviews WHERE argument_uri = $1 AND state = 'open'`,
+    [argumentUri],
+  );
+  if (!pr.rows.length) return;
+  const quorum = parseInt(pr.rows[0].quorum, 10);
+
   const counts = await dbQuery(
     clientOrPool,
     `
     SELECT
       COUNT(*) FILTER (WHERE rr.vote = 'APPROVE') AS approvals,
-      COUNT(*) FILTER (WHERE rr.vote = 'REJECT') AS rejections,
+      COUNT(*) FILTER (WHERE rr.vote = 'REJECT')  AS rejections,
       COUNT(*) AS total
-    FROM app_review_responses rr
-    JOIN app_review_invitations ri
+    FROM app_peerreview_responses rr
+    JOIN app_peerreview_invitations ri
       ON ri.argument_uri = rr.argument_uri
      AND ri.invitee_did  = rr.reviewer_did
      AND ri.invited      = true
@@ -702,42 +754,108 @@ async function checkReviewQuorum(clientOrPool, argumentUri) {
     [argumentUri],
   );
 
-  const row = counts.rows[0];
-  if (!row) return;
+  const row = counts.rows[0] || {};
+  const approvals = parseInt(row.approvals ?? 0, 10);
+  const rejections = parseInt(row.rejections ?? 0, 10);
+  const total = parseInt(row.total ?? 0, 10);
 
-  const approvals = parseInt(row.approvals, 10);
-  const rejections = parseInt(row.rejections, 10);
-  const total = parseInt(row.total, 10);
+  const remaining = Math.max(0, quorum - total);
+  const quorumReached = total >= quorum;
+  const lockedApprove = approvals > rejections + remaining;
+  const lockedReject = rejections >= approvals + remaining;
 
-  // Wait until the full QUORUM has voted before deciding.
-  if (total < quorum) return;
+  let reason;
+  if (quorumReached) reason = "quorum";
+  else if (lockedApprove) reason = "locked_approve";
+  else if (lockedReject) reason = "locked_reject";
+  else return;
 
-  if (approvals > rejections) {
-    await dbQuery(
-      clientOrPool,
-      `UPDATE app_arguments SET review_status = 'approved', indexed_at = now()
-       WHERE uri = $1 AND review_status = 'preliminary'`,
-      [argumentUri],
-    );
+  const upd = await dbQuery(
+    clientOrPool,
+    `UPDATE app_peerreviews
+        SET state                 = 'provisional_closed',
+            provisional_closed_at = now(),
+            grace_until           = now() + ($2 || ' seconds')::interval
+      WHERE argument_uri = $1 AND state = 'open'
+      RETURNING grace_until`,
+    [argumentUri, String(graceSeconds)],
+  );
+
+  if (upd.rows.length) {
     console.log(
-      `Argument approved by majority (${approvals}/${total}): ${argumentUri}`,
-    );
-  } else {
-    await dbQuery(
-      clientOrPool,
-      `UPDATE app_arguments SET review_status = 'rejected', indexed_at = now()
-       WHERE uri = $1 AND review_status = 'preliminary'`,
-      [argumentUri],
-    );
-    console.log(
-      `Argument rejected by majority (${rejections}/${total}, ties=rejected): ${argumentUri}`,
+      `Peer-review provisional close [${reason}] (A:${approvals} R:${rejections} total:${total}/${quorum}, grace ${graceSeconds}s): ${argumentUri}`,
     );
   }
 }
 
 /**
+ * Finaliser: promote provisional_closed → closed for all reviews whose grace
+ * window has expired, and compute the terminal outcome on app_arguments.
+ * Called by the per-minute peerreview-finaliser cronjob.
+ *
+ * Single round-trip per expired review: one UPDATE to close, one parameterised
+ * UPDATE on app_arguments per closed row. Outcome is approvals > rejections;
+ * ties count as rejected (the proposal must earn its acceptance).
+ *
+ * Returns the count of finalised reviews for logging.
+ */
+export async function finalizeExpiredPeerReviews(clientOrPool = pool) {
+  const expired = await dbQuery(
+    clientOrPool,
+    `UPDATE app_peerreviews
+        SET state = 'closed', closed_at = now()
+      WHERE state = 'provisional_closed' AND grace_until < now()
+      RETURNING argument_uri`,
+  );
+
+  let finalised = 0;
+  for (const r of expired.rows) {
+    const argumentUri = r.argument_uri;
+    const counts = await dbQuery(
+      clientOrPool,
+      `
+      SELECT
+        COUNT(*) FILTER (WHERE rr.vote = 'APPROVE') AS approvals,
+        COUNT(*) FILTER (WHERE rr.vote = 'REJECT') AS rejections,
+        COUNT(*) AS total
+      FROM app_peerreview_responses rr
+      JOIN app_peerreview_invitations ri
+        ON ri.argument_uri = rr.argument_uri
+       AND ri.invitee_did  = rr.reviewer_did
+       AND ri.invited      = true
+      WHERE rr.argument_uri = $1
+      `,
+      [argumentUri],
+    );
+
+    const row = counts.rows[0] || {};
+    const approvals = parseInt(row.approvals ?? 0, 10);
+    const rejections = parseInt(row.rejections ?? 0, 10);
+    const total = parseInt(row.total ?? 0, 10);
+    const outcome = approvals > rejections ? "approved" : "rejected";
+
+    // Guard on peerreview_status='preliminary' so we never demote a manually-set
+    // terminal state. Same defensive pattern the old quorum check used.
+    await dbQuery(
+      clientOrPool,
+      `UPDATE app_arguments
+          SET peerreview_status = $2, indexed_at = now()
+        WHERE uri = $1 AND peerreview_status = 'preliminary'`,
+      [argumentUri, outcome],
+    );
+
+    console.log(
+      `Peer-review finalised ${outcome} (${approvals}/${rejections}, total=${total}): ${argumentUri}`,
+    );
+    finalised += 1;
+  }
+
+  return { finalised };
+}
+
+/**
  * Ignore deletion of review responses — decisions are immutable.
  */
-export async function markReviewResponseDeleted(uri) {
+export async function markPeerreviewResponseDeleted(uri) {
   console.log(`Ignoring delete for review response (immutable): ${uri}`);
 }

@@ -7,8 +7,8 @@
 BEGIN;
 
 -- 1. Delete review data (references argument URIs)
-DELETE FROM app_review_responses;
-DELETE FROM app_review_invitations;
+DELETE FROM app_peerreview_responses;
+DELETE FROM app_peerreview_invitations;
 
 -- 2. Delete likes that target arguments or comments
 DELETE FROM app_likes

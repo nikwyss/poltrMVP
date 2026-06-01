@@ -169,7 +169,7 @@ type ArgumentInfo = {
   type?: "PRO" | "CONTRA";
   likeCount?: number;
   commentCount?: number;
-  reviewStatus?: string;
+  peerreviewStatus?: string;
   ballotRkey: string;
 };
 
@@ -326,7 +326,7 @@ export default function CommentDetailPage({
       type={argument.type}
       likeCount={argument.likeCount}
       commentCount={argument.commentCount}
-      reviewStatus={argument.reviewStatus}
+      peerreviewStatus={argument.peerreviewStatus}
       clampBody
       onClick={handleNavigateToArgument}
     />

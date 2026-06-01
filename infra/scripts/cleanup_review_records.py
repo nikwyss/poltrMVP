@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Delete all app.ch.poltr.review.invitation and app.ch.poltr.review.response
+Delete all app.ch.poltr.peerreview.invitation and app.ch.poltr.peerreview.response
 records from the governance PDS repo, so they can be re-imported with createRecord.
 
 Also clears the corresponding DB tables so the indexer re-indexes cleanly.
@@ -26,8 +26,8 @@ GOV_DID = os.getenv("GOV_DID", "did:plc:3ch7iwf6od4szklpolupbv7o")
 GOV_PASSWORD = os.getenv("GOV_PASSWORD", "TempPass12345678")
 
 COLLECTIONS = [
-    "app.ch.poltr.review.invitation",
-    "app.ch.poltr.review.response",
+    "app.ch.poltr.peerreview.invitation",
+    "app.ch.poltr.peerreview.response",
 ]
 
 

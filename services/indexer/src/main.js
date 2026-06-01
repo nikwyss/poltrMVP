@@ -2,7 +2,7 @@ import "dotenv/config";
 import process from "node:process";
 import { Firehose, MemoryRunner } from "@bluesky-social/sync";
 import { IdResolver } from "@bluesky-social/identity";
-import { closePool } from "./db.js";
+import { closePool, finalizeExpiredPeerReviews } from "./db.js";
 import Fastify from "fastify";
 import { getCursor, setCursor } from "./indexer_cursor.js";
 import { runBackfill } from "./backfill_handler.js";
@@ -157,6 +157,29 @@ async function startAdminServer() {
 
   app.post("/backfill", backfillHandler);
   app.get("/backfill", backfillHandler);
+
+  // Peer-review finaliser. Triggered by the per-minute peerreview-finalize
+  // CronJob in infra/kube/cronjobs.yaml. Promotes provisional_closed reviews
+  // whose grace window has expired to closed, and writes the terminal outcome
+  // onto app_arguments.review_status. Idempotent and cheap when nothing is
+  // expired (single indexed query).
+  const peerreviewFinalizeHandler = async (_req, reply) => {
+    try {
+      const result = await finalizeExpiredPeerReviews();
+      if (result.finalised > 0) {
+        console.log(
+          `Peer-review finaliser closed ${result.finalised} review(s)`,
+        );
+      }
+      return reply.code(200).send({ ok: true, ...result });
+    } catch (err) {
+      console.error("Peer-review finalise error", err);
+      return reply.code(500).send({ ok: false, error: String(err) });
+    }
+  };
+  app.post("/peerreview-finalize", peerreviewFinalizeHandler);
+  app.get("/peerreview-finalize", peerreviewFinalizeHandler);
+
   app.get("/health", async (_req, reply) => {
     const cursor = await getCursor("firehose:subscription");
     return reply.code(200).send({

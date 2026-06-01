@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/AuthContext';
-import { getPendingReviews, getReviewCriteria, submitReview } from '@/lib/agent';
-import type { ReviewInvitation, ReviewCriterion, ReviewCriterionRating } from '@/types/ballots';
+import { getPendingPeerreviews, getPeerreviewCriteria, submitPeerreview } from '@/lib/agent';
+import type { PeerreviewInvitation, PeerreviewCriterion, PeerreviewCriterionRating } from '@/types/ballots';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -15,7 +15,7 @@ import { Spinner } from '@/components/spinner';
 import { ProContraBadge } from '@/components/pro-contra-badge';
 
 interface ReviewFormState {
-  criteria: ReviewCriterionRating[];
+  criteria: PeerreviewCriterionRating[];
   vote: 'APPROVE' | 'REJECT' | null;
   justification: string;
 }
@@ -26,8 +26,8 @@ export default function ReviewDashboard() {
   const t = useTranslations('review');
   const tc = useTranslations('common');
 
-  const [invitations, setInvitations] = useState<ReviewInvitation[]>([]);
-  const [criteriaTemplate, setCriteriaTemplate] = useState<ReviewCriterion[]>([]);
+  const [invitations, setInvitations] = useState<PeerreviewInvitation[]>([]);
+  const [criteriaTemplate, setCriteriaTemplate] = useState<PeerreviewCriterion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [formStates, setFormStates] = useState<Record<string, ReviewFormState>>({});
@@ -49,8 +49,8 @@ export default function ReviewDashboard() {
     setError('');
     try {
       const [invs, crit] = await Promise.all([
-        getPendingReviews(),
-        getReviewCriteria(),
+        getPendingPeerreviews(),
+        getPeerreviewCriteria(),
       ]);
       setInvitations(invs);
       setCriteriaTemplate(crit);
@@ -110,7 +110,7 @@ export default function ReviewDashboard() {
     setSubmitting(argumentUri);
     setError('');
     try {
-      await submitReview(
+      await submitPeerreview(
         argumentUri,
         form.criteria,
         form.vote,

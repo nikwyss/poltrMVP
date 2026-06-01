@@ -83,7 +83,7 @@ export interface ArgumentWithMetadata {
   };
   likeCount?: number;
   commentCount?: number;
-  reviewStatus?: 'preliminary' | 'approved' | 'rejected';
+  peerreviewStatus?: 'preliminary' | 'approved' | 'rejected';
   indexedAt?: string;
   viewer?: {
     like?: string;
@@ -150,7 +150,7 @@ export interface ActivityItem {
     type?: 'PRO' | 'CONTRA';
     likeCount?: number;
     commentCount?: number;
-    reviewStatus?: string;
+    peerreviewStatus?: string;
   };
   comment?: {
     uri: string;
@@ -173,16 +173,16 @@ export interface ActivityItem {
   };
 }
 
-export interface ReviewCriterion {
+export interface PeerreviewCriterion {
   key: string;
   label: string;
 }
 
-export interface ReviewCriterionRating extends ReviewCriterion {
+export interface PeerreviewCriterionRating extends PeerreviewCriterion {
   rating: number;
 }
 
-export interface ReviewInvitation {
+export interface PeerreviewInvitation {
   invitationUri: string;
   argumentUri: string;
   invitedAt: string;
@@ -196,24 +196,24 @@ export interface ReviewInvitation {
   };
 }
 
-export interface ReviewResponse {
+export interface PeerreviewResponse {
   reviewerDid: string;
-  criteria: ReviewCriterionRating[];
+  criteria: PeerreviewCriterionRating[];
   vote: 'APPROVE' | 'REJECT';
   justification?: string;
   createdAt: string;
 }
 
-export interface ReviewStatus {
+export interface PeerreviewStatus {
   argumentUri: string;
-  reviewStatus: 'preliminary' | 'approved' | 'rejected';
+  peerreviewStatus: 'preliminary' | 'approved' | 'rejected';
   governanceUri?: string;
   quorum: number;
   approvals: number;
   rejections: number;
   totalReviews: number;
   invitationCount: number;
-  reviews?: ReviewResponse[];
+  reviews?: PeerreviewResponse[];
 }
 
 // BallotWithMetadata removed — Ballots are now CMS REST content (flat shape),

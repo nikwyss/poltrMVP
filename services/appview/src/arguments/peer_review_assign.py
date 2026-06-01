@@ -17,19 +17,19 @@ Constraints:
                                          as invited=false pool entries so the
                                          same (argument, user) is never
                                          re-rolled.
-  - APPVIEW_PEER_REVIEW_QUORUM           max active invitations per argument
-                                         (default 10) — argument is full once
-                                         this many invitees with invited=true
-                                         are recorded.
   - APPVIEW_PEER_REVIEW_HOOK_THROTTLE_SECONDS minimum spacing between hook
                                          runs for the same user (default 30).
+
+Per-review quorum lives on app_peerreviews.quorum (seeded by the indexer at
+argument-creation time from APPVIEW_PEER_REVIEW_QUORUM). State='open' is the
+single signal that a review still accepts new reviewers.
 """
 
 import asyncio
 import logging
 import os
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import httpx
 
@@ -43,10 +43,6 @@ logger = logging.getLogger("peer_review_assign")
 # more. No cross-pod coordination needed because the work is idempotent (the
 # deterministic rkey + DB ON CONFLICT guards make duplicate runs safe).
 _last_check: dict[str, datetime] = {}
-
-
-def _quorum() -> int:
-    return int(os.getenv("APPVIEW_PEER_REVIEW_QUORUM", "10"))
 
 
 def _daily_limit() -> int:
@@ -89,7 +85,6 @@ async def maybe_assign_reviews_for_user(did: str) -> None:
 
 async def _assign(did: str) -> None:
     daily_limit = _daily_limit()
-    quorum = _quorum()
     probability = _invite_probability()
 
     pool = await get_pool()
@@ -97,7 +92,7 @@ async def _assign(did: str) -> None:
     async with pool.acquire() as conn:
         recent_active = await conn.fetchval(
             """
-            SELECT COUNT(*) FROM app_review_invitations
+            SELECT COUNT(*) FROM app_peerreview_invitations
             WHERE invitee_did = $1
               AND invited = true
               AND created_at > NOW() - INTERVAL '24 hours'
@@ -108,28 +103,32 @@ async def _assign(did: str) -> None:
     if slots_left <= 0:
         return
 
+    # Candidate filter:
+    #   * pr.state='open'   — review still accepts reviewers; implicitly limits
+    #                         to user-submitted arguments (curated content has no
+    #                         app_peerreviews row, so the JOIN excludes them)
+    #   * author_did != me  — not your own argument
+    #   * NOT EXISTS (...)  — you haven't been rolled for this arg before
+    # Quorum is intentionally NOT a per-argument invitation cap: it only gates
+    # the closure trigger. The per-user DAILY_LIMIT above + the probability roll
+    # below are what bound the invitation rate.
     async with pool.acquire() as conn:
         candidates = await conn.fetch(
             """
             SELECT a.uri, a.did AS gov_did
-            FROM app_arguments a
-            WHERE a.review_status = 'preliminary'
+            FROM app_peerreviews pr
+            JOIN app_arguments a ON a.uri = pr.argument_uri
+            WHERE pr.state = 'open'
               AND NOT a.deleted
-              AND a.source_type = 'user'
               AND a.author_did != $1
               AND NOT EXISTS (
-                SELECT 1 FROM app_review_invitations ri
+                SELECT 1 FROM app_peerreview_invitations ri
                 WHERE ri.argument_uri = a.uri AND ri.invitee_did = $1
               )
-              AND (
-                SELECT COUNT(*) FROM app_review_invitations ri
-                WHERE ri.argument_uri = a.uri AND ri.invited = true
-              ) < $2
             ORDER BY a.created_at ASC
             LIMIT 100
             """,
             did,
-            quorum,
         )
 
     if not candidates:
@@ -146,7 +145,7 @@ async def _assign(did: str) -> None:
             rkey = compose_review_rkey(argument_uri, did)
             created_at = datetime.now(timezone.utc)
             record = {
-                "$type": "app.ch.poltr.review.invitation",
+                "$type": "app.ch.poltr.peerreview.invitation",
                 "argument": argument_uri,
                 "invitee": did,
                 "invited": selected,
@@ -157,7 +156,7 @@ async def _assign(did: str) -> None:
                 result = await create_governance_record(
                     client,
                     gov_did,
-                    "app.ch.poltr.review.invitation",
+                    "app.ch.poltr.peerreview.invitation",
                     record,
                     rkey=rkey,
                 )
@@ -167,7 +166,7 @@ async def _assign(did: str) -> None:
                 async with pool.acquire() as conn:
                     await conn.execute(
                         """
-                        INSERT INTO app_review_invitations
+                        INSERT INTO app_peerreview_invitations
                           (uri, cid, argument_uri, invitee_did, invited, created_at)
                         VALUES ($1, $2, $3, $4, $5, $6)
                         ON CONFLICT DO NOTHING

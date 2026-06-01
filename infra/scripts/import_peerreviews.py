@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Import peer-review data from the Demokratiefabrik xlsx dumps into AT Protocol
-as app.ch.poltr.review.invitation and app.ch.poltr.review.response records.
+as app.ch.poltr.peerreview.invitation and app.ch.poltr.peerreview.response records.
 
 Reads two xlsx files:
   - content_peerreview.xlsx: 99 INSERT procedures (aggregated outcomes)
@@ -397,13 +397,13 @@ class PeerReviewImporter:
 
                 # Always create invitation
                 invitation_record = {
-                    "$type": "app.ch.poltr.review.invitation",
+                    "$type": "app.ch.poltr.peerreview.invitation",
                     "argument": argument_uri,
                     "invitee": mapped_did,
                     "createdAt": _format_datetime(prog.date_created),
                 }
 
-                if self._create_record("app.ch.poltr.review.invitation", rkey, invitation_record):
+                if self._create_record("app.ch.poltr.peerreview.invitation", rkey, invitation_record):
                     invitations_created += 1
                 else:
                     failed += 1
@@ -422,7 +422,7 @@ class PeerReviewImporter:
                         })
 
                     response_record = {
-                        "$type": "app.ch.poltr.review.response",
+                        "$type": "app.ch.poltr.peerreview.response",
                         "argument": argument_uri,
                         "reviewer": mapped_did,
                         "criteria": criteria,
@@ -430,7 +430,7 @@ class PeerReviewImporter:
                         "createdAt": _format_datetime(prog.date_responded),
                     }
 
-                    if self._create_record("app.ch.poltr.review.response", rkey, response_record):
+                    if self._create_record("app.ch.poltr.peerreview.response", rkey, response_record):
                         responses_created += 1
                     else:
                         failed += 1

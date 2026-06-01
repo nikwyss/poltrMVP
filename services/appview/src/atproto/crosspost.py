@@ -38,7 +38,7 @@ async def _crosspost_arguments(client: httpx.AsyncClient):
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT a.uri, a.did AS gov_did, a.title, a.body, a.type, a.review_status
+            SELECT a.uri, a.did AS gov_did, a.title, a.body, a.type, a.peerreview_status
             FROM app_arguments a
             WHERE a.bsky_post_uri IS NULL AND NOT a.deleted
             ORDER BY a.created_at ASC
@@ -60,7 +60,7 @@ async def _crosspost_arguments(client: httpx.AsyncClient):
             title = row["title"] or ""
             body = row["body"] or ""
 
-            if peer_review_on and row["review_status"] == "preliminary":
+            if peer_review_on and row["peerreview_status"] == "preliminary":
                 text = f"[Preliminary] [{prefix}] {title}\n\n{body}"[:300]
             else:
                 text = f"[{prefix}] {title}\n\n{body}"[:300]

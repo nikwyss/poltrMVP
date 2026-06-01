@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { ProContraBadge, ReviewStatusBadge } from "@/components/pro-contra-badge";
+import { ProContraBadge, PeerreviewStatusBadge } from "@/components/pro-contra-badge";
 
 /**
  * Argument shown as a left-accent block: title + PRO/CONTRA badge, optional
@@ -15,7 +15,7 @@ export function ArgumentSummary({
   type,
   likeCount,
   commentCount,
-  reviewStatus,
+  peerreviewStatus,
   onClick,
   clampBody = false,
   titleClassName = "text-base",
@@ -25,7 +25,7 @@ export function ArgumentSummary({
   type?: "PRO" | "CONTRA";
   likeCount?: number;
   commentCount?: number;
-  reviewStatus?: string;
+  peerreviewStatus?: string;
   onClick?: () => void;
   clampBody?: boolean;
   titleClassName?: string;
@@ -78,7 +78,7 @@ export function ArgumentSummary({
             {"💬"} {commentCount}
           </span>
         )}
-        <ReviewStatusBadge status={reviewStatus} />
+        <PeerreviewStatusBadge status={peerreviewStatus} />
       </div>
     </div>
   );

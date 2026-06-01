@@ -19,7 +19,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import {
   ProContraBadge,
-  ReviewStatusBadge,
+  PeerreviewStatusBadge,
   OfficialBadge,
   isOfficialArgument,
 } from "@/components/pro-contra-badge";
@@ -457,7 +457,7 @@ export default function ArgumentDetailPage({
                   {isOfficial ? (
                     <OfficialBadge />
                   ) : (
-                    <ReviewStatusBadge status={argument.reviewStatus} />
+                    <PeerreviewStatusBadge status={argument.peerreviewStatus} />
                   )}
                 </div>
               </div>
@@ -558,7 +558,7 @@ export default function ArgumentDetailPage({
                 {isOfficial ? (
                   <OfficialBadge />
                 ) : (
-                  <ReviewStatusBadge status={argument.reviewStatus} />
+                  <PeerreviewStatusBadge status={argument.peerreviewStatus} />
                 )}
               </div>
             </CardContent>
