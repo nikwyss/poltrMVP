@@ -1,0 +1,195 @@
+"""
+On-demand peer-review assignment, triggered by user activity (auth middleware).
+
+Replaces the legacy background-worker model: instead of periodically polling
+preliminary arguments and inviting eligible users, we wait for each user to
+make an authenticated request and decide *then* whether they get new review
+invitations. Inactive users never get assigned — their slots stay open for
+active users to fill.
+
+Constraints:
+  - APPVIEW_PEER_REVIEW_DAILY_LIMIT      max new active invitations per user
+                                         in a sliding 24h window (default 3)
+  - APPVIEW_PEER_REVIEW_INVITE_PROBABILITY anti-collusion lottery: even when a
+                                         slot is free, a candidate argument is
+                                         only assigned with this probability
+                                         (default 0.35). Misses are recorded
+                                         as invited=false pool entries so the
+                                         same (argument, user) is never
+                                         re-rolled.
+  - APPVIEW_PEER_REVIEW_QUORUM           max active invitations per argument
+                                         (default 10) — argument is full once
+                                         this many invitees with invited=true
+                                         are recorded.
+  - APPVIEW_PEER_REVIEW_HOOK_THROTTLE_SECONDS minimum spacing between hook
+                                         runs for the same user (default 30).
+"""
+
+import asyncio
+import logging
+import os
+import random
+from datetime import datetime, timedelta, timezone
+
+import httpx
+
+from src.atproto.governance import compose_review_rkey, create_governance_record
+from src.core.db import get_pool
+
+logger = logging.getLogger("peer_review_assign")
+
+# In-memory cache: did -> last hook execution timestamp (UTC).
+# Lost on pod restart, which is fine: the next request just runs the hook once
+# more. No cross-pod coordination needed because the work is idempotent (the
+# deterministic rkey + DB ON CONFLICT guards make duplicate runs safe).
+_last_check: dict[str, datetime] = {}
+
+
+def _quorum() -> int:
+    return int(os.getenv("APPVIEW_PEER_REVIEW_QUORUM", "10"))
+
+
+def _daily_limit() -> int:
+    return int(os.getenv("APPVIEW_PEER_REVIEW_DAILY_LIMIT", "3"))
+
+
+def _invite_probability() -> float:
+    return float(os.getenv("APPVIEW_PEER_REVIEW_INVITE_PROBABILITY", "0.35"))
+
+
+def _throttle_seconds() -> int:
+    return int(os.getenv("APPVIEW_PEER_REVIEW_HOOK_THROTTLE_SECONDS", "30"))
+
+
+def _enabled() -> bool:
+    return os.getenv("APPVIEW_PEER_REVIEW_ENABLED", "false").lower() == "true"
+
+
+async def maybe_assign_reviews_for_user(did: str) -> None:
+    """Entry point — call once per authenticated request.
+
+    Returns quickly if disabled, throttled, or the user has reached their
+    daily limit. Otherwise writes new invitation records on the governance
+    PDS and updates the local DB synchronously.
+    """
+    if not _enabled() or not did:
+        return
+
+    now = datetime.now(timezone.utc)
+    last = _last_check.get(did)
+    if last and (now - last).total_seconds() < _throttle_seconds():
+        return
+    _last_check[did] = now
+
+    try:
+        await _assign(did)
+    except Exception as err:
+        logger.warning(f"peer_review_assign failed for {did}: {err}")
+
+
+async def _assign(did: str) -> None:
+    daily_limit = _daily_limit()
+    quorum = _quorum()
+    probability = _invite_probability()
+
+    pool = await get_pool()
+
+    async with pool.acquire() as conn:
+        recent_active = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM app_review_invitations
+            WHERE invitee_did = $1
+              AND invited = true
+              AND created_at > NOW() - INTERVAL '24 hours'
+            """,
+            did,
+        )
+    slots_left = daily_limit - int(recent_active or 0)
+    if slots_left <= 0:
+        return
+
+    async with pool.acquire() as conn:
+        candidates = await conn.fetch(
+            """
+            SELECT a.uri, a.did AS gov_did
+            FROM app_arguments a
+            WHERE a.review_status = 'preliminary'
+              AND NOT a.deleted
+              AND a.source_type = 'user'
+              AND a.author_did != $1
+              AND NOT EXISTS (
+                SELECT 1 FROM app_review_invitations ri
+                WHERE ri.argument_uri = a.uri AND ri.invitee_did = $1
+              )
+              AND (
+                SELECT COUNT(*) FROM app_review_invitations ri
+                WHERE ri.argument_uri = a.uri AND ri.invited = true
+              ) < $2
+            ORDER BY a.created_at ASC
+            LIMIT 100
+            """,
+            did,
+            quorum,
+        )
+
+    if not candidates:
+        return
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for arg in candidates:
+            if slots_left == 0:
+                break
+
+            selected = random.random() <= probability
+            argument_uri = arg["uri"]
+            gov_did = arg["gov_did"]
+            rkey = compose_review_rkey(argument_uri, did)
+            created_at = datetime.now(timezone.utc)
+            record = {
+                "$type": "app.ch.poltr.review.invitation",
+                "argument": argument_uri,
+                "invitee": did,
+                "invited": selected,
+                "createdAt": created_at.isoformat(),
+            }
+
+            try:
+                result = await create_governance_record(
+                    client,
+                    gov_did,
+                    "app.ch.poltr.review.invitation",
+                    record,
+                    rkey=rkey,
+                )
+                # Mirror the write to the local DB synchronously so the next
+                # candidate scan sees this invitation and doesn't re-roll —
+                # independent of indexer round-trip lag.
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        INSERT INTO app_review_invitations
+                          (uri, cid, argument_uri, invitee_did, invited, created_at)
+                        VALUES ($1, $2, $3, $4, $5, $6)
+                        ON CONFLICT DO NOTHING
+                        """,
+                        result.get("uri"),
+                        result.get("cid"),
+                        argument_uri,
+                        did,
+                        selected,
+                        created_at,
+                    )
+                if selected:
+                    slots_left -= 1
+                    logger.info(
+                        f"Assigned review: {did} → {argument_uri} (slots_left={slots_left})"
+                    )
+            except Exception as err:
+                logger.warning(
+                    f"Failed to write invitation for {did} on {argument_uri}: {err}"
+                )
+
+
+def fire_and_forget(did: str) -> None:
+    """Convenience helper for callers that don't want to await."""
+    asyncio.create_task(maybe_assign_reviews_for_user(did))

@@ -7,6 +7,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 import src.core.db as db
+from src.arguments.peer_review_assign import fire_and_forget as _peer_review_check
 
 
 def hash_token(token: str) -> str:
@@ -82,6 +83,11 @@ async def verify_session_token(
             if isinstance(row["user_data"], str)
             else row["user_data"]
         )
+
+        # Activity-triggered peer-review assignment (throttled internally to
+        # ~30s per user; replaces the legacy background-worker polling model).
+        # Fire-and-forget so the request response isn't blocked.
+        _peer_review_check(row["did"])
 
         return TSession(
             **{

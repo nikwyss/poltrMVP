@@ -666,8 +666,18 @@ export async function upsertReviewResponseDb(clientOrPool, params) {
 }
 
 /**
- * Check if a peer-review quorum has been reached for an argument.
- * If so, update review_status to 'approved' or 'rejected'.
+ * Decide a peer review once QUORUM valid responses have been collected.
+ *
+ * Semantics:
+ *  - Closure happens only when exactly QUORUM responses (joined to an
+ *    invitation with invited=true) have been recorded. Before that the
+ *    argument stays 'preliminary' — partial leads don't close the ballot.
+ *  - approvals > rejections → approved
+ *  - approvals ≤ rejections (incl. ties) → rejected
+ *    (a tie counts as rejection: the proposal must earn its acceptance)
+ *  - Late votes (after QUORUM was reached) are ignored: AppView blocks them
+ *    at submit time, and the UPDATE here is guarded with
+ *    review_status='preliminary' so any race condition can't flip the result.
  */
 async function checkReviewQuorum(clientOrPool, argumentUri) {
   const quorum = parseInt(process.env.APPVIEW_PEER_REVIEW_QUORUM || "10", 10);
@@ -696,26 +706,32 @@ async function checkReviewQuorum(clientOrPool, argumentUri) {
   if (!row) return;
 
   const approvals = parseInt(row.approvals, 10);
+  const rejections = parseInt(row.rejections, 10);
   const total = parseInt(row.total, 10);
-  const remaining = quorum - total;
-  const threshold = quorum / 2;
 
-  if (approvals > threshold) {
+  // Wait until the full QUORUM has voted before deciding.
+  if (total < quorum) return;
+
+  if (approvals > rejections) {
     await dbQuery(
       clientOrPool,
       `UPDATE app_arguments SET review_status = 'approved', indexed_at = now()
        WHERE uri = $1 AND review_status = 'preliminary'`,
       [argumentUri],
     );
-    console.log(`Argument approved by quorum: ${argumentUri}`);
-  } else if (approvals + remaining <= threshold) {
+    console.log(
+      `Argument approved by majority (${approvals}/${total}): ${argumentUri}`,
+    );
+  } else {
     await dbQuery(
       clientOrPool,
       `UPDATE app_arguments SET review_status = 'rejected', indexed_at = now()
        WHERE uri = $1 AND review_status = 'preliminary'`,
       [argumentUri],
     );
-    console.log(`Argument rejected by quorum: ${argumentUri}`);
+    console.log(
+      `Argument rejected by majority (${rejections}/${total}, ties=rejected): ${argumentUri}`,
+    );
   }
 }
 

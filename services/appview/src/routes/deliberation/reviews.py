@@ -190,6 +190,30 @@ async def submit_review(
                 },
             )
 
+        # Block late votes: once QUORUM valid responses are recorded, the
+        # peer-review is closed and the indexer locks in approved/rejected.
+        # Mirrors the closure semantic in indexer/src/db.js::checkReviewQuorum.
+        quorum = int(os.getenv("APPVIEW_PEER_REVIEW_QUORUM", "10"))
+        total = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM app_review_responses rr
+            JOIN app_review_invitations ri
+              ON ri.argument_uri = rr.argument_uri
+             AND ri.invitee_did  = rr.reviewer_did
+             AND ri.invited      = true
+            WHERE rr.argument_uri = $1
+            """,
+            argument_uri,
+        )
+        if total is not None and total >= quorum:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error": "quorum_reached",
+                    "message": "Peer review is closed — quorum reached",
+                },
+            )
+
     # Look up governance DID for this argument's ballot
     async with pool.acquire() as conn:
         gov_did = await conn.fetchval(

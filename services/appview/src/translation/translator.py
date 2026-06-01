@@ -12,7 +12,7 @@ DB queries, batching, governance-session loading, PDS write path, status
 flips — is wired so the loop is testable end-to-end with manual stubs.
 
 Controlled by APPVIEW_TRANSLATE_ENABLED (checked each iteration).
-Pattern mirrors src/arguments/peer_review.py.
+Asyncio poll-loop pattern (background task started in core/fastapi.py).
 """
 
 import asyncio
