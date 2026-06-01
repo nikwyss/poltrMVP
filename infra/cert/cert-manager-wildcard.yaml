@@ -1,18 +1,21 @@
-# Wildcard Certificate Setup for *.poltr.info
+# Wildcard / DNS-01 Certificate Setup
+#
+# Full documentation: see doc/TLS_CERTIFICATES.md
 #
 # Prerequisites:
-# 1. Install Infomaniak webhook:
-#    helm repo add infomaniak https://infomaniak.github.io/cert-manager-webhook-infomaniak
-#    helm repo update
-#    helm install cert-manager-webhook-infomaniak infomaniak/cert-manager-webhook-infomaniak -n cert-manager
+# 1. Install Infomaniak webhook (Helm chart was discontinued — use the rendered
+#    manifest published with each release):
+#    kubectl apply -f https://github.com/Infomaniak/cert-manager-webhook-infomaniak/releases/download/v0.3.1/rendered-manifest.yaml
 #
 # 2. Create API token at: https://manager.infomaniak.com/v3/profile/api-tokens
-#    (needs DNS Zone permission)
+#    Scope: "Domain" (read+write on DNS zones)
 #
-# 3. Create secret (replace YOUR_TOKEN):
-#    kubectl create secret generic infomaniak-api-token \
+# 3. Create secret with the webhook's expected name — the RBAC Role shipped by
+#    the webhook is scoped to exactly this name; renaming it will yield
+#    "secret … not found" at runtime.
+#    kubectl create secret generic infomaniak-api-credentials \
 #      --namespace cert-manager \
-#      --from-literal=api-token=YOUR_TOKEN
+#      --from-literal=api-token='YOUR_TOKEN'
 #
 # 4. Apply this file:
 #    kubectl apply -f infra/cert/cert-manager-wildcard.yaml
@@ -34,7 +37,7 @@ spec:
             solverName: infomaniak
             config:
               apiTokenSecretRef:
-                name: infomaniak-api-token
+                name: infomaniak-api-credentials
                 key: api-token
 ---
 # Optional: Explicitly request the wildcard certificate

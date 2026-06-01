@@ -97,7 +97,7 @@ async def list_activity(
                 NULL::int AS parent_like_count,
                 NULL::int AS parent_reply_count
             FROM app_arguments a
-            WHERE a.ballot_rkey = $1 AND NOT a.deleted AND a.review_status != 'rejected'
+            WHERE a.ballot_rkey = $1 AND NOT a.deleted
 
             UNION ALL
 
@@ -125,10 +125,11 @@ async def list_activity(
                 NULL::int AS parent_like_count,
                 NULL::int AS parent_reply_count
             FROM app_arguments a
-            -- "Community-bestätigt"-Meilenstein nur für User-Argumente, die das
-            -- Begutachtungsverfahren durchlaufen haben.
+            -- "Community-bestätigt"- und "Community-verworfen"-Meilensteine nur
+            -- für User-Argumente, die das Begutachtungsverfahren durchlaufen haben.
             WHERE a.ballot_rkey = $1 AND NOT a.deleted
-              AND a.review_status = 'approved' AND a.source_type = 'user'
+              AND a.review_status IN ('approved', 'rejected')
+              AND a.source_type = 'user'
 
             UNION ALL
 

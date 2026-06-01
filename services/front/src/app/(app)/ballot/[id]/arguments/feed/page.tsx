@@ -190,16 +190,24 @@ function ArgumentHeader({
   title,
   type,
   approved,
+  rejected,
 }: {
   title: string;
   type?: "PRO" | "CONTRA";
   approved?: boolean;
+  rejected?: boolean;
 }) {
   const isPro = type === "PRO";
   return (
     <div className="px-4 pt-1.5 pb-0 flex items-center gap-2">
       {approved && (
         <span className="text-sm leading-none shrink-0">&#9989;</span>
+      )}
+      {rejected && (
+        <span
+          aria-hidden
+          className="inline-block w-2 h-2 rounded-full shrink-0 bg-red-400/70"
+        />
       )}
       <span className="text-xs font-semibold flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground">
         {title}
@@ -472,6 +480,7 @@ function NewArgumentActivityCard({ item, onNavigate }: ActivityCardProps) {
 function MilestoneActivityCard({ item, onNavigate }: ActivityCardProps) {
   const t = useTranslations("feed");
   const unseen = !item.viewer?.seen;
+  const isRejected = item.argument.reviewStatus === "rejected";
   return (
     <div
       onClick={() => onNavigate(item)}
@@ -480,13 +489,20 @@ function MilestoneActivityCard({ item, onNavigate }: ActivityCardProps) {
       <ArgumentHeader
         title={item.argument.title}
         type={item.argument.type}
-        approved
+        approved={!isRejected}
+        rejected={isRejected}
       />
       <div className="px-4 py-0 flex items-center gap-3">
         <div className="w-10 shrink-0" />
         <div className="flex-1 flex items-center gap-3">
-          <span className="text-xs font-semibold text-green-800">
-            {"\ud83c\udf89"} {t("communityApproved")}
+          <span
+            className={`text-xs font-semibold ${
+              isRejected ? "text-red-700/70" : "text-green-800"
+            }`}
+          >
+            {isRejected
+              ? t("communityRejected")
+              : `\ud83c\udf89 ${t("communityApproved")}`}
           </span>
         </div>
         <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">

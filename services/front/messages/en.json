@@ -173,6 +173,7 @@
     "replyingTo": "Replying to {name}",
     "viewFullThread": "View full thread",
     "communityApproved": "Community approved",
+    "communityRejected": "Community rejected",
     "topic": "Topic:",
     "voteDate": "Vote Date:",
     "ref": "Ref:",

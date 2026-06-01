@@ -173,9 +173,9 @@ async def list_arguments(
         params.append(source)
         source_filter = f"AND a.source_type = ${len(params)}"
 
-    # Filter: when peer review is enabled, show approved + preliminary;
-    # show rejected only to the author. Curated content (official/organization)
-    # bypasses the review filter entirely. When peer review is disabled, show all.
+    # Peer-review filter: even rejected arguments are shown to everyone — the
+    # frontend renders a distinct red "rejected" badge so they are visually
+    # marked instead of hidden. When peer review is disabled, show all.
     if viewer_did:
         params.append(viewer_did)
         viewer_param = f"${len(params)}"
@@ -190,23 +190,9 @@ async def list_arguments(
                 WHERE subject_uri = a.uri AND did = {viewer_param} AND NOT deleted
                 LIMIT 1
             ) AS viewer_preference"""
-        if peer_review_on:
-            review_filter = (
-                f"AND (a.source_type IN ('official','organization') "
-                f"     OR a.review_status IN ('approved', 'preliminary') "
-                f"     OR a.author_did = {viewer_param})"
-            )
-        else:
-            review_filter = ""
     else:
         viewer_select = ",\n            NULL AS viewer_like,\n            NULL AS viewer_preference"
-        if peer_review_on:
-            review_filter = (
-                "AND (a.source_type IN ('official','organization') "
-                "     OR a.review_status IN ('approved', 'preliminary'))"
-            )
-        else:
-            review_filter = ""
+    review_filter = ""
 
     # Sort order. Explicit sorts run in SQL; the default ("random") is a stable
     # per-user shuffle applied in Python (see below) so each user gets their own
