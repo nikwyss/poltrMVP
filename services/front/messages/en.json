@@ -24,6 +24,12 @@
     "close": "Close",
     "backToArgument": "Back to argument",
     "backToPost": "Back to post",
+    "backToProfile": "Back to profile",
+    "backToPeerReview": "Back to peer review",
+    "overlayTitleArgument": "Argument",
+    "overlayTitleComment": "Comment",
+    "overlayTitleProfile": "Profile",
+    "overlayTitlePeerReview": "Peer review",
     "cancel": "Cancel"
   },
   "nav": {

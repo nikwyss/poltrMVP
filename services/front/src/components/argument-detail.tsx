@@ -5,7 +5,6 @@ import { useRouter, useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import { getArgument } from "@/lib/agent";
-import { useScrollRestore, smartBack } from "@/lib/scrollRestore";
 import { buildCommentMap, rootComments } from "@/lib/commentThread";
 import { useCommentThread } from "@/hooks/useCommentThread";
 import { Separator } from "@/components/ui/separator";
@@ -14,11 +13,9 @@ import type {
   CommentWithMetadata,
 } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import {
-  ProContraBadge,
   PeerreviewStatusBadge,
   OfficialBadge,
   isOfficialArgument,
@@ -65,6 +62,7 @@ function CommentNode({
   return (
     <div style={{ paddingLeft: depth > 0 ? indent : 0 }}>
       <div
+        data-overlay-anchor={comment.uri}
         onClick={() => onNavigate(comment.uri)}
         className="flex gap-2 pt-2.5 pb-1.5 cursor-pointer"
         style={{
@@ -105,31 +103,39 @@ function CommentNode({
 }
 
 // ---------------------------------------------------------------------------
-// Main page
+// Detail component — rendered exclusively inside the overlay (the previous
+// standalone `/ballot/X/arguments/Y` route was removed).
+//
+// `ballotRkey` is read from URL params via `useParams()`. That works while the
+// overlay is opened from a `/ballot/[id]/…` route; opening this overlay from
+// elsewhere (e.g. global notification list) would require threading ballotRkey
+// through the OverlayEntry — future work.
 // ---------------------------------------------------------------------------
 
-export default function ArgumentDetailPage({
-  isOverlay = false,
+export function ArgumentDetail({
   onClose,
-  argRkeyOverride,
+  argRkey,
   onNavigateToComment,
   onRated,
   backLabel,
+  registerScrollContainer,
 }: {
-  isOverlay?: boolean;
-  onClose?: () => void;
-  argRkeyOverride?: string;
-  onNavigateToComment?: (uri: string) => void;
+  onClose: () => void;
+  argRkey: string;
+  onNavigateToComment: (uri: string) => void;
   // Called after a rating changes so a host (e.g. the booklet list) can reflect
   // it live without a refetch. `null` = rating cleared / rolled back to unrated.
   onRated?: (argUri: string, preference: number | null) => void;
-  backLabel?: string;
-} = {}) {
+  backLabel: string;
+  // Overlay host hands us a setter for *its* scroll-position tracking. We pass
+  // the element that actually scrolls (the .ov-card wrapper); the host saves
+  // and restores its scrollTop across history-navigation.
+  registerScrollContainer: (el: HTMLElement | null) => void;
+}) {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
   const ballotRkey = params.id as string;
-  const argRkey = argRkeyOverride ?? (params.argRkey as string);
   const t = useTranslations("argumentDetail");
   const tc = useTranslations("common");
   const te = useTranslations("errors");
@@ -200,16 +206,6 @@ export default function ArgumentDetailPage({
     setReplyTarget,
   ]);
 
-  const handleNavigateToComment = (uri: string) => {
-    if (onNavigateToComment) {
-      onNavigateToComment(uri);
-      return;
-    }
-    router.push(
-      `/ballot/${ballotRkey}/arguments/feed/comment?uri=${encodeURIComponent(uri)}`,
-    );
-  };
-
   // Gebündelter Netzwerk-Write (idempotent serverseitig, deterministischer rkey).
   // Das optimistische UI-Update hat `handleRateCommit` bereits angewandt; hier feuert
   // nur noch der eigentliche POST — nach RATE_DEBOUNCE_MS Ruhe mit dem letzten Wert.
@@ -274,8 +270,6 @@ export default function ArgumentDetailPage({
     </div>
   );
 
-  useScrollRestore(!isOverlay && !loading && !!argument);
-
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh] gap-3">
@@ -291,260 +285,121 @@ export default function ArgumentDetailPage({
   // Argumentfarbe (Pro/Contra) — für Karten-Balken, Badge und Slider.
   const accentColor = isPro ? "var(--pro)" : "var(--contra)";
 
-  // ── Shared comments block (used by both overlay and full-page layouts) ──────
-  const commentsBlock = (
-    <>
-      {roots.length === 0 && replyTarget !== ROOT_TARGET && (
-        <p className="text-muted-foreground text-sm m-0">{t("noComments")}</p>
-      )}
-      {roots.length > 0 &&
-        roots.map((c) => (
-          <CommentNode
-            key={c.uri}
-            comment={c}
-            depth={0}
-            onLikeToggle={toggleLike}
-            onReply={setReplyTarget}
-            onNavigate={handleNavigateToComment}
-            activeComposerUri={replyTarget}
-            renderComposer={renderComposer}
-          />
-        ))}
-
-      {/* Top-level composer / trigger */}
-      <div className={roots.length > 0 ? "pt-3 mt-3 border-t" : "pt-1"}>
-        {replyTarget === ROOT_TARGET ? (
-          renderComposer()
-        ) : (
-          <Button
-            variant="outline"
-            className="w-full justify-center"
-            onClick={() => setReplyTarget(ROOT_TARGET)}
-          >
-            💬 {t("writeComment")}
-          </Button>
-        )}
-      </div>
-    </>
-  );
-
-  // ── Overlay layout (rendered inside Dialog) ────────────────────────────────
-  if (isOverlay) {
-    return (
-      <div
-        className="ov-card"
-        style={{ borderLeft: `5px solid ${argument ? accentColor : "var(--line)"}` }}
-      >
-        {/* Karten-Optik wie im Booklet — lokal gescoped, damit das Overlay aus Feed
-            wie Booklet identisch aussieht (na-* Klassen sind dort nicht verfügbar). */}
-        <style jsx>{`
-          .ov-card {
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            background: #fff8ef;
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            overflow-y: auto;
-            box-shadow: 0 30px 70px -20px rgba(45, 35, 22, 0.45);
-          }
-          .ov-arg {
-            display: flex;
-            flex-direction: column;
-            gap: 11px;
-          }
-          .ov-arg-top {
-            display: flex;
-            align-items: center;
-            gap: 9px;
-          }
-          .ov-badge {
-            flex-shrink: 0;
-            font-size: 0.6875rem;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            padding: 3px 10px;
-            border-radius: var(--r-full, 999px);
-          }
-          .ov-badge-pro {
-            background: var(--pro-dim);
-            color: var(--pro);
-          }
-          .ov-badge-contra {
-            background: var(--contra-dim);
-            color: var(--contra);
-          }
-          .ov-arg-title {
-            margin: 0;
-            font-family: var(--font-serif), Georgia, "Times New Roman", serif;
-            font-size: 1.25rem;
-            font-weight: 600;
-            line-height: 1.25;
-            letter-spacing: -0.01em;
-            color: var(--text);
-          }
-          .ov-arg-body {
-            margin: 0;
-            font-size: 0.9375rem;
-            line-height: 1.55;
-            color: var(--text-mid);
-          }
-          .ov-arg-meta {
-            display: flex;
-            gap: 16px;
-            align-items: center;
-            flex-wrap: wrap;
-            font-size: 0.75rem;
-            color: var(--text-mid);
-          }
-        `}</style>
-
-        {/* Sticky header */}
-        <div className="sticky top-0 z-10 bg-[#fff8ef]/95 backdrop-blur-sm border-b flex items-center px-5 py-3">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <span className="text-base leading-none">←</span>
-            {backLabel ?? t("backToBallot")}
-          </button>
-        </div>
-
-        <div className="px-5 py-6 space-y-6">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                <strong>{tc("error")}:</strong> {error}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {loading && (
-            <div className="flex items-center justify-center py-16 gap-3">
-              <Spinner />
-              <span className="text-muted-foreground">
-                {t("loadingArgument")}
-              </span>
-            </div>
-          )}
-
-          {!loading && argument && (
-            <>
-              {/* Argument — gleiche Optik wie die Booklet-Karten (Badge + Serif-Titel) */}
-              <div className="ov-arg">
-                <div className="ov-arg-top">
-                  <span
-                    className={`ov-badge ov-badge-${isPro ? "pro" : "contra"}`}
-                  >
-                    {isPro ? tbk("proArgument") : tbk("contraArgument")}
-                  </span>
-                </div>
-                <h2 className="ov-arg-title">{argument.record.title}</h2>
-                {argument.record.body && (
-                  <p className="ov-arg-body">{argument.record.body}</p>
-                )}
-                <div className="ov-arg-meta">
-                  {(argument.likeCount ?? 0) > 0 && (
-                    <span>
-                      {"♡"} {argument.likeCount}
-                    </span>
-                  )}
-                  {(argument.commentCount ?? 0) > 0 && (
-                    <span>
-                      {"💬"} {argument.commentCount}
-                    </span>
-                  )}
-                  {isOfficial ? (
-                    <OfficialBadge />
-                  ) : (
-                    <PeerreviewStatusBadge status={argument.peerreviewStatus} />
-                  )}
-                </div>
-              </div>
-
-              {/* Relevanz-Bewertung */}
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
-                  {t("yourRating")}
-                </div>
-                <RelevanceRating
-                  value={relevance}
-                  onChange={setRelevance}
-                  onCommit={handleRateCommit}
-                  accent={isPro ? "pro" : "contra"}
-                />
-              </div>
-
-              <Separator />
-
-              {/* Comments */}
-              <div>
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
-                  {t("comments")}
-                  {roots.length > 0 ? ` (${roots.length})` : ""}
-                </div>
-                {commentsBlock}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Full-page layout ────────────────────────────────────────────────────────
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => smartBack(router, `/ballot/${ballotRkey}/arguments`)}
-      >
-        &larr; {t("backToBallot")}
-      </Button>
+    <div
+      ref={registerScrollContainer}
+      className="ov-card"
+      style={{ borderLeft: `5px solid ${argument ? accentColor : "var(--line)"}` }}
+    >
+      {/* Karten-Optik wie im Booklet — lokal gescoped, damit das Overlay aus Feed
+          wie Booklet identisch aussieht (na-* Klassen sind dort nicht verfügbar). */}
+      <style jsx>{`
+        .ov-card {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          background: #fff8ef;
+          border: 1px solid var(--line);
+          border-radius: 12px;
+          overflow-y: auto;
+          box-shadow: 0 30px 70px -20px rgba(45, 35, 22, 0.45);
+        }
+        .ov-arg {
+          display: flex;
+          flex-direction: column;
+          gap: 11px;
+        }
+        .ov-arg-top {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+        }
+        .ov-badge {
+          flex-shrink: 0;
+          font-size: 0.6875rem;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          padding: 3px 10px;
+          border-radius: var(--r-full, 999px);
+        }
+        .ov-badge-pro {
+          background: var(--pro-dim);
+          color: var(--pro);
+        }
+        .ov-badge-contra {
+          background: var(--contra-dim);
+          color: var(--contra);
+        }
+        .ov-arg-title {
+          margin: 0;
+          font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+          font-size: 1.25rem;
+          font-weight: 600;
+          line-height: 1.25;
+          letter-spacing: -0.01em;
+          color: var(--text);
+        }
+        .ov-arg-body {
+          margin: 0;
+          font-size: 0.9375rem;
+          line-height: 1.55;
+          color: var(--text-mid);
+        }
+        .ov-arg-meta {
+          display: flex;
+          gap: 16px;
+          align-items: center;
+          flex-wrap: wrap;
+          font-size: 0.75rem;
+          color: var(--text-mid);
+        }
+      `}</style>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            <strong>{tc("error")}:</strong> {error}
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 bg-[#fff8ef]/95 backdrop-blur-sm border-b flex items-center px-5 py-3">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <span className="text-base leading-none">←</span>
+          {backLabel}
+        </button>
+      </div>
 
-      {loading && (
-        <Card>
-          <CardContent className="flex items-center justify-center py-10 gap-3">
+      <div className="px-5 py-6 space-y-6">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              <strong>{tc("error")}:</strong> {error}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {loading && (
+          <div className="flex items-center justify-center py-16 gap-3">
             <Spinner />
             <span className="text-muted-foreground">
               {t("loadingArgument")}
             </span>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        )}
 
-      {!loading && argument && (
-        <>
-          {/* Argument card */}
-          <Card
-            style={{
-              borderLeft: `4px solid ${accentColor}`,
-            }}
-          >
-            <CardContent className="pt-5">
-              <div className="flex items-start gap-2.5 mb-2.5">
-                <h2 className="m-0 text-lg font-bold flex-1 leading-snug">
-                  {argument.record.title}
-                </h2>
-                <ProContraBadge type={argument.record.type?.toLowerCase()} />
+        {!loading && argument && (
+          <>
+            {/* Argument — gleiche Optik wie die Booklet-Karten (Badge + Serif-Titel) */}
+            <div className="ov-arg">
+              <div className="ov-arg-top">
+                <span
+                  className={`ov-badge ov-badge-${isPro ? "pro" : "contra"}`}
+                >
+                  {isPro ? tbk("proArgument") : tbk("contraArgument")}
+                </span>
               </div>
-
+              <h2 className="ov-arg-title">{argument.record.title}</h2>
               {argument.record.body && (
-                <p className="m-0 mb-3 text-sm text-muted-foreground leading-relaxed">
-                  {argument.record.body}
-                </p>
+                <p className="ov-arg-body">{argument.record.body}</p>
               )}
-
-              <div className="flex gap-4 text-xs text-muted-foreground items-center">
+              <div className="ov-arg-meta">
                 {(argument.likeCount ?? 0) > 0 && (
                   <span>
                     {"♡"} {argument.likeCount}
@@ -561,12 +416,10 @@ export default function ArgumentDetailPage({
                   <PeerreviewStatusBadge status={argument.peerreviewStatus} />
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Relevanz-Bewertung */}
-          <Card>
-            <CardContent className="pt-5">
+            {/* Relevanz-Bewertung */}
+            <div>
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
                 {t("yourRating")}
               </div>
@@ -576,20 +429,53 @@ export default function ArgumentDetailPage({
                 onCommit={handleRateCommit}
                 accent={isPro ? "pro" : "contra"}
               />
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Comments thread */}
-          <Card>
-            <CardContent className="pt-5">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3 border-b pb-2">
-                {t("comments")} {roots.length > 0 ? `(${roots.length})` : ""}
+            <Separator />
+
+            {/* Comments */}
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
+                {t("comments")}
+                {roots.length > 0 ? ` (${roots.length})` : ""}
               </div>
-              {commentsBlock}
-            </CardContent>
-          </Card>
-        </>
-      )}
+              {roots.length === 0 && replyTarget !== ROOT_TARGET && (
+                <p className="text-muted-foreground text-sm m-0">
+                  {t("noComments")}
+                </p>
+              )}
+              {roots.length > 0 &&
+                roots.map((c) => (
+                  <CommentNode
+                    key={c.uri}
+                    comment={c}
+                    depth={0}
+                    onLikeToggle={toggleLike}
+                    onReply={setReplyTarget}
+                    onNavigate={onNavigateToComment}
+                    activeComposerUri={replyTarget}
+                    renderComposer={renderComposer}
+                  />
+                ))}
+
+              {/* Top-level composer / trigger */}
+              <div className={roots.length > 0 ? "pt-3 mt-3 border-t" : "pt-1"}>
+                {replyTarget === ROOT_TARGET ? (
+                  renderComposer()
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-center"
+                    onClick={() => setReplyTarget(ROOT_TARGET)}
+                  >
+                    💬 {t("writeComment")}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

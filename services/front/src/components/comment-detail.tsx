@@ -1,19 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import { getComment, listComments } from "@/lib/agent";
-import { useScrollRestore, smartBack } from "@/lib/scrollRestore";
 import { cn } from "@/lib/utils";
 import { buildCommentMap, buildAncestorChain } from "@/lib/commentThread";
 import { useCommentThread } from "@/hooks/useCommentThread";
 import { pdsErrorKey } from "@/lib/pdsError";
 import { notifyPdsError } from "@/lib/toast";
 import type { CommentWithMetadata } from "@/types/ballots";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import { ArgumentSummary } from "@/components/argument-summary";
@@ -54,7 +51,7 @@ function PostRow({
   renderComposer?: () => React.ReactNode;
 }) {
   return (
-    <div>
+    <div data-overlay-anchor={comment.uri}>
       <div className="flex gap-3">
         {/* avatar + thread line rail */}
         <div className="flex flex-col items-center" style={{ width: AVATAR }}>
@@ -158,7 +155,7 @@ function ReplyTree({
 }
 
 // ---------------------------------------------------------------------------
-// Argument info type
+// Argument info type (subset of ArgumentWithMetadata as returned by getComment)
 // ---------------------------------------------------------------------------
 
 type ArgumentInfo = {
@@ -174,30 +171,30 @@ type ArgumentInfo = {
 };
 
 // ---------------------------------------------------------------------------
-// Main page
+// Detail component — rendered exclusively inside the overlay (the previous
+// standalone `/ballot/X/arguments/feed/comment?uri=…` route was removed).
+// All identifiers needed to load + render the comment travel through props.
 // ---------------------------------------------------------------------------
 
-export default function CommentDetailPage({
-  isOverlay = false,
+export function CommentDetail({
   onClose,
-  commentUriOverride,
+  commentUri,
   onNavigateToComment,
   onNavigateToArgument,
   backLabel,
+  registerScrollContainer,
 }: {
-  isOverlay?: boolean;
-  onClose?: () => void;
-  commentUriOverride?: string;
-  onNavigateToComment?: (uri: string) => void;
-  onNavigateToArgument?: (rkey: string) => void;
-  backLabel?: string;
-} = {}) {
+  onClose: () => void;
+  commentUri: string;
+  onNavigateToComment: (uri: string) => void;
+  onNavigateToArgument: (rkey: string) => void;
+  backLabel: string;
+  // Overlay host's scroll-position tracker — attach our scrolling element so
+  // scrollY is saved/restored across history-navigation.
+  registerScrollContainer: (el: HTMLElement | null) => void;
+}) {
   const { isAuthenticated, loading: authLoading } = useAuth();
   const router = useRouter();
-  const params = useParams();
-  const searchParams = useSearchParams();
-  const id = params.id as string;
-  const commentUri = commentUriOverride ?? searchParams.get("uri") ?? "";
   const t = useTranslations("commentDetail");
   const tc = useTranslations("common");
   const te = useTranslations("errors");
@@ -280,31 +277,15 @@ export default function CommentDetailPage({
     setReplyTarget,
   ]);
 
-  const handleNavigateToComment = (uri: string) => {
-    if (onNavigateToComment) {
-      onNavigateToComment(uri);
-      return;
-    }
-    router.push(
-      `/ballot/${id}/arguments/feed/comment?uri=${encodeURIComponent(uri)}`,
-    );
-  };
-
   const handleNavigateToArgument = () => {
     if (!argument) return;
-    if (onNavigateToArgument) {
-      onNavigateToArgument(argument.rkey);
-      return;
-    }
-    router.push(`/ballot/${id}/arguments/${argument.rkey}`);
+    onNavigateToArgument(argument.rkey);
   };
 
   const handleSubmitReply = () => {
     if (!argument || !focalUri) return;
     submitComment(argument.uri, replyTarget ?? focalUri);
   };
-
-  useScrollRestore(!isOverlay && !loading && !!focalComment);
 
   if (authLoading) {
     return (
@@ -317,20 +298,6 @@ export default function CommentDetailPage({
   if (!isAuthenticated) return null;
 
   const loaded = !loading && !!focalComment && !!argument;
-
-  // ── Shared content blocks (used by both overlay and full-page layouts) ──────
-  const contextBox = !loading && focalComment && argument && (
-    <ArgumentSummary
-      title={argument.title}
-      body={argument.body}
-      type={argument.type}
-      likeCount={argument.likeCount}
-      commentCount={argument.commentCount}
-      peerreviewStatus={argument.peerreviewStatus}
-      clampBody
-      onClick={handleNavigateToArgument}
-    />
-  );
 
   const renderComposer = () => (
     <div className="space-y-2">
@@ -354,140 +321,108 @@ export default function CommentDetailPage({
     </div>
   );
 
-  const threadBlock = !loading && focalComment && argument && (
-    <div>
-      {/* Spine: ancestor chain → focal, connected by a vertical thread line */}
-      {ancestors.map((ancestor, idx) => (
-        <PostRow
-          key={ancestor.uri}
-          comment={ancestor}
-          clickable
-          clamp
-          showLineTop={idx > 0}
-          showLineBottom
-          onNavigate={handleNavigateToComment}
-          onLikeToggle={toggleLike}
-          onReply={setReplyTarget}
-          activeComposerUri={replyTarget}
-          renderComposer={renderComposer}
-        />
-      ))}
-
-      <PostRow
-        comment={focalComment}
-        focal
-        showLineTop={ancestors.length > 0}
-        onLikeToggle={toggleLike}
-        onReply={setReplyTarget}
-        activeComposerUri={replyTarget}
-        renderComposer={renderComposer}
-      />
-
-      {/* Replies */}
-      {directReplies.length > 0 && (
-        <div className="mt-5">
-          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
-            {t("replies")} ({directReplies.length})
-          </div>
-          {directReplies.map((reply) => (
-            <ReplyTree
-              key={reply.uri}
-              comment={reply}
-              depth={0}
-              onNavigate={handleNavigateToComment}
-              onLikeToggle={toggleLike}
-              onReply={setReplyTarget}
-              activeComposerUri={replyTarget}
-              renderComposer={renderComposer}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  // ── Overlay layout (rendered inside Dialog) ─────────────────────────────────
-  if (isOverlay) {
-    return (
-      <div className="flex flex-col">
-        {/* Sticky header */}
-        <div className="sticky top-0 z-10 bg-[#fff8ef]/95 backdrop-blur-sm border-b flex items-center px-5 py-3">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <span className="text-base leading-none">←</span>
-            {backLabel ?? t("backToArgument")}
-          </button>
-        </div>
-
-        {/* Scrolling content */}
-        <div className="px-5 py-5 space-y-5">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                <strong>{tc("error")}:</strong> {error}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {loading && (
-            <div className="flex items-center justify-center py-16 gap-3">
-              <Spinner />
-              <span className="text-muted-foreground">
-                {t("loadingComment")}
-              </span>
-            </div>
-          )}
-
-          {loaded && (
-            <>
-              {contextBox}
-              {threadBlock}
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Full-page layout ────────────────────────────────────────────────────────
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => smartBack(router, `/ballot/${id}/arguments/feed`)}
-      >
-        &larr; {t("backToFeed")}
-      </Button>
+    <div
+      ref={registerScrollContainer}
+      className="h-full overflow-y-auto flex flex-col bg-[#fff8ef] rounded-2xl shadow-[0_30px_70px_-20px_rgba(45,35,22,0.45)]"
+    >
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 bg-[#fff8ef]/95 backdrop-blur-sm border-b flex items-center px-5 py-3">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <span className="text-base leading-none">←</span>
+          {backLabel}
+        </button>
+      </div>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>
-            <strong>{tc("error")}:</strong> {error}
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* Scrolling content */}
+      <div className="px-5 py-5 space-y-5">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              <strong>{tc("error")}:</strong> {error}
+            </AlertDescription>
+          </Alert>
+        )}
 
-      {loading && (
-        <Card>
-          <CardContent className="flex items-center justify-center py-10 gap-3">
+        {loading && (
+          <div className="flex items-center justify-center py-16 gap-3">
             <Spinner />
-            <span className="text-muted-foreground">{t("loadingComment")}</span>
-          </CardContent>
-        </Card>
-      )}
+            <span className="text-muted-foreground">
+              {t("loadingComment")}
+            </span>
+          </div>
+        )}
 
-      {loaded && (
-        <>
-          {contextBox}
+        {loaded && (
+          <>
+            <div data-overlay-anchor={argument!.rkey}>
+              <ArgumentSummary
+                title={argument!.title}
+                body={argument!.body}
+                type={argument!.type}
+                likeCount={argument!.likeCount}
+                commentCount={argument!.commentCount}
+                peerreviewStatus={argument!.peerreviewStatus}
+                clampBody
+                onClick={handleNavigateToArgument}
+              />
+            </div>
 
-          <Card>
-            <CardContent className="pt-5">{threadBlock}</CardContent>
-          </Card>
-        </>
-      )}
+            <div>
+              {/* Spine: ancestor chain → focal, connected by a vertical thread line */}
+              {ancestors.map((ancestor, idx) => (
+                <PostRow
+                  key={ancestor.uri}
+                  comment={ancestor}
+                  clickable
+                  clamp
+                  showLineTop={idx > 0}
+                  showLineBottom
+                  onNavigate={onNavigateToComment}
+                  onLikeToggle={toggleLike}
+                  onReply={setReplyTarget}
+                  activeComposerUri={replyTarget}
+                  renderComposer={renderComposer}
+                />
+              ))}
+
+              <PostRow
+                comment={focalComment!}
+                focal
+                showLineTop={ancestors.length > 0}
+                onLikeToggle={toggleLike}
+                onReply={setReplyTarget}
+                activeComposerUri={replyTarget}
+                renderComposer={renderComposer}
+              />
+
+              {/* Replies */}
+              {directReplies.length > 0 && (
+                <div className="mt-5">
+                  <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+                    {t("replies")} ({directReplies.length})
+                  </div>
+                  {directReplies.map((reply) => (
+                    <ReplyTree
+                      key={reply.uri}
+                      comment={reply}
+                      depth={0}
+                      onNavigate={onNavigateToComment}
+                      onLikeToggle={toggleLike}
+                      onReply={setReplyTarget}
+                      activeComposerUri={replyTarget}
+                      renderComposer={renderComposer}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

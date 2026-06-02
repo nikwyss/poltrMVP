@@ -33,17 +33,18 @@ poltr/
 | Frontend | Next.js + React 19 | poltr.ch |
 | AppView | Python 3.11 + FastAPI | app.poltr.info |
 | Indexer | Node.js | indexer.poltr.info |
-| eID Proto | Next.js | eidproto.poltr.info |
 | CMS | Payload CMS | cms.poltr.info |
 | PDS | Bluesky PDS | pds2.poltr.info |
 | Ozone | Bluesky Ozone | ozone.poltr.info |
+|
+| (optional)
+| eID Proto | Next.js | eidproto.poltr.info |
 | Verifier | swiyu | verifier.poltr.info |
 
 ## Documentation
 
-- **[Architecture](doc/ARCHITECTURE.md)** -- Full system overview, services, K8s resources, data flow
+- **[Wiki]([https://github.com/nikwyss/poltrMVP/wiki](https://github.com/nikwyss/poltrMVP/wiki))** -- Full system overview
 - **[TODO](doc/TODO.md)** -- Current tasks and completed work
-- **[Load Balancing](doc/LOAD_BALANCING.md)** -- Ingress setup, hostPort vs LoadBalancer, cost breakdown
 - **[Changelog](CHANGELOG.md)** -- Daily development log
 
 Each service also has its own README in `services/*/README.md`.
