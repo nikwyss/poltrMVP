@@ -82,8 +82,9 @@ _CLASSIFY_TOOL = {
 
 _SYS_ROOTS = (
     "Du strukturierst die öffentliche Debatte zu einer Schweizer Abstimmungsvorlage. "
-    "Unten stehen die OFFIZIELLEN Argumente (die offizielle Rahmung der Vorlage). "
-    "Leite daraus 5–8 ÜBERGEORDNETE Themenfelder ab, in die sich die ganze Diskussion "
+    "Unten stehen — sofern vorhanden — die amtliche BESCHREIBUNG der Vorlage und die "
+    "OFFIZIELLEN Argumente (die offizielle Rahmung der Vorlage). "
+    "Leite daraus 4–7 ÜBERGEORDNETE Themenfelder ab, in die sich die ganze Diskussion "
     "gliedert. Die Themen sind BREIT und INHALTLICH (worum geht es), NICHT pro/contra "
     "und keine Einzelaspekte. Beispiele für die Granularität: «Finanzierung & Kosten», "
     "«Versorgungssicherheit», «Umwelt & Klima», «Rolle des Staates». Jedes Thema: "
@@ -159,56 +160,43 @@ class _CountingLLM:
         return self._llm._call(*a, **k)
 
 
-def build_node(
-    llm, codes: list[str], depth: int, min_split: int, max_depth: int
-) -> dict:
-    """Rekursiv vertiefen, solange genug Material + sinnvolle Unterthemen."""
-    node = {"children": [], "own_codes": list(codes)}
-    if depth >= max_depth or len(codes) < min_split:
-        return node
-    subs = propose_topics(
-        llm, _SYS_SUBS, "Codes dieses Themas:\n" + "\n".join(f"- {c}" for c in codes)
-    )
-    if len(subs) < 2:
-        return node  # LLM sieht keine sinnvolle Unterteilung → Blatt
-    assign = classify(llm, [s["name"] for s in subs], codes)
-    groups: dict[str, list[str]] = defaultdict(list)
-    for c, t in assign.items():
-        groups[t].append(c)
-    children = []
-    for s in subs:
-        child_codes = groups.get(s["name"], [])
-        if not child_codes:
-            continue
-        child = build_node(llm, child_codes, depth + 1, min_split, max_depth)
-        child["name"] = s["name"]
-        child["description"] = s["description"]
-        children.append(child)
-    if not children:
-        return node
-    node["children"] = children
-    node["own_codes"] = groups.get("andere", [])  # passt in kein Unterthema
-    return node
-
-
 def induce_tree(
-    llm, codes: list[str], seed: str, *, min_split: int, max_depth: int
+    llm,
+    codes: list[str],
+    seed: str,
+    *,
+    ballot_description: str | None = None,
 ) -> tuple[dict, list[str]]:
-    """Vollständiger Top-down-Baumbau (synchron, LLM-getrieben).
-    Rückgabe: (Wurzelknoten, andere-Codes). `llm` sollte ein _CountingLLM sein."""
-    roots = propose_topics(llm, _SYS_ROOTS, "Offizielle Argumente:\n" + seed)
+    """Top-down-Baumbau — NUR die Oberthemen (Tiefe 1), keine Unterthemen.
+
+    Bewusst flach: Schritt 1 („Themen-Gliederung") legt nur die Hauptäste fest.
+    Die Vertiefung in Unterthemen passiert separat über /grow („Wachsen lassen"),
+    NACHDEM die Argumente (offiziell + Community) einsortiert sind — also auf
+    breiterer Datenbasis statt aus einer Handvoll offizieller Argumente.
+
+    Rückgabe: (Wurzelknoten, andere-Codes). `llm` sollte ein _CountingLLM sein.
+    `ballot_description` (amtliche Vorlagen-Beschreibung) geht als Zusatzkontext in
+    den Wurzelthemen-Prompt ein."""
+    ctx = ""
+    if ballot_description:
+        ctx = "Beschreibung der Vorlage (amtlich):\n" + ballot_description + "\n\n"
+    roots = propose_topics(llm, _SYS_ROOTS, ctx + "Offizielle Argumente:\n" + seed)
     assign = classify(llm, [r["name"] for r in roots], codes)
     groups: dict[str, list[str]] = defaultdict(list)
     for c, t in assign.items():
         groups[t].append(c)
-    children = []
-    for r in roots:
-        node = build_node(llm, groups.get(r["name"], []), 1, min_split, max_depth)
-        node["name"] = r["name"]
-        node["description"] = r["description"]
-        children.append(node)
-    root = {"name": "(Wurzel)", "description": "", "children": children,
-            "own_codes": []}
+    # Flache Oberthemen: jeder Wurzelast ist ein Blatt mit allen seinen Codes.
+    children = [
+        {"name": r["name"], "description": r["description"],
+         "children": [], "own_codes": groups.get(r["name"], [])}
+        for r in roots
+    ]
+    root = {
+        "name": "(Wurzel)",
+        "description": "",
+        "children": children,
+        "own_codes": [],
+    }
     return root, groups.get("andere", [])
 
 
@@ -246,6 +234,100 @@ def _collect_codes(node: dict) -> set:
     return codes
 
 
+# =========================================================================
+#  Vorschau-Bäume: aus dem persistierten Stand (db.fetch_topic_tree-Form) einen
+#  internen Baum + code_args bauen, hypothetische Änderungen (classify/grow) in
+#  memory anwenden und via serialize_node als Vorschau zurückgeben — OHNE die DB
+#  zu berühren. Spiegelt db.add_topic_memberships / db.split_node.
+# =========================================================================
+def persisted_to_internal(node: dict) -> tuple[dict, dict]:
+    """db.fetch_topic_tree-Knoten → (interner Knoten {id, name, description,
+    own_codes, children}, code_args-Map {code: set(argument_uri)}). Ein Code hängt
+    je Knoten genau einmal (distinct); die Argumente fliessen in code_args."""
+    code_args: dict[str, set] = defaultdict(set)
+
+    def conv(n: dict) -> dict:
+        own: list[str] = []
+        seen: set[str] = set()
+        for c in n.get("codes", []) or []:
+            if isinstance(c, dict):
+                lbl = (c.get("code") or "").strip()
+                arg = c.get("argument_uri")
+            else:
+                lbl, arg = str(c).strip(), None
+            if not lbl:
+                continue
+            if lbl not in seen:
+                seen.add(lbl)
+                own.append(lbl)
+            if arg:
+                code_args[lbl].add(arg)
+        return {
+            "id": n.get("id"),
+            "name": n.get("name"),
+            "description": n.get("description"),
+            "own_codes": own,
+            "children": [conv(ch) for ch in n.get("children", []) or []],
+        }
+
+    return conv(node), code_args
+
+
+def _index_by_id(root: dict) -> dict:
+    idx: dict = {}
+
+    def walk(n: dict) -> None:
+        if n.get("id") is not None:
+            idx[n["id"]] = n
+        for ch in n.get("children", []):
+            walk(ch)
+
+    walk(root)
+    return idx
+
+
+def overlay_placements(root: dict, code_args: dict,
+                       placements: dict[str, int], new_entries: list[dict]) -> None:
+    """Hängt neue Codes (placements: code → node_id) in den internen Baum und
+    ergänzt code_args um die neuen Argumente — wie db.add_topic_memberships, aber
+    nur in memory (für die Vorschau)."""
+    idx = _index_by_id(root)
+    for code, node_id in placements.items():
+        node = idx.get(node_id)
+        if node is not None and code not in node["own_codes"]:
+            node["own_codes"].append(code)
+    for e in new_entries:
+        if e["code"] in placements:
+            code_args[e["code"]].add(e["argument_uri"])
+
+
+def overlay_split(root: dict, parent_id: int,
+                  subtopics: list[dict], assign: dict[str, str]) -> None:
+    """Wendet einen Split (neue Kind-Knoten + Umhängen der Codes) in memory an —
+    wie db.split_node, nur für die Vorschau. Kinder bekommen keine id."""
+    parent = _index_by_id(root).get(parent_id)
+    if parent is None:
+        return
+    used = {t for t in assign.values() if t != "andere"}
+    name_to_child: dict[str, dict] = {}
+    for s in subtopics:
+        if s["name"] not in used:
+            continue  # leeres Unterthema nicht anlegen
+        child = {"id": None, "name": s["name"],
+                 "description": s.get("description"),
+                 "own_codes": [], "children": []}
+        name_to_child[s["name"]] = child
+        parent["children"].append(child)
+    remaining: list[str] = []
+    for code in parent["own_codes"]:
+        child = name_to_child.get(assign.get(code))
+        if child is not None:
+            child["own_codes"].append(code)
+        else:
+            remaining.append(code)  # 'andere'/unverteilt → bleibt am Eltern
+    parent["own_codes"] = remaining
+
+
 def _print_tree(node: dict, code_args: dict, indent: int = 0):
     pad = "  " * indent
     nc, na = _count(node, code_args)
@@ -266,18 +348,19 @@ def _print_tree(node: dict, code_args: dict, indent: int = 0):
             print(f"{pad}    … (+{len(own) - 8})")
 
 
-async def load_inputs(ballot_rkey: str, limit: int | None = None,
-                      official_only: bool = False) -> dict:
+async def load_inputs(
+    ballot_rkey: str, limit: int | None = None, official_only: bool = False
+) -> dict:
     """Lädt die Eingaben für einen Ballot (read-only). Rückgabe-Dict:
-      codes      — eindeutige Code-Labels (Auftauchreihenfolge)
-      code_args  — Code → set(argument_uri)
-      entries    — [(argument_uri, code, confidence, stance)] (für Memberships)
-      seed       — Text der offiziellen Argumente (Wurzelthemen-Seed)
-      n_args/n_off
+    codes      — eindeutige Code-Labels (Auftauchreihenfolge)
+    code_args  — Code → set(argument_uri)
+    entries    — [(argument_uri, code, confidence, stance)] (für Memberships)
+    seed       — Text der offiziellen Argumente (Wurzelthemen-Seed)
+    n_args/n_off
     """
     coded = await db.fetch_open_codes_for_ballot(
-        ballot_rkey, limit=limit,
-        source_type="official" if official_only else None)
+        ballot_rkey, limit=limit, source_type="official" if official_only else None
+    )
     code_args: dict[str, set] = defaultdict(set)
     codes: list[str] = []
     seen: set[str] = set()
@@ -290,8 +373,14 @@ async def load_inputs(ballot_rkey: str, limit: int | None = None,
                 continue
             seen_in_arg.add(lbl)
             code_args[lbl].add(r["argument_uri"])
-            entries.append((r["argument_uri"], lbl,
-                            float(c.get("confidence", 1.0)), r.get("stance")))
+            entries.append(
+                (
+                    r["argument_uri"],
+                    lbl,
+                    float(c.get("confidence", 1.0)),
+                    r.get("stance"),
+                )
+            )
             if lbl not in seen:
                 seen.add(lbl)
                 codes.append(lbl)
@@ -304,40 +393,94 @@ async def load_inputs(ballot_rkey: str, limit: int | None = None,
             ballot_rkey,
         )
     seed = "\n\n".join(f"- {o['title']}: {o['body'] or ''}" for o in offs)
-    return {"codes": codes, "code_args": code_args, "entries": entries,
-            "seed": seed, "n_args": len(coded), "n_off": len(offs)}
+    # Amtliche Vorlagen-Beschreibung (CMS) als Zusatzkontext für die Wurzelthemen.
+    ballot_description = await db.fetch_ballot_description(ballot_rkey)
+    return {
+        "codes": codes,
+        "code_args": code_args,
+        "entries": entries,
+        "seed": seed,
+        "ballot_description": ballot_description,
+        "n_args": len(coded),
+        "n_off": len(offs),
+    }
 
 
-def classify_incremental(llm, root_node: dict, new_codes: list[str]) -> dict[str, int]:
+def _node_key(node: dict):
+    """Knoten-Identität fürs Einsortieren: bevorzugt die Client-`uid` (State-Editor,
+    auch für neue Knoten ohne DB-id), sonst die DB-`id`."""
+    return node.get("uid") if node.get("uid") is not None else node.get("id")
+
+
+def classify_incremental(llm, root_node: dict, new_codes: list[str]) -> dict[str, object]:
     """Q4 — sortiert `new_codes` top-down in den BESTEHENDEN Baum ein
-    (`root_node` = Nested-Dict aus db.fetch_topic_tree, Knoten mit 'id'+'children').
+    (`root_node` = Nested-Dict mit 'children' und je Knoten 'uid' oder 'id').
 
     Pro Ebene ein classify-Call: passt ein Code in ein Kind-Thema, steigt er ab;
     passt er in keins ('andere'), bleibt er am aktuellen Knoten hängen. Rückgabe:
-    {code: node_id} — wohin jeder neue Code gehört. (Knoten-Splitting bei
-    Überlauf ist ein separater Schritt, s. router/Doku.)
-    """
-    placements: dict[str, int] = {}
+    {code: node_key} — wohin jeder neue Code gehört (node_key = uid|id).
 
-    def descend(node: dict, codes: list[str]):
+    AUSNAHME Wurzelebene: Codes, die in KEIN Oberthema passen ('andere' direkt an
+    der Wurzel), werden NICHT platziert — sie bleiben „nicht zugeordnet" (kein
+    Eintrag in der Rückgabe) und tauchen nur im CMS-„Nicht zugeordnet"-Bereich auf,
+    nicht im Frontend. „andere" auf tieferen Ebenen bleibt dagegen legitim am
+    Themenknoten hängen (übergreifend zum Thema)."""
+    placements: dict[str, object] = {}
+
+    def descend(node: dict, codes: list[str], is_root: bool = False):
         children = node.get("children", [])
         if not children or not codes:
+            if is_root:
+                return  # leerer Baum → alles bleibt nicht zugeordnet
             for c in codes:
-                placements[c] = node["id"]
+                placements[c] = _node_key(node)
             return
         assign = classify(llm, [ch["name"] for ch in children], codes)
         by_child: dict[str, list[str]] = defaultdict(list)
         for c, t in assign.items():
             by_child[t].append(c)
-        for c in by_child.get("andere", []):     # passt in kein Kind → bleibt hier
-            placements[c] = node["id"]
+        for c in by_child.get("andere", []):  # passt in kein Kind
+            if is_root:
+                continue  # passt in kein Oberthema → nicht zuordnen (nicht an Wurzel hängen)
+            placements[c] = _node_key(node)  # tieferer Knoten → übergreifend, bleibt hier
         for ch in children:
             cc = by_child.get(ch["name"], [])
             if cc:
                 descend(ch, cc)
 
-    descend(root_node, new_codes)
+    descend(root_node, new_codes, is_root=True)
     return placements
+
+
+def overfull_candidates(root: dict, threshold: int, max_depth: int) -> list[dict]:
+    """Überladene Knoten eines IN-MEMORY-Baums (State-Editor) bestimmen — analog
+    db.fetch_overfull_nodes, aber ohne DB. „Direkte Codes" = distinct Code-Labels
+    der Memberships, die direkt an diesem Knoten hängen (`codes`). Rückgabe:
+    [{uid, name, depth, codes:[label,...], is_root}], grösste zuerst."""
+    out: list[dict] = []
+
+    def direct_codes(node: dict) -> list[str]:
+        seen: set[str] = set()
+        labels: list[str] = []
+        for c in node.get("codes", []) or []:
+            lbl = (c.get("code") if isinstance(c, dict) else c) or ""
+            lbl = str(lbl).strip()
+            if lbl and lbl not in seen:
+                seen.add(lbl)
+                labels.append(lbl)
+        return labels
+
+    def walk(node: dict, depth: int):
+        labels = direct_codes(node)
+        if depth < max_depth and len(labels) >= threshold:
+            out.append({"uid": _node_key(node), "name": node.get("name"),
+                        "depth": depth, "codes": labels, "is_root": depth == 0})
+        for ch in node.get("children", []) or []:
+            walk(ch, depth + 1)
+
+    walk(root, 0)
+    out.sort(key=lambda c: len(c["codes"]), reverse=True)
+    return out
 
 
 async def run(ballot_rkey: str):
@@ -346,17 +489,25 @@ async def run(ballot_rkey: str):
     if not codes:
         print(f"Keine codierten Argumente für {ballot_rkey}.")
         return
-    print(f"Seed: {data['n_off']} offizielle Argumente, {len(codes)} Codes, "
-          f"{data['n_args']} codierte Argumente.\n")
+    print(
+        f"Seed: {data['n_off']} offizielle Argumente, {len(codes)} Codes, "
+        f"{data['n_args']} codierte Argumente.\n"
+    )
     llm = _CountingLLM(get_llm())
-    root, andere = induce_tree(llm, codes, seed,
-                               min_split=MIN_SPLIT, max_depth=MAX_DEPTH)
+    root, andere = induce_tree(
+        llm,
+        codes,
+        seed,
+        ballot_description=data.get("ballot_description"),
+    )
     root["name"] = f"Vorlage {ballot_rkey}"
     root["own_codes"] = andere
     print(f"({llm.calls} LLM-Calls)\n" + "=" * 72)
     _print_tree(root, code_args)
     if andere:
-        print(f"\n[andere — Wurzel]: {len(andere)} Codes, z.B. " + ", ".join(andere[:6]))
+        print(
+            f"\n[andere — Wurzel]: {len(andere)} Codes, z.B. " + ", ".join(andere[:6])
+        )
 
     out_path = f"topdown_{ballot_rkey.replace('.', '_')}.json"
     with open(out_path, "w", encoding="utf-8") as f:

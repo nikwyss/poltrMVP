@@ -262,7 +262,17 @@ export interface TaxonomyNode {
   children: TaxonomyNode[];
 }
 
+/** Ein Breadcrumb-Segment (Vorfahren-Pfad eines Topic-Knotens). */
+export interface TaxonomyCrumb {
+  name: string;
+  key?: string | null;
+  description?: string | null;
+}
+
 export interface TaxonomyTree {
   ballotRkey: string;
   tree: TaxonomyNode;
+  /** Vorfahren-Pfad des Basis-Knotens (nur bei `topic`-Abruf; Wurzel + aktueller
+   * Knoten ausgelassen) — fürs Hochnavigieren im Overlay. */
+  breadcrumb?: TaxonomyCrumb[];
 }

@@ -173,6 +173,8 @@ async def check_in_review(
                 SELECT state, quorum, grace_until
                 FROM app_peerreviews
                 WHERE argument_uri = $1
+                  AND EXISTS (SELECT 1 FROM app_arguments a
+                              WHERE a.uri = $1 AND NOT a.deleted)
                 FOR UPDATE
                 """,
                 argument_uri,
@@ -280,6 +282,8 @@ async def review_activity(
                 SELECT state, grace_until
                 FROM app_peerreviews
                 WHERE argument_uri = $1
+                  AND EXISTS (SELECT 1 FROM app_arguments a
+                              WHERE a.uri = $1 AND NOT a.deleted)
                 FOR UPDATE
                 """,
                 argument_uri,
@@ -392,6 +396,8 @@ async def submit_review(
                 SELECT state, closed_at
                 FROM app_peerreviews
                 WHERE argument_uri = $1
+                  AND EXISTS (SELECT 1 FROM app_arguments a
+                              WHERE a.uri = $1 AND NOT a.deleted)
                 FOR UPDATE
                 """,
                 argument_uri,

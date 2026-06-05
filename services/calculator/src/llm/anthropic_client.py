@@ -107,7 +107,7 @@ class AnthropicLLM(LLMClient):
                 return block.input
         return None
 
-    def open_code(self, argument: str, max_codes: int = 3,
+    def open_code(self, argument: str, max_codes: int = 2,
                   raise_on_error: bool = False) -> list[dict]:
         user = open_code_user(argument, max_codes)
         try:

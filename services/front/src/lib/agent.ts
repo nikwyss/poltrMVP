@@ -103,11 +103,14 @@ export async function getTaxonomy(
   ballotRkey: string,
   lang?: string,
   topic?: string,
+  // 'full' = voller verschachtelter Baum (Sunburst); sonst Basis + 1 flache Ebene.
+  shape?: 'full',
 ): Promise<TaxonomyTree | null> {
   const authenticatedFetch = getAuthenticatedFetch();
   const params = new URLSearchParams({ ballot_rkey: ballotRkey });
   if (lang) params.set('lang', lang);
   if (topic) params.set('topic', topic);
+  if (shape) params.set('shape', shape);
   const res = await authenticatedFetch(
     `/api/xrpc/app.ch.poltr.taxonomy.get?${params.toString()}`,
   );

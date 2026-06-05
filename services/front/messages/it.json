@@ -162,14 +162,14 @@
     "yourRating": "Ihre Bewertung"
   },
   "relevance": {
-    "low": "Geringe Relevanz",
-    "medium": "Mittlere Relevanz",
-    "high": "Grosse Relevanz",
+    "low": "Scarso accordo",
+    "medium": "Accordo parziale",
+    "high": "Forte accordo",
     "notRated": "Noch nicht bewertet",
-    "intro": "Wie relevant finden Sie dieses Argument? Bewerten Sie das Argument, indem Sie den Regler verschieben.",
-    "increase": "Relevanz erhöhen",
-    "decrease": "Relevanz verringern",
-    "ariaLabel": "Relevanz-Bewertung"
+    "intro": "Quanto sei d'accordo con questa argomentazione? Valutala spostando il cursore.",
+    "increase": "Aumenta l'accordo",
+    "decrease": "Diminuisci l'accordo",
+    "ariaLabel": "Valutazione dell'accordo"
   },
   "feed": {
     "addArgument": "Argument hinzufügen",
@@ -259,8 +259,8 @@
     "proArgument": "Pro-Argument",
     "contraArgument": "Contra-Argument",
     "statusUnread": "Bewerten",
-    "relevanceTitle": "Ihre Relevanz-Bewertung",
-    "relevanceForYou": "Relevanz für Sie",
+    "relevanceTitle": "Il tuo accordo",
+    "relevanceForYou": "Accordo",
     "fallbackBundesrat": "Bundesrat",
     "fallbackInitiativkomitee": "Initiativkomitee",
     "fallbackOrganization": "Organisation"
@@ -308,9 +308,11 @@
     "argPro": "Argomento a favore",
     "argContra": "Argomento contro",
     "official": "Ufficiale",
-    "relevance": "Rilevanza",
+    "relevance": "Accordo",
     "agree": "La penso anch'io così",
     "disagree": "Non la penso così",
-    "showMore": "Mehr anzeigen (+{count})"
+    "showMore": "Mehr anzeigen (+{count})",
+    "sunburstTitle": "Raggiera dei temi",
+    "sunburstCenter": "Totale"
   }
 }

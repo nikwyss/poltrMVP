@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { getTaxonomy } from "@/lib/agent";
-import type { TaxonomyNode } from "@/types/ballots";
+import type { TaxonomyNode, TaxonomyCrumb } from "@/types/ballots";
 import { Spinner } from "@/components/spinner";
 import { InsightPanel, ProContraArguments, type T } from "@/components/taxonomy-view";
 
@@ -64,6 +64,7 @@ export function TaxonomyDetail({
   const locale = useLocale();
 
   const [node, setNode] = useState<TaxonomyNode | null>(null);
+  const [crumbs, setCrumbs] = useState<TaxonomyCrumb[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -73,6 +74,7 @@ export function TaxonomyDetail({
     try {
       const tx = await getTaxonomy(ballotRkey, locale, topic);
       setNode(tx?.tree ?? null);
+      setCrumbs(tx?.breadcrumb ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -118,6 +120,30 @@ export function TaxonomyDetail({
           <>
             {/* Kopf des Top-Topics */}
             <header className="space-y-3">
+              {/* Breadcrumb = Vorfahren-Pfad; klickbar → navigiert die Hierarchie hoch. */}
+              {crumbs.length > 0 && (
+                <nav className="flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+                  {crumbs.map((c, ci) => (
+                    <span key={ci} className="flex items-center gap-x-1">
+                      {ci > 0 && <span className="opacity-40">›</span>}
+                      {c.key ? (
+                        <button
+                          type="button"
+                          title={c.description ?? undefined}
+                          onClick={() => onNavigateToTaxonomy(ballotRkey, c.key!)}
+                          className="hover:text-foreground hover:underline"
+                        >
+                          {c.name}
+                        </button>
+                      ) : (
+                        <span title={c.description ?? undefined} className="cursor-default">
+                          {c.name}
+                        </span>
+                      )}
+                    </span>
+                  ))}
+                </nav>
+              )}
               <h2
                 className="text-2xl font-bold leading-tight"
                 style={{ fontFamily: 'var(--font-serif), Georgia, "Times New Roman", serif' }}

@@ -32,6 +32,21 @@ async def run(req: BatchRequest):
     return await worker.run_batch(batch_size=req.batch_size)
 
 
+class BallotRequest(BaseModel):
+    ballot_rkey: str = Field(
+        ..., description="Ballot, dessen noch nicht codierte Argumente jetzt codiert werden.")
+
+    model_config = {"json_schema_extra": {"examples": [{"ballot_rkey": "663.1"}]}}
+
+
+@router.post("/ballot")
+async def run_ballot(req: BallotRequest):
+    """On-demand: alle noch nicht (oder veraltet) codierten Argumente EINES Ballots
+    codieren — wird vom Taxonomie-Editor vor dem „Argumente einsortieren" aufgerufen
+    (ersetzt für diesen Ballot den Cron). Ignoriert den Tagescap."""
+    return await worker.code_ballot(req.ballot_rkey)
+
+
 @router.get("/status")
 async def status():
     return await worker.status_summary()

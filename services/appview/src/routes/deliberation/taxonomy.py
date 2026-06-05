@@ -81,38 +81,61 @@ def _flatten_child(child: dict) -> dict:
     }
 
 
+def _slim(node: dict) -> dict:
+    """Reduziert einen (bereits aggregierten) Knoten auf die fürs Sunburst nötigen
+    Felder — ohne die `arguments`-Arrays — und das rekursiv über den ganzen Baum.
+    Hält den `shape=full`-Payload klein (die Visualisierung braucht nur Struktur +
+    Aggregate)."""
+    return {
+        "id": node["id"], "key": node["key"], "name": node["name"],
+        "description": node["description"], "depth": node["depth"],
+        "argumentCount": node.get("argumentCount", 0),
+        "proLeaning": node.get("proLeaning"),
+        "dissent": node.get("dissent", 0.0),
+        "ratedCount": node.get("ratedCount", 0),
+        "arguments": [],
+        "children": [_slim(c) for c in node["children"]],
+    }
+
+
 def _aggregate(node: dict, acc: set, arg_meta: dict) -> set:
     """Rekursiv: setzt je Knoten `argumentCount` (distinct im Teilbaum) und die
-    relevanz-gewichtete Pro-Vorlage-Neigung `proLeaning` ∈ [-1, 1] (None, wenn
-    keine bewerteten Argumente). PRO-Argumente zählen positiv, CONTRA negativ,
-    gewichtet mit der Relevanz-Bewertung des Viewers. `arg_meta[uri] = (pref, sign)`
-    für vom Viewer bewertete Argumente."""
+    Pro-Vorlage-Neigung `proLeaning` ∈ [-1, 1] (None, wenn keine aussagekräftig
+    bewerteten Argumente).
+
+    Modell: die Bewertung eines Arguments ist ZUSTIMMUNG (1–100, 50 = neutral),
+    nicht reines Gewicht. Pro Argument ist `arg_meta[uri]` der Pro-Vorlage-Beitrag
+    ∈ [-1, 1] = Seite (PRO +1 / CONTRA −1) × zentrierter Zustimmung (pref−50)/50.
+    Ein *abgelehntes* Contra (niedrige Bewertung) zählt also Richtung Befürworter,
+    ein *bestätigtes* Contra Richtung Gegner — analog für Pro. Beiträge werden
+    nach positiver/negativer Seite gebündelt und über die Gesamtmasse normiert."""
     local: set = set()
     for a in node["arguments"]:
         local.add(a["uri"])
     for ch in node["children"]:
         _aggregate(ch, local, arg_meta)
     node["argumentCount"] = len(local)
-    # relevanz-gewichtete Neigung + Dissens über die bewerteten Argumente.
-    pro_w = 0.0   # Relevanz-Summe der PRO-Argumente
-    contra_w = 0.0
+    # Zustimmungs-Beiträge der bewerteten Argumente in Richtung Befürworter (pos)
+    # bzw. Gegner (neg) bündeln. Neutrale (Beitrag 0) zählen als bewertet, tragen
+    # aber keine Richtung bei.
+    pos = 0.0   # Masse Richtung Befürworter
+    neg = 0.0   # Masse Richtung Gegner
     rated = 0
     for uri in local:
-        meta = arg_meta.get(uri)
-        if meta is None:
+        contrib = arg_meta.get(uri)
+        if contrib is None:
             continue
-        pref, sign = meta
-        if sign > 0:
-            pro_w += pref
-        else:
-            contra_w += pref
+        if contrib > 0:
+            pos += contrib
+        elif contrib < 0:
+            neg += -contrib
         rated += 1
-    total = pro_w + contra_w
+    total = pos + neg
     node["ratedCount"] = rated
     # proLeaning ∈ [-1,1]: -1 = ganz Gegner-Seite, +1 = ganz Befürworter-Seite.
-    node["proLeaning"] = round((pro_w - contra_w) / total, 4) if total > 0 else None
-    # dissent ∈ [0,1]: 1 = beide Pole gleich stark bewertet (gespalten), 0 = einseitig.
-    node["dissent"] = round(2 * min(pro_w, contra_w) / total, 4) if total > 0 else 0.0
+    node["proLeaning"] = round((pos - neg) / total, 4) if total > 0 else None
+    # dissent ∈ [0,1]: 1 = beide Pole gleich stark (gespalten), 0 = einseitig.
+    node["dissent"] = round(2 * min(pos, neg) / total, 4) if total > 0 else 0.0
     acc |= local
     return local
 
@@ -121,6 +144,7 @@ def _aggregate(node: dict, acc: set, arg_meta: dict) -> set:
 async def get_taxonomy(
     ballot_rkey: str = Query(...),
     topic: Optional[str] = Query(None),
+    shape: Optional[str] = Query(None),
     lang: Optional[str] = Query(None),
     accept_language: Optional[str] = Header(None),
     session: TSession = Depends(verify_session_token),
@@ -133,7 +157,7 @@ async def get_taxonomy(
     - mit `topic` (Slug = node.key): Basis = dieses Topic → seine Subtopics; die
       3. Ebene entfällt (ihre Argumente landen im jeweiligen Subtopic).
 
-    Mit Session: je Knoten die relevanz-gewichtete Pro-Vorlage-Neigung des Viewers."""
+    Mit Session: je Knoten die zustimmungs-gewichtete Pro-Vorlage-Neigung des Viewers."""
     requested_lang = resolve_requested_lang(lang, accept_language)
     viewer_did = session.did if session else None
     try:
@@ -167,7 +191,7 @@ async def get_taxonomy(
             )
 
         # node_id → { uri → arg }  (ein Argument je Knoten nur einmal)
-        # arg_meta[uri] = (relevanz, sign) für vom Viewer bewertete Argumente.
+        # arg_meta[uri] = Pro-Vorlage-Beitrag ∈ [-1,1] (siehe _aggregate / unten).
         by_node: dict[int, dict[str, dict]] = {}
         arg_meta: dict[str, tuple] = {}
         for r in rows:
@@ -194,7 +218,11 @@ async def get_taxonomy(
                 "availableLangs": loc.get("availableLangs"),
             }
             if pref is not None and r["uri"] not in arg_meta:
-                arg_meta[r["uri"]] = (float(pref), 1.0 if r["type"] == "PRO" else -1.0)
+                # Präferenz 1–100 = Zustimmung zum Argument (50 = neutral). Auf
+                # [-1,1] zentrieren und mit der Seite verrechnen → Pro-Vorlage-
+                # Beitrag: bestätigtes PRO/abgelehntes CONTRA → +, sonst −.
+                sign = 1.0 if r["type"] == "PRO" else -1.0
+                arg_meta[r["uri"]] = sign * (float(pref) - 50.0) / 50.0
 
         by_id: dict[int, dict] = {
             n["id"]: {
@@ -240,21 +268,53 @@ async def get_taxonomy(
                          "message": f"Keine Taxonomie für Ballot {ballot_rkey}."},
             )
 
+        # Breadcrumb = Vorfahren-Pfad des Basis-Knotens (Wurzel/Ballot UND der
+        # Basis-Knoten selbst ausgelassen). Erlaubt im Overlay das Hochnavigieren.
+        # Bei Default (base = root) leer.
+        raw_by_id = {n["id"]: n for n in nodes}
+        breadcrumb: list[dict] = []
+        parent_id = raw_by_id.get(base["id"], {}).get("parent_id")
+        while parent_id is not None:
+            p = raw_by_id.get(parent_id)
+            if p is None or p["parent_id"] is None:  # Wurzel (Ballot) auslassen
+                break
+            breadcrumb.append(
+                {"name": p["name"], "key": p["key"], "description": p["description"]}
+            )
+            parent_id = p["parent_id"]
+        breadcrumb.reverse()
+
         # Eine Ebene tiefer zusammenfassen: jedes direkte Kind wird zu einem flachen
         # Knoten mit allen Argumenten seines Teilbaums; die eigenen (direkt am Basis-
         # Knoten hängenden) Argumente bleiben als base["arguments"].
-        base = {
-            **base,
-            "children": [_flatten_child(c) for c in base["children"]],
-        }
-        # Reihenfolge: user-stabiler Shuffle der Geschwister-Themen und der
-        # Argumente jedes Knotens (wie booklet argument.list, offizielle zuerst).
-        # Vor _aggregate, damit die Zähler unberührt bleiben.
-        _shuffle_tree(base, viewer_did or "")
-        _aggregate(base, set(), arg_meta)
+        # Direkt am Wurzelknoten (parent_id IS NULL) hängende Argumente NICHT
+        # ausliefern: das ist der Alt-„andere"-Topf (Codes, die in kein Oberthema
+        # passen). Sie werden nur im CMS-„Nicht zugeordnet"-Bereich verwaltet.
+        base_is_root = raw_by_id.get(base["id"], {}).get("parent_id") is None
+        if shape == "full":
+            # Sunburst: voller verschachtelter Baum (NICHT flachklappen). Aggregate
+            # je Knoten über den ganzen Teilbaum, dann auf die Struktur-Felder
+            # reduzieren (ohne Argument-Arrays).
+            base = {**base, "arguments": [] if base_is_root else base["arguments"]}
+            _shuffle_tree(base, viewer_did or "")
+            _aggregate(base, set(), arg_meta)
+            base = _slim(base)
+        else:
+            base = {
+                **base,
+                "arguments": [] if base_is_root else base["arguments"],
+                "children": [_flatten_child(c) for c in base["children"]],
+            }
+            # Reihenfolge: user-stabiler Shuffle der Geschwister-Themen und der
+            # Argumente jedes Knotens (wie booklet argument.list, offizielle zuerst).
+            # Vor _aggregate, damit die Zähler unberührt bleiben.
+            _shuffle_tree(base, viewer_did or "")
+            _aggregate(base, set(), arg_meta)
 
-        return JSONResponse(status_code=200,
-                            content={"ballotRkey": ballot_rkey, "tree": base})
+        return JSONResponse(
+            status_code=200,
+            content={"ballotRkey": ballot_rkey, "tree": base, "breadcrumb": breadcrumb},
+        )
     except Exception as err:
         logger.error(f"taxonomy.get failed: {err}")
         return JSONResponse(

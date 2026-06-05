@@ -78,7 +78,11 @@ export interface Config {
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
-  collectionsJoins: {};
+  collectionsJoins: {
+    ballots: {
+      officialArguments: 'imported-arguments';
+    };
+  };
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
@@ -271,6 +275,19 @@ export interface Block {
  */
 export interface Ballot {
   id: number;
+  originLanguage: 'de' | 'fr' | 'it' | 'rm' | 'en';
+  /**
+   * Nur draft/published werden vom Calculator codiert; archived nicht.
+   */
+  status: 'draft' | 'published' | 'archived';
+  /**
+   * ATProto Governance Account DID (auto-created on publish — reload the page after publishing to see the value).
+   */
+  governanceDid?: string | null;
+  /**
+   * ATProto Governance Account Handle (auto-created on publish — reload the page after publishing to see the value).
+   */
+  governanceHandle?: string | null;
   /**
    * Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for the governance account handle — dots are replaced with hyphens (e.g. "133.3" → ballot-133-3.id.poltr.ch).
    */
@@ -315,19 +332,14 @@ export interface Ballot {
    * Referenz auf offizielle Unterlagen (URL)
    */
   officialRef?: string | null;
-  originLanguage: 'de' | 'fr' | 'it' | 'rm' | 'en';
   /**
-   * Nur draft/published werden vom Calculator codiert; archived nicht.
+   * Verknüpfte offizielle Argumente. Zum Bearbeiten anklicken oder oben rechts neu anlegen.
    */
-  status: 'draft' | 'published' | 'archived';
-  /**
-   * ATProto Governance Account DID (auto-created on publish — reload the page after publishing to see the value).
-   */
-  governanceDid?: string | null;
-  /**
-   * ATProto Governance Account Handle (auto-created on publish — reload the page after publishing to see the value).
-   */
-  governanceHandle?: string | null;
+  officialArguments?: {
+    docs?: (number | ImportedArgument)[];
+    hasNextPage?: boolean;
+    totalDocs?: number;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -542,6 +554,10 @@ export interface BlocksSelect<T extends boolean = true> {
  * via the `definition` "ballots_select".
  */
 export interface BallotsSelect<T extends boolean = true> {
+  originLanguage?: T;
+  status?: T;
+  governanceDid?: T;
+  governanceHandle?: T;
   rkey?: T;
   title?: T;
   description?: T;
@@ -549,10 +565,7 @@ export interface BallotsSelect<T extends boolean = true> {
   ballotType?: T;
   voteDate?: T;
   officialRef?: T;
-  originLanguage?: T;
-  status?: T;
-  governanceDid?: T;
-  governanceHandle?: T;
+  officialArguments?: T;
   updatedAt?: T;
   createdAt?: T;
 }

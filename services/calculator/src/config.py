@@ -73,7 +73,7 @@ OPENCODING_BATCH_SIZE = int(os.getenv("CALCULATOR_OPENCODING_BATCH_SIZE", "20"))
 OPENCODING_MAX_ATTEMPTS = int(os.getenv("CALCULATOR_OPENCODING_MAX_ATTEMPTS", "3"))
 OPENCODING_DAILY_CAP = int(os.getenv("CALCULATOR_OPENCODING_DAILY_CAP", "300"))
 OPENCODING_LEASE_MINUTES = int(os.getenv("CALCULATOR_OPENCODING_LEASE_MINUTES", "3"))
-OPENCODING_MAX_CODES = int(os.getenv("CALCULATOR_OPENCODING_MAX_CODES", "3"))
+OPENCODING_MAX_CODES = int(os.getenv("CALCULATOR_OPENCODING_MAX_CODES", "2"))
 # Open Coding läuft über Infomaniak (Gemma), nicht Anthropic — der mengen-
 # intensive Schritt. Gleiche Infomaniak-Creds wie Embeddings (EMBEDDING_*).
 OPENCODING_MODEL = os.getenv("CALCULATOR_OPENCODING_MODEL", "google/gemma-4-31B-it")

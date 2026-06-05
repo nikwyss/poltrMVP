@@ -28,7 +28,7 @@ class LLMClient:
     # Cache-Key ein, damit ein Modell-/Prompt-Wechsel den Cache invalidiert.
     open_code_signature: str = "base"
 
-    def open_code(self, argument: str, max_codes: int = 3,
+    def open_code(self, argument: str, max_codes: int = 2,
                   raise_on_error: bool = False) -> list[dict]:
         """Open Coding: ein Argument unabhängig in 1..max_codes kurze Codes
         zerlegen. Rückgabe: [{code, note, confidence}]. Mit `raise_on_error=True`

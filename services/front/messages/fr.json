@@ -162,14 +162,14 @@
     "yourRating": "Ihre Bewertung"
   },
   "relevance": {
-    "low": "Geringe Relevanz",
-    "medium": "Mittlere Relevanz",
-    "high": "Grosse Relevanz",
+    "low": "Faible accord",
+    "medium": "Accord partiel",
+    "high": "Fort accord",
     "notRated": "Noch nicht bewertet",
-    "intro": "Wie relevant finden Sie dieses Argument? Bewerten Sie das Argument, indem Sie den Regler verschieben.",
-    "increase": "Relevanz erhöhen",
-    "decrease": "Relevanz verringern",
-    "ariaLabel": "Relevanz-Bewertung"
+    "intro": "Dans quelle mesure êtes-vous d'accord avec cet argument ? Évaluez-le en déplaçant le curseur.",
+    "increase": "Augmenter l'accord",
+    "decrease": "Diminuer l'accord",
+    "ariaLabel": "Évaluation de l'accord"
   },
   "feed": {
     "addArgument": "Argument hinzufügen",
@@ -259,8 +259,8 @@
     "proArgument": "Pro-Argument",
     "contraArgument": "Contra-Argument",
     "statusUnread": "Bewerten",
-    "relevanceTitle": "Ihre Relevanz-Bewertung",
-    "relevanceForYou": "Relevanz für Sie",
+    "relevanceTitle": "Votre accord",
+    "relevanceForYou": "Accord",
     "fallbackBundesrat": "Bundesrat",
     "fallbackInitiativkomitee": "Initiativkomitee",
     "fallbackOrganization": "Organisation"
@@ -308,9 +308,11 @@
     "argPro": "Argument pour",
     "argContra": "Argument contre",
     "official": "Officiel",
-    "relevance": "Pertinence",
+    "relevance": "Accord",
     "agree": "Je le vois aussi ainsi",
     "disagree": "Je ne le vois pas ainsi",
-    "showMore": "Mehr anzeigen (+{count})"
+    "showMore": "Mehr anzeigen (+{count})",
+    "sunburstTitle": "Rayon thématique",
+    "sunburstCenter": "Total"
   }
 }

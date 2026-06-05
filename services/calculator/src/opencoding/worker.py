@@ -205,6 +205,80 @@ async def run_batch(batch_size: int | None = None) -> dict:
     }
 
 
+async def code_ballot(ballot_rkey: str, *, batch_size: int | None = None,
+                      max_total: int = 2000) -> dict:
+    """On-demand: ALLE noch nicht (oder veraltet) codierten Argumente EINES Ballots
+    codieren — für das interaktive „Argumente einsortieren" im Editor (ersetzt für
+    diesen Ballot den Cron-Lauf).
+
+    Unterschiede zum Cron-`run_batch`:
+      • auf genau diesen `ballot_rkey` beschränkt (umgeht die CMS-Status-Filterung —
+        der Admin editiert die Vorlage gerade),
+      • IGNORIERT den Tagescap (bewusste Aktion),
+      • läuft in Schleife über mehrere Batches, bis nichts mehr offen ist
+        (Sicherheits-Limit `max_total`).
+    Re-Coding bei Edit (`cid`) / Signatur-Wechsel passiert wie im Cron automatisch.
+    """
+    batch_size = batch_size or config.OPENCODING_BATCH_SIZE
+    llm = get_open_coder()
+    sig = llm.open_code_signature
+    pool = await db.get_pool()
+    counts = {"done": 0, "empty": 0, "failed": 0, "failed_permanent": 0}
+    processed = 0
+    sem = asyncio.Semaphore(_CONCURRENCY)
+
+    while processed < max_total:
+        async with pool.acquire() as conn:
+            claimed = await _claim(
+                conn, coder_sig=sig,
+                limit=min(batch_size, max_total - processed),
+                codeable_rkeys=[ballot_rkey])
+            if not claimed:
+                break
+            uris = [r["argument_uri"] for r in claimed]
+            meta = {r["argument_uri"]: (r["argument_cid"], r["ballot_rkey"]) for r in claimed}
+            texts = await _load_texts(conn, uris)
+
+        async def _process(uri: str):
+            async with sem:
+                cid, _ = meta[uri]
+                title, body = texts.get(uri, ("", ""))
+                text = f"{title}\n\n{body}".strip()
+                try:
+                    codes = await asyncio.to_thread(
+                        llm.open_code, text, config.OPENCODING_MAX_CODES, True)
+                except Exception as err:  # noqa: BLE001
+                    transient = _is_transient(err)
+                    async with pool.acquire() as conn:
+                        st = await _write_failure(conn, uri, str(err), transient=transient)
+                    counts[st] = counts.get(st, 0) + 1
+                    logger.warning("open_code failed (%s, transient=%s): %s",
+                                   uri, transient, err)
+                    return
+                status = _classify_result(codes)
+                async with pool.acquire() as conn:
+                    await _write_success(conn, uri, cid, sig, codes, status)
+                counts[status] += 1
+
+        before = counts["done"] + counts["empty"]
+        await asyncio.gather(*[_process(u) for u in uris])
+        processed += len(uris)
+        # Keine erfolgreiche Codierung in dieser Runde (z.B. LLM-Ausfall, lauter
+        # transiente Fehler) → abbrechen, sonst würden dieselben Zeilen endlos
+        # neu geclaimt.
+        if counts["done"] + counts["empty"] == before:
+            break
+
+    return {
+        "status": "ok",
+        "ballot_rkey": ballot_rkey,
+        "processed": processed,
+        "coder_signature": sig,
+        "truncated": processed >= max_total,
+        **counts,
+    }
+
+
 async def status_summary() -> dict:
     """Counts je Status + Tagesbudget + offene Kandidaten (für /opencoding/status).
 

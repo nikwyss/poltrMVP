@@ -4,9 +4,10 @@ import React from 'react'
 import { Link } from '@payloadcms/ui'
 
 /**
- * Custom list-cell for the Ballots collection: renders two per-row actions —
- * "Bearbeiten" (the standard edit view) and "Argumente" (the official
- * arguments for this ballot, as a pre-filtered imported-arguments list).
+ * Custom list-cell for the Ballots collection: a per-row "Bearbeiten" action
+ * (the standard edit view). Offizielle Argumente werden dort im Tab „Offizielle
+ * Argumente" bearbeitet — der frühere „Argumente"-Link auf die Standalone-Liste
+ * der imported-arguments entfällt, weil die Collection jetzt `hidden` ist.
  *
  * Registered via a virtual `ui` field on the Ballots collection.
  */
@@ -17,7 +18,6 @@ export const BallotRowActions: React.FC<{ rowData?: { id?: string | number } }> 
   if (id === undefined || id === null) return null
 
   const editHref = `/admin/collections/ballots/${id}`
-  const argsHref = `/admin/collections/imported-arguments?where[ballot][equals]=${id}`
 
   const style: React.CSSProperties = {
     display: 'inline-block',
@@ -34,9 +34,6 @@ export const BallotRowActions: React.FC<{ rowData?: { id?: string | number } }> 
     <div style={{ display: 'flex', gap: '6px' }}>
       <Link href={editHref} style={style} prefetch={false}>
         Bearbeiten
-      </Link>
-      <Link href={argsHref} style={style} prefetch={false}>
-        Argumente
       </Link>
     </div>
   )

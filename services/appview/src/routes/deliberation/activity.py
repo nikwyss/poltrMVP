@@ -158,7 +158,7 @@ async def list_activity(
                 NULL::int AS parent_reply_count
             FROM app_comments c
             JOIN app_arguments a ON a.uri = c.argument_uri
-            WHERE c.ballot_rkey = $1 AND NOT c.deleted AND c.parent_uri IS NULL AND c.origin = 'intern'
+            WHERE c.ballot_rkey = $1 AND NOT c.deleted AND NOT a.deleted AND c.parent_uri IS NULL AND c.origin = 'intern'
 
             UNION ALL
 
@@ -188,7 +188,7 @@ async def list_activity(
             FROM app_comments c
             JOIN app_arguments a ON a.uri = c.argument_uri
             JOIN app_comments pc ON pc.uri = c.parent_uri
-            WHERE c.ballot_rkey = $1 AND NOT c.deleted AND c.parent_uri IS NOT NULL AND c.origin = 'intern'
+            WHERE c.ballot_rkey = $1 AND NOT c.deleted AND NOT a.deleted AND c.parent_uri IS NOT NULL AND c.origin = 'intern'
         )
         SELECT
             act.*,

@@ -14,6 +14,7 @@ import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
 import { PageBackdrop } from "@/components/page-backdrop";
 import { PositionBand } from "@/components/position-band";
+import { TaxonomySunburst } from "@/components/taxonomy-sunburst";
 import { BallotHeader } from "@/components/ballot-header";
 import {
   getInsight,
@@ -93,6 +94,8 @@ export default function TaxonomyPage() {
 
   const [ballot, setBallot] = useState<Ballot | null>(null);
   const [tax, setTax] = useState<TaxonomyTree | null>(null);
+  // Voller verschachtelter Baum (alle Ebenen) — nur fürs Sunburst.
+  const [fullTree, setFullTree] = useState<TaxonomyTree | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,9 +110,14 @@ export default function TaxonomyPage() {
     setLoading(true);
     setError(null);
     try {
-      const [b, tx] = await Promise.all([getBallot(id, locale), getTaxonomy(id, locale)]);
+      const [b, tx, full] = await Promise.all([
+        getBallot(id, locale),
+        getTaxonomy(id, locale),
+        getTaxonomy(id, locale, undefined, "full"),
+      ]);
       setBallot(b);
       setTax(tx);
+      setFullTree(full);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -176,6 +184,11 @@ export default function TaxonomyPage() {
 
           {/* Positionsband — Themen-Übersicht zwischen den Polen */}
           <PositionBand nodes={root.children} t={t} />
+
+          {/* Sunburst — ganze Themen-Hierarchie, gefärbt nach eigener Haltung */}
+          {fullTree?.tree && (
+            <TaxonomySunburst root={fullTree.tree} t={t} onSelect={openTopicDetail} />
+          )}
         </div>
       )}
     </div>

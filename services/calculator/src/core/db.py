@@ -78,6 +78,79 @@ async def fetch_codeable_ballot_rkeys() -> list[str] | None:
     return [r["rkey"] for r in rows]
 
 
+def lexical_to_text(value) -> str:
+    """Wandelt das Payload-/Lexical-richText-JSON (wie es in der CMS-DB-Spalte
+    `ballots_locales.description` steht) in einfachen Text um. Akzeptiert ein
+    dict, einen JSON-String oder bereits Plaintext. Absätze → Leerzeile,
+    Zeilenumbrüche bleiben erhalten."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (TypeError, ValueError):
+            return value.strip()  # war schon Plaintext
+    if not isinstance(value, dict):
+        return ""
+    root = value.get("root")
+    if not isinstance(root, dict):
+        return ""
+    parts: list[str] = []
+
+    def walk(node) -> None:
+        if not isinstance(node, dict):
+            return
+        ntype = node.get("type")
+        if ntype == "text":
+            parts.append(node.get("text", ""))
+            return
+        if ntype == "linebreak":
+            parts.append("\n")
+            return
+        children = node.get("children")
+        if isinstance(children, list):
+            for ch in children:
+                walk(ch)
+        # Block-Elemente durch Leerzeile trennen.
+        if ntype in ("paragraph", "heading", "listitem", "quote"):
+            parts.append("\n\n")
+
+    for ch in root.get("children", []) or []:
+        walk(ch)
+    return re.sub(r"\n{3,}", "\n\n", "".join(parts)).strip()
+
+
+async def fetch_ballot_description(ballot_rkey: str) -> str | None:
+    """Liest die amtliche Vorlagen-Beschreibung (richText) aus der CMS-DB und gibt
+    sie als Plaintext zurück — bevorzugt in der Quellsprache (`origin_language`),
+    sonst Deutsch. `None`, wenn keine CMS-DB konfiguriert ist oder nichts vorliegt."""
+    if not config.CMS_POSTGRES_URL:
+        return None
+    conn = await asyncpg.connect(config.CMS_POSTGRES_URL)
+    try:
+        row = await conn.fetchrow(
+            """SELECT
+                   (SELECT l.description FROM ballots_locales l
+                      WHERE l._parent_id = b.id
+                        AND l._locale::text = b.origin_language::text)
+                     AS desc_origin,
+                   (SELECT l.description FROM ballots_locales l
+                      WHERE l._parent_id = b.id AND l._locale::text = 'de')
+                     AS desc_de
+               FROM ballots b
+               WHERE b.rkey = $1""",
+            ballot_rkey)
+    except asyncpg.PostgresError as err:
+        logger.warning("Vorlagen-Beschreibung nicht lesbar (%s)", err)
+        return None
+    finally:
+        await conn.close()
+    if not row:
+        return None
+    text = lexical_to_text(row["desc_origin"] or row["desc_de"])
+    return text or None
+
+
 async def fetch_open_codes_for_ballot(ballot_rkey: str, *,
                                       limit: int | None = None,
                                       source_type: str | None = None) -> list[dict]:
@@ -336,6 +409,67 @@ async def persist_topic_tree(ballot_rkey: str, tree: dict,
     return {"nodes": stats["nodes"], "memberships": len(rows)}
 
 
+async def save_topic_tree_full(ballot_rkey: str, tree: dict) -> dict:
+    """Vollständiges Ersetzen aus einem editierten State-Baum: löscht den
+    bestehenden Baum (CASCADE räumt Memberships) und schreibt Knoten UND
+    Memberships neu. Jeder Knoten trägt seine Memberships direkt in `codes`:
+    [{code, argument_uri, confidence, stance}] (Form wie db.fetch_topic_tree).
+    Neue Knoten haben keine id/key — keys werden frisch vergeben. Rückgabe:
+    {nodes, memberships}."""
+    pool = await get_pool()
+    used_slugs: set[str] = set()
+    stats = {"nodes": 0, "memberships": 0}
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(
+                "DELETE FROM app_topic_node WHERE ballot_rkey = $1", ballot_rkey)
+
+            async def insert(node: dict, parent_id, depth: int):
+                name = node.get("name") or "(Wurzel)"
+                key = _unique_slug(_slugify(name), used_slugs)
+                nid = await conn.fetchval(
+                    """INSERT INTO app_topic_node
+                           (ballot_rkey, parent_id, key, name, description, depth)
+                       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id""",
+                    ballot_rkey, parent_id, key, name,
+                    node.get("description"), depth)
+                stats["nodes"] += 1
+
+                rows = []
+                seen: set[tuple] = set()
+                for c in node.get("codes", []) or []:
+                    if not isinstance(c, dict):
+                        continue
+                    code = (c.get("code") or "").strip()
+                    arg = c.get("argument_uri")
+                    if not code or not arg:
+                        continue
+                    k = (arg, code)
+                    if k in seen:
+                        continue
+                    seen.add(k)
+                    rows.append((ballot_rkey, nid, arg, code,
+                                 c.get("confidence"), c.get("stance")))
+                if rows:
+                    await conn.executemany(
+                        """INSERT INTO app_topic_membership
+                               (ballot_rkey, node_id, argument_uri, code, confidence, stance)
+                           VALUES ($1, $2, $3, $4, $5, $6)
+                           ON CONFLICT (ballot_rkey, argument_uri, code) DO UPDATE
+                             SET node_id = EXCLUDED.node_id,
+                                 confidence = EXCLUDED.confidence,
+                                 stance = EXCLUDED.stance, updated_at = now()""",
+                        rows)
+                    stats["memberships"] += len(rows)
+
+                for child in node.get("children", []) or []:
+                    await insert(child, nid, depth + 1)
+
+            await insert(tree, None, 0)
+    return {"nodes": stats["nodes"], "memberships": stats["memberships"]}
+
+
 async def fetch_topic_tree(ballot_rkey: str) -> dict | None:
     """Liest den Baum eines Ballots (Knoten flach + Memberships) und baut die
     Nested-Struktur zusammen. Rückgabe: root-Knoten oder None."""
@@ -378,17 +512,135 @@ async def fetch_topic_tree(ballot_rkey: str) -> dict | None:
 async def fetch_unplaced_entries(ballot_rkey: str) -> list[dict]:
     """Codes/Argumente (status='done'), die noch NICHT im Themenbaum hängen
     (für das inkrementelle Einsortieren). Rückgabe: [{argument_uri, code,
-    confidence, stance}]."""
+    confidence, stance, source_type}], OFFIZIELLE Argumente zuerst (damit sie beim
+    Einsortieren die Platzierung bestimmen)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """SELECT oc.argument_uri, oc.codes, a.type
+            """SELECT oc.argument_uri, oc.codes, a.type, a.source_type
                FROM app_argument_open_codes oc
                JOIN app_arguments a ON a.uri = oc.argument_uri
                WHERE oc.ballot_rkey = $1 AND oc.status = 'done' AND NOT a.deleted
                  AND NOT EXISTS (
                      SELECT 1 FROM app_topic_membership m
                      WHERE m.ballot_rkey = $1 AND m.argument_uri = oc.argument_uri)
+               ORDER BY (a.source_type = 'official') DESC, a.created_at ASC
+            """, ballot_rkey)
+    out: list[dict] = []
+    for r in rows:
+        codes = r["codes"]
+        if isinstance(codes, str):
+            try:
+                codes = json.loads(codes)
+            except (TypeError, ValueError):
+                codes = []
+        if not isinstance(codes, list):
+            codes = []
+        stance = (r["type"] or "").strip().lower()
+        stance = stance if stance in ("pro", "contra") else None
+        source_type = r["source_type"]
+        seen: set[str] = set()
+        for c in codes:
+            lbl = (c.get("code") or "").strip()
+            if not lbl or lbl in seen:
+                continue
+            seen.add(lbl)
+            out.append({"argument_uri": r["argument_uri"], "code": lbl,
+                        "confidence": float(c.get("confidence", 1.0)),
+                        "stance": stance, "source_type": source_type})
+    return out
+
+
+async def fetch_unplaced_codes_detailed(ballot_rkey: str) -> list[dict]:
+    """Argumente mit MINDESTENS einem nicht zugeordneten Code (status='done')
+    — für den „Nicht zugeordnet"-Bereich im CMS-Panel. Pro Argument: welche
+    Codes hängen in einem ECHTEN Ast (`placed_codes` mit `node_name`) und welche
+    nicht (`unplaced_codes`). `fully_missing` = KEIN Code des Arguments ist
+    platziert. Memberships am Wurzelknoten (parent_id IS NULL) zählen als NICHT
+    platziert (Alt-„andere"-Topf, der überall ausgeblendet ist). Voll zugeordnete
+    Argumente erscheinen nicht. Sortierung: ganz fehlende zuerst, dann offizielle."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            WITH oc AS (
+                SELECT o.argument_uri, a.type, a.source_type, a.title, a.body,
+                       a.created_at, jsonb_array_elements(o.codes) AS code_obj
+                FROM app_argument_open_codes o
+                JOIN app_arguments a ON a.uri = o.argument_uri
+                WHERE o.ballot_rkey = $1 AND o.status = 'done' AND NOT a.deleted
+                  AND jsonb_typeof(o.codes) = 'array'
+            )
+            SELECT oc.argument_uri, oc.type, oc.source_type, oc.title, oc.body,
+                   oc.created_at,
+                   (oc.code_obj->>'code') AS code,
+                   (oc.code_obj->>'confidence') AS confidence,
+                   n.name AS node_name,
+                   (m.node_id IS NOT NULL AND n.parent_id IS NOT NULL) AS placed
+            FROM oc
+            LEFT JOIN app_topic_membership m
+                   ON m.ballot_rkey = $1 AND m.argument_uri = oc.argument_uri
+                  AND m.code = (oc.code_obj->>'code')
+            LEFT JOIN app_topic_node n ON n.id = m.node_id
+            WHERE coalesce(trim(oc.code_obj->>'code'), '') <> ''
+            ORDER BY (oc.source_type = 'official') DESC, oc.created_at ASC
+            """,
+            ballot_rkey,
+        )
+    args: dict[str, dict] = {}
+    for r in rows:
+        key = r["argument_uri"]
+        entry = args.get(key)
+        if entry is None:
+            title = (r["title"] or "").strip() or (r["body"] or "").strip()[:120]
+            stance = (r["type"] or "").strip().lower()
+            entry = {
+                "argument_uri": key,
+                "title": title,
+                "type": r["type"],
+                "source_type": r["source_type"],
+                "stance": stance if stance in ("pro", "contra") else None,
+                "placed_codes": [],
+                "unplaced_codes": [],
+                "_seen": set(),
+            }
+            args[key] = entry
+        code = (r["code"] or "").strip()
+        if not code or code in entry["_seen"]:
+            continue
+        entry["_seen"].add(code)
+        if r["placed"]:
+            entry["placed_codes"].append({"code": code, "node_name": r["node_name"]})
+        else:
+            try:
+                conf = float(r["confidence"]) if r["confidence"] is not None else None
+            except (TypeError, ValueError):
+                conf = None
+            entry["unplaced_codes"].append({"code": code, "confidence": conf})
+    out: list[dict] = []
+    for e in args.values():
+        if not e["unplaced_codes"]:
+            continue  # voll zugeordnet → nicht anzeigen
+        e.pop("_seen", None)
+        e["fully_missing"] = len(e["placed_codes"]) == 0
+        out.append(e)
+    out.sort(key=lambda e: not e["fully_missing"])  # ganz fehlende zuerst (stabil)
+    return out
+
+
+async def fetch_done_entries(ballot_rkey: str) -> list[dict]:
+    """ALLE codierten Argumente (status='done') eines Ballots als Entries —
+    unabhängig davon, ob sie im Baum hängen. Für den State-Editor, der „unverortet"
+    relativ zum bearbeiteten (nicht persistierten) Baum bestimmt. Rückgabe:
+    [{argument_uri, code, confidence, stance, source_type}], OFFIZIELLE zuerst."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT oc.argument_uri, oc.codes, a.type, a.source_type
+               FROM app_argument_open_codes oc
+               JOIN app_arguments a ON a.uri = oc.argument_uri
+               WHERE oc.ballot_rkey = $1 AND oc.status = 'done' AND NOT a.deleted
+               ORDER BY (a.source_type = 'official') DESC, a.created_at ASC
             """, ballot_rkey)
     out: list[dict] = []
     for r in rows:
@@ -409,7 +661,8 @@ async def fetch_unplaced_entries(ballot_rkey: str) -> list[dict]:
                 continue
             seen.add(lbl)
             out.append({"argument_uri": r["argument_uri"], "code": lbl,
-                        "confidence": float(c.get("confidence", 1.0)), "stance": stance})
+                        "confidence": float(c.get("confidence", 1.0)),
+                        "stance": stance, "source_type": r["source_type"]})
     return out
 
 

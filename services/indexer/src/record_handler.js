@@ -6,6 +6,7 @@ import {
   markLikeDeleted,
   upsertArgumentDb,
   markArgumentDeleted,
+  cascadeDeleteArgumentDerived,
   upsertCommentDb,
   markCommentDeleted,
   upsertCommentTranslationDb,
@@ -75,10 +76,16 @@ export const handleEvent = async (evt) => {
       console.log(`Ignoring argument from non-governance repo: ${did}`);
       return;
     }
-    // if (action === "delete") {
-    //   await markArgumentDeleted(uri);
-    //   return;
-    // }
+    if (action === "delete") {
+      // Soft-delete the argument (reads everywhere filter `NOT deleted`), then
+      // clean up its machine-derived analysis rows (open codes + taxonomy/axis).
+      // Peer reviews, comments and likes are NOT removed — they stay and are
+      // hidden via read-filters (peer reviews are democratically sensitive and
+      // must never be hard-deleted).
+      await markArgumentDeleted(uri);
+      await cascadeDeleteArgumentDerived(uri);
+      return;
+    }
     if (action === "create" || action === "update") {
       const record = evt.record;
       if (!record) return;

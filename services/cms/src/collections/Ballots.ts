@@ -15,74 +15,7 @@ export const Ballots: CollectionConfig = {
     delete: ({ req: { user } }) => !!user,
   },
   fields: [
-    {
-      name: 'rkey',
-      type: 'text',
-      required: true,
-      unique: true,
-      admin: {
-        description: 'Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for the governance account handle — dots are replaced with hyphens (e.g. "133.3" → ballot-133-3.id.poltr.ch).',
-      },
-      validate: (value: unknown) => {
-        if (typeof value !== 'string') return 'rkey is required'
-        if (!/^[0-9]+(\.[0-9]+)?$/.test(value)) {
-          return 'rkey must be a BK number (e.g. "663" or "133.3")'
-        }
-        return true
-      },
-    },
-    {
-      name: 'title',
-      type: 'text',
-      required: true,
-      localized: true,
-    },
-    {
-      name: 'description',
-      type: 'richText',
-      localized: true,
-    },
-    {
-      name: 'topic',
-      type: 'text',
-      localized: true,
-      admin: {
-        description: 'Themenbereich (z.B. Umwelt, Soziales)',
-      },
-    },
-    {
-      name: 'ballotType',
-      type: 'select',
-      options: [
-        { label: 'Obligatorisches Referendum', value: 'obligatorisches_referendum' },
-        { label: 'Fakultatives Referendum', value: 'fakultatives_referendum' },
-        { label: 'Volksinitiative', value: 'volksinitiative' },
-        { label: 'Direkter Gegenentwurf', value: 'direkter_gegenentwurf' },
-        { label: 'Stichfrage', value: 'stichfrage' },
-      ],
-      admin: {
-        description: 'Rechtsform der Vorlage (gemäss swissvotes.ch)',
-      },
-    },
-    {
-      name: 'voteDate',
-      type: 'date',
-      required: true,
-      admin: {
-        date: {
-          pickerAppearance: 'dayOnly',
-          displayFormat: 'dd.MM.yyyy',
-        },
-        description: 'Abstimmungsdatum',
-      },
-    },
-    {
-      name: 'officialRef',
-      type: 'text',
-      admin: {
-        description: 'Referenz auf offizielle Unterlagen (URL)',
-      },
-    },
+    // --- Sidebar fields (rendered in the sidebar across all tabs) ---
     {
       // Quelle der ursprünglichen Texterstellung (z.B. amtssprache der Bundeskanzlei-
       // Vorlage). Die Edit-Maske bietet via Payload-Localization einen Sprach-
@@ -161,18 +94,130 @@ export const Ballots: CollectionConfig = {
         },
       },
     },
+    // --- Main content: three tabs (unnamed → data stays flat, no migration) ---
     {
-      // Themen-Hierarchie (Calculator/top-down): Vorschau bauen, vergleichen,
-      // übernehmen, Community einsortieren, wachsen lassen. Read/Write gegen den
-      // Calculator-Service. Siehe components/TaxonomyPanel.tsx.
-      name: 'taxonomy',
-      type: 'ui',
-      label: 'Themen-Hierarchie',
-      admin: {
-        components: {
-          Field: '/components/TaxonomyPanel#TaxonomyPanelField',
+      type: 'tabs',
+      tabs: [
+        {
+          label: 'Allgemein',
+          description: 'Status, Texte und Beschreibung der Vorlage.',
+          fields: [
+            {
+              name: 'rkey',
+              type: 'text',
+              required: true,
+              unique: true,
+              admin: {
+                description: 'Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for the governance account handle — dots are replaced with hyphens (e.g. "133.3" → ballot-133-3.id.poltr.ch).',
+              },
+              validate: (value: unknown) => {
+                if (typeof value !== 'string') return 'rkey is required'
+                if (!/^[0-9]+(\.[0-9]+)?$/.test(value)) {
+                  return 'rkey must be a BK number (e.g. "663" or "133.3")'
+                }
+                return true
+              },
+            },
+            {
+              name: 'title',
+              type: 'text',
+              required: true,
+              localized: true,
+            },
+            {
+              name: 'description',
+              type: 'richText',
+              localized: true,
+            },
+            {
+              name: 'topic',
+              type: 'text',
+              localized: true,
+              admin: {
+                description: 'Themenbereich (z.B. Umwelt, Soziales)',
+              },
+            },
+            {
+              name: 'ballotType',
+              type: 'select',
+              options: [
+                { label: 'Obligatorisches Referendum', value: 'obligatorisches_referendum' },
+                { label: 'Fakultatives Referendum', value: 'fakultatives_referendum' },
+                { label: 'Volksinitiative', value: 'volksinitiative' },
+                { label: 'Direkter Gegenentwurf', value: 'direkter_gegenentwurf' },
+                { label: 'Stichfrage', value: 'stichfrage' },
+              ],
+              admin: {
+                description: 'Rechtsform der Vorlage (gemäss swissvotes.ch)',
+              },
+            },
+            {
+              name: 'voteDate',
+              type: 'date',
+              required: true,
+              admin: {
+                date: {
+                  pickerAppearance: 'dayOnly',
+                  displayFormat: 'dd.MM.yyyy',
+                },
+                description: 'Abstimmungsdatum',
+              },
+            },
+            {
+              name: 'officialRef',
+              type: 'text',
+              admin: {
+                description: 'Referenz auf offizielle Unterlagen (URL)',
+              },
+            },
+          ],
         },
-      },
+        {
+          label: 'Offizielle Argumente',
+          description:
+            'Kuratierte PRO/CONTRA-Argumente (Bundeskanzlei etc.). Hier direkt anlegen und bearbeiten — auf "Published" gesetzte Argumente werden auf den PDS geschrieben.',
+          fields: [
+            {
+              // Reverse-Relationship auf imported-arguments.ballot: zeigt die
+              // zugehörigen offiziellen Argumente inline an, mit "Create New"
+              // (Drawer öffnet vorbefüllt mit dieser Vorlage). Siehe
+              // collections/OfficialArguments.ts.
+              name: 'officialArguments',
+              type: 'join',
+              label: 'Offizielle Argumente',
+              collection: 'imported-arguments',
+              on: 'ballot',
+              defaultLimit: 50,
+              admin: {
+                defaultColumns: ['type', 'title', 'status', 'updatedAt'],
+                description:
+                  'Verknüpfte offizielle Argumente. Zum Bearbeiten anklicken oder oben rechts neu anlegen.',
+              },
+            },
+          ],
+        },
+        {
+          label: 'Themen-Hierarchie',
+          description:
+            'Themen-Hierarchie (Calculator/top-down): Vorschau bauen, vergleichen, übernehmen, Community einsortieren, wachsen lassen.',
+          fields: [
+            {
+              // Themen-Hierarchie (Calculator/top-down): Vorschau bauen,
+              // vergleichen, übernehmen, Community einsortieren, wachsen
+              // lassen. Read/Write gegen den Calculator-Service. Siehe
+              // components/TaxonomyPanel.tsx.
+              name: 'taxonomy',
+              type: 'ui',
+              label: 'Themen-Hierarchie',
+              admin: {
+                components: {
+                  Field: '/components/TaxonomyPanel#TaxonomyPanelField',
+                },
+              },
+            },
+          ],
+        },
+      ],
     },
   ],
   hooks: {

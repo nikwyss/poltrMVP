@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-06-06
+
+### Top-down Taxonomie: „andere"/nicht-zugeordnet sauber trennen (`services/calculator`, `services/appview`, `services/cms`)
+
+- **Wurzel-Durchfaller werden nicht mehr im Baum platziert.** `classify_incremental` (`src/topdown/prototype.py`) bekommt einen `is_root`-Pfad: Codes, die in KEIN Oberthema passen (`andere` direkt an der Wurzel), erhalten keine `app_topic_membership` mehr und bleiben „nicht zugeordnet". `andere` auf tieferen Ebenen bleibt unverändert legitim am Themenknoten hängen (übergreifend zum Thema — bewusst NICHT angefasst).
+- **Frontend blendet den Alt-„andere"-Topf aus.** `taxonomy.get` (`services/appview/.../deliberation/taxonomy.py`) liefert direkt am Wurzelknoten (`parent_id IS NULL`) hängende Argumente nicht mehr aus (defensiver Filter, deckt auch Altbestände ab) — Argumente erscheinen nur noch unter echten Ästen.
+- **CMS-Panel bekommt einen „Nicht zugeordnet"-Bereich.** `TaxonomyPanel.tsx` zeigt Argumente mit mindestens einem nicht zugeordneten Code; Default nur **„ganz fehlt"** (kein Code im Baum), **„teilweise vertreten"** hinter einem Toggle (Badge nennt, in welchem Ast das Argument schon hängt). Admin-Aktionen je Eintrag: **einem bestehenden Ast zuordnen** (lokaler State-Merge, persistiert mit „Persistieren") oder **neuen Hauptast aus den ganz fehlenden bilden**. Neue Calculator-Endpoints `GET /api/topdown/unplaced` (Detail-Query `db.fetch_unplaced_codes_detailed`) und `POST /api/topdown/branch_unplaced` (neue Hauptäste via `_SYS_NEW_BRANCHES`). Keine Schema-Änderung.
+
 ## 2026-06-03
 
 ### New service: Calculator — statistics & LLM functions (`services/calculator`, `infra/kube`, `.github`)

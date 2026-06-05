@@ -311,6 +311,24 @@ export async function markArgumentDeleted(uri) {
 }
 
 /**
+ * Hard-delete the machine-derived analysis rows tied to an argument: open codes
+ * (Calculator) and the taxonomy/axis memberships. These are recomputable output,
+ * NOT democratic content, so removing them on argument deletion is safe and keeps
+ * the analysis tables free of orphans.
+ *
+ * Deliberately NOT touched here:
+ *   - peer reviews (app_peerreview_*) — democratically sensitive; never deleted,
+ *     only hidden via read-filters (`NOT a.deleted` on the joined argument).
+ *   - comments / likes — soft-delete columns + read-filters handle them.
+ */
+export async function cascadeDeleteArgumentDerived(uri) {
+  await pool.query(`DELETE FROM app_argument_open_codes WHERE argument_uri = $1`, [uri]);
+  await pool.query(`DELETE FROM app_topic_membership    WHERE argument_uri = $1`, [uri]);
+  await pool.query(`DELETE FROM app_taxonomy_membership WHERE argument_uri = $1`, [uri]);
+  await pool.query(`DELETE FROM app_arguments_axis      WHERE argument_uri = $1`, [uri]);
+}
+
+/**
  *
  * Upsert a Bluesky thread post into app_comments (origin = 'extern').
  * On conflict, updates engagement counts but preserves text.
@@ -805,6 +823,10 @@ export async function finalizeExpiredPeerReviews(clientOrPool = pool) {
     `UPDATE app_peerreviews
         SET state = 'closed', closed_at = now()
       WHERE state = 'provisional_closed' AND grace_until < now()
+        AND EXISTS (
+          SELECT 1 FROM app_arguments a
+           WHERE a.uri = app_peerreviews.argument_uri AND NOT a.deleted
+        )
       RETURNING argument_uri`,
   );
 

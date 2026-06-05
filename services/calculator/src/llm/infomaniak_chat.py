@@ -67,7 +67,7 @@ class InfomaniakOpenCoder(LLMClient):
         prompt_hash = hashlib.sha256(_SYSTEM.encode("utf-8")).hexdigest()[:8]
         self.open_code_signature = f"infomaniak:{self.model}:{prompt_hash}"
 
-    def open_code(self, argument: str, max_codes: int = 3,
+    def open_code(self, argument: str, max_codes: int = 2,
                   raise_on_error: bool = False) -> list[dict]:
         user = open_code_user(argument, max_codes)
         body = {

@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Minus, Plus } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 
-// Relevanz-Stufen auf der 1–100-Skala: gering / mittel / gross.
+// Zustimmungs-Stufen auf der 1–100-Skala (50 = neutral): gering / mittel / gross.
 // (Schwellen so gewählt, dass z. B. 64 bereits als "gross" zählt.)
 export function relevanceLevel(value: number): "low" | "medium" | "high" {
   if (value <= 30) return "low";
@@ -16,7 +16,7 @@ export function relevanceLevel(value: number): "low" | "medium" | "high" {
 const clamp = (v: number) => Math.min(100, Math.max(1, Math.round(v)));
 
 /**
- * Bewertungs-Regler: Argument auf einer Skala von 1–100 nach Relevanz bewerten.
+ * Bewertungs-Regler: Zustimmung zum Argument auf einer Skala von 1–100 (50 = neutral).
  * Über dem Regler schwebt eine Pille mit der qualitativen Stufe und dem Wert.
  *
  * `onChange` aktualisiert laufend (smooth UI), `onCommit` feuert beim Loslassen

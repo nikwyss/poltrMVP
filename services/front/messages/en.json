@@ -162,14 +162,14 @@
     "yourRating": "Your rating"
   },
   "relevance": {
-    "low": "Low relevance",
-    "medium": "Medium relevance",
-    "high": "High relevance",
+    "low": "Low agreement",
+    "medium": "Partial agreement",
+    "high": "Strong agreement",
     "notRated": "Not yet rated",
-    "intro": "How relevant do you find this argument? Rate it by moving the slider.",
-    "increase": "Increase relevance",
-    "decrease": "Decrease relevance",
-    "ariaLabel": "Relevance rating"
+    "intro": "How much do you agree with this argument? Rate it by moving the slider.",
+    "increase": "Increase agreement",
+    "decrease": "Decrease agreement",
+    "ariaLabel": "Agreement rating"
   },
   "feed": {
     "addArgument": "Add argument",
@@ -259,8 +259,8 @@
     "proArgument": "Pro argument",
     "contraArgument": "Contra argument",
     "statusUnread": "Review",
-    "relevanceTitle": "Your relevance rating",
-    "relevanceForYou": "Relevance for you",
+    "relevanceTitle": "Your agreement",
+    "relevanceForYou": "Agreement",
     "fallbackBundesrat": "Federal Council",
     "fallbackInitiativkomitee": "Initiative Committee",
     "fallbackOrganization": "Organization"
@@ -308,9 +308,11 @@
     "argPro": "Pro argument",
     "argContra": "Contra argument",
     "official": "Official",
-    "relevance": "Relevance",
+    "relevance": "Agreement",
     "agree": "I see it that way too",
     "disagree": "I don't see it that way",
-    "showMore": "Show more (+{count})"
+    "showMore": "Show more (+{count})",
+    "sunburstTitle": "Topic sunburst",
+    "sunburstCenter": "Total"
   }
 }

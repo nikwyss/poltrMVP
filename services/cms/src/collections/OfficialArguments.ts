@@ -23,6 +23,10 @@ export const OfficialArguments: CollectionConfig = {
     useAsTitle: 'title',
     defaultColumns: ['title', 'ballot', 'sourceType', 'type', 'status', 'updatedAt'],
     listSearchableFields: ['title', 'body'],
+    // Kein eigener Sidebar-Eintrag / keine Standalone-Routen mehr: offizielle
+    // Argumente werden im Ballot-Editor im Tab „Offizielle Argumente" (join-Feld)
+    // angelegt und bearbeitet. Das join-Drawer funktioniert trotz `hidden`.
+    hidden: true,
   },
   access: {
     read: () => true,

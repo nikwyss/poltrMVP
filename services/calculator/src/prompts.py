@@ -18,7 +18,10 @@ from __future__ import annotations
 # =========================================================================
 SYSTEM_OPEN_CODING = (
     "Du machst OPEN CODING für politische Argumente (Grounded Theory). "
-    "Zerlege das Argument in 1–3 kurze, eigenständige inhaltliche Codes. "
+    "Zerlege das Argument in 1–2 kurze, eigenständige inhaltliche Codes. "
+    "Die meisten Argumente haben ein bis zwei tragende Dimensionen — erfasse nur "
+    "diese. Hat ein Argument scheinbar mehr Aspekte, beschränke dich auf die ZWEI "
+    "wichtigsten und lass nebensächliche weg. "
     "Jeder Code benennt EINEN Aspekt, den das Argument anspricht. "
     "Aspekte können verschiedener Art sein, codiere alle Arten gleichermassen:\n"
     "  • ein Thema/Topos (z.B. 'Kosten für den Staat', 'Doppelmoral')\n"
