@@ -1,4 +1,4 @@
-import type { Ballot, ArgumentWithMetadata, CommentWithMetadata, ActivityItem, PeerreviewCriterion, PeerreviewInvitation, PeerreviewStatus, PeerreviewCriterionRating } from '../types/ballots';
+import type { Ballot, ArgumentWithMetadata, CommentWithMetadata, ActivityItem, PeerreviewCriterion, PeerreviewInvitation, PeerreviewStatus, PeerreviewCriterionRating, TaxonomyTree } from '../types/ballots';
 import { toPdsError } from './pdsError';
 
 /**
@@ -97,6 +97,25 @@ export async function listArguments(
     throw new Error('Invalid response from argument.list endpoint');
   }
   return content.arguments;
+}
+
+export async function getTaxonomy(
+  ballotRkey: string,
+  lang?: string,
+  topic?: string,
+): Promise<TaxonomyTree | null> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  const params = new URLSearchParams({ ballot_rkey: ballotRkey });
+  if (lang) params.set('lang', lang);
+  if (topic) params.set('topic', topic);
+  const res = await authenticatedFetch(
+    `/api/xrpc/app.ch.poltr.taxonomy.get?${params.toString()}`,
+  );
+  if (res.status === 404) return null; // noch keine Taxonomie für diesen Ballot
+  if (!res.ok) throw new Error(await res.text());
+  const content = await res.json();
+  if (!content?.tree) throw new Error('Invalid response from taxonomy.get endpoint');
+  return content as TaxonomyTree;
 }
 
 export async function createArgument(

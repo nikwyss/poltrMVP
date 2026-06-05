@@ -257,6 +257,63 @@ async def list_arguments(
 # app.ch.poltr.argument.get
 # -----------------------------------------------------------------------------
 
+# Topic-Breadcrumbs: für ein Argument alle Knoten (app_topic_membership), an
+# denen es hängt, samt deren Pfad zur Wurzel (rekursiv über parent_id). Sortiert
+# je Blatt nach Tiefe → Wurzel zuerst. Die Wurzel (parent_id IS NULL) = Ballot
+# und wird beim Pfadbau weggelassen.
+_TOPIC_PATH_SQL = """
+    WITH RECURSIVE memb AS (
+        SELECT DISTINCT n.id, n.parent_id, n.key, n.name, n.description, n.depth
+        FROM app_topic_membership m
+        JOIN app_topic_node n ON n.id = m.node_id
+        WHERE m.argument_uri = $1
+    ),
+    anc AS (
+        SELECT id AS leaf_id, id, parent_id, key, name, description, depth FROM memb
+        UNION ALL
+        SELECT a.leaf_id, p.id, p.parent_id, p.key, p.name, p.description, p.depth
+        FROM anc a JOIN app_topic_node p ON p.id = a.parent_id
+    )
+    SELECT leaf_id, id, parent_id, key, name, description, depth
+    FROM anc
+    ORDER BY leaf_id, depth;
+"""
+
+
+def _build_topic_paths(path_rows: list) -> list:
+    """Baut aus den (leaf_id, id, …, depth)-Zeilen die Breadcrumb-Pfade: je Blatt
+    ein Pfad Wurzel→Blatt (Wurzel ausgelassen) als [{name, key, description}].
+    Präfix-Pfade werden zusammengefasst — nur die maximalen (tiefsten) bleiben."""
+    # leaf_id → geordnete Knotenliste (nach depth), Wurzel (parent_id None) raus.
+    by_leaf: dict = {}
+    for r in path_rows:
+        by_leaf.setdefault(r["leaf_id"], []).append(r)
+    paths: list[list[dict]] = []
+    id_seqs: list[tuple] = []
+    for leaf_id, rows in by_leaf.items():
+        rows = sorted(rows, key=lambda r: r["depth"])
+        segs = [
+            {"name": r["name"], "key": r["key"], "description": r["description"]}
+            for r in rows
+            if r["parent_id"] is not None
+        ]
+        if not segs:
+            continue
+        paths.append(segs)
+        id_seqs.append(tuple(r["id"] for r in rows if r["parent_id"] is not None))
+
+    # Präfix-Dedup: einen Pfad weglassen, wenn seine id-Folge echtes Präfix eines
+    # anderen ist (Member von Vorfahr UND Nachfahr → nur tiefsten zeigen).
+    keep: list[list[dict]] = []
+    for i, seq in enumerate(id_seqs):
+        is_prefix = any(
+            j != i and len(other) > len(seq) and other[: len(seq)] == seq
+            for j, other in enumerate(id_seqs)
+        )
+        if not is_prefix:
+            keep.append(paths[i])
+    return keep
+
 
 @router.get("/app.ch.poltr.argument.get")
 async def get_argument(
@@ -306,14 +363,19 @@ async def get_argument(
         db_pool = await get_pool()
         async with db_pool.acquire() as conn:
             row = await conn.fetchrow(sql, *params)
-
-        if row is None:
-            return JSONResponse(
-                status_code=404,
-                content={"error": "not_found", "message": "Argument not found"},
-            )
+            if row is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": "not_found", "message": "Argument not found"},
+                )
+            # Topic-Breadcrumbs: alle Knoten, an denen das Argument hängt, je mit
+            # Pfad zur Wurzel (für die Taxonomie-Anzeige auf der Detailseite).
+            path_rows = await conn.fetch(_TOPIC_PATH_SQL, row["uri"])
 
         argument = _serialize_argument_row(dict(row), peer_review_on, requested_lang)
+        topic_paths = _build_topic_paths(path_rows)
+        if topic_paths:
+            argument["topicPaths"] = topic_paths
         return JSONResponse(status_code=200, content={"argument": argument})
     except Exception as err:
         logger.error(f"DB query failed: {err}")

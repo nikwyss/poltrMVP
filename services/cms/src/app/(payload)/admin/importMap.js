@@ -23,6 +23,7 @@ import { BoldFeatureClient as BoldFeatureClient_e70f5e05f09f93e00b997edb1ef0c864
 import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { TranslationStatusField as TranslationStatusField_91ddc8ccf9c02dac2fc99be8e6a08334 } from '../../../components/TranslationStatus'
 import { BallotRowActions as BallotRowActions_27247f9ef0256b32833a115f07794d72 } from '../../../components/BallotRowActions'
+import { TaxonomyPanelField as TaxonomyPanelField_0243455b1cfee0d1537b7ac0c317ba8d } from '../../../components/TaxonomyPanel'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
 export const importMap = {
@@ -51,5 +52,6 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#ItalicFeatureClient": ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "/components/TranslationStatus#TranslationStatusField": TranslationStatusField_91ddc8ccf9c02dac2fc99be8e6a08334,
   "/components/BallotRowActions#BallotRowActions": BallotRowActions_27247f9ef0256b32833a115f07794d72,
+  "/components/TaxonomyPanel#TaxonomyPanelField": TaxonomyPanelField_0243455b1cfee0d1537b7ac0c317ba8d,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

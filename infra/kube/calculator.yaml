@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: calculator
+  namespace: poltr
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: calculator
+  template:
+    metadata:
+      labels:
+        app: calculator
+    spec:
+      imagePullSecrets:
+        - name: ghcr-registry
+      containers:
+        - name: calculator
+          image: ghcr.io/nikwyss/poltr-calculator:latest
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: calculator-secrets
+          ports:
+            - name: http
+              containerPort: 3000
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: calculator
+  namespace: poltr
+spec:
+  selector:
+    app: calculator
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000

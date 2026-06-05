@@ -94,6 +94,13 @@ export interface ArgumentWithMetadata {
   availableLangs?: string[];
   /** Same as record.translationSource — hoisted to make the UI lookup trivial. */
   translationSource?: 'manual' | 'ai';
+  /**
+   * Topic-Taxonomie-Breadcrumbs (app_topic_membership → app_topic_node): die
+   * Pfade Wurzel→Knoten, an denen das Argument hängt (Wurzel ausgelassen). Ein
+   * Argument kann zu mehreren Knoten gehören → mehrere Pfade. Pro Segment
+   * `name` (+ `description` als Tooltip, `key` = Slug).
+   */
+  topicPaths?: { name: string; key?: string | null; description?: string | null }[][];
 }
 
 export interface CommentRecord {
@@ -218,3 +225,44 @@ export interface PeerreviewStatus {
 
 // BallotWithMetadata removed — Ballots are now CMS REST content (flat shape),
 // not ATProto records. Use `Ballot` directly.
+
+// --- Taxonomy (top-down Themen-Hierarchie, app.ch.poltr.taxonomy.get) --------
+/** Ein Argument, wie es in der Taxonomy-View je Knoten erscheint (Kurzform; das
+ * volle Argument lädt das Overlay via argument.get). */
+export interface TaxonomyArgument {
+  uri: string;
+  cid: string;
+  rkey: string;
+  title: string;
+  type: 'PRO' | 'CONTRA';
+  sourceType?: string;
+  likeCount: number;
+  /** Relevanz-Bewertung des Viewers (0–100) oder null/undefined. */
+  viewerPreference?: number | null;
+  availableLangs?: string[];
+}
+
+/** Ein Knoten des Themenbaums mit den direkt zugeordneten Argumenten. */
+export interface TaxonomyNode {
+  id: number;
+  key?: string | null;
+  name: string;
+  description?: string | null;
+  depth: number;
+  /** distinct Argumente im ganzen Teilbaum (für „X Argumente"). */
+  argumentCount: number;
+  /** Relevanz-gewichtete Pro-Vorlage-Neigung des Viewers ∈ [-1,1] (null = keine Bewertung). */
+  proLeaning?: number | null;
+  /** Dissens ∈ [0,1]: 1 = beide Pole gleich stark bewertet (gespalten). */
+  dissent?: number;
+  /** Wie viele Argumente im Teilbaum der Viewer bewertet hat. */
+  ratedCount?: number;
+  /** Argumente DIREKT an diesem Knoten (ein Argument kann an mehreren Knoten sein). */
+  arguments: TaxonomyArgument[];
+  children: TaxonomyNode[];
+}
+
+export interface TaxonomyTree {
+  ballotRkey: string;
+  tree: TaxonomyNode;
+}

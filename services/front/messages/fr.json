@@ -30,7 +30,9 @@
     "overlayTitleComment": "Kommentar",
     "overlayTitleProfile": "Profil",
     "overlayTitlePeerReview": "Peer-Review",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "backToTaxonomy": "Zurück zum Thema",
+    "overlayTitleTaxonomy": "Thema"
   },
   "nav": {
     "home": "Start",
@@ -238,7 +240,8 @@
   },
   "viewToggle": {
     "feed": "Feed",
-    "booklet": "Büchlein"
+    "booklet": "Büchlein",
+    "taxonomy": "Taxonomie"
   },
   "booklet": {
     "argumentsLabel": "Argumente",
@@ -274,5 +277,40 @@
     "title": "Seite nicht gefunden",
     "message": "Die angeforderte Seite existiert nicht.",
     "backHome": "Zurück zur Startseite"
+  },
+  "taxonomy": {
+    "empty": "Aucune hiérarchie thématique n'existe encore pour cet objet.",
+    "loading": "Chargement de la hiérarchie …",
+    "arguments": "arguments",
+    "subtopics": "sous-thèmes",
+    "other": "Autres",
+    "forBallot": "plutôt pour",
+    "againstBallot": "plutôt contre",
+    "balanced": "équilibré",
+    "unrated": "pas encore évalué",
+    "bandTitle": "Bande de position",
+    "poleOpponents": "Position des opposants",
+    "poleSupporters": "Position des partisans",
+    "ambivalent": "ambivalent",
+    "split": "partagé",
+    "rated": "évalué",
+    "forYou": "Pour toi",
+    "insUnrTitle": "pas encore assez évalué",
+    "insUnrSub": "Évalue quelques arguments pour voir ce que ce thème signifie pour toi.",
+    "insSplitTitle": "ici tu es partagé",
+    "insSplitSub": "Tu trouves convaincants des arguments des deux côtés. C'est précisément ici qu'une réflexion approfondie est la plus utile.",
+    "insProTitle": "tu penches pour l'objet",
+    "insProSub": "Tu as jugé plus pertinents les arguments en faveur de l'objet.",
+    "insConTitle": "tu penches contre",
+    "insConSub": "Tu as jugé plus pertinents les arguments contre l'objet.",
+    "insBalTitle": "équilibré",
+    "insBalSub": "Tes évaluations s'équilibrent à peu près ici.",
+    "argPro": "Argument pour",
+    "argContra": "Argument contre",
+    "official": "Officiel",
+    "relevance": "Pertinence",
+    "agree": "Je le vois aussi ainsi",
+    "disagree": "Je ne le vois pas ainsi",
+    "showMore": "Mehr anzeigen (+{count})"
   }
 }

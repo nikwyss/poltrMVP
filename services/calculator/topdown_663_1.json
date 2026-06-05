@@ -1,0 +1,499 @@
+{
+  "name": "Vorlage 663.1",
+  "children": [
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "own_codes": [
+                "Energie wird zum Luxusgut",
+                "Strom muss bezahlbar sein",
+                "Alltagskosten für Familien sind bereits zu hoch",
+                "Massnahmen sind für Bürger und kleine Unternehmen nicht finanzierbar"
+              ],
+              "name": "Energiekosten & Bezahlbarkeit",
+              "description": "Strom und Energie werden durch Massnahmen zum Luxusgut und sind für Haushalte kaum noch erschwinglich."
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Zwangsabgaben erhöhen Preise für Flugtickets und Kraftstoffe",
+                "Inflation und Zusatzkosten erhöhen finanzielle Belastung",
+                "Überlastung durch Abgaben und Gebühren"
+              ],
+              "name": "Abgaben & Preiserhöhungen",
+              "description": "Zwangsabgaben, Gebühren und Zusatzkosten auf Alltagsgüter wie Treibstoff und Flugtickets treiben die Lebenshaltungskosten hoch."
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Mittelschicht trägt Hauptlast",
+                "Verbote belasten ärmere Bürger überproportional",
+                "Finanzielle Belastung führt zu Benachteiligung"
+              ],
+              "name": "Soziale Ungleichheit der Belastung",
+              "description": "Mittelschicht, Familien und ärmere Bevölkerungsgruppen sowie kleine Unternehmen tragen die Kostenlast überproportional."
+            }
+          ],
+          "own_codes": [],
+          "name": "Bezahlbarkeit für Haushalte",
+          "description": "Klimaschutzmassnahmen belasten Familien, Mieter und die Mittelschicht durch höhere Energie-, Alltags- und Lebenshaltungskosten überproportional."
+        },
+        {
+          "children": [],
+          "own_codes": [
+            "Hohe Energiekosten schaden Wirtschaft und Mietern",
+            "Hohe Wirtschaftsleistung ermöglicht Unterstützung anderer Länder",
+            "Steuerfinanzierte Subventionen senken Kaufkraft und Wirtschaftsleistung",
+            "Firmen verlagern Hauptsitz ins Ausland",
+            "Firmenabwanderung schadet der Wirtschaft",
+            "Hoher Lebensstandard ermöglicht Klimaschutz"
+          ],
+          "name": "Wirtschaftliche Wettbewerbsfähigkeit",
+          "description": "Hohe Kosten durch Abgaben und Vorschriften schaden Unternehmen, treiben Firmenverlagerungen ins Ausland und schwächen den Wirtschaftsstandort."
+        },
+        {
+          "children": [],
+          "own_codes": [
+            "Energieumbau verursacht hohe Kosten",
+            "Massnahmen sind extrem und teuer",
+            "Wirtschaftlicher Nutzen durch Innovation",
+            "Staatliche Vorschriften verursachen hohe Kosten",
+            "Stromsparen ist effektiver als teure Klimaschutzmaßnahmen",
+            "Ziele verursachen höhere Kosten"
+          ],
+          "name": "Kosten-Nutzen der Klimapolitik",
+          "description": "Klimaschutzmassnahmen werden als unverhältnismässig teuer und ineffektiv kritisiert, während Wohlstand und Innovation als effektivere Wege zum Klimaschutz gesehen werden."
+        }
+      ],
+      "own_codes": [],
+      "name": "Energiekosten & wirtschaftliche Folgen",
+      "description": "Auswirkungen des Energieumbaus auf Strompreise, Haushaltbudgets, Mieten, Gewerbe und Industrie."
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "own_codes": [
+            "Stromspeicherung reicht für Winterbedarf nicht aus",
+            "Ersatz von Elektroheizungen reduziert Stromverbrauch im Winter",
+            "Saubere Energie ist in zu geringer Menge vorhanden"
+          ],
+          "name": "Winterstrom & Speicherkapazität",
+          "description": "Argumente zur unzureichenden Stromproduktion und -speicherung für den saisonalen Winterbedarf sowie zur Verfügbarkeit sauberer Energie."
+        },
+        {
+          "children": [],
+          "own_codes": [
+            "Stromnetz reicht nicht für E-Mobilität und Wärmepumpen",
+            "E-Mobilität überfordert Stromnetz",
+            "Technologisierung führt zu mehr Elektronikgeräten"
+          ],
+          "name": "Stromnetz & steigende Nachfrage",
+          "description": "Argumente zur Überlastung des Stromnetzes durch neue Verbraucher wie E-Mobilität, Wärmepumpen und zunehmende Elektronikgeräte."
+        },
+        {
+          "children": [],
+          "own_codes": [
+            "Planloser Ausstieg gefährdet Versorgungssicherheit",
+            "Fossile Brennstoffe sind begrenzt",
+            "Abkehr von fossilen Energieträgern sichert Energieversorgung"
+          ],
+          "name": "Abhängigkeit von fossilen Energieträgern",
+          "description": "Argumente zur Endlichkeit fossiler Brennstoffe und zur Frage, ob deren Ersatz die Versorgungssicherheit stärkt oder gefährdet."
+        }
+      ],
+      "own_codes": [
+        "Konzerne müssen Energie selbst produzieren"
+      ],
+      "name": "Versorgungssicherheit & Strombedarf",
+      "description": "Frage, ob die Schweiz künftig zuverlässig genug Strom und Energie produzieren, speichern und importieren kann."
+    },
+    {
+      "children": [],
+      "own_codes": [
+        "Stromimporte sind unzuverlässig",
+        "Abhängigkeit von Wetter und Ausland steigt",
+        "Diversifizierung vor Ausstieg",
+        "Schweiz ist abhängig von fossilen Importen",
+        "Importländer haben unzuverlässige Regierungen",
+        "Vorlage stärkt die Unabhängigkeit",
+        "Fossile Energien machen Schweiz abhängig vom globalen Markt",
+        "Klimaschutz-Gesetz erhöht Unabhängigkeit und Energiesicherheit"
+      ],
+      "name": "Unabhängigkeit & Importabhängigkeit",
+      "description": "Abhängigkeit der Schweiz von ausländischen Energielieferanten sowie geopolitische Risiken fossiler Importe."
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "own_codes": [
+                "Fossile Brennstoffe schaden dem Klima",
+                "Methan aus Tierhaltung wird kaum erwähnt"
+              ],
+              "name": "Klimawandel: Ursachen und Treiber",
+              "description": "Menschliche Aktivitäten und Emissionen (fossile Brennstoffe, Methan, Rohstoffgewinnung) als Verursacher des Klimawandels."
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Klimawandel erhöht Extremwetterereignisse",
+                "Klimawandel führt zu Ernteausfällen",
+                "Auswirkungen auf die dritte Welt",
+                "Klimawandel ist in der Schweiz spürbar",
+                "Weniger Schneetage und mehr Hitzetage"
+              ],
+              "name": "Folgen des Klimawandels",
+              "description": "Konkrete Auswirkungen des Klimawandels auf Wetter, Landwirtschaft, Schnee/Hitze und vulnerable Regionen weltweit und in der Schweiz."
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Klimawandel erhöht CO2-Ausstoß durch Anpassungsmaßnahmen",
+                "Klimageräte verursachen Wärmeinseln",
+                "Erneuerbare Energien schädigen Naturlandschaften",
+                "Rohstoffgewinnung für Technologien ist problematisch"
+              ],
+              "name": "Zielkonflikte bei Klimamassnahmen",
+              "description": "Negative Nebeneffekte von Klimaschutzmassnahmen wie Wärmeinseln durch Klimageräte, Landschaftsschäden durch erneuerbare Energien oder erhöhte Emissionen durch Anpassung."
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Natur kann nicht ohne Schaden wiederhergestellt werden",
+                "Umweltgesundheit beeinflusst Überleben der Menschheit"
+              ],
+              "name": "Ökologische Kipppunkte und Naturzerstörung",
+              "description": "Irreversible Schäden an Ökosystemen und die existenzielle Bedeutung intakter Natur für das Überleben der Menschheit."
+            }
+          ],
+          "own_codes": [],
+          "name": "Klimawandel: Ursachen & Folgen",
+          "description": "Konkrete Auswirkungen des Klimawandels (Extremwetter, Ernteausfälle, Hitzetage, CO2-Anstieg) sowie Ursachen wie fossile Brennstoffe, Methan und Ressourcenverbrauch."
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "own_codes": [
+                "Imagegewinn durch Vorreiterrolle",
+                "Schweiz als internationales Vorbild",
+                "Vorbildfunktion führt zu globaler Verbesserung",
+                "Klimaschutz als Chance zur Vorreiterrolle",
+                "Schweiz als Vorreiterrolle"
+              ],
+              "name": "Vorbildwirkung & Imagegewinn",
+              "description": "Schweiz als internationales Vorbild und Vorreiterin, das andere Länder zur Nachahmung inspiriert und das eigene Ansehen stärkt."
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Schweiz zu klein für globalen Effekt",
+                "Schweiz hat geringen Einfluss auf Weltklima",
+                "Schweiz ist bedeutender Emittent",
+                "Größe des Landes rechtfertigt kein Nichtstun",
+                "Gesetz beschränkt sich auf die Schweiz"
+              ],
+              "name": "Globale Wirksamkeit & Verhältnismässigkeit",
+              "description": "Debatte darüber, ob die Schweiz als kleines Land einen messbaren Einfluss auf das Weltklima hat und ob ihre Grösse Untätigkeit rechtfertigt."
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Unterstützung ärmerer Länder beim Klimawandel"
+              ],
+              "name": "Internationale Verantwortung & Solidarität",
+              "description": "Verpflichtung der Schweiz zur Unterstützung ärmerer Länder und zur Mitverantwortung im globalen Klimaschutz."
+            }
+          ],
+          "own_codes": [],
+          "name": "Schweiz: Rolle & Verantwortung",
+          "description": "Debatten über die Grösse und den Einfluss der Schweiz, ihre Vorbildfunktion, Vorreiterrolle und Mitverantwortung trotz geringem globalem Anteil."
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "own_codes": [
+                "Länder verfolgen derzeit separate Klimalösungen",
+                "Weltweite einheitliche Vorschriften sind Voraussetzung für Lösung",
+                "Globale Beteiligung ist Voraussetzung für Erfolg"
+              ],
+              "name": "Globale Koordination",
+              "description": "Ob wirksamer Klimaschutz einheitliche weltweite Vorschriften und gemeinsames Handeln aller Staaten erfordert."
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Lokales Handeln unabhängig von globaler Wirkung",
+                "Klimaschutz ist eine Gemeinschaftsaufgabe",
+                "Einzelne Staaten können globale Veränderungen anstoßen",
+                "Kollektive Wirkung durch Einzelbeiträge"
+              ],
+              "name": "Lokales vs. kollektives Handeln",
+              "description": "Ob einzelne Staaten oder individuelle Beiträge globale Wirkung entfalten können oder globale Beteiligung Voraussetzung ist."
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Klimaneutralität ist realistisch und erstrebenswert",
+                "Bisherige Massnahmen sind unzureichend",
+                "Vermeidung wichtiger als Ausgleich",
+                "Notwendigkeit sofortigen und maximalen Handelns"
+              ],
+              "name": "Dringlichkeit und Ambitionen",
+              "description": "Ob sofortiges, maximales Handeln nötig ist und ob Klimaneutralität ein realistisches und erstrebenswertes Ziel darstellt."
+            }
+          ],
+          "own_codes": [],
+          "name": "Globale vs. lokale Klimaschutzlogik",
+          "description": "Spannung zwischen der Notwendigkeit weltweiter Koordination und dem Wert lokalen Handelns, inkl. Unterstützung ärmerer Länder und kollektiver Wirkung."
+        },
+        {
+          "children": [
+            {
+              "children": [],
+              "own_codes": [
+                "Ressourcenverbrauch übersteigt nachhaltiges Maß",
+                "Hinterfragen von Luxus und Lebensstil",
+                "Weniger Autos senken CO2-Emissionen",
+                "Junge Generation priorisiert Überfluss"
+              ],
+              "name": "Individuelles Verhalten & Lebensstil",
+              "description": "Kritik an persönlichem Konsum, Luxus, Doppelmoral und ausbleibendem Verhaltenwandel im Alltag"
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Mangelndes Bewusstsein für ökologischen Fussabdruck",
+                "Gesetzesvorschlag fördert umweltbewusstes Verhalten",
+                "Junge Generation ist desinteressiert",
+                "Notwendigkeit der Aufklärung über Folgen",
+                "Zusammenhang zwischen Umwelt und Mensch ist unbekannt"
+              ],
+              "name": "Bewusstsein & Aufklärung",
+              "description": "Mangelndes Wissen über ökologischen Fussabdruck, fehlende Umweltbildung und Desinteresse der jungen Generation"
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Handlungszwang",
+                "Ausbleibender Verhaltenswandel verschlimmert Lage",
+                "Individuum kann zur Erreichung der Klimaziele beitragen",
+                "Verantwortung gegenüber Nachkommen",
+                "Planet muss bewohnbar bleiben"
+              ],
+              "name": "Handlungsdruck & Verantwortung",
+              "description": "Moralische Pflicht gegenüber Nachkommen, Notwendigkeit zum Handeln und Beitrag des Individuums zu den Klimazielen"
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Ausbau erneuerbarer Energien verschandelt Natur",
+                "Ablehnung aus Perfektionsgründen ist heuchlerisch",
+                "Doppelmoral bei Beschneiung von Skipisten",
+                "Widerspruch zwischen Konsumwachstum und Klimaschutzbemühungen",
+                "Widerspruch zwischen CO2-Einsparung und wachsenden Fahrzeuggrößen"
+              ],
+              "name": "Widersprüche im Klimaschutz",
+              "description": "Konflikte zwischen Konsumwachstum, wachsenden Fahrzeuggrössen, Skipisten-Beschneiung und tatsächlichen Klimaschutzbemühungen"
+            }
+          ],
+          "own_codes": [],
+          "name": "Gesellschaft, Lebensstil & Handlungsbereitschaft",
+          "description": "Widersprüche zwischen Konsum und Klimaschutz, mangelndes Bewusstsein, Desinteresse der Jugend, Doppelmoral und individuelle Verhaltensänderung."
+        }
+      ],
+      "own_codes": [],
+      "name": "Klima- & Umweltschutz",
+      "description": "Notwendigkeit der CO₂-Reduktion, Schutz vor Klimafolgen wie Hochwasser, Hitze und Ernteausfällen sowie Landschaftsschutz beim Ausbau erneuerbarer Energien."
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "own_codes": [
+            "Verbot fossiler Energieträger",
+            "Keine neuen Verbote",
+            "Verbote überzeugen die Bevölkerung nicht",
+            "Gesetze und Kontrollen erzwingen Handeln",
+            "Verbote wirken negativ und abschreckend"
+          ],
+          "name": "Ablehnung staatlicher Verbote",
+          "description": "Verbote sind wirkungslos, abschreckend oder überzeugen die Bevölkerung nicht – auch konkret fossile Energieträger oder andere Verbote betreffend."
+        },
+        {
+          "children": [],
+          "own_codes": [
+            "Keine neuen Abgaben oder Steuern",
+            "Regulierungen schränken Handlungsfreiheit ein",
+            "Eigenverantwortung vor staatlicher Regulierung",
+            "Individuelle Verantwortung für ökologischen Fussabdruck",
+            "Eigenverantwortung statt staatlicher Verbote"
+          ],
+          "name": "Eigenverantwortung statt Regulierung",
+          "description": "Individuen und Privatwirtschaft sollen eigenverantwortlich handeln, ohne staatliche Eingriffe oder neue Abgaben."
+        },
+        {
+          "children": [],
+          "own_codes": [
+            "Staatliche Umerziehung",
+            "Regulierungen sind Bevormundung",
+            "Angstmacherei durch Politik/Medien",
+            "Bevormundung durch zunehmende Regulierung",
+            "Mangelnde Lebenspraxis der Fordernden",
+            "Zunahme von Gesetzen und Vorschriften",
+            "Gesetze führen zu Bevormundung"
+          ],
+          "name": "Bevormundung durch Staat und Medien",
+          "description": "Zunehmende Gesetze, Vorschriften und Angstmacherei durch Politik/Medien werden als Bevormundung und Einschränkung der Handlungsfreiheit erlebt."
+        }
+      ],
+      "own_codes": [
+        "Verantwortung globaler Grosskonzerne",
+        "Gleichheit der Regeln",
+        "Privatwirtschaft handelt nur aus Profitinteresse"
+      ],
+      "name": "Verbote, staatliche Eingriffe & individuelle Freiheit",
+      "description": "Reichweite staatlicher Vorschriften zu Heizungen, Fahrzeugen und Lebensstil sowie die Frage nach der Verhältnismässigkeit staatlicher Lenkung."
+    },
+    {
+      "children": [
+        {
+          "children": [],
+          "own_codes": [
+            "Finanzielle Unterstützung für klimafreundliche Heizungen",
+            "Bund sollte Ersatz von Elektroheizungen finanziell unterstützen",
+            "Förderung zukunftsträchtiger Umweltschutztechnologien",
+            "Förderung innovativer Umwelttechnologien",
+            "Förderung erneuerbarer Energien"
+          ],
+          "name": "Förderung klimafreundlicher Technologien & Energie",
+          "description": "Staatliche Unterstützung für erneuerbare Energien, Umwelttechnologien und klimafreundliche Heizungen (inkl. Elektroheizungsersatz)"
+        },
+        {
+          "children": [],
+          "own_codes": [
+            "Anreize stärken den Wirtschaftsstandort Schweiz",
+            "Steuerliche Anreize bewirken Verhaltensänderung",
+            "Notwendigkeit schneller Wirtschaftsförderung",
+            "Finanzielle Anreize beschleunigen Investitionen",
+            "Geringer finanzieller Aufwand bei grosser CO2-Wirkung"
+          ],
+          "name": "Finanzielle Anreize & Investitionslenkung",
+          "description": "Wirkung von Fördermitteln, steuerlichen Anreizen und Investitionsanreizen auf Verhalten, Tempo und Richtung von Investitionen"
+        },
+        {
+          "children": [],
+          "own_codes": [
+            "Förderung von Innovationen in Unternehmen",
+            "Investitionen fließen in nicht nachhaltige Projekte",
+            "Freier Markt scheut notwendige Innovationsrisiken",
+            "Vorhandene Technologien werden nicht gefördert",
+            "Gesetz fördert Innovationen"
+          ],
+          "name": "Innovationsförderung & Marktversagen",
+          "description": "Notwendigkeit staatlicher Innovationsförderung, weil der freie Markt Risiken scheut oder Kapital in nicht nachhaltige Projekte fliesst"
+        }
+      ],
+      "own_codes": [],
+      "name": "Förderung, Anreize & Finanzierung",
+      "description": "Staatliche Unterstützung beim Umstieg auf klimafreundliche Technologien, Subventionen und die Frage, wer die Transformationskosten trägt."
+    },
+    {
+      "children": [
+        {
+          "children": [
+            {
+              "children": [],
+              "own_codes": [
+                "Gesetzesvorlage reicht nicht für Klimaziele",
+                "Maßnahmen bis 2050 kommen zu spät"
+              ],
+              "name": "Unzulänglichkeit der Vorlage",
+              "description": "Die Gesetzesvorlage ist zu schwach, kommt zu spät oder verfehlt die Klimaziele."
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Fehlender Umsetzungsplan",
+                "Fehlende Überwachungsinstanz"
+              ],
+              "name": "Fehlende Umsetzungsstruktur",
+              "description": "Es mangelt an konkreten Umsetzungsplänen und Überwachungsinstanzen für die Massnahmen."
+            },
+            {
+              "children": [],
+              "own_codes": [
+                "Elektroheizungen sind ineffizient",
+                "Übereilter Klimaschutz schadet mehr als er hilft",
+                "CO2-Fokus führt zu Scheinlösungen",
+                "Fokus liegt zu stark auf CO2",
+                "Gesamte Wertschöpfungskette muss betrachtet werden"
+              ],
+              "name": "Falsche Schwerpunkte & Scheinlösungen",
+              "description": "Der einseitige CO2-Fokus blendet die gesamte Wertschöpfungskette aus und führt zu kontraproduktiven oder unvollständigen Lösungen."
+            }
+          ],
+          "own_codes": [],
+          "name": "Mängel der Gesetzesvorlage",
+          "description": "Kritik, dass die Vorlage unvollständig ist: fehlende Umsetzungspläne, fehlende Überwachung, unzureichende Klimaziele oder verfehlter CO2-Fokus."
+        },
+        {
+          "children": [],
+          "own_codes": [
+            "Fehlender Plan zur Stromversorgung",
+            "Nutzung von Dachflächen für erneuerbare Energien",
+            "Infrastruktur muss vor Systemwechsel bereitstehen",
+            "Geothermie bietet reichlich saubere Energie",
+            "Fehlerhafte Teststandorte führen zu Projektabbrüchen",
+            "Günstigerer ÖV steigert die Nutzung",
+            "Erhalt bestehender Infrastruktur statt Ersatz"
+          ],
+          "name": "Infrastruktur & Versorgungssicherheit",
+          "description": "Forderung, dass Strom- und Energieinfrastruktur (inkl. Dachflächen, Geothermie, ÖV) vor oder parallel zum Systemwechsel bereitstehen muss."
+        },
+        {
+          "children": [],
+          "own_codes": [
+            "Klimaneutrale Lösungen statt Verbote",
+            "Technologiewechsel reduziert Kosten und Altlasten",
+            "Investition in Technik statt Verbote",
+            "Gesetzesänderung führt zu technologischem Fortschritt",
+            "Forschung sollte CO2-neutrale Alternativen zur Elektrizität prüfen",
+            "Industrielle Innovationskraft und Ressourcen nutzen",
+            "Schweiz besitzt hohen Bildungsstandard und Innovationskraft",
+            "Innovationen ermöglichen Beitrag zum Klimaschutz"
+          ],
+          "name": "Technologie & Innovation statt Verbote",
+          "description": "Plädoyer für Investitionen in neue Technologien, industrielle Innovationskraft und CO2-neutrale Alternativen anstelle von Verboten oder übereilten Massnahmen."
+        }
+      ],
+      "own_codes": [],
+      "name": "Technologiepfade & Umsetzungsplan",
+      "description": "Glaubwürdigkeit und Machbarkeit des Ausstiegs aus fossilen Energien, Technologieoffenheit versus Verbote und realistische Ausbauziele."
+    },
+    {
+      "children": [],
+      "own_codes": [
+        "Bundesrat handelt im Alleingang",
+        "Staatliche Vorsorgepflicht bei Klimafolgen",
+        "Volk hat das letzte Wort",
+        "Parlament beschliesst weitere Klimamassnahmen",
+        "Parlamentsbeschlüsse unterstehen dem Referendum"
+      ],
+      "name": "Demokratie & staatliche Kompetenzverteilung",
+      "description": "Mitspracherechte von Volk und Parlament bei weiteren Klimamassnahmen sowie die Handlungsspielräume von Bundesrat und Kantonen."
+    }
+  ],
+  "own_codes": [
+    "Hygiene im ÖV als Bedingung für Rückkehr",
+    "Nachhaltigkeit als Primarschulfach",
+    "Schulen als Vorbildfunktion"
+  ]
+}

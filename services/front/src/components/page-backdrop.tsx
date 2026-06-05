@@ -26,7 +26,7 @@ export function PageBackdrop({
       alt=""
       aria-hidden="true"
       style={{ opacity, marginTop }}
-      className="pointer-events-none fixed bottom-0 left-0 -z-10 h-[60vh] w-auto select-none"
+      className="pointer-events-none fixed bottom-0 left-0 -z-10 h-[30vh] w-auto select-none"
     />
   );
 }

@@ -23,6 +23,17 @@ export function parseOverlayStack(
     else if (type === "comment") stack.push({ type: "comment", uri: id });
     else if (type === "profile") stack.push({ type: "profile", did: id });
     else if (type === "peerreview") stack.push({ type: "peerreview", id });
+    else if (type === "taxonomy") {
+      // id = `<ballotRkey>:<topic>` — beide ohne `:`, also am ersten splitten.
+      const sep = id.indexOf(":");
+      if (sep > 0) {
+        stack.push({
+          type: "taxonomy",
+          ballotRkey: id.slice(0, sep),
+          topic: id.slice(sep + 1),
+        });
+      }
+    }
     // unknown types are skipped — forward-compat with newer URLs from a newer
     // client. The visible top will simply be the last *known* entry.
   }
@@ -47,6 +58,8 @@ function serializeEntry(entry: OverlayEntry): string {
       return `profile:${entry.did}`;
     case "peerreview":
       return `peerreview:${entry.id}`;
+    case "taxonomy":
+      return `taxonomy:${entry.ballotRkey}:${entry.topic}`;
   }
 }
 

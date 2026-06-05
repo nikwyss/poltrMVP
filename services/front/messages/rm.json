@@ -30,7 +30,9 @@
     "overlayTitleComment": "Kommentar",
     "overlayTitleProfile": "Profil",
     "overlayTitlePeerReview": "Peer-Review",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "backToTaxonomy": "Zurück zum Thema",
+    "overlayTitleTaxonomy": "Thema"
   },
   "nav": {
     "home": "Start",
@@ -238,7 +240,8 @@
   },
   "viewToggle": {
     "feed": "Feed",
-    "booklet": "Büchlein"
+    "booklet": "Büchlein",
+    "taxonomy": "Taxonomia"
   },
   "booklet": {
     "argumentsLabel": "Argumente",
@@ -274,5 +277,40 @@
     "title": "Seite nicht gefunden",
     "message": "Die angeforderte Seite existiert nicht.",
     "backHome": "Zurück zur Startseite"
+  },
+  "taxonomy": {
+    "empty": "Per questa votaziun n'exista anc nagina ierarchia da temas.",
+    "loading": "Chargiar la ierarchia …",
+    "arguments": "arguments",
+    "subtopics": "sutstemas",
+    "other": "Auter",
+    "forBallot": "pli tgunci pro",
+    "againstBallot": "pli tgunci cunter",
+    "balanced": "equilibrà",
+    "unrated": "anc betg valità",
+    "bandTitle": "Bain da posiziun",
+    "poleOpponents": "Posiziun dals cuntrars",
+    "poleSupporters": "Posiziun dals partidaris",
+    "ambivalent": "ambivalent",
+    "split": "dividì",
+    "rated": "valità",
+    "forYou": "Per tai",
+    "insUnrTitle": "anc memia paucs valitads",
+    "insUnrSub": "Valitescha intgins arguments per vesair tge che quest tema munta per tai.",
+    "insSplitTitle": "qua es ti dividì",
+    "insSplitSub": "Ti chattas arguments da omaduas varts persvasivs. Gist qua paja ina reflexiun pli precisa il pli.",
+    "insProTitle": "ti tendas a la dumonda",
+    "insProSub": "Ti has valità ils arguments per la dumonda sco pli relevants.",
+    "insConTitle": "ti tendas cunter",
+    "insConSub": "Ti has valità ils arguments cunter la dumonda sco pli relevants.",
+    "insBalTitle": "equilibrà",
+    "insBalSub": "Tias valitaziuns sa tegnan qua var l'equiliber.",
+    "argPro": "Argument pro",
+    "argContra": "Argument cunter",
+    "official": "Uffizial",
+    "relevance": "Relevanza",
+    "agree": "Jau ves quai er uschia",
+    "disagree": "Jau na ves quai betg uschia",
+    "showMore": "Mehr anzeigen (+{count})"
   }
 }

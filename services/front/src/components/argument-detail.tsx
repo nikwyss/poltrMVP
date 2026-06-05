@@ -116,6 +116,7 @@ export function ArgumentDetail({
   onClose,
   argRkey,
   onNavigateToComment,
+  onNavigateToTaxonomy,
   onRated,
   backLabel,
   registerScrollContainer,
@@ -123,6 +124,8 @@ export function ArgumentDetail({
   onClose: () => void;
   argRkey: string;
   onNavigateToComment: (uri: string) => void;
+  // Klick auf ein Taxonomie-Breadcrumb → öffnet diese Topic-Stufe im Overlay.
+  onNavigateToTaxonomy: (ballotRkey: string, topic: string) => void;
   // Called after a rating changes so a host (e.g. the booklet list) can reflect
   // it live without a refetch. `null` = rating cleared / rolled back to unrated.
   onRated?: (argUri: string, preference: number | null) => void;
@@ -388,6 +391,41 @@ export function ArgumentDetail({
           <>
             {/* Argument — gleiche Optik wie die Booklet-Karten (Badge + Serif-Titel) */}
             <div className="ov-arg">
+              {/* Topic-Taxonomie als Breadcrumbs (Beschreibung je Segment als
+                  Tooltip). Multi-Membership → je Pfad eine Zeile. */}
+              {argument.topicPaths && argument.topicPaths.length > 0 && (
+                <div className="flex flex-col gap-0.5">
+                  {argument.topicPaths.map((path, pi) => (
+                    <nav
+                      key={pi}
+                      className="flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground"
+                    >
+                      {path.map((seg, si) => (
+                        <span key={si} className="flex items-center gap-x-1">
+                          {si > 0 && <span className="opacity-40">›</span>}
+                          {seg.key ? (
+                            <button
+                              type="button"
+                              title={seg.description ?? undefined}
+                              onClick={() => onNavigateToTaxonomy(ballotRkey, seg.key!)}
+                              className="hover:text-foreground hover:underline"
+                            >
+                              {seg.name}
+                            </button>
+                          ) : (
+                            <span
+                              title={seg.description ?? undefined}
+                              className="cursor-default"
+                            >
+                              {seg.name}
+                            </span>
+                          )}
+                        </span>
+                      ))}
+                    </nav>
+                  ))}
+                </div>
+              )}
               <div className="ov-arg-top">
                 <span
                   className={`ov-badge ov-badge-${isPro ? "pro" : "contra"}`}
@@ -418,8 +456,9 @@ export function ArgumentDetail({
               </div>
             </div>
 
-            {/* Relevanz-Bewertung */}
-            <div>
+            {/* Relevanz-Bewertung — eigene, abgesetzte Section (Panel),
+                getrennt vom oberen Argument-Teil. */}
+            <div className="rounded-xl border border-black/5 bg-white/60 px-5 py-4 shadow-sm">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
                 {t("yourRating")}
               </div>

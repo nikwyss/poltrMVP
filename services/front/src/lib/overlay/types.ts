@@ -8,7 +8,9 @@ export type OverlayEntry =
   | { type: "argument"; rkey: string }
   | { type: "comment"; uri: string }
   | { type: "profile"; did: string }
-  | { type: "peerreview"; id: string };
+  | { type: "peerreview"; id: string }
+  // Detail-Seite eines Taxonomy-Top-Topics: zeigt dessen Subtopics + Argumente.
+  | { type: "taxonomy"; ballotRkey: string; topic: string };
 
 export type OverlayEntryType = OverlayEntry["type"];
 

@@ -702,7 +702,7 @@ function BallotFeedContent() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-[35vh]">
       <PageBackdrop src="/images/kleinemythe.svg" />
       {/* Breadcrumb + view toggle */}
       <nav className="flex items-center justify-between text-sm text-muted-foreground">

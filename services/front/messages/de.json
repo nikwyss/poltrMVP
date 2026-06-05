@@ -30,7 +30,9 @@
     "overlayTitleComment": "Kommentar",
     "overlayTitleProfile": "Profil",
     "overlayTitlePeerReview": "Peer-Review",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "backToTaxonomy": "Zurück zum Thema",
+    "overlayTitleTaxonomy": "Thema"
   },
   "nav": {
     "home": "Start",
@@ -238,7 +240,8 @@
   },
   "viewToggle": {
     "feed": "Feed",
-    "booklet": "Büchlein"
+    "booklet": "Büchlein",
+    "taxonomy": "Taxonomie"
   },
   "booklet": {
     "argumentsLabel": "Argumente",
@@ -274,5 +277,40 @@
     "title": "Seite nicht gefunden",
     "message": "Die angeforderte Seite existiert nicht.",
     "backHome": "Zurück zur Startseite"
+  },
+  "taxonomy": {
+    "empty": "Für diese Vorlage gibt es noch keine Themen-Hierarchie.",
+    "loading": "Themen-Hierarchie wird geladen …",
+    "arguments": "Argumente",
+    "subtopics": "Unterthemen",
+    "other": "Sonstige",
+    "forBallot": "eher dafür",
+    "againstBallot": "eher dagegen",
+    "balanced": "ausgewogen",
+    "unrated": "noch nicht bewertet",
+    "bandTitle": "Positionsband",
+    "poleOpponents": "Position der Gegner",
+    "poleSupporters": "Position der Befürworter",
+    "ambivalent": "ambivalent",
+    "split": "gespalten",
+    "rated": "bewertet",
+    "forYou": "Für dich",
+    "insUnrTitle": "noch zu wenig bewertet",
+    "insUnrSub": "Bewerte ein paar Argumente, um zu sehen, was dieses Thema für dich bedeutet.",
+    "insSplitTitle": "hier bist du gespalten",
+    "insSplitSub": "Du findest Argumente beider Seiten überzeugend. Genau hier lohnt sich genaueres Nachdenken am meisten.",
+    "insProTitle": "du tendierst zur Vorlage",
+    "insProSub": "Du hast die Argumente für die Vorlage relevanter bewertet.",
+    "insConTitle": "du tendierst dagegen",
+    "insConSub": "Du hast die Argumente gegen die Vorlage relevanter bewertet.",
+    "insBalTitle": "ausgewogen",
+    "insBalSub": "Deine Bewertungen halten sich hier ungefähr die Waage.",
+    "argPro": "Pro-Argument",
+    "argContra": "Contra-Argument",
+    "official": "Offiziell",
+    "relevance": "Relevanz",
+    "agree": "Sehe ich auch so",
+    "disagree": "Sehe ich nicht so",
+    "showMore": "Mehr anzeigen (+{count})"
   }
 }

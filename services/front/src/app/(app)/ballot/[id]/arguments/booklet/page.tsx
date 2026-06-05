@@ -544,7 +544,7 @@ function BookletContent() {
 
   return (
     <div
-      className="max-w-[var(--page-max)] mx-auto"
+      className="max-w-[var(--page-max)] mx-auto pb-[35vh]"
       style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}
     >
       <PageBackdrop src="/images/schrattenfluh.svg" />

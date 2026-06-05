@@ -30,7 +30,9 @@
     "overlayTitleComment": "Kommentar",
     "overlayTitleProfile": "Profil",
     "overlayTitlePeerReview": "Peer-Review",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "backToTaxonomy": "Zurück zum Thema",
+    "overlayTitleTaxonomy": "Thema"
   },
   "nav": {
     "home": "Start",
@@ -238,7 +240,8 @@
   },
   "viewToggle": {
     "feed": "Feed",
-    "booklet": "Büchlein"
+    "booklet": "Büchlein",
+    "taxonomy": "Tassonomia"
   },
   "booklet": {
     "argumentsLabel": "Argumente",
@@ -274,5 +277,40 @@
     "title": "Seite nicht gefunden",
     "message": "Die angeforderte Seite existiert nicht.",
     "backHome": "Zurück zur Startseite"
+  },
+  "taxonomy": {
+    "empty": "Non esiste ancora una gerarchia tematica per questo oggetto.",
+    "loading": "Caricamento della gerarchia …",
+    "arguments": "argomenti",
+    "subtopics": "sottotemi",
+    "other": "Altri",
+    "forBallot": "piuttosto a favore",
+    "againstBallot": "piuttosto contro",
+    "balanced": "equilibrato",
+    "unrated": "non ancora valutato",
+    "bandTitle": "Banda di posizione",
+    "poleOpponents": "Posizione dei contrari",
+    "poleSupporters": "Posizione dei favorevoli",
+    "ambivalent": "ambivalente",
+    "split": "diviso",
+    "rated": "valutato",
+    "forYou": "Per te",
+    "insUnrTitle": "ancora poche valutazioni",
+    "insUnrSub": "Valuta alcuni argomenti per vedere cosa significa questo tema per te.",
+    "insSplitTitle": "qui sei diviso",
+    "insSplitSub": "Trovi convincenti argomenti di entrambe le parti. Proprio qui conviene riflettere più a fondo.",
+    "insProTitle": "propendi per l'oggetto",
+    "insProSub": "Hai valutato più rilevanti gli argomenti a favore dell'oggetto.",
+    "insConTitle": "propendi contro",
+    "insConSub": "Hai valutato più rilevanti gli argomenti contro l'oggetto.",
+    "insBalTitle": "equilibrato",
+    "insBalSub": "Le tue valutazioni qui si bilanciano più o meno.",
+    "argPro": "Argomento a favore",
+    "argContra": "Argomento contro",
+    "official": "Ufficiale",
+    "relevance": "Rilevanza",
+    "agree": "La penso anch'io così",
+    "disagree": "Non la penso così",
+    "showMore": "Mehr anzeigen (+{count})"
   }
 }

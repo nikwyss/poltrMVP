@@ -9,6 +9,7 @@ ATProto-based civic-tech platform for Swiss referenda. Monorepo with custom serv
 | Frontend | `services/front` | Next.js + React 19 | poltr.ch |
 | AppView | `services/appview` | Python 3.11 + FastAPI | app.poltr.info |
 | Indexer | `services/indexer` | Node.js | indexer.poltr.info |
+| Calculator | `services/calculator` | Python 3.11 + FastAPI | calculator.poltr.info |
 | eID Proto | `services/eidproto` | Next.js | eidproto.poltr.info |
 | PDS | (bluesky image) | Bluesky PDS | pds2.poltr.info |
 | Ozone | (bluesky image) | Moderation/Labeling | ozon.poltr.info |
@@ -18,7 +19,7 @@ ATProto-based civic-tech platform for Swiss referenda. Monorepo with custom serv
 ## Kubernetes
 
 - **Namespace:** `poltr`
-- **Manifests:** `infra/kube/` (one file per service: appview.yaml, cms.yaml, frontend.yaml, indexer.yaml, pds.yaml, postgres.yaml, ozone.yaml, verifier.yaml, eidproto.yaml, ingress.yaml, namespace.yaml)
+- **Manifests:** `infra/kube/` (one file per service: appview.yaml, calculator.yaml, cms.yaml, frontend.yaml, indexer.yaml, pds.yaml, postgres.yaml, ozone.yaml, verifier.yaml, eidproto.yaml, ingress.yaml, namespace.yaml)
 - **Cronjobs:** `infra/kube/cronjobs.yaml`
 - **Secrets template:** `infra/kube/secrets.yaml.dist`
 

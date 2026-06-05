@@ -62,4 +62,41 @@ spec:
                       --retry 1 --retry-delay 5 \
                       "http://indexer.poltr.svc.cluster.local/peerreview-finalize" \
                       || exit 1
+          restartPolicy: Never---
+# Open-Coding-Worker: alle 5 Minuten einen Batch (Default 20) noch nicht
+# codierter Argumente verarbeiten und die Open Codes nach app_argument_open_codes
+# schreiben. Reihenfolge: offizielle zuerst, dann nach created_at. Tagescap 300.
+# concurrencyPolicy Forbid + In-DB-Lease (3 min) verhindern Overlap.
+# Siehe doc/argument_clustering.md §9 und services/calculator.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: calculator-opencoding
+  namespace: poltr
+spec:
+  schedule: "*/5 * * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 200
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          containers:
+            - name: opencoding-trigger
+              image: curlimages/curl:8.2.1
+              command: ["sh", "-c"]
+              args:
+                  - |
+                    curl -X POST --fail --show-error \
+                      --connect-timeout 5 --max-time 190 \
+                      "http://calculator.poltr.svc.cluster.local/opencoding" \
+                      -H "Content-Type: application/json" -d '{}' \
+                      || exit 1
           restartPolicy: Never
+
+# CRONJOB TEST:
+# kubectl run --rm -i --tty curl-test-oc -n poltr --image=curlimages/curl --restart=Never -- \
+#   sh -c "curl -v --max-time 190 -X POST 'http://calculator.poltr.svc.cluster.local/opencoding' -H 'Content-Type: application/json' -d '{}' || echo EXIT:\$?"

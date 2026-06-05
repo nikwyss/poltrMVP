@@ -316,7 +316,10 @@ export interface Ballot {
    */
   officialRef?: string | null;
   originLanguage: 'de' | 'fr' | 'it' | 'rm' | 'en';
-  status: 'draft' | 'published';
+  /**
+   * Nur draft/published werden vom Calculator codiert; archived nicht.
+   */
+  status: 'draft' | 'published' | 'archived';
   /**
    * ATProto Governance Account DID (auto-created on publish — reload the page after publishing to see the value).
    */

@@ -123,9 +123,12 @@ export const Ballots: CollectionConfig = {
       options: [
         { label: 'Draft', value: 'draft' },
         { label: 'Published', value: 'published' },
+        { label: 'Archived', value: 'archived' },
       ],
       admin: {
         position: 'sidebar',
+        description:
+          'Nur draft/published werden vom Calculator codiert; archived nicht.',
       },
     },
     {
@@ -155,6 +158,19 @@ export const Ballots: CollectionConfig = {
       admin: {
         components: {
           Cell: '/components/BallotRowActions#BallotRowActions',
+        },
+      },
+    },
+    {
+      // Themen-Hierarchie (Calculator/top-down): Vorschau bauen, vergleichen,
+      // übernehmen, Community einsortieren, wachsen lassen. Read/Write gegen den
+      // Calculator-Service. Siehe components/TaxonomyPanel.tsx.
+      name: 'taxonomy',
+      type: 'ui',
+      label: 'Themen-Hierarchie',
+      admin: {
+        components: {
+          Field: '/components/TaxonomyPanel#TaxonomyPanelField',
         },
       },
     },

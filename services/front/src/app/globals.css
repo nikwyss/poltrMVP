@@ -287,4 +287,175 @@
     background: var(--contra-dim);
     border-color: var(--contra-border);
   }
+
+  /* Argument-Karte (na-card) — geteilt von Booklet- und Taxonomy-View.
+     Aus dem Booklet-styled-jsx hierher gehoben, damit beide Views sie nutzen. */
+  .na-card {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-left: 5px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 20px 18px;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      border-color 0.15s ease,
+      opacity 0.15s ease;
+  }
+  .na-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
+  }
+  .na-card-top {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .na-card-top-left {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .na-card-title {
+    position: relative;
+    z-index: 1;
+    font-family: var(--font-serif), Georgia, "Times New Roman", serif;
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+  /* Review-Status oben rechts (dezenter Text, z. B. "Begutachtet") */
+  .na-card-status {
+    flex-shrink: 0;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: var(--text-faint);
+  }
+  /* Offiziell-Marker: Bernstein/Gold, passend zur ★-Official-Sektion */
+  .na-card-status--official {
+    font-weight: 700;
+    color: #8a6b2b;
+  }
+  /* Inhalt: Titel links, persönliche Bewertung unten rechts */
+  .na-card-body {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .na-card-body .na-card-title {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: break-word;
+  }
+  /* Persönliche Relevanz-Bewertung unten rechts (Zahl in Argumentfarbe + Label) */
+  .na-card-score {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1;
+  }
+  .na-card-index {
+    font-family: inherit;
+    font-size: 1.875rem;
+    font-weight: 700;
+    line-height: 0.9;
+    color: var(--text);
+    user-select: none;
+    white-space: nowrap;
+  }
+  /* "/100" als zurückgenommener Nenner an der Score-Zahl */
+  .na-card-index-max {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-faint);
+  }
+  .na-card-pro .na-card-index {
+    color: var(--pro);
+  }
+  .na-card-contra .na-card-index {
+    color: var(--contra);
+  }
+  .na-card-score-label {
+    margin-top: 5px;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  /* Pro/Contra-Badge + Farbe auf dem linken Balken */
+  .na-badge {
+    flex-shrink: 0;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 3px 10px;
+    border-radius: var(--r-full, 999px);
+  }
+  .na-card-pro {
+    border-left-color: var(--pro);
+  }
+  .na-card-pro .na-badge {
+    background: var(--pro-dim);
+    color: var(--pro);
+  }
+  .na-card-contra {
+    border-left-color: var(--contra);
+  }
+  .na-card-contra .na-badge {
+    background: var(--contra-dim);
+    color: var(--contra);
+  }
+  /* Unbewertet → warmer Pergament-/Creme-Ton; Bewertet → leichterer Titel */
+  .na-card-unrated {
+    background: #fff7edfc;
+    border-top-color: #ecddbb;
+    border-right-color: #ecddbb;
+    border-bottom-color: #ecddbb;
+  }
+  .na-card-unrated .na-card-title {
+    font-weight: 700;
+    color: var(--text);
+  }
+  .na-card-rated .na-card-title {
+    font-weight: 500;
+  }
+
+  /* „Mehr anzeigen"-Button (geteilt von Booklet- und Taxonomy-View) */
+  .na-show-more {
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px 0;
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #5a6b8a;
+    cursor: pointer;
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
+  }
+  .na-show-more:hover {
+    border-color: var(--line-mid);
+    background: #fff;
+  }
 }

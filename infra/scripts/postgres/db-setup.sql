@@ -113,6 +113,140 @@ CREATE INDEX app_arguments_translation_status_idx
 -- GIN index for filtering by language (e.g. WHERE 'fr' = ANY(langs)).
 CREATE INDEX app_arguments_langs_idx ON app_arguments USING GIN (langs);
 
+-- Open-Coding-Ergebnis + Worker-State (Calculator-Service, Variante B Stage 1).
+-- Eine Zeile pro Argument; zugleich Cache (coder_signature) und Worker-Queue.
+-- Siehe doc/argument_clustering.md §9 und services/calculator.
+CREATE TABLE app_argument_open_codes (
+  argument_uri    text PRIMARY KEY REFERENCES app_arguments(uri) ON DELETE CASCADE,
+  argument_cid    text NOT NULL,          -- Content-Hash bei Codierung → Re-Code bei Edit
+  ballot_rkey     text NOT NULL,          -- denormalisiert (Scoping/Joins)
+  coder_signature text,                   -- Modell + Open-Prompt-Hash → Re-Code bei Wechsel
+  codes           jsonb,                  -- [{code,note,confidence}]; NULL bis erfolgreich
+  status          text NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending','processing','done','empty','failed','failed_permanent')),
+  attempts        integer NOT NULL DEFAULT 0,
+  last_error      text,
+  claimed_at      timestamptz,            -- Lease gegen Cron-Overlap
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX app_argument_open_codes_status_idx ON app_argument_open_codes (status);
+CREATE INDEX app_argument_open_codes_ballot_idx ON app_argument_open_codes (ballot_rkey);
+-- Tagescap-Zählung: erfolgreich codierte Zeilen des heutigen Tages.
+CREATE INDEX app_argument_open_codes_updated_idx
+  ON app_argument_open_codes (updated_at)
+  WHERE status IN ('done','empty');
+
+-- Taxonomie-Persistenz (Calculator-Service, Variante B): Achsen / Bündel /
+-- Zugehörigkeiten je /induce-batch-Lauf. Versioniert (ein Run pro Lauf).
+-- Siehe doc/argument_clustering.md und services/calculator.
+CREATE TABLE app_taxonomy_run (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  ballot_rkey text NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  axial_model text,
+  code_count  integer,
+  bundled     boolean,
+  stage0_applied        boolean,   -- Lauf-weite Qualitätsindikatoren (Stage 0/1)
+  stage0_min_frequency  integer,
+  stage0_kept           integer,
+  stage0_margin         integer,
+  prebundle_backend     text,      -- embedding | lexical | none
+  prebundle_target      integer,
+  prebundle_rounds      integer,
+  prebundle_final_floor real,
+  prebundle_capped      boolean,
+  prebundle_max_size    integer,
+  prebundle_max_bundle  integer,
+  arguments_total       integer,   -- codierte Argumente im Lauf
+  arguments_unassigned  integer    -- davon keiner Achse zugeordnet (Qualitätsmerkmal)
+);
+CREATE INDEX app_taxonomy_run_ballot_idx ON app_taxonomy_run (ballot_rkey, created_at DESC);
+
+CREATE TABLE app_taxonomy_axis (          -- finale Achsen + 'margin'/'ungrouped'
+  id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  run_id         bigint NOT NULL REFERENCES app_taxonomy_run(id) ON DELETE CASCADE,
+  label          text NOT NULL,
+  description    text,
+  pole_a         text,
+  pole_b         text,
+  kind           text NOT NULL DEFAULT 'axis' CHECK (kind IN ('axis','margin','ungrouped')),
+  bundle_count   integer NOT NULL DEFAULT 0,  -- Qualitätsmetrik: # Bündel
+  argument_count integer NOT NULL DEFAULT 0,  -- # distinct Argumente (Membership)
+  code_count     integer NOT NULL DEFAULT 0,  -- # distinct Codes (Membership)
+  pro_share      real                         -- Anteil PRO unter den Argumenten der Achse (0..1)
+);
+CREATE INDEX app_taxonomy_axis_run_idx ON app_taxonomy_axis (run_id);
+
+CREATE TABLE app_taxonomy_bundle (        -- Prebundle-Resultat, je Bündel → Achse
+  id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  run_id         bigint NOT NULL REFERENCES app_taxonomy_run(id) ON DELETE CASCADE,
+  axis_id        bigint NOT NULL REFERENCES app_taxonomy_axis(id) ON DELETE CASCADE,
+  representative text NOT NULL,
+  code_count     integer NOT NULL DEFAULT 0,  -- Qualitätsmetrik: # distinct Codes (Membership)
+  cohesion       real,                        -- mittlere paarweise Ähnlichkeit der Member (NULL bei Singleton)
+  avg_confidence real                         -- Ø Open-Coding-Confidence der Member
+);
+CREATE INDEX app_taxonomy_bundle_run_idx ON app_taxonomy_bundle (run_id);
+
+CREATE TABLE app_taxonomy_membership (    -- Faktentabelle: (Argument,Code) → Bündel → Achse
+  run_id       bigint NOT NULL REFERENCES app_taxonomy_run(id) ON DELETE CASCADE,
+  argument_uri text NOT NULL,
+  code         text NOT NULL,
+  bundle_id    bigint REFERENCES app_taxonomy_bundle(id) ON DELETE CASCADE,  -- NULL = Rand
+  axis_id      bigint NOT NULL REFERENCES app_taxonomy_axis(id) ON DELETE CASCADE,
+  pole         text CHECK (pole IN ('a','b','neutral')),  -- Pol-Neigung des Codes
+  stance       text CHECK (stance IN ('pro','contra')),   -- Haltung des Arguments (app_arguments.type)
+  confidence   real,                                      -- Open-Coding-Confidence dieses Codes (0..1)
+  PRIMARY KEY (run_id, argument_uri, code)
+);
+CREATE INDEX app_taxonomy_membership_axis_idx   ON app_taxonomy_membership (run_id, axis_id);
+CREATE INDEX app_taxonomy_membership_bundle_idx ON app_taxonomy_membership (run_id, bundle_id);
+CREATE INDEX app_taxonomy_membership_arg_idx    ON app_taxonomy_membership (run_id, argument_uri);
+
+CREATE TABLE app_arguments_axis (         -- Rollup Argument → Achse (Pol aus Code-Polen abgeleitet)
+  run_id       bigint NOT NULL REFERENCES app_taxonomy_run(id) ON DELETE CASCADE,
+  argument_uri text NOT NULL,
+  axis_id      bigint NOT NULL REFERENCES app_taxonomy_axis(id) ON DELETE CASCADE,
+  pole         text CHECK (pole IN ('a','b','neutral')),  -- spricht das Argument fürs a- oder b-Ende?
+  stance       text CHECK (stance IN ('pro','contra')),   -- Haltung des Arguments zur Vorlage
+  code_count   integer NOT NULL DEFAULT 0,
+  confidence   real,
+  conflict     boolean NOT NULL DEFAULT false,            -- Codes ziehen auf a UND b (§10.2)
+  PRIMARY KEY (run_id, argument_uri, axis_id)
+);
+CREATE INDEX app_arguments_axis_arg_idx  ON app_arguments_axis (run_id, argument_uri);
+CREATE INDEX app_arguments_axis_axis_idx ON app_arguments_axis (run_id, axis_id);
+
+-- Top-down Themen-Hierarchie (Arbeitsbaum, EIN stabiler Baum pro Ballot, inkrementell).
+CREATE TABLE app_topic_node (              -- Adjazenzliste: parent_id → Elternknoten (NULL = Wurzel)
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  ballot_rkey  text NOT NULL,
+  parent_id    bigint REFERENCES app_topic_node(id) ON DELETE CASCADE,
+  key          text,                  -- langlebiger Slug (mit '-'); set-once, für Permalinks
+  name         text NOT NULL,
+  description  text,
+  depth        integer NOT NULL DEFAULT 0,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX app_topic_node_ballot_idx ON app_topic_node (ballot_rkey);
+CREATE INDEX app_topic_node_parent_idx ON app_topic_node (parent_id);
+CREATE UNIQUE INDEX app_topic_node_key_uidx ON app_topic_node (ballot_rkey, key) WHERE key IS NOT NULL;
+
+CREATE TABLE app_topic_membership (       -- Code/Argument → Knoten (ein Code an genau einem Knoten)
+  ballot_rkey  text NOT NULL,
+  node_id      bigint NOT NULL REFERENCES app_topic_node(id) ON DELETE CASCADE,
+  argument_uri text NOT NULL,
+  code         text NOT NULL,
+  confidence   real,
+  stance       text CHECK (stance IN ('pro','contra')),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (ballot_rkey, argument_uri, code)
+);
+CREATE INDEX app_topic_membership_node_idx ON app_topic_membership (node_id);
+CREATE INDEX app_topic_membership_arg_idx  ON app_topic_membership (ballot_rkey, argument_uri);
+
 CREATE TABLE app_peerreview_invitations (
   uri              text PRIMARY KEY,
   cid              text NOT NULL,
@@ -401,3 +535,17 @@ GRANT USAGE ON SCHEMA auth TO indexer;
 GRANT SELECT (did, handle, ballot_rkey) ON auth.governance_accounts TO indexer;
 
 -- ALTER ROLE indexer WITH PASSWORD 'CHANGE_ME';
+
+-- calculator: liest app_arguments, schreibt app_argument_open_codes.
+-- Kein auth-Zugriff, keine Schreibrechte auf den übrigen Content.
+CREATE ROLE calculator WITH LOGIN PASSWORD 'CHANGE_ME';
+GRANT CONNECT ON DATABASE appview TO calculator;
+GRANT USAGE ON SCHEMA public TO calculator;
+GRANT SELECT ON app_arguments TO calculator;
+GRANT SELECT, INSERT, UPDATE, DELETE ON app_argument_open_codes TO calculator;
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+  app_taxonomy_run, app_taxonomy_axis, app_taxonomy_bundle, app_taxonomy_membership,
+  app_arguments_axis, app_topic_node, app_topic_membership
+  TO calculator;
+REVOKE ALL ON SCHEMA auth FROM calculator;
+-- ALTER ROLE calculator WITH PASSWORD 'CHANGE_ME';

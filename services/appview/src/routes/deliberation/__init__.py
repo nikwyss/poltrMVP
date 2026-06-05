@@ -12,6 +12,7 @@ from src.routes.deliberation.comments import router as comments_router
 from src.routes.deliberation.likes import router as likes_router
 from src.routes.deliberation.activity import router as activity_router
 from src.routes.deliberation.reviews import router as reviews_router
+from src.routes.deliberation.taxonomy import router as taxonomy_router
 
 routers = [
     arguments_router,
@@ -19,4 +20,5 @@ routers = [
     likes_router,
     activity_router,
     reviews_router,
+    taxonomy_router,  # calculator-abgeleiteter Themenbaum + Argumente (nicht ATProto)
 ]

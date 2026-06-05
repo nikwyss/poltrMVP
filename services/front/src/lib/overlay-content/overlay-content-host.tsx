@@ -9,6 +9,7 @@ import {
 } from "@/lib/overlay";
 import { ArgumentDetail } from "@/components/argument-detail";
 import { CommentDetail } from "@/components/comment-detail";
+import { TaxonomyDetail } from "@/components/taxonomy-detail";
 
 // Single, content-aware overlay surface for the entire app. Mount once at the
 // (app) layout level; pages just call `useOverlay().navigate(entry)` to open.
@@ -32,12 +33,14 @@ export function OverlayContentHost() {
         comment: tc("backToPost"),
         profile: tc("backToProfile"),
         peerreview: tc("backToPeerReview"),
+        taxonomy: tc("backToTaxonomy"),
       }}
       titles={{
         argument: tc("overlayTitleArgument"),
         comment: tc("overlayTitleComment"),
         profile: tc("overlayTitleProfile"),
         peerreview: tc("overlayTitlePeerReview"),
+        taxonomy: tc("overlayTitleTaxonomy"),
       }}
     >
       {(entry, ctx) => renderEntry(entry, ctx, getCallbacks)}
@@ -62,6 +65,9 @@ function renderEntry(
           onNavigateToComment={(uri: string) =>
             ctx.navigate({ type: "comment", uri }, { anchor: uri })
           }
+          onNavigateToTaxonomy={(ballotRkey: string, topic: string) =>
+            ctx.navigate({ type: "taxonomy", ballotRkey, topic })
+          }
           onRated={(uri: string, pref: number | null) =>
             getCallbacks().onArgumentRated?.(uri, pref)
           }
@@ -81,6 +87,22 @@ function renderEntry(
             ctx.navigate({ type: "argument", rkey }, { anchor: rkey })
           }
           backLabel={ctx.backLabel}
+          registerScrollContainer={ctx.registerScrollContainer}
+        />
+      );
+    case "taxonomy":
+      return (
+        <TaxonomyDetail
+          ballotRkey={entry.ballotRkey}
+          topic={entry.topic}
+          onClose={ctx.back}
+          backLabel={ctx.backLabel}
+          onNavigateToArgument={(rkey: string) =>
+            ctx.navigate({ type: "argument", rkey }, { anchor: rkey })
+          }
+          onNavigateToTaxonomy={(ballotRkey: string, topic: string) =>
+            ctx.navigate({ type: "taxonomy", ballotRkey, topic })
+          }
           registerScrollContainer={ctx.registerScrollContainer}
         />
       );

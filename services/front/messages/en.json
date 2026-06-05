@@ -30,7 +30,9 @@
     "overlayTitleComment": "Comment",
     "overlayTitleProfile": "Profile",
     "overlayTitlePeerReview": "Peer review",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "backToTaxonomy": "Back to topic",
+    "overlayTitleTaxonomy": "Topic"
   },
   "nav": {
     "home": "Home",
@@ -238,7 +240,8 @@
   },
   "viewToggle": {
     "feed": "Feed",
-    "booklet": "Booklet"
+    "booklet": "Booklet",
+    "taxonomy": "Taxonomy"
   },
   "booklet": {
     "argumentsLabel": "Arguments",
@@ -274,5 +277,40 @@
     "title": "Page not found",
     "message": "The requested page does not exist.",
     "backHome": "Back to home page"
+  },
+  "taxonomy": {
+    "empty": "No topic hierarchy exists for this ballot yet.",
+    "loading": "Loading topic hierarchy …",
+    "arguments": "arguments",
+    "subtopics": "subtopics",
+    "other": "Other",
+    "forBallot": "rather for",
+    "againstBallot": "rather against",
+    "balanced": "balanced",
+    "unrated": "not yet rated",
+    "bandTitle": "Position band",
+    "poleOpponents": "Opponents' position",
+    "poleSupporters": "Supporters' position",
+    "ambivalent": "ambivalent",
+    "split": "split",
+    "rated": "rated",
+    "forYou": "For you",
+    "insUnrTitle": "not enough rated yet",
+    "insUnrSub": "Rate a few arguments to see what this topic means for you.",
+    "insSplitTitle": "you're torn here",
+    "insSplitSub": "You find arguments on both sides convincing. This is exactly where thinking more carefully pays off most.",
+    "insProTitle": "you lean toward the proposal",
+    "insProSub": "You rated the arguments in favour of the proposal as more relevant.",
+    "insConTitle": "you lean against it",
+    "insConSub": "You rated the arguments against the proposal as more relevant.",
+    "insBalTitle": "balanced",
+    "insBalSub": "Your ratings roughly balance out here.",
+    "argPro": "Pro argument",
+    "argContra": "Contra argument",
+    "official": "Official",
+    "relevance": "Relevance",
+    "agree": "I see it that way too",
+    "disagree": "I don't see it that way",
+    "showMore": "Show more (+{count})"
   }
 }
