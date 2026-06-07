@@ -1,0 +1,87 @@
+{
+  "name": "Vorlage 663",
+  "description": "",
+  "children": [
+    {
+      "name": "Energiekosten & wirtschaftliche Auswirkungen",
+      "description": "Fragen rund um Strom- und Energiepreise, finanzielle Belastung von Haushalten, Gewerbe und Industrie sowie staatliche Förder- und Unterstützungsmassnahmen.",
+      "children": [],
+      "own_args": [
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlornerzkc2z",
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvocahc2z"
+      ],
+      "secondary_args": []
+    },
+    {
+      "name": "Versorgungssicherheit & Stromproduktion",
+      "description": "Debatte darüber, ob und wie die Schweiz ihren Energiebedarf zuverlässig decken kann – inklusive Speicherkapazitäten, Importabhängigkeit und Ausbau erneuerbarer Energien.",
+      "children": [],
+      "own_args": [
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvnulwk2z",
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvnx6ws2z",
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvoezd22z"
+      ],
+      "secondary_args": [
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvnro6k2z"
+      ]
+    },
+    {
+      "name": "Unabhängigkeit von fossilen Energieträgern",
+      "description": "Argumente zur Abhängigkeit der Schweiz von ausländischem Erdöl und Erdgas sowie zur geopolitischen und strategischen Bedeutung des Ausstiegs aus fossilen Brennstoffen.",
+      "children": [],
+      "own_args": [
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvo4ls22z",
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvo7bq22z"
+      ],
+      "secondary_args": [
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvnx6ws2z"
+      ]
+    },
+    {
+      "name": "Klima- & Umweltschutz",
+      "description": "Fragen zum Klimawandel, seinen Folgen für die Schweiz (Extremereignisse, Hitze, Ernteausfälle) und zur Rolle der Vorlage bei der Reduktion von Treibhausgasemissionen.",
+      "children": [],
+      "own_args": [
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvokk3c2z"
+      ],
+      "secondary_args": [
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvo4ls22z",
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvocahc2z",
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvoezd22z"
+      ]
+    },
+    {
+      "name": "Staatliche Steuerung & individuelle Freiheit",
+      "description": "Diskussion über Reichweite staatlicher Eingriffe, mögliche Verbote oder Vorschriften (Heizungen, Mobilität, Konsum) und das Verhältnis von Regulierung zu persönlicher Wahlfreiheit.",
+      "children": [],
+      "own_args": [
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvnztvk2z",
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvohu5c2z"
+      ],
+      "secondary_args": []
+    },
+    {
+      "name": "Umsetzbarkeit & Planungssicherheit",
+      "description": "Beurteilung, ob der Umbau der Energieversorgung realistisch, technisch machbar und zeitlich sinnvoll geplant ist – inklusive Infrastrukturausbau und Technologieverfügbarkeit.",
+      "children": [],
+      "own_args": [
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvnro6k2z"
+      ],
+      "secondary_args": [
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlornerzkc2z",
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvnulwk2z"
+      ]
+    },
+    {
+      "name": "Demokratische Kontrolle & Rolle des Parlaments",
+      "description": "Fragen zur Kompetenzverteilung zwischen Bundesrat, Parlament und Stimmvolk sowie zu Mitspracherechten bei weiteren Umsetzungsmassnahmen.",
+      "children": [],
+      "own_args": [
+        "at://did:plc:3ch7iwf6od4szklpolupbv7o/app.ch.poltr.ballot.argument/3mlorvomz6k2z"
+      ],
+      "secondary_args": []
+    }
+  ],
+  "own_args": [],
+  "secondary_args": []
+}

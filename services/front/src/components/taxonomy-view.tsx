@@ -145,17 +145,19 @@ export function ProContraArguments({
   args,
   onOpen,
   onShowMore,
+  limit = PAGE_LIMIT,
 }: {
   args: TaxonomyArgument[];
   onOpen: (rkey: string) => void;
   onShowMore?: () => void;
+  limit?: number;
 }) {
   const t = useTranslations("taxonomy");
   const [expanded, setExpanded] = useState(false);
   if (!args.length) return null;
   const pro = args.filter((a) => a.type === "PRO");
   const contra = args.filter((a) => a.type !== "PRO");
-  const cap = expanded ? Infinity : PAGE_LIMIT;
+  const cap = expanded ? Infinity : limit;
   const visiblePro = pro.slice(0, cap);
   const visibleContra = contra.slice(0, cap);
   // Verbleibende (ausgeblendete) Karten über beide Spalten.

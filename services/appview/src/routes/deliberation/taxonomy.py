@@ -10,7 +10,8 @@ unabhängig (Analyse-Schicht; die Argumente selbst sind ATProto-Records).
 
 Antwort:
   { ballotRkey, tree: Node }
-  Node = { id, key, name, description, depth, argumentCount (Teilbaum, distinct),
+  Node = { id, key, name, description (intern, LLM-Klassifikation),
+           introduction (voter-facing), depth, argumentCount (Teilbaum, distinct),
            arguments: [{uri, rkey, title, type, sourceType, likeCount,
                         availableLangs}], children: [Node, …] }
 """
@@ -42,12 +43,19 @@ def _seed_sort(items: list, seed: str, ident) -> list:
 
 
 def _shuffle_tree(node: dict, seed: str) -> None:
-    """Randomisiert rekursiv die Geschwister-Themen UND die Argumente jedes
-    Knotens (gleiche Stufe → alle gemischt), user-stabil über den Seed.
-    Offizielle Argumente kommen immer zuerst, aber innerhalb ihrer Gruppe
-    (und der übrigen) ebenfalls user-stabil gemischt."""
-    node["children"] = _seed_sort(
-        node["children"], seed, lambda c: c.get("key") or str(c["id"])
+    """Ordnet rekursiv die Geschwister-Themen UND die Argumente jedes Knotens.
+
+    Themen: zuerst nach `importance` (LLM-Prior 1–5, höher = wichtiger; NULL =
+    am wenigsten wichtig), bei gleicher Stufe user-stabil gemischt (Seed).
+    Argumente: offizielle zuerst, innerhalb ihrer Gruppe user-stabil gemischt."""
+    node["children"] = sorted(
+        node["children"],
+        key=lambda c: (
+            -(c.get("importance") or 0),  # höhere Wichtigkeit zuerst; NULL = 0
+            hashlib.md5(
+                f"{seed}:{c.get('key') or c['id']}".encode()
+            ).hexdigest(),
+        ),
     )
     node["arguments"] = sorted(
         node["arguments"],
@@ -76,7 +84,8 @@ def _flatten_child(child: dict) -> dict:
     walk(child)
     return {
         "id": child["id"], "key": child["key"], "name": child["name"],
-        "description": child["description"], "depth": child["depth"],
+        "description": child["description"], "introduction": child.get("introduction"),
+        "depth": child["depth"], "importance": child.get("importance"),
         "children": [], "arguments": list(seen.values()), "argumentCount": 0,
     }
 
@@ -88,7 +97,8 @@ def _slim(node: dict) -> dict:
     Aggregate)."""
     return {
         "id": node["id"], "key": node["key"], "name": node["name"],
-        "description": node["description"], "depth": node["depth"],
+        "description": node["description"], "introduction": node.get("introduction"),
+        "depth": node["depth"],
         "argumentCount": node.get("argumentCount", 0),
         "proLeaning": node.get("proLeaning"),
         "dissent": node.get("dissent", 0.0),
@@ -164,7 +174,8 @@ async def get_taxonomy(
         pool = await get_pool()
         async with pool.acquire() as conn:
             nodes = await conn.fetch(
-                """SELECT id, parent_id, key, name, description, depth
+                """SELECT id, parent_id, key, name, description, introduction,
+                          depth, importance
                    FROM app_topic_node WHERE ballot_rkey = $1
                    ORDER BY depth, id""",
                 ballot_rkey,
@@ -227,7 +238,8 @@ async def get_taxonomy(
         by_id: dict[int, dict] = {
             n["id"]: {
                 "id": n["id"], "key": n["key"], "name": n["name"],
-                "description": n["description"], "depth": n["depth"],
+                "description": n["description"], "introduction": n["introduction"],
+                "depth": n["depth"], "importance": n["importance"],
                 "children": [], "arguments": [], "argumentCount": 0,
             }
             for n in nodes

@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
-import { ChevronRight, ChevronDown } from "lucide-react";
 import { getBallot, getTaxonomy } from "@/lib/agent";
 import { useOverlay } from "@/lib/overlay";
 import type { Ballot, TaxonomyTree, TaxonomyNode } from "@/types/ballots";
@@ -18,7 +17,6 @@ import { TaxonomySunburst } from "@/components/taxonomy-sunburst";
 import { BallotHeader } from "@/components/ballot-header";
 import {
   getInsight,
-  InsightPanel,
   ProContraArguments,
   type T,
 } from "@/components/taxonomy-view";
@@ -39,43 +37,30 @@ function ThemeCard({
   onShowMore?: () => void;
   t: T;
 }) {
-  const [open, setOpen] = useState(false);
   const ins = getInsight(node, t);
   const rated = node.ratedCount ?? 0;
   return (
     <Card
-      className="overflow-hidden border-black/5"
-      style={{ borderLeft: `4px solid ${ins.bar}`, backgroundColor: ins.bg }}
+      className="gap-0 overflow-hidden border-border/60 py-0 shadow-none"
+      style={{ borderLeft: `3px solid ${ins.bar}` }}
     >
-      {/* Kopf = breiter Klick-Trigger zum Aufklappen (nur Name + Badge). */}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full cursor-pointer items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-black/[0.03]"
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          {open ? <ChevronDown className="h-5 w-5 shrink-0 text-muted-foreground" />
-                : <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />}
-          <span className="truncate text-lg font-semibold">{node.name}</span>
-        </div>
-        <span className="shrink-0 rounded-full border border-black/10 bg-white/70 px-2.5 py-0.5 text-xs text-muted-foreground">
-          {rated} / {node.argumentCount} {t("rated")}
+      {/* Kopf — Name + dezenter Bewertungs-Zähler (statisch, immer offen). */}
+      <div className="flex items-baseline justify-between gap-3 px-5 pt-3.5 pb-2.5">
+        <h3 className="truncate text-base font-semibold tracking-tight">{node.name}</h3>
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+          {rated}/{node.argumentCount} {t("rated")}
         </span>
-      </button>
+      </div>
 
-      {/* Aufgeklappt: Beschreibung, „Für dich"-Panel, Argumente. */}
-      {open && (
-        <CardContent className="pt-0">
-          {node.description && (
-            <p className="mb-3 text-sm text-muted-foreground">{node.description}</p>
+      {(node.introduction || node.arguments.length > 0) && (
+        <div className="px-5 pb-4">
+          {node.introduction && (
+            <p className="mb-3 text-sm leading-relaxed text-muted-foreground">{node.introduction}</p>
           )}
-          <InsightPanel node={node} t={t} />
           {node.arguments.length > 0 && (
-            <div className="mt-3 mb-2">
-              <ProContraArguments args={node.arguments} onOpen={onOpen} onShowMore={onShowMore} />
-            </div>
+            <ProContraArguments args={node.arguments} onOpen={onOpen} onShowMore={onShowMore} limit={3} />
           )}
-        </CardContent>
+        </div>
       )}
     </Card>
   );

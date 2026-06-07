@@ -356,118 +356,78 @@ def _unique_slug(base: str, used: set[str]) -> str:
     return slug
 
 
-async def persist_topic_tree(ballot_rkey: str, tree: dict,
-                             entries: list[tuple]) -> dict:
-    """Vollständiges Ersetzen: löscht den bestehenden Baum des Ballots und
-    schreibt den neuen. `tree` = Nested-Dict (name/description/children/own_codes),
-    `entries` = [(argument_uri, code, confidence, stance)]. Ein Code hängt an dem
-    Knoten, in dessen `own_codes` er steht. Rückgabe: {nodes, memberships}.
-    """
-    pool = await get_pool()
-    code_to_node: dict[str, int] = {}
-    stats = {"nodes": 0}
-    used_slugs: set[str] = set()
+async def _insert_topic_tree(conn, ballot_rkey: str, tree: dict) -> dict:
+    """Knoten + Argument-Memberships eines Baums schreiben (in offener Transaktion).
 
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            # Alten Baum entfernen (CASCADE räumt die Memberships ab).
-            await conn.execute(
-                "DELETE FROM app_topic_node WHERE ballot_rkey = $1", ballot_rkey)
-
-            async def insert(node: dict, parent_id, depth: int):
-                name = node.get("name") or "(Wurzel)"
-                key = _unique_slug(_slugify(name), used_slugs)
-                nid = await conn.fetchval(
-                    """INSERT INTO app_topic_node
-                           (ballot_rkey, parent_id, key, name, description, depth)
-                       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id""",
-                    ballot_rkey, parent_id, key, name,
-                    node.get("description"), depth)
-                stats["nodes"] += 1
-                for code in node.get("own_codes", []):
-                    code_to_node[code] = nid
-                for child in node.get("children", []):
-                    await insert(child, nid, depth + 1)
-
-            await insert(tree, None, 0)
-
-            rows = [
-                (ballot_rkey, code_to_node[code], arg, code, conf, stance)
-                for (arg, code, conf, stance) in entries
-                if code in code_to_node
-            ]
-            if rows:
-                await conn.executemany(
-                    """INSERT INTO app_topic_membership
-                           (ballot_rkey, node_id, argument_uri, code, confidence, stance)
-                       VALUES ($1, $2, $3, $4, $5, $6)
-                       ON CONFLICT (ballot_rkey, argument_uri, code) DO UPDATE
-                         SET node_id = EXCLUDED.node_id,
-                             confidence = EXCLUDED.confidence,
-                             stance = EXCLUDED.stance, updated_at = now()""",
-                    rows)
-    return {"nodes": stats["nodes"], "memberships": len(rows)}
-
-
-async def save_topic_tree_full(ballot_rkey: str, tree: dict) -> dict:
-    """Vollständiges Ersetzen aus einem editierten State-Baum: löscht den
-    bestehenden Baum (CASCADE räumt Memberships) und schreibt Knoten UND
-    Memberships neu. Jeder Knoten trägt seine Memberships direkt in `codes`:
-    [{code, argument_uri, confidence, stance}] (Form wie db.fetch_topic_tree).
-    Neue Knoten haben keine id/key — keys werden frisch vergeben. Rückgabe:
-    {nodes, memberships}."""
-    pool = await get_pool()
+    Einheit = Argument: jeder Knoten trägt `arguments`:
+        [{argument_uri, is_primary, confidence, stance, code?}]
+    `is_primary` trennt Haupt- (true) von Nebenthema (false) → gekappte
+    Multimembership. Rückgabe: {nodes, memberships}."""
     used_slugs: set[str] = set()
     stats = {"nodes": 0, "memberships": 0}
 
+    async def insert(node: dict, parent_id, depth: int):
+        name = node.get("name") or "(Wurzel)"
+        key = _unique_slug(_slugify(name), used_slugs)
+        nid = await conn.fetchval(
+            """INSERT INTO app_topic_node
+                   (ballot_rkey, parent_id, key, name, description, introduction,
+                    depth, importance)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id""",
+            ballot_rkey, parent_id, key, name, node.get("description"),
+            node.get("introduction"), depth, node.get("importance"))
+        stats["nodes"] += 1
+
+        rows = []
+        seen: set[str] = set()
+        for a in node.get("arguments", []) or []:
+            if not isinstance(a, dict):
+                continue
+            uri = (a.get("argument_uri") or "").strip()
+            if not uri or uri in seen:
+                continue
+            seen.add(uri)
+            rows.append((ballot_rkey, nid, uri, bool(a.get("is_primary", True)),
+                         a.get("confidence"), a.get("stance"), a.get("code")))
+        if rows:
+            await conn.executemany(
+                """INSERT INTO app_topic_membership
+                       (ballot_rkey, node_id, argument_uri, is_primary, confidence, stance, code)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7)
+                   ON CONFLICT (ballot_rkey, argument_uri, node_id) DO UPDATE
+                     SET is_primary = EXCLUDED.is_primary,
+                         confidence = EXCLUDED.confidence,
+                         stance = EXCLUDED.stance, code = EXCLUDED.code,
+                         updated_at = now()""",
+                rows)
+            stats["memberships"] += len(rows)
+
+        for child in node.get("children", []) or []:
+            await insert(child, nid, depth + 1)
+
+    await insert(tree, None, 0)
+    return stats
+
+
+async def persist_topic_tree(ballot_rkey: str, tree: dict) -> dict:
+    """Vollständiges Ersetzen: löscht den bestehenden Baum des Ballots (CASCADE
+    räumt die Memberships) und schreibt den neuen. `tree` = Nested-Dict, jeder
+    Knoten mit `arguments` (Einheit = Argument; is_primary = Haupt-/Nebenthema).
+    Rückgabe: {nodes, memberships}."""
+    pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(
                 "DELETE FROM app_topic_node WHERE ballot_rkey = $1", ballot_rkey)
-
-            async def insert(node: dict, parent_id, depth: int):
-                name = node.get("name") or "(Wurzel)"
-                key = _unique_slug(_slugify(name), used_slugs)
-                nid = await conn.fetchval(
-                    """INSERT INTO app_topic_node
-                           (ballot_rkey, parent_id, key, name, description, depth)
-                       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id""",
-                    ballot_rkey, parent_id, key, name,
-                    node.get("description"), depth)
-                stats["nodes"] += 1
-
-                rows = []
-                seen: set[tuple] = set()
-                for c in node.get("codes", []) or []:
-                    if not isinstance(c, dict):
-                        continue
-                    code = (c.get("code") or "").strip()
-                    arg = c.get("argument_uri")
-                    if not code or not arg:
-                        continue
-                    k = (arg, code)
-                    if k in seen:
-                        continue
-                    seen.add(k)
-                    rows.append((ballot_rkey, nid, arg, code,
-                                 c.get("confidence"), c.get("stance")))
-                if rows:
-                    await conn.executemany(
-                        """INSERT INTO app_topic_membership
-                               (ballot_rkey, node_id, argument_uri, code, confidence, stance)
-                           VALUES ($1, $2, $3, $4, $5, $6)
-                           ON CONFLICT (ballot_rkey, argument_uri, code) DO UPDATE
-                             SET node_id = EXCLUDED.node_id,
-                                 confidence = EXCLUDED.confidence,
-                                 stance = EXCLUDED.stance, updated_at = now()""",
-                        rows)
-                    stats["memberships"] += len(rows)
-
-                for child in node.get("children", []) or []:
-                    await insert(child, nid, depth + 1)
-
-            await insert(tree, None, 0)
+            stats = await _insert_topic_tree(conn, ballot_rkey, tree)
     return {"nodes": stats["nodes"], "memberships": stats["memberships"]}
+
+
+async def save_topic_tree_full(ballot_rkey: str, tree: dict) -> dict:
+    """Vollständiges Ersetzen aus dem editierten State-Baum — gleiche Mechanik wie
+    persist_topic_tree (Knoten tragen `arguments`). Neue Knoten haben keine
+    id/key; keys werden frisch vergeben. Rückgabe: {nodes, memberships}."""
+    return await persist_topic_tree(ballot_rkey, tree)
 
 
 async def fetch_topic_tree(ballot_rkey: str) -> dict | None:
@@ -476,19 +436,20 @@ async def fetch_topic_tree(ballot_rkey: str) -> dict | None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         nodes = await conn.fetch(
-            """SELECT id, parent_id, key, name, description, depth
+            """SELECT id, parent_id, key, name, description, introduction, depth, importance
                FROM app_topic_node WHERE ballot_rkey = $1 ORDER BY depth, id""",
             ballot_rkey)
         if not nodes:
             return None
         mems = await conn.fetch(
-            """SELECT node_id, argument_uri, code, confidence, stance
+            """SELECT node_id, argument_uri, is_primary, confidence, stance, code
                FROM app_topic_membership WHERE ballot_rkey = $1""", ballot_rkey)
 
     by_id: dict[int, dict] = {
         n["id"]: {"id": n["id"], "key": n["key"], "name": n["name"],
-                  "description": n["description"], "depth": n["depth"],
-                  "children": [], "codes": []}
+                  "description": n["description"], "introduction": n["introduction"],
+                  "depth": n["depth"], "importance": n["importance"],
+                  "children": [], "arguments": []}
         for n in nodes
     }
     root = None
@@ -503,93 +464,89 @@ async def fetch_topic_tree(ballot_rkey: str) -> dict | None:
     for m in mems:
         node = by_id.get(m["node_id"])
         if node:
-            node["codes"].append({
-                "code": m["code"], "argument_uri": m["argument_uri"],
-                "confidence": m["confidence"], "stance": m["stance"]})
+            node["arguments"].append({
+                "argument_uri": m["argument_uri"], "is_primary": m["is_primary"],
+                "confidence": m["confidence"], "stance": m["stance"],
+                "code": m["code"]})
     return root
 
 
-async def fetch_unplaced_entries(ballot_rkey: str) -> list[dict]:
-    """Codes/Argumente (status='done'), die noch NICHT im Themenbaum hängen
-    (für das inkrementelle Einsortieren). Rückgabe: [{argument_uri, code,
-    confidence, stance, source_type}], OFFIZIELLE Argumente zuerst (damit sie beim
-    Einsortieren die Platzierung bestimmen)."""
+async def fetch_arguments(ballot_rkey: str, *, limit: int | None = None) -> list[dict]:
+    """Alle nicht gelöschten Argumente eines Ballots MIT Text — die Einheit der
+    Klassifikation (nicht mehr der Open Code). Rückgabe:
+    [{argument_uri, text, stance, source_type}], OFFIZIELLE zuerst (sie bestimmen
+    die Wurzelstruktur und beim Einsortieren die Platzierung)."""
     pool = await get_pool()
+    sql = """SELECT uri, title, body, type, source_type FROM app_arguments
+             WHERE ballot_rkey = $1 AND NOT deleted
+             ORDER BY (source_type = 'official') DESC, created_at ASC"""
+    params: list = [ballot_rkey]
+    if limit:
+        params.append(limit)
+        sql += f" LIMIT ${len(params)}"
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """SELECT oc.argument_uri, oc.codes, a.type, a.source_type
-               FROM app_argument_open_codes oc
-               JOIN app_arguments a ON a.uri = oc.argument_uri
-               WHERE oc.ballot_rkey = $1 AND oc.status = 'done' AND NOT a.deleted
-                 AND NOT EXISTS (
-                     SELECT 1 FROM app_topic_membership m
-                     WHERE m.ballot_rkey = $1 AND m.argument_uri = oc.argument_uri)
-               ORDER BY (a.source_type = 'official') DESC, a.created_at ASC
-            """, ballot_rkey)
+        rows = await conn.fetch(sql, *params)
     out: list[dict] = []
     for r in rows:
-        codes = r["codes"]
-        if isinstance(codes, str):
-            try:
-                codes = json.loads(codes)
-            except (TypeError, ValueError):
-                codes = []
-        if not isinstance(codes, list):
-            codes = []
+        title, body = (r["title"] or ""), (r["body"] or "")
         stance = (r["type"] or "").strip().lower()
-        stance = stance if stance in ("pro", "contra") else None
-        source_type = r["source_type"]
-        seen: set[str] = set()
-        for c in codes:
-            lbl = (c.get("code") or "").strip()
-            if not lbl or lbl in seen:
-                continue
-            seen.add(lbl)
-            out.append({"argument_uri": r["argument_uri"], "code": lbl,
-                        "confidence": float(c.get("confidence", 1.0)),
-                        "stance": stance, "source_type": source_type})
+        out.append({
+            "argument_uri": r["uri"],
+            "text": f"{title}\n\n{body}".strip(),
+            "stance": stance if stance in ("pro", "contra") else None,
+            "source_type": r["source_type"],
+        })
     return out
 
 
-async def fetch_unplaced_codes_detailed(ballot_rkey: str) -> list[dict]:
-    """Argumente mit MINDESTENS einem nicht zugeordneten Code (status='done')
-    — für den „Nicht zugeordnet"-Bereich im CMS-Panel. Pro Argument: welche
-    Codes hängen in einem ECHTEN Ast (`placed_codes` mit `node_name`) und welche
-    nicht (`unplaced_codes`). `fully_missing` = KEIN Code des Arguments ist
-    platziert. Memberships am Wurzelknoten (parent_id IS NULL) zählen als NICHT
-    platziert (Alt-„andere"-Topf, der überall ausgeblendet ist). Voll zugeordnete
-    Argumente erscheinen nicht. Sortierung: ganz fehlende zuerst, dann offizielle."""
+async def fetch_argument_texts(ballot_rkey: str) -> dict[str, str]:
+    """{argument_uri: text} für alle Argumente eines Ballots. Für /grow und
+    /branch_unplaced, die aus dem Editor-Baum nur uris haben, aber zum
+    Re-Klassifizieren den Argumenttext brauchen."""
+    return {a["argument_uri"]: a["text"] for a in await fetch_arguments(ballot_rkey)}
+
+
+async def fetch_unplaced_arguments(ballot_rkey: str) -> list[dict]:
+    """argument_uris OHNE Primär-Membership an einem echten (Nicht-Wurzel-)Knoten
+    — d.h. noch nicht in ein Thema eingehängt. Rückgabe: [{argument_uri}]."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
-            """
-            WITH oc AS (
-                SELECT o.argument_uri, a.type, a.source_type, a.title, a.body,
-                       a.created_at, jsonb_array_elements(o.codes) AS code_obj
-                FROM app_argument_open_codes o
-                JOIN app_arguments a ON a.uri = o.argument_uri
-                WHERE o.ballot_rkey = $1 AND o.status = 'done' AND NOT a.deleted
-                  AND jsonb_typeof(o.codes) = 'array'
-            )
-            SELECT oc.argument_uri, oc.type, oc.source_type, oc.title, oc.body,
-                   oc.created_at,
-                   (oc.code_obj->>'code') AS code,
-                   (oc.code_obj->>'confidence') AS confidence,
-                   n.name AS node_name,
-                   (m.node_id IS NOT NULL AND n.parent_id IS NOT NULL) AS placed
-            FROM oc
-            LEFT JOIN app_topic_membership m
-                   ON m.ballot_rkey = $1 AND m.argument_uri = oc.argument_uri
-                  AND m.code = (oc.code_obj->>'code')
-            LEFT JOIN app_topic_node n ON n.id = m.node_id
-            WHERE coalesce(trim(oc.code_obj->>'code'), '') <> ''
-            ORDER BY (oc.source_type = 'official') DESC, oc.created_at ASC
-            """,
-            ballot_rkey,
-        )
+            """SELECT a.uri FROM app_arguments a
+               WHERE a.ballot_rkey = $1 AND NOT a.deleted
+                 AND NOT EXISTS (
+                     SELECT 1 FROM app_topic_membership m
+                     JOIN app_topic_node n ON n.id = m.node_id
+                     WHERE m.ballot_rkey = $1 AND m.argument_uri = a.uri
+                       AND m.is_primary AND n.parent_id IS NOT NULL)
+            """, ballot_rkey)
+    return [{"argument_uri": r["uri"]} for r in rows]
+
+
+async def fetch_unplaced_detailed(ballot_rkey: str) -> list[dict]:
+    """Argumente ohne Thema in einem echten Ast — für den „Nicht zugeordnet"-
+    Bereich im CMS-Panel. Ein Argument gilt als platziert, wenn seine Membership
+    an einem Nicht-Wurzelknoten (parent_id IS NOT NULL) hängt; Memberships an der
+    Wurzel sind der „andere"-Topf und zählen NICHT als platziert.
+    Rückgabe pro nicht platziertem Argument:
+        {argument_uri, title, type, source_type, stance, fully_missing}
+    (fully_missing = gar keine Membership). Sortierung: ganz fehlende zuerst,
+    dann offizielle."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT a.uri, a.title, a.body, a.type, a.source_type, a.created_at,
+                      m.node_id, n.parent_id
+               FROM app_arguments a
+               LEFT JOIN app_topic_membership m
+                      ON m.ballot_rkey = $1 AND m.argument_uri = a.uri
+               LEFT JOIN app_topic_node n ON n.id = m.node_id
+               WHERE a.ballot_rkey = $1 AND NOT a.deleted
+               ORDER BY (a.source_type = 'official') DESC, a.created_at ASC
+            """, ballot_rkey)
     args: dict[str, dict] = {}
     for r in rows:
-        key = r["argument_uri"]
+        key = r["uri"]
         entry = args.get(key)
         if entry is None:
             title = (r["title"] or "").strip() or (r["body"] or "").strip()[:120]
@@ -600,101 +557,56 @@ async def fetch_unplaced_codes_detailed(ballot_rkey: str) -> list[dict]:
                 "type": r["type"],
                 "source_type": r["source_type"],
                 "stance": stance if stance in ("pro", "contra") else None,
-                "placed_codes": [],
-                "unplaced_codes": [],
-                "_seen": set(),
+                "_placed": False,   # Membership an einem echten (Nicht-Wurzel-)Thema
+                "_has_membership": False,
             }
             args[key] = entry
-        code = (r["code"] or "").strip()
-        if not code or code in entry["_seen"]:
-            continue
-        entry["_seen"].add(code)
-        if r["placed"]:
-            entry["placed_codes"].append({"code": code, "node_name": r["node_name"]})
-        else:
-            try:
-                conf = float(r["confidence"]) if r["confidence"] is not None else None
-            except (TypeError, ValueError):
-                conf = None
-            entry["unplaced_codes"].append({"code": code, "confidence": conf})
+        if r["node_id"] is not None:
+            entry["_has_membership"] = True
+            if r["parent_id"] is not None:
+                entry["_placed"] = True
     out: list[dict] = []
     for e in args.values():
-        if not e["unplaced_codes"]:
-            continue  # voll zugeordnet → nicht anzeigen
-        e.pop("_seen", None)
-        e["fully_missing"] = len(e["placed_codes"]) == 0
+        if e["_placed"]:
+            continue  # in einem echten Thema → nicht „nicht zugeordnet"
+        e["fully_missing"] = not e.pop("_has_membership")
+        e.pop("_placed", None)
         out.append(e)
     out.sort(key=lambda e: not e["fully_missing"])  # ganz fehlende zuerst (stabil)
     return out
 
 
-async def fetch_done_entries(ballot_rkey: str) -> list[dict]:
-    """ALLE codierten Argumente (status='done') eines Ballots als Entries —
-    unabhängig davon, ob sie im Baum hängen. Für den State-Editor, der „unverortet"
-    relativ zum bearbeiteten (nicht persistierten) Baum bestimmt. Rückgabe:
-    [{argument_uri, code, confidence, stance, source_type}], OFFIZIELLE zuerst."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """SELECT oc.argument_uri, oc.codes, a.type, a.source_type
-               FROM app_argument_open_codes oc
-               JOIN app_arguments a ON a.uri = oc.argument_uri
-               WHERE oc.ballot_rkey = $1 AND oc.status = 'done' AND NOT a.deleted
-               ORDER BY (a.source_type = 'official') DESC, a.created_at ASC
-            """, ballot_rkey)
-    out: list[dict] = []
-    for r in rows:
-        codes = r["codes"]
-        if isinstance(codes, str):
-            try:
-                codes = json.loads(codes)
-            except (TypeError, ValueError):
-                codes = []
-        if not isinstance(codes, list):
-            codes = []
-        stance = (r["type"] or "").strip().lower()
-        stance = stance if stance in ("pro", "contra") else None
-        seen: set[str] = set()
-        for c in codes:
-            lbl = (c.get("code") or "").strip()
-            if not lbl or lbl in seen:
-                continue
-            seen.add(lbl)
-            out.append({"argument_uri": r["argument_uri"], "code": lbl,
-                        "confidence": float(c.get("confidence", 1.0)),
-                        "stance": stance, "source_type": r["source_type"]})
-    return out
-
-
 async def fetch_overfull_nodes(ballot_rkey: str, threshold: int,
                                max_depth: int) -> list[dict]:
-    """Knoten, deren DIREKTE Codes (Memberships, die genau auf diesen Knoten
-    zeigen — nicht auf Nachfahren) eine Schwelle überschreiten und die noch
-    vertieft werden dürfen (depth < max_depth). Der Wurzelknoten ist dabei mit
-    drin → seine Direkt-Codes sind der „andere"-Topf, dessen Split neue Hauptäste
-    erzeugt. Rückgabe: [{node_id, name, depth, codes:[label,...]}], grösste zuerst."""
+    """Knoten, deren DIREKTE Primär-Argumente (Memberships mit is_primary, die
+    genau auf diesen Knoten zeigen — nicht auf Nachfahren) eine Schwelle
+    überschreiten und die noch vertieft werden dürfen (depth < max_depth). Der
+    Wurzelknoten ist dabei mit drin → seine Direkt-Argumente sind der „andere"-Topf,
+    dessen Split neue Hauptäste erzeugt. Rückgabe: [{node_id, name, depth,
+    arguments:[uri,…]}], grösste zuerst."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """SELECT n.id, n.name, n.depth,
-                      array_agg(DISTINCT m.code) AS codes
+                      array_agg(DISTINCT m.argument_uri) AS args
                FROM app_topic_node n
-               JOIN app_topic_membership m ON m.node_id = n.id
+               JOIN app_topic_membership m ON m.node_id = n.id AND m.is_primary
                WHERE n.ballot_rkey = $1 AND n.depth < $2
                GROUP BY n.id, n.name, n.depth
-               HAVING count(DISTINCT m.code) >= $3
-               ORDER BY count(DISTINCT m.code) DESC""",
+               HAVING count(DISTINCT m.argument_uri) >= $3
+               ORDER BY count(DISTINCT m.argument_uri) DESC""",
             ballot_rkey, max_depth, threshold)
     return [{"node_id": r["id"], "name": r["name"], "depth": r["depth"],
-             "codes": list(r["codes"])} for r in rows]
+             "arguments": list(r["args"])} for r in rows]
 
 
 async def split_node(ballot_rkey: str, parent_id: int, parent_depth: int,
-                     subtopics: list[dict], code_to_sub: dict[str, str]) -> dict:
+                     subtopics: list[dict], arg_to_sub: dict[str, str]) -> dict:
     """Unterteilt einen überladenen Knoten: legt Kind-Knoten für die Unterthemen
-    an und hängt die betroffenen Codes (Memberships) vom Eltern- auf den
-    Kind-Knoten um. Codes mit Ziel 'andere' bleiben am Elternknoten."""
-    used = {t for t in code_to_sub.values() if t != "andere"}
+    an und hängt die betroffenen PRIMÄR-Argumente vom Eltern- auf den Kind-Knoten
+    um. Argumente mit Ziel 'andere' bleiben am Elternknoten. `arg_to_sub` =
+    argument_uri → subtopic-name."""
+    used = {t for t in arg_to_sub.values() if t != "andere"}
     pool = await get_pool()
     created = 0
     moved = 0
@@ -718,28 +630,31 @@ async def split_node(ballot_rkey: str, parent_id: int, parent_depth: int,
                     parent_depth + 1)
                 name_to_id[s["name"]] = cid
                 created += 1
-            for code, sub in code_to_sub.items():
+            for arg, sub in arg_to_sub.items():
                 child = name_to_id.get(sub)
                 if not child:
                     continue  # 'andere' oder leeres Unterthema → bleibt am Eltern
                 await conn.execute(
                     """UPDATE app_topic_membership SET node_id = $1, updated_at = now()
-                       WHERE ballot_rkey = $2 AND code = $3 AND node_id = $4""",
-                    child, ballot_rkey, code, parent_id)
+                       WHERE ballot_rkey = $2 AND argument_uri = $3 AND node_id = $4
+                         AND is_primary""",
+                    child, ballot_rkey, arg, parent_id)
                 moved += 1
             await conn.execute(
                 "UPDATE app_topic_node SET updated_at = now() WHERE id = $1", parent_id)
-    return {"children": created, "moved_codes": moved}
+    return {"children": created, "moved_arguments": moved}
 
 
 async def add_topic_memberships(ballot_rkey: str, placements: dict[str, int],
-                                entries: list[dict]) -> int:
-    """Inkrementell: hängt neue (Argument, Code)-Memberships an die per
-    `placements` (code → node_id) bestimmten Knoten. Idempotent (ON CONFLICT)."""
+                                args_by_uri: dict[str, dict]) -> int:
+    """Inkrementell: hängt neue PRIMÄR-Argument-Memberships an die per `placements`
+    (argument_uri → node_id) bestimmten Knoten. `args_by_uri` liefert die Haltung
+    (stance) je Argument. Nur für NOCH NICHT verortete Argumente gedacht (sonst
+    kann ein zweites Primärthema entstehen). Idempotent (ON CONFLICT)."""
     rows = [
-        (ballot_rkey, placements[e["code"]], e["argument_uri"], e["code"],
-         e.get("confidence"), e.get("stance"))
-        for e in entries if e["code"] in placements
+        (ballot_rkey, node_id, uri, True, None,
+         (args_by_uri.get(uri) or {}).get("stance"), None)
+        for uri, node_id in placements.items()
     ]
     if not rows:
         return 0
@@ -747,10 +662,10 @@ async def add_topic_memberships(ballot_rkey: str, placements: dict[str, int],
     async with pool.acquire() as conn:
         await conn.executemany(
             """INSERT INTO app_topic_membership
-                   (ballot_rkey, node_id, argument_uri, code, confidence, stance)
-               VALUES ($1, $2, $3, $4, $5, $6)
-               ON CONFLICT (ballot_rkey, argument_uri, code) DO UPDATE
-                 SET node_id = EXCLUDED.node_id, confidence = EXCLUDED.confidence,
-                     stance = EXCLUDED.stance, updated_at = now()""",
+                   (ballot_rkey, node_id, argument_uri, is_primary, confidence, stance, code)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (ballot_rkey, argument_uri, node_id) DO UPDATE
+                 SET is_primary = EXCLUDED.is_primary, stance = EXCLUDED.stance,
+                     updated_at = now()""",
             rows)
     return len(rows)

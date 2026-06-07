@@ -225,8 +225,10 @@ CREATE TABLE app_topic_node (              -- Adjazenzliste: parent_id → Elter
   parent_id    bigint REFERENCES app_topic_node(id) ON DELETE CASCADE,
   key          text,                  -- langlebiger Slug (mit '-'); set-once, für Permalinks
   name         text NOT NULL,
-  description  text,
+  description  text,                  -- 1 Satz, was darunterfällt — Kontext für den LLM-Klassifikator
+  introduction text,                  -- voter-facing: warum das Thema zählt & für wen (Stimmbürgerschaft) — im Frontend gezeigt
   depth        integer NOT NULL DEFAULT 0,
+  importance   smallint CHECK (importance IS NULL OR importance BETWEEN 1 AND 5),  -- LLM-Prior 1–5 (nur CMS)
   created_at   timestamptz NOT NULL DEFAULT now(),
   updated_at   timestamptz NOT NULL DEFAULT now()
 );
@@ -234,18 +236,21 @@ CREATE INDEX app_topic_node_ballot_idx ON app_topic_node (ballot_rkey);
 CREATE INDEX app_topic_node_parent_idx ON app_topic_node (parent_id);
 CREATE UNIQUE INDEX app_topic_node_key_uidx ON app_topic_node (ballot_rkey, key) WHERE key IS NOT NULL;
 
-CREATE TABLE app_topic_membership (       -- Code/Argument → Knoten (ein Code an genau einem Knoten)
+CREATE TABLE app_topic_membership (       -- Argument → Knoten (Einheit = Argument; Haupt- + max. 1 Nebenthema)
   ballot_rkey  text NOT NULL,
   node_id      bigint NOT NULL REFERENCES app_topic_node(id) ON DELETE CASCADE,
   argument_uri text NOT NULL,
-  code         text NOT NULL,
+  is_primary   boolean NOT NULL DEFAULT true,  -- Haupt- vs. Nebenthema (gekappte Multimembership)
   confidence   real,
   stance       text CHECK (stance IN ('pro','contra')),
+  code         text,                            -- optionale Provenienz (welcher Open Code)
   updated_at   timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (ballot_rkey, argument_uri, code)
+  PRIMARY KEY (ballot_rkey, argument_uri, node_id)
 );
 CREATE INDEX app_topic_membership_node_idx ON app_topic_membership (node_id);
 CREATE INDEX app_topic_membership_arg_idx  ON app_topic_membership (ballot_rkey, argument_uri);
+CREATE UNIQUE INDEX app_topic_membership_primary_uidx     -- genau EIN Primärthema pro Argument
+  ON app_topic_membership (ballot_rkey, argument_uri) WHERE is_primary;
 
 CREATE TABLE app_peerreview_invitations (
   uri              text PRIMARY KEY,

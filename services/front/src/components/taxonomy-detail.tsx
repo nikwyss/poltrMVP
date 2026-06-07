@@ -14,7 +14,11 @@ import { useTranslations, useLocale } from "next-intl";
 import { getTaxonomy } from "@/lib/agent";
 import type { TaxonomyNode, TaxonomyCrumb } from "@/types/ballots";
 import { Spinner } from "@/components/spinner";
-import { InsightPanel, ProContraArguments, type T } from "@/components/taxonomy-view";
+import {
+  InsightPanel,
+  ProContraArguments,
+  type T,
+} from "@/components/taxonomy-view";
 
 function SubtopicSection({
   node,
@@ -32,12 +36,18 @@ function SubtopicSection({
     <section className="space-y-3">
       <div>
         <h3 className="text-base font-semibold">{node.name}</h3>
-        {node.description && (
-          <p className="mt-0.5 text-sm text-muted-foreground">{node.description}</p>
+        {node.introduction && (
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {node.introduction}
+          </p>
         )}
       </div>
       <InsightPanel node={node} t={t} />
-      <ProContraArguments args={node.arguments} onOpen={onOpen} onShowMore={onShowMore} />
+      <ProContraArguments
+        args={node.arguments}
+        onOpen={onOpen}
+        onShowMore={onShowMore}
+      />
     </section>
   );
 }
@@ -82,7 +92,9 @@ export function TaxonomyDetail({
     }
   }, [ballotRkey, locale, topic]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   return (
     <div
@@ -108,12 +120,12 @@ export function TaxonomyDetail({
           </div>
         )}
 
-        {error && (
-          <p className="text-sm text-destructive">{error}</p>
-        )}
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
         {!loading && !error && !node && (
-          <p className="py-16 text-center text-muted-foreground">{t("empty")}</p>
+          <p className="py-16 text-center text-muted-foreground">
+            {t("empty")}
+          </p>
         )}
 
         {!loading && node && (
@@ -130,13 +142,18 @@ export function TaxonomyDetail({
                         <button
                           type="button"
                           title={c.description ?? undefined}
-                          onClick={() => onNavigateToTaxonomy(ballotRkey, c.key!)}
+                          onClick={() =>
+                            onNavigateToTaxonomy(ballotRkey, c.key!)
+                          }
                           className="hover:text-foreground hover:underline"
                         >
                           {c.name}
                         </button>
                       ) : (
-                        <span title={c.description ?? undefined} className="cursor-default">
+                        <span
+                          title={c.description ?? undefined}
+                          className="cursor-default"
+                        >
                           {c.name}
                         </span>
                       )}
@@ -146,19 +163,27 @@ export function TaxonomyDetail({
               )}
               <h2
                 className="text-2xl font-bold leading-tight"
-                style={{ fontFamily: 'var(--font-serif), Georgia, "Times New Roman", serif' }}
+                style={{
+                  fontFamily:
+                    'var(--font-serif), Georgia, "Times New Roman", serif',
+                }}
               >
                 {node.name}
               </h2>
               {node.description && (
-                <p className="text-sm text-muted-foreground">{node.description}</p>
+                <p className="text-sm text-muted-foreground">
+                  {node.description}
+                </p>
               )}
               <InsightPanel node={node} t={t} />
             </header>
 
             {/* Direkt am Top-Topic hängende Argumente (in keinem Subtopic) */}
             {node.arguments.length > 0 && (
-              <ProContraArguments args={node.arguments} onOpen={onNavigateToArgument} />
+              <ProContraArguments
+                args={node.arguments}
+                onOpen={onNavigateToArgument}
+              />
             )}
 
             {/* Subtopics — aufgeklappt; „Mehr anzeigen" öffnet diese Stufe im Overlay. */}
@@ -167,7 +192,11 @@ export function TaxonomyDetail({
                 key={ch.id}
                 node={ch}
                 onOpen={onNavigateToArgument}
-                onShowMore={ch.key ? () => onNavigateToTaxonomy(ballotRkey, ch.key!) : undefined}
+                onShowMore={
+                  ch.key
+                    ? () => onNavigateToTaxonomy(ballotRkey, ch.key!)
+                    : undefined
+                }
                 t={t}
               />
             ))}

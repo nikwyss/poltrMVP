@@ -7,6 +7,10 @@ REST-Endpoints für die Top-down Themen-Hierarchie (parallel zu
                                 Baum einsortieren (Q4), ohne ihn neu zu bauen.
   GET  /api/topdown/tree      — den persistierten Baum eines Ballots lesen.
 
+Einheit = ARGUMENT (nicht mehr der Open Code): jedes Argument hängt mit gekappter
+Multimembership an höchstens zwei Knoten — einem Hauptthema (is_primary) und
+optional EINEM Nebenthema. Klassifiziert wird direkt auf dem Argumenttext.
+
 Persistenz: EIN stabiler Baum pro Ballot (app_topic_node / app_topic_membership),
 inkrementell mutierbar — nicht pro Lauf versioniert. Signierte ATProto-Snapshots
 kommen später separat oben drauf.
@@ -34,19 +38,23 @@ class TopdownOptions(BaseModel):
     # daher gibt es hier keine min_split/max_depth-Optionen mehr.
     limit: int | None = Field(
         None, ge=1, le=10000,
-        description="Max. Argumente (Default: alle codierten des Ballots).")
+        description="Max. Argumente (Default: alle des Ballots).")
+    n_topics: int | None = Field(
+        None, ge=1, le=20,
+        description="Gewünschte Anzahl Wurzelthemen (None → Default-Spanne 4–7).")
     persist: bool = Field(
         True, description="Baum in die DB schreiben (ersetzt den bestehenden Baum des Ballots).")
     official_only: bool = Field(
         True,
         description="Nur die OFFIZIELLEN Argumente in den Initialbaum klassifizieren "
-        "(so, als gäbe es noch keine Community-Argumente). Community-Argumente "
-        "kommen später per /classify dazu. Default true — induce ist als einmaliger "
-        "Projektstart gedacht.")
+        "(Grundstruktur, so als gäbe es noch keine Community-Argumente). "
+        "Community-Argumente kommen NACHTRÄGLICH per /classify dazu. Default true — "
+        "induce ist als einmaliger Projektstart gedacht. False = beide Phasen "
+        "(offiziell + Community) in einem Lauf.")
 
 
 class TopdownRequest(BaseModel):
-    ballot_rkey: str = Field(..., description="Ballot, dessen Open Codes hierarchisiert werden.")
+    ballot_rkey: str = Field(..., description="Ballot, dessen Argumente hierarchisiert werden.")
     options: TopdownOptions = Field(default_factory=TopdownOptions)
 
     model_config = {"json_schema_extra": {"examples": [{"ballot_rkey": "663.1"}]}}
@@ -55,39 +63,43 @@ class TopdownRequest(BaseModel):
 @router.post("/induce")
 async def induce_topdown(req: TopdownRequest):
     """Top-down Themen-Baum NEU bauen und (optional) persistieren — ersetzt den
-    bestehenden Baum des Ballots. Wurzelthemen aus den offiziellen Argumenten."""
-    data = await proto.load_inputs(
-        req.ballot_rkey, limit=req.options.limit,
-        official_only=req.options.official_only)
-    if not data["codes"]:
-        scope = "offiziellen " if req.options.official_only else ""
+    bestehenden Baum des Ballots. Wurzelthemen aus den offiziellen Argumenten;
+    jedes Argument bekommt ein Hauptthema (+ optional ein Nebenthema)."""
+    args_all = await db.fetch_arguments(req.ballot_rkey, limit=req.options.limit)
+    if not args_all:
         raise HTTPException(
             status_code=422,
-            detail=f"Keine codierten {scope}Argumente (status='done') für Ballot "
-                   f"{req.ballot_rkey}. Erst den Open-Coding-Worker laufen lassen.")
-    if not data["seed"]:
+            detail=f"Keine Argumente für Ballot {req.ballot_rkey}.")
+    official = [a for a in args_all if a["source_type"] == "official"]
+    if not official:
         logger.warning("Ballot %s ohne offizielle Argumente — Seed leer.", req.ballot_rkey)
+    seed = "\n\n".join(f"- {a['text']}" for a in official)
+    ballot_description = await db.fetch_ballot_description(req.ballot_rkey)
+
+    # official_only: nur die Grundstruktur (offizielle Argumente). Sonst alles.
+    to_classify = official if req.options.official_only else args_all
 
     llm = proto._CountingLLM(get_llm())
 
     def _build():
-        return proto.induce_tree(
-            llm, data["codes"], data["seed"],
-            ballot_description=data.get("ballot_description"))
+        roots = proto.propose_roots(
+            llm, seed, ballot_description=ballot_description,
+            n_topics=req.options.n_topics)
+        assign = proto.classify_arguments(llm, [r["name"] for r in roots], to_classify)
+        return proto._distribute_args(roots, to_classify, assign), assign
 
     try:
-        root, andere = await asyncio.to_thread(_build)
+        root, assign = await asyncio.to_thread(_build)
     except Exception as err:
         logger.error("Top-down-Induktion fehlgeschlagen (%s)", err)
         raise HTTPException(status_code=502, detail=f"Baumbau fehlgeschlagen: {err}") from err
 
     root["name"] = f"Vorlage {req.ballot_rkey}"
-    root["own_codes"] = andere
 
     persisted = None
     if req.options.persist:
         try:
-            persisted = await db.persist_topic_tree(req.ballot_rkey, root, data["entries"])
+            persisted = await db.persist_topic_tree(req.ballot_rkey, root)
         except Exception as err:
             logger.warning("Persistenz fehlgeschlagen (%s) — migrate-topics.sql gelaufen?", err)
 
@@ -96,13 +108,12 @@ async def induce_topdown(req: TopdownRequest):
         "llm": getattr(llm, "name", "?"),
         "llm_calls": llm.calls,
         "stats": {
-            "codes": len(data["codes"]),
-            "arguments": data["n_args"],
-            "official_seed": data["n_off"],
-            "andere": len(andere),
+            "arguments": len(to_classify),
+            "official_seed": len(official),
+            "andere": len(root.get("arguments", [])),
         },
         "persisted": persisted,
-        "tree": proto.serialize_node(root, data["code_args"]),
+        "tree": proto.serialize_node_args(root),
     }
 
 
@@ -116,7 +127,7 @@ class SaveRequest(BaseModel):
     ballot_rkey: str = Field(..., description="Ballot, dessen Baum geschrieben wird.")
     tree: dict = Field(
         ..., description="Vollständiger Baum aus dem State-Editor: je Knoten "
-        "{name, description, children, codes:[{code, argument_uri, confidence, stance}]}. "
+        "{name, description, children, arguments:[{argument_uri, is_primary, stance}]}. "
         "Ersetzt Knoten UND Memberships komplett.")
 
     model_config = {"json_schema_extra": {"examples": [{"ballot_rkey": "663.1", "tree": {}}]}}
@@ -140,9 +151,9 @@ def _placed_argument_uris(node: dict) -> set:
     uris: set = set()
 
     def walk(n: dict):
-        for c in n.get("codes", []) or []:
-            if isinstance(c, dict) and c.get("argument_uri"):
-                uris.add(c["argument_uri"])
+        for a in n.get("arguments", []) or []:
+            if isinstance(a, dict) and a.get("argument_uri"):
+                uris.add(a["argument_uri"])
         for ch in n.get("children", []) or []:
             walk(ch)
 
@@ -154,7 +165,7 @@ class ClassifyRequest(BaseModel):
     ballot_rkey: str = Field(..., description="Ballot, dessen Argumente eingehängt werden.")
     tree: dict = Field(
         ..., description="Aktueller (editierter) Baum aus dem State-Editor; je Knoten "
-        "{uid, name, children, codes:[…]}. Bestimmt Struktur UND welche Argumente "
+        "{uid, name, children, arguments:[…]}. Bestimmt Struktur UND welche Argumente "
         "schon verortet sind.")
 
     model_config = {"json_schema_extra": {"examples": [{"ballot_rkey": "663.1", "tree": {}}]}}
@@ -163,36 +174,29 @@ class ClassifyRequest(BaseModel):
 @router.post("/classify")
 async def classify_propose(req: ClassifyRequest):
     """Vorschlag (kein Schreiben): sortiert die im übergebenen Baum noch nicht
-    verorteten Argumente top-down in dessen Struktur ein. ZUERST die offiziellen,
-    DANACH die Community-Argumente; geteilte Codes erben den offiziellen Knoten.
-    Rückgabe: `additions` = [{uid, code, argument_uri, confidence, stance}] zum
-    Mergen in den State."""
+    verorteten Argumente top-down PRIMÄR in dessen Struktur ein. ZUERST die
+    offiziellen, DANACH die Community-Argumente. Rückgabe: `additions` =
+    [{uid, argument_uri, is_primary, stance}] zum Mergen in den State."""
     placed = _placed_argument_uris(req.tree)
-    entries = await db.fetch_done_entries(req.ballot_rkey)
-    unplaced = [e for e in entries if e["argument_uri"] not in placed]
+    all_args = await db.fetch_arguments(req.ballot_rkey)
+    unplaced = [a for a in all_args if a["argument_uri"] not in placed]
     if not unplaced:
         return {"ballot_rkey": req.ballot_rkey, "additions": [],
                 "placed": 0, "placed_official": 0, "placed_community": 0,
-                "new_codes": 0, "llm_calls": 0,
-                "message": "Keine unverorteten Argumente."}
+                "llm_calls": 0, "message": "Keine unverorteten Argumente."}
 
-    official = [e for e in unplaced if e.get("source_type") == "official"]
-    community = [e for e in unplaced if e.get("source_type") != "official"]
+    official = [a for a in unplaced if a.get("source_type") == "official"]
+    community = [a for a in unplaced if a.get("source_type") != "official"]
+    stance_by = {a["argument_uri"]: a["stance"] for a in unplaced}
 
     llm = proto._CountingLLM(get_llm())
     placements: dict[str, object] = {}
 
     def _classify_group(group: list[dict]):
-        seen: set[str] = set()
-        fresh: list[str] = []
-        for e in group:
-            c = e["code"]
-            if c in placements or c in seen:
-                continue
-            seen.add(c)
-            fresh.append(c)
-        if fresh:
-            placements.update(proto.classify_incremental(llm, req.tree, fresh))
+        items = [{"uri": a["argument_uri"], "text": a["text"]}
+                 for a in group if a["argument_uri"] not in placements]
+        if items:
+            placements.update(proto.classify_incremental_args(llm, req.tree, items))
 
     try:
         await asyncio.to_thread(_classify_group, official)
@@ -203,10 +207,9 @@ async def classify_propose(req: ClassifyRequest):
 
     def _adds(group: list[dict]) -> list[dict]:
         return [
-            {"uid": placements[e["code"]], "code": e["code"],
-             "argument_uri": e["argument_uri"],
-             "confidence": e.get("confidence"), "stance": e.get("stance")}
-            for e in group if e["code"] in placements
+            {"uid": placements[a["argument_uri"]], "argument_uri": a["argument_uri"],
+             "is_primary": True, "stance": stance_by.get(a["argument_uri"])}
+            for a in group if a["argument_uri"] in placements
         ]
 
     adds_off, adds_com = _adds(official), _adds(community)
@@ -214,7 +217,6 @@ async def classify_propose(req: ClassifyRequest):
         "ballot_rkey": req.ballot_rkey,
         "llm": getattr(llm, "name", "?"),
         "llm_calls": llm.calls,
-        "new_codes": len(placements),
         "placed": len(adds_off) + len(adds_com),
         "placed_official": len(adds_off),
         "placed_community": len(adds_com),
@@ -227,7 +229,7 @@ class GrowRequest(BaseModel):
     tree: dict = Field(..., description="Aktueller (editierter) Baum aus dem State-Editor.")
     threshold: int = Field(
         10, ge=2, le=200,
-        description="Ab so vielen DIREKTEN Codes wird ein Knoten gesplittet.")
+        description="Ab so vielen DIREKTEN Primär-Argumenten wird ein Knoten gesplittet.")
     max_depth: int = Field(
         proto.MAX_DEPTH, ge=1, le=8,
         description="Knoten ab dieser Tiefe werden nicht weiter gesplittet.")
@@ -239,31 +241,31 @@ class GrowRequest(BaseModel):
 async def grow_propose(req: GrowRequest):
     """Vorschlag (kein Schreiben): überladene Knoten des übergebenen Baums per LLM
     in Unterthemen aufteilen. Rückgabe: `splits` = [{uid, kind, subtopics, assign,
-    children}] zum Anwenden im State."""
-    candidates = proto.overfull_candidates(req.tree, req.threshold, req.max_depth)
+    children}], wobei `assign` = {argument_uri: subtopic-name}."""
+    candidates = proto.overfull_candidates_args(req.tree, req.threshold, req.max_depth)
     if not candidates:
         return {"ballot_rkey": req.ballot_rkey, "splits": [],
                 "candidates": 0, "llm_calls": 0,
                 "message": "Kein Knoten über der Schwelle."}
 
+    texts = await db.fetch_argument_texts(req.ballot_rkey)
     llm = proto._CountingLLM(get_llm())
 
-    def _propose_and_classify(codes: list[str], is_root: bool):
+    def _propose_and_classify(arg_uris: list[str], is_root: bool):
+        items = [{"uri": u, "text": texts.get(u, "")} for u in arg_uris]
         system = proto._SYS_NEW_BRANCHES if is_root else proto._SYS_SUBS
-        subs = proto.propose_topics(
-            llm, system, "Codes:\n" + "\n".join(f"- {c}" for c in codes))
-        if len(subs) < 2 and not is_root:
+        listing = "\n".join(f"- {(texts.get(u, '') or '')[:200]}" for u in arg_uris)
+        subs = proto.propose_topics(llm, system, "Argumente:\n" + listing)
+        if not subs or (len(subs) < 2 and not is_root):
             return None, None
-        if not subs:
-            return None, None
-        assign = proto.classify(llm, [s["name"] for s in subs], codes)
+        assign = proto.classify_arguments(llm, [s["name"] for s in subs], items)
         return subs, assign
 
     splits = []
     for cand in candidates:
         try:
             subs, assign = await asyncio.to_thread(
-                _propose_and_classify, cand["codes"], cand["is_root"])
+                _propose_and_classify, cand["arguments"], cand["is_root"])
         except Exception as err:
             logger.error("Split-Vorschlag für Knoten %s fehlgeschlagen (%s)",
                          cand["uid"], err)
@@ -300,29 +302,30 @@ async def get_tree(ballot_rkey: str = Query(...)):
 
 @router.get("/status")
 async def get_status(ballot_rkey: str = Query(...)):
-    """Coverage + Baum-Stand für das CMS-Panel: Open-Code-Abdeckung,
-    ob ein Baum existiert, und wie viele Argumente noch nicht eingehängt sind."""
+    """Coverage + Baum-Stand für das CMS-Panel: Open-Code-Abdeckung (informativ,
+    läuft weiterhin parallel), ob ein Baum existiert, und wie viele Argumente noch
+    nicht eingehängt sind."""
     try:
         sig = get_open_coder().open_code_signature
     except Exception:
         sig = None
     coverage = await db.ballot_coding_coverage(ballot_rkey, sig)
     tree = await db.fetch_topic_tree(ballot_rkey)
-    unplaced = await db.fetch_unplaced_entries(ballot_rkey)
+    unplaced = await db.fetch_unplaced_arguments(ballot_rkey)
     return {
         "ballot_rkey": ballot_rkey,
         "coverage": coverage,
         "has_tree": tree is not None,
-        "unplaced_arguments": len({e["argument_uri"] for e in unplaced}),
+        "unplaced_arguments": len(unplaced),
     }
 
 
 @router.get("/unplaced")
 async def get_unplaced(ballot_rkey: str = Query(...)):
-    """Argumente mit mindestens einem nicht zugeordneten Code (für den
-    „Nicht zugeordnet"-Bereich im CMS-Panel). Pro Argument: platzierte vs. nicht
-    platzierte Codes + `fully_missing` (kein Code im Baum). Kein LLM."""
-    items = await db.fetch_unplaced_codes_detailed(ballot_rkey)
+    """Argumente ohne Hauptthema in einem echten Ast (für den „Nicht zugeordnet"-
+    Bereich im CMS-Panel). Pro Argument: Titel, Haltung, `fully_missing` (gar keine
+    Membership) und `themes` (echte Themen, die es sekundär berührt). Kein LLM."""
+    items = await db.fetch_unplaced_detailed(ballot_rkey)
     return {
         "ballot_rkey": ballot_rkey,
         "unplaced": items,
@@ -333,34 +336,36 @@ async def get_unplaced(ballot_rkey: str = Query(...)):
 
 class BranchUnplacedRequest(BaseModel):
     ballot_rkey: str = Field(..., description="Ballot (für Logging/Antwort).")
-    codes: list[str] = Field(
-        ..., description="Code-Labels aus dem Unplaced-Pool, aus denen neue "
+    argument_uris: list[str] = Field(
+        ..., description="Argumente aus dem Unplaced-Pool, aus denen neue "
         "Hauptäste gebildet werden sollen.")
 
     model_config = {"json_schema_extra": {"examples": [
-        {"ballot_rkey": "663.1", "codes": ["Datenschutz", "Föderalismus"]}]}}
+        {"ballot_rkey": "663.1", "argument_uris": ["at://…/abc", "at://…/def"]}]}}
 
 
 @router.post("/branch_unplaced")
 async def branch_unplaced(req: BranchUnplacedRequest):
-    """Vorschlag (kein Schreiben): aus den übergebenen nicht zugeordneten Codes
-    per LLM 1–4 NEUE Hauptäste bilden (gleiche Logik wie der Root-Split von
-    /grow, `_SYS_NEW_BRANCHES`). Rückgabe: {subtopics, assign} zum Mergen in den
-    State-Baum (neue Wurzelkinder; Codes per assign auf die neuen Äste verteilt)."""
-    codes = list(dict.fromkeys(c.strip() for c in req.codes if c and c.strip()))
-    if len(codes) < 2:
+    """Vorschlag (kein Schreiben): aus den übergebenen nicht zugeordneten Argumenten
+    per LLM 1–4 NEUE Hauptäste bilden (gleiche Logik wie der Root-Split von /grow,
+    `_SYS_NEW_BRANCHES`). Rückgabe: {subtopics, assign} zum Mergen in den State-Baum
+    (neue Wurzelkinder; `assign` = {argument_uri: subtopic-name})."""
+    uris = list(dict.fromkeys(u.strip() for u in req.argument_uris if u and u.strip()))
+    if len(uris) < 2:
         return {"ballot_rkey": req.ballot_rkey, "subtopics": [], "assign": {},
-                "llm_calls": 0, "message": "Zu wenige Codes für einen neuen Ast."}
+                "llm_calls": 0, "message": "Zu wenige Argumente für einen neuen Ast."}
 
+    texts = await db.fetch_argument_texts(req.ballot_rkey)
+    items = [{"uri": u, "text": texts.get(u, "")} for u in uris]
     llm = proto._CountingLLM(get_llm())
 
     def _propose():
-        subs = proto.propose_topics(
-            llm, proto._SYS_NEW_BRANCHES,
-            "Codes:\n" + "\n".join(f"- {c}" for c in codes))
+        listing = "\n".join(f"- {(texts.get(u, '') or '')[:200]}" for u in uris)
+        subs = proto.propose_topics(llm, proto._SYS_NEW_BRANCHES, "Argumente:\n" + listing)
         if not subs:
             return [], {}
-        return subs, proto.classify(llm, [s["name"] for s in subs], codes)
+        assign = proto.classify_arguments(llm, [s["name"] for s in subs], items)
+        return subs, assign
 
     try:
         subs, assign = await asyncio.to_thread(_propose)

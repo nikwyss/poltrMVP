@@ -247,7 +247,10 @@ export interface TaxonomyNode {
   id: number;
   key?: string | null;
   name: string;
+  /** Interne LLM-Klassifikations-Beschreibung (nicht voter-facing). */
   description?: string | null;
+  /** Voter-facing Einleitung: warum das Thema zählt & für wen (Stimmbürgerschaft). */
+  introduction?: string | null;
   depth: number;
   /** distinct Argumente im ganzen Teilbaum (für „X Argumente"). */
   argumentCount: number;

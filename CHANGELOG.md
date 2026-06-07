@@ -2,6 +2,13 @@
 
 ## 2026-06-06
 
+### Top-down Taxonomie: voter-facing `introduction` je Thema + Card-Redesign (`infra`, `services/calculator`, `services/appview`, `services/cms`, `services/front`)
+
+- **Neue Spalte `app_topic_node.introduction`** (`text`, nullable) — getrennt von `description` (die nur interner LLM-Klassifikations-Kontext ist): eine an die **Stimmbürgerschaft** gerichtete Einleitung, warum das Thema bei der Abstimmung zählt und für wen. Migration `migrate-topics.sql` (`ADD COLUMN IF NOT EXISTS`) + `db-setup.sql`.
+- **LLM entwirft sie mit.** `propose_topics` / `_PROPOSE_TOOL` (`src/topdown/prototype.py`) generieren pro Thema zusätzlich eine `introduction` (neuer `_INTRODUCTION_NOTE` an allen propose-Prompts: Wurzeln, Subs, neue Äste); round-trippt durch `_distribute_args`, `serialize_node_args` und `db._insert_topic_tree`/`fetch_topic_tree`.
+- **CMS editierbar.** `TaxonomyPanel.tsx` bekommt je Knoten (ausser Wurzel) ein Introduction-Textarea; `ENode`/`Subtopic`/`withUids`/`toServer` sowie `applySplit`/`applyNewBranches` tragen das Feld mit.
+- **Frontend zeigt sie statt `description`.** `taxonomy.get` liefert `introduction` (auch über `_flatten_child`/`_slim`); die ThemeCard (`…/arguments/taxonomy/page.tsx`) rendert die voter-facing `introduction` statt der internen `description`. Zusätzlich entschlackt: kein „Für dich"-Insight-Panel & kein Auf-/Zuklappen mehr auf der Main-View (immer offen), Cards schlichter/kompakter, max. 3 Argumente je Seite, Themen nach `importance` sortiert (Gleichstand → user-stabiler Zufall).
+
 ### Top-down Taxonomie: „andere"/nicht-zugeordnet sauber trennen (`services/calculator`, `services/appview`, `services/cms`)
 
 - **Wurzel-Durchfaller werden nicht mehr im Baum platziert.** `classify_incremental` (`src/topdown/prototype.py`) bekommt einen `is_root`-Pfad: Codes, die in KEIN Oberthema passen (`andere` direkt an der Wurzel), erhalten keine `app_topic_membership` mehr und bleiben „nicht zugeordnet". `andere` auf tieferen Ebenen bleibt unverändert legitim am Themenknoten hängen (übergreifend zum Thema — bewusst NICHT angefasst).
