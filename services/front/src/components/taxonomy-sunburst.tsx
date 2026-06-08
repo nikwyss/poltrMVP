@@ -8,7 +8,7 @@
  * Farbe = `proLeaning` ∈ [-1,1] des Viewers (relevanz-gewichtete Pro-Vorlage-
  * Neigung) als kontinuierliche diverging-Skala: rot (auf Gegner-Seite) → grau
  * (neutral) → blau (auf Befürworter-Seite). Unbewertet/ohne Login = weiss
- * (mit feinem Umriss). Stark gespaltene Knoten (`dissent`) bekommen einen
+ * (mit feinem Umriss). Stark gespaltene Knoten (hoher `dissent`) bekommen einen
  * Amber-Rand — sie sind nicht indifferent, sondern hin- und hergerissen.
  *
  * Segmentgröße: alle Geschwister gleich breit (Winkel des Elternsegments / Anzahl
@@ -23,14 +23,14 @@ import { Card, CardContent } from "@/components/ui/card";
 type T = (key: string, values?: Record<string, string | number>) => string;
 
 
-// dissent darüber ⇒ Knoten gilt als „gespalten" und bekommt den Amber-Rand.
+// dissent darüber ⇒ Knoten gilt als „gespalten" (hoher Dissens) ⇒ Amber-Rand.
 const SPLIT_THRESHOLD = 0.5;
 
 // Pole — konsistent mit Positionsband / Insight.
 const RED: [number, number, number] = [178, 58, 33]; // Gegner-Seite
 const BLUE: [number, number, number] = [37, 99, 235]; // Befürworter-Seite
 const MID: [number, number, number] = [233, 230, 224]; // neutrale Mitte (warmes Grau)
-const AMBER = "rgb(217, 159, 40)"; // Rand für stark gespaltene Knoten (dissent)
+const AMBER = "rgb(217, 159, 40)"; // Rand + Hinweis für stark gespaltene Knoten
 
 // Entsättigung: jeder bewertete Ton wird Richtung Hellgrau gemischt, damit die
 // kräftigen Pole weicher wirken. Unbewertete Segmente gehen auf sehr helles Grau
@@ -49,6 +49,7 @@ const LABEL_MIN_ANGLE = 9; // ° — schmaler ⇒ kein Label (nur Tooltip)
 const LABEL_R_FRAC = 0.62; // Label-Position im Ring: >0.5 ⇒ nach aussen (mehr Bogenlänge)
 const CORNER_R = 4; // abgerundete Segment-Ecken
 const PAD_DEG = 1.4; // ° Luft zwischen Segmenten (statt Trennlinien)
+const RING_GAP = 3; // radiale Lücke zwischen den Ring-Ebenen
 const OUTER_OPACITY = 0.62; // Deckkraft des äussersten Rings (innen = 1)
 const MAX_LEVELS = 3; // nie mehr als 3 Ringe zeichnen (4. Ebene wird weggelassen)
 const THIRD_RING_WIDTH = 16; // 3. Ring nur als dünnes Band; Ebene 1 & 2 teilen den Rest
@@ -260,8 +261,8 @@ export function TaxonomySunburst({
   // Einebenig (nur Top-Topics) ⇒ grössere Labels, da der eine Ring sehr dick ist;
   // ab zwei Ebenen kompakt. (Per-Segment skaliert die 2. Ebene zusätzlich runter.)
   const labelFont = maxLevel <= 1 ? 13 : 10;
-  // Chart-Breite: einebenig wie früher, mehrebenig moderat grösser (nicht voll).
-  const chartMaxW = maxLevel <= 1 ? 580 : 680;
+  // Chart-Breite: einebenig kompakt (wenig Inhalt), mehrebenig grösser.
+  const chartMaxW = maxLevel <= 1 ? 440 : 680;
 
   // Standardmässig kein Panel; nur beim Hover erscheint Titel + Bewertung seitlich.
   const active = hover;
@@ -294,8 +295,9 @@ export function TaxonomySunburst({
             aria-label={t("sunburstTitle")}
           >
             {segs.map((s) => {
-              const rInner = radii[s.level - 1];
-              const rOuter = radii[s.level];
+              // Radiale Lücke zwischen den Ebenen: jedes Band beidseitig einrücken.
+              const rInner = radii[s.level - 1] + RING_GAP / 2;
+              const rOuter = radii[s.level] - RING_GAP / 2;
               const thickness = rOuter - rInner; // Ringdicke (3. Ring ist dünn)
               const span = s.a1 - s.a0;
               // Luft zwischen Segmenten: Winkel beidseitig einschrumpfen
@@ -307,8 +309,7 @@ export function TaxonomySunburst({
               const depthT = maxLevel > 1 ? (s.level - 1) / (maxLevel - 1) : 0;
               const baseOpacity = 1 - depthT * (1 - OUTER_OPACITY);
               const unrated = s.node.proLeaning == null; // weiss ⇒ feiner Umriss nötig
-              // „Gespalten": Ja- UND Nein-Argumente stark bewertet ⇒ Durchschnitt
-              // neutral, aber inhaltlich Spannungsthema. Amber-Rand hebt das hervor.
+              // Gespalten = hoher Dissens (Ja- UND Nein-Argumente stark bewertet) ⇒ Amber-Rand.
               const split = (s.node.dissent ?? 0) > SPLIT_THRESHOLD;
               const clickable = !!s.node.key && !!onSelect;
               const mid = (s.a0 + s.a1) / 2;
@@ -317,9 +318,15 @@ export function TaxonomySunburst({
               // 2.+ Ebene (radiale Labels) eine Spur kleiner als die Top-Topics.
               const segFont = curved ? labelFont : Math.max(8, labelFont - 1);
               const segScale = segFont / 10;
+              // Bei gespaltenen radialen Segmenten ein Innenband für den Blitz frei
+              // halten ⇒ Label zentriert nur im äusseren Rest (kein Overlap).
+              const boltGap = split && !curved ? 16 : 0;
+              const labelInnerR = rInner + boltGap;
               // Gekrümmte Labels nach aussen rücken (mehr Bogenlänge). Radiale Labels
-              // mittig lassen — dort begrenzt die Ringdicke (symmetrisch) die Länge.
-              const labelR = rInner + (rOuter - rInner) * (curved ? LABEL_R_FRAC : 0.5);
+              // mittig im verfügbaren Band — dort begrenzt die Ringdicke die Länge.
+              const labelR = curved
+                ? rInner + (rOuter - rInner) * LABEL_R_FRAC
+                : (labelInnerR + rOuter) / 2;
               const [lx, ly] = polar(labelR, mid);
               // Dünne Ringe (z. B. der 3.) bekommen kein Label — nur Farbe.
               const showLabel = span >= LABEL_MIN_ANGLE && thickness > 22;
@@ -332,7 +339,7 @@ export function TaxonomySunburst({
               // der Ringdicke (dort schnitt die alte Bogen-Formel zu früh ab).
               const maxChars = curved
                 ? Math.max(3, Math.floor((span / 360) * 2 * Math.PI * labelR / (6.5 * segScale)))
-                : Math.max(4, Math.floor((thickness - 6) / (5.8 * segScale)));
+                : Math.max(4, Math.floor((rOuter - labelInnerR - 6) / (5.8 * segScale)));
               // Top-Topics (innerster Ring) bis zu 3 Zeilen — dort ist am meisten
               // Platz, so passen die vollen Namen. Tiefere Ringe max. 2 bzw. 1.
               const maxLines = curved ? (thickness >= 30 ? 3 : 2) : thickness >= 28 ? 2 : 1;
@@ -342,8 +349,10 @@ export function TaxonomySunburst({
                   <path
                     d={arcPath(rInner, rOuter, pa0, pa1)}
                     fill={fillFor(s.node.proLeaning)}
-                    stroke={split ? AMBER : unrated ? "rgba(0,0,0,0.12)" : "none"}
-                    strokeWidth={split ? 2.5 : unrated ? 1 : 0}
+                    stroke={unrated ? "rgba(0,0,0,0.2)" : "none"}
+                    strokeWidth={unrated ? 1 : 0}
+                    // Unbewertet ⇒ gestrichelter, „provisorischer" Rand.
+                    strokeDasharray={unrated ? "3 2.5" : undefined}
                     style={{
                       cursor: clickable ? "pointer" : "default",
                       opacity: (hover && hover !== s.node ? 0.82 : 1) * baseOpacity,
@@ -353,6 +362,21 @@ export function TaxonomySunburst({
                     onMouseLeave={() => setHover((h) => (h === s.node ? null : h))}
                     onClick={() => clickable && onSelect!(s.node.key!)}
                   />
+                  {/* Gespalten (hoher Dissens): Blitz-Icon nahe dem Innenradius. */}
+                  {split &&
+                    (() => {
+                      const [bx, by] = polar(rInner + 10, mid);
+                      const k = 0.6; // 24er-Icon → ~14 px
+                      return (
+                        <path
+                          d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z"
+                          fill={AMBER}
+                          transform={`translate(${bx} ${by}) scale(${k}) translate(-12 -12)`}
+                          style={{ pointerEvents: "none" }}
+                          opacity={(hover && hover !== s.node ? 0.82 : 1) * baseOpacity}
+                        />
+                      );
+                    })()}
                   {showLabel &&
                     curved &&
                     lines.map((line, i) => {
@@ -429,10 +453,9 @@ export function TaxonomySunburst({
                     className="mt-1 flex items-center gap-1.5 text-xs font-medium leading-snug"
                     style={{ color: AMBER }}
                   >
-                    <span
-                      className="inline-block h-2 w-2 shrink-0 rounded-full"
-                      style={{ background: AMBER }}
-                    />
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" aria-hidden="true">
+                      <path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z" fill={AMBER} />
+                    </svg>
                     {t("sunburstDissentNote")}
                   </p>
                 )}
@@ -455,30 +478,25 @@ export function TaxonomySunburst({
           <span style={{ color: `rgb(${BLUE.join(",")})` }}>{t("poleSupporters")}</span>
         </div>
 
-        {/* Zweite Zeile: Sonder-Marker als kleine Ringsegmente in Sektorform —
-            weiss = unbewertet, neutral mit Amber-Rand = gespalten. */}
+        {/* Zweite Zeile: Sonder-Marker — gestricheltes Sektörchen = unbewertet,
+            Blitz = gespalten (hoher Dissens). */}
         <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <svg viewBox="2 2.7 16 8" className="h-3.5 w-7 shrink-0" aria-hidden="true">
               <path
                 d="M 4.84 4.63 A 9 9 0 0 1 15.16 4.63 L 12.29 8.72 A 4 4 0 0 0 7.71 8.72 Z"
                 fill={fillFor(null)}
-                stroke="rgba(0,0,0,0.12)"
+                stroke="rgba(0,0,0,0.2)"
                 strokeWidth={1.2}
+                strokeDasharray="2 1.6"
                 strokeLinejoin="round"
               />
             </svg>
             {t("sunburstLeanUnrated")}
           </span>
           <span className="flex items-center gap-1.5">
-            <svg viewBox="2 2.7 16 8" className="h-3.5 w-7 shrink-0" aria-hidden="true">
-              <path
-                d="M 4.84 4.63 A 9 9 0 0 1 15.16 4.63 L 12.29 8.72 A 4 4 0 0 0 7.71 8.72 Z"
-                fill={fillFor(0)}
-                stroke={AMBER}
-                strokeWidth={1.6}
-                strokeLinejoin="round"
-              />
+            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" aria-hidden="true">
+              <path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z" fill={AMBER} />
             </svg>
             {t("sunburstDissentNote")}
           </span>

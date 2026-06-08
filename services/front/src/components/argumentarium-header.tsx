@@ -8,7 +8,15 @@
 import { useTranslations } from "next-intl";
 import type { Ballot } from "@/types/ballots";
 
-export function ArgumentariumHeader({ ballot }: { ballot: Ballot }) {
+export function ArgumentariumHeader({
+  ballot,
+  // Anzahl Top-Themen — nur die Taxonomy-View liefert das; dann erscheint links
+  // der Zähler-Reihe eine zusätzliche „Themen"-Spalte. Booklet lässt es weg.
+  topicCount,
+}: {
+  ballot: Ballot;
+  topicCount?: number;
+}) {
   const t = useTranslations("argumentarium");
   const tbk = useTranslations("booklet");
   return (
@@ -21,6 +29,16 @@ export function ArgumentariumHeader({ ballot }: { ballot: Ballot }) {
           {t("title", { name: ballot.title })}
         </h1>
         <div className="flex shrink-0 gap-8 pt-1">
+          {(topicCount ?? 0) > 0 && (
+            <div className="flex flex-col items-center">
+              <span className="text-3xl font-bold leading-none tracking-tight text-[var(--text)]">
+                {topicCount}
+              </span>
+              <span className="mt-2 text-sm text-[var(--text-faint)]">
+                {tbk("topicsLabel")}
+              </span>
+            </div>
+          )}
           {(ballot.argumentCount ?? 0) > 0 && (
             <div className="flex flex-col items-center">
               <span className="text-3xl font-bold leading-none tracking-tight text-[var(--text)]">
@@ -45,10 +63,6 @@ export function ArgumentariumHeader({ ballot }: { ballot: Ballot }) {
       </div>
       <p className="max-w-2xl text-base text-[var(--text-mid)] leading-relaxed">
         {t("intro")}
-      </p>
-      <p className="mt-3 flex max-w-2xl items-baseline gap-1.5 text-sm text-[var(--text-faint)] leading-relaxed">
-        <span className="text-amber-500">★</span>
-        {t("officialStarNote")}
       </p>
     </div>
   );

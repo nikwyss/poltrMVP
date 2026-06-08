@@ -53,11 +53,13 @@
   --green-border: #b3ddc8;
   --sand: #e7dcc6;           /* aktiver Sandstein-Quader (Füllung) */
   --sand-edge: #d6c7a8;      /* Quader-Schattenfuge / Schlussstein */
-  /* Pro/Contra — in die Steinpalette eingebettet (gedämpftes Salbei + Terrakotta) */
-  --pro: #3E7C5A;            /* Pro-Grün (Backstein-Palette) */
-  --pro-dim: #e8f1ec;
-  --pro-border: #c2d8ca;
-  --pro-tint: #eef4f0;       /* getönter Kartenhintergrund */
+  /* Pro/Contra — in die Steinpalette eingebettet (gedämpftes Blau + Terrakotta).
+     Pro = Blau (statt Grün), konsistent mit dem Befürworter-Pol in Sunburst /
+     Positionsband; wertungsfrei und farbsehschwäche-tauglich (Rot/Blau statt Rot/Grün). */
+  --pro: #2E5CA8;            /* Pro-Blau (Befürworter-Pol) */
+  --pro-dim: #e7eefa;
+  --pro-border: #c2d2ec;
+  --pro-tint: #eef3fb;       /* getönter Kartenhintergrund */
   --contra: #A14334;         /* Contra-Rot (Backstein) */
   --contra-dim: #f6eae6;
   --contra-border: #e4c9c1;
@@ -119,9 +121,9 @@
   --sand: #3a3328;
   --sand-edge: #4a4234;
   /* Pro/Contra dunkel — Tints erben die hellen :root-Werte (Booklet-Karten sind hell) */
-  --pro: #8aa384;
-  --pro-dim: #232a21;
-  --pro-border: #3a4636;
+  --pro: #8aa3c8;
+  --pro-dim: #1c232e;
+  --pro-border: #2f3a4a;
   --contra: #c08a72;
   --contra-dim: #2e211c;
   --contra-border: #4a382f;

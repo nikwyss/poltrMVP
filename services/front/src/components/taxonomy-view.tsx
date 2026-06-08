@@ -20,11 +20,11 @@ import {
   Scale,
   Plus,
   Telescope,
+  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
 import type { TaxonomyArgument, TaxonomyNode } from "@/types/ballots";
 import { ProContraColumnHeaders } from "@/components/pro-contra-column-headers";
-import { OfficialStar } from "@/components/pro-contra-badge";
 import { Card } from "@/components/ui/card";
 
 export type T = (key: string, values?: Record<string, string | number>) => string;
@@ -32,11 +32,19 @@ export type T = (key: string, values?: Record<string, string | number>) => strin
 // Initiales Anzeige-Limit je Spalte; danach „Mehr anzeigen".
 export const PAGE_LIMIT = 4;
 
+// „Peek": Maske, die den angeschnittenen Kopf der nächsten (ausgeblendeten)
+// Karte nach unten ausblendet — signalisiert „die Liste geht weiter" ohne dass
+// man die Restkarte vollständig zeigt. Höhe so gewählt, dass Badge + ein Hauch
+// Titel sichtbar bleiben (na-card: 16px Padding + Badge-Zeile).
+const PEEK_MASK =
+  "linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 55%, transparent 100%)";
+
 // Bottom-Aktion der ThemeCard — Material-„Text Button": farbiger Text + Icon,
 // keine Füllung/Rand. Beide Aktionen identisch (kein Emphasis-Unterschied).
-// Warmes, dunkleres Brand-Amber (#a8600a) — lesbar auf hellen Cards.
+// Monochrom (gedämpftes Vordergrund-Grau) — neutral statt warmem Amber, damit
+// die Aktion nicht versehentlich nach Contra-Rot aussieht.
 const ACTION_BTN =
-  "flex max-w-full items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium text-[#a8600a] transition hover:bg-[#a8600a]/10";
+  "flex max-w-full items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium text-foreground/70 transition hover:bg-foreground/[0.06] hover:text-foreground";
 
 // ---------------------------------------------------------------------------
 // „Für dich"-Insight: Zustand aus proLeaning / dissent / ratedCount ableiten.
@@ -110,15 +118,17 @@ export function ArgumentCard({ arg, onOpen }: { arg: TaxonomyArgument; onOpen: (
             {isPro ? tbk("proArgument") : tbk("contraArgument")}
           </span>
         </div>
-        {rated && isOfficial && (
-          <span className="na-card-status na-card-status--official">{trs("official")}</span>
+        {isOfficial && (
+          <span className="na-card-status na-card-status--official inline-flex items-center gap-1">
+            <span className="text-amber-500 leading-none" aria-hidden>★</span>
+            {trs("official")}
+          </span>
         )}
       </div>
 
       <div className="na-card-body">
         <div className="na-card-title">
           {arg.title}
-          {isOfficial && <OfficialStar />}
         </div>
         {rated && (
           <div className="na-card-score" aria-label={`${tbk("relevanceTitle")}: ${relevance}`}>
@@ -167,25 +177,46 @@ export function ProContraArguments({
     (pro.length - visiblePro.length) + (contra.length - visibleContra.length);
   const hasMore = remaining > 0;
   const handleMore = onShowMore ?? (() => setExpanded(true));
+
+  // Eine Spalte: sichtbare Karten + (falls noch welche ausgeblendet sind) der
+  // angeschnittene „Peek" der nächsten Karte als rein visueller Vorgeschmack.
+  const renderColumn = (items: TaxonomyArgument[]) => {
+    const visible = items.slice(0, cap);
+    const peek = !expanded && items.length > visible.length ? items[visible.length] : null;
+    return (
+      <div className="flex flex-col gap-4">
+        {visible.map((a) => <ArgumentCard key={a.uri} arg={a} onOpen={onOpen} />)}
+        {peek && (
+          <div
+            aria-hidden
+            className="relative h-[3.25rem] overflow-hidden"
+            style={{ maskImage: PEEK_MASK, WebkitMaskImage: PEEK_MASK }}
+          >
+            <div className="pointer-events-none">
+              <ArgumentCard arg={peek} onOpen={() => {}} />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div>
       <ProContraColumnHeaders proCount={pro.length} contraCount={contra.length} />
       <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="flex flex-col gap-4">
-          {visiblePro.map((a) => <ArgumentCard key={a.uri} arg={a} onOpen={onOpen} />)}
-        </div>
-        <div className="flex flex-col gap-4">
-          {visibleContra.map((a) => <ArgumentCard key={a.uri} arg={a} onOpen={onOpen} />)}
-        </div>
+        {renderColumn(pro)}
+        {renderColumn(contra)}
       </div>
       {hasMore && !hideShowMore && (
-        <button
-          type="button"
-          className="na-show-more"
-          onClick={handleMore}
-        >
-          {t("showMore", { count: remaining })}
-        </button>
+        <div className="mt-3 flex justify-center">
+          <button type="button" className={ACTION_BTN} onClick={handleMore}>
+            <ChevronDown className="h-4 w-4 shrink-0" />
+            <span className="truncate">
+              {t("showMore", { count: remaining })}
+            </span>
+          </button>
+        </div>
       )}
     </div>
   );
@@ -203,6 +234,7 @@ export function ThemeCard({
   onOpen,
   onShowMore,
   onAddArgument,
+  subtopic = false,
   t,
   limit = 3,
 }: {
@@ -211,44 +243,55 @@ export function ThemeCard({
   onShowMore?: () => void;
   // Optional: zeigt einen runden „+ Neues Argument"-Button auf der unteren Kante.
   onAddArgument?: () => void;
+  // Im Detail-Overlay sind die Karten Unterthemen ⇒ „Mehr zum Unterthema …"
+  // statt „Mehr zum Thema …".
+  subtopic?: boolean;
   t: T;
   limit?: number;
 }) {
-  const ins = getInsight(node, t);
   const rated = node.ratedCount ?? 0;
 
   // Bottom-Aktion (nur Haupt-View, d. h. wenn onAddArgument geliefert wird):
   //  - alle Argumente sichtbar  ⇒ „Neues Argument vorschlagen" (Modal)
   //  - nicht alle (wegen Limit)  ⇒ „Mehr zum Themenfeld …" (öffnet das Overlay).
-  // Gate: erst freigeben, wenn der Nutzer ≥2 der Argumente bewertet hat — sofern
-  // das Thema überhaupt ≥2 Argumente hat. Sonst steht statt Button ein Hinweis.
+  // Gate: erst freigeben, wenn der Nutzer genügend Argumente bewertet hat. Ziel
+  // sind 2 Bewertungen — hat das Thema aber nur 1 Argument, muss eben dieses 1
+  // bewertet sein (sonst käme der Button bei 1 Argument fälschlich sofort).
+  // 0 Argumente ⇒ kein Gate (man darf das erste Argument vorschlagen).
   const managed = !!onAddArgument;
   const proCount = node.arguments.filter((a) => a.type === "PRO").length;
   const contraCount = node.arguments.length - proCount;
   const truncated = proCount > limit || contraCount > limit;
   const ratedArgs = node.arguments.filter((a) => typeof a.viewerPreference === "number").length;
-  const needsRating = node.arguments.length >= 2 && ratedArgs < 2;
+  const ratingTarget = Math.min(2, node.arguments.length);
+  const needsRating = ratedArgs < ratingTarget;
 
-  const footer: "none" | "hint" | "overlay" | "add" = !managed
-    ? "none"
-    : needsRating
+  // „overlay" = Drilldown-Link in die nächste Stufe. Haupt-View (managed): nur
+  // wenn gekürzt wird, sonst „+ Argument". Overlay (nicht managed): immer, sobald
+  // ein onShowMore-Ziel existiert (= das Unterthema hat eigene Unterthemen) —
+  // unabhängig davon, ob gekürzt wird. Blatt-Unterthemen (kein onShowMore) zeigen
+  // stattdessen den inline „Mehr anzeigen"-Button aus ProContraArguments.
+  const footer: "none" | "hint" | "overlay" | "add" = managed
+    ? needsRating
       ? "hint"
       : truncated
         ? onShowMore
           ? "overlay"
           : "none"
-        : "add";
+        : "add"
+    : onShowMore
+      ? "overlay"
+      : "none";
   const hasFooter = footer !== "none";
 
   return (
-    <Card
-      className="gap-0 overflow-hidden border-border/60 py-0 shadow-none"
-      style={{ borderLeft: `3px solid ${ins.bar}` }}
-    >
+    <Card className="gap-0 overflow-hidden border-border/60 py-0 shadow-none">
       <div className="flex items-baseline justify-between gap-3 px-6 pt-4 pb-3">
-        <h3 className="truncate text-base font-semibold tracking-tight">{node.name}</h3>
+        <h3 className="truncate text-base font-semibold tracking-tight">
+          {t(subtopic ? "subthemeTitle" : "themeTitle", { name: node.name })}
+        </h3>
         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-          {rated}/{node.argumentCount} {t("rated")}
+          {t("ratedOf", { rated, total: node.argumentCount })}
         </span>
       </div>
 
@@ -263,9 +306,11 @@ export function ThemeCard({
             <ProContraArguments
               args={node.arguments}
               onOpen={onOpen}
-              onShowMore={managed ? undefined : onShowMore}
+              // Bei Footer-Drilldown („overlay") übernimmt der Link unten das
+              // Weiterblättern → inline „Mehr anzeigen" unterdrücken.
+              onShowMore={footer === "overlay" ? undefined : onShowMore}
               limit={limit}
-              hideShowMore={managed}
+              hideShowMore={managed || footer === "overlay"}
             />
           )}
         </div>
@@ -277,7 +322,11 @@ export function ThemeCard({
         <div className="flex justify-center px-6 pb-5">
           {footer === "hint" && (
             <p className="text-center text-xs leading-snug text-muted-foreground">
-              {t("rateFirstHint")}
+              {t(
+                node.arguments.length === 1
+                  ? "rateFirstHintOne"
+                  : "rateFirstHint",
+              )}
             </p>
           )}
           {footer === "add" && (
@@ -289,7 +338,11 @@ export function ThemeCard({
           {footer === "overlay" && (
             <button type="button" onClick={onShowMore} className={ACTION_BTN}>
               <Telescope className="h-4 w-4 shrink-0" />
-              <span className="truncate">{t("openTopicArea", { name: node.name })}</span>
+              <span className="truncate">
+                {t(subtopic ? "openSubtopicArea" : "openTopicArea", {
+                  name: node.name,
+                })}
+              </span>
             </button>
           )}
         </div>

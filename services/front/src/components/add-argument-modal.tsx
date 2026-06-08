@@ -71,7 +71,17 @@ export function AddArgumentModal({
                   key={typ}
                   type="button"
                   variant={selected ? "default" : "outline"}
-                  className={`flex-1 ${selected ? (isPro ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700") : ""}`}
+                  className="flex-1"
+                  style={
+                    selected
+                      ? {
+                          backgroundColor: isPro
+                            ? "var(--pro)"
+                            : "var(--contra)",
+                          color: "#fff",
+                        }
+                      : undefined
+                  }
                   onClick={() => setArgType(typ)}
                 >
                   {isPro ? tc("pro") : tc("contra")}

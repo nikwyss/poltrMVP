@@ -11,11 +11,7 @@ import {
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { parseOverlayStack, serializeOverlayStack } from "./url";
-import type {
-  OverlayCallbacks,
-  OverlayEntry,
-  OverlayNavigateOptions,
-} from "./types";
+import type { OverlayEntry, OverlayNavigateOptions } from "./types";
 
 // Internal context shape — published API lives in `use-overlay.ts`.
 type OverlayCtx = {
@@ -27,14 +23,6 @@ type OverlayCtx = {
   back: () => void;
   closeAll: () => void;
   registerScrollContainer: (el: HTMLElement | null) => void;
-  setCallback: <K extends keyof OverlayCallbacks>(
-    name: K,
-    fn: OverlayCallbacks[K] | undefined,
-  ) => void;
-  // Stable getter — always returns the latest registered callbacks. The
-  // <OverlayContentHost> consumes this to wire optional page callbacks into
-  // detail components without re-rendering on every register/unregister.
-  getCallbacks: () => OverlayCallbacks;
 };
 
 const Ctx = createContext<OverlayCtx | null>(null);
@@ -177,27 +165,10 @@ export function OverlayProvider({ children }: { children: ReactNode }) {
   const pushCount = useRef(0);
   const scrollEl = useRef<HTMLElement | null>(null);
   const pendingAnchor = useRef<string | null>(null);
-  const callbacksRef = useRef<OverlayCallbacks>({});
   // Keep the latest `stack` in a ref so the stable `navigate`/`back` callbacks
   // can read it without being recreated on every stack change.
   const stackRef = useRef(stack);
   stackRef.current = stack;
-
-  const setCallback = useCallback(
-    <K extends keyof OverlayCallbacks>(
-      name: K,
-      fn: OverlayCallbacks[K] | undefined,
-    ) => {
-      if (fn === undefined) {
-        delete callbacksRef.current[name];
-      } else {
-        callbacksRef.current[name] = fn;
-      }
-    },
-    [],
-  );
-
-  const getCallbacks = useCallback(() => callbacksRef.current, []);
 
   const registerScrollContainer = useCallback((el: HTMLElement | null) => {
     scrollEl.current = el;
@@ -290,8 +261,6 @@ export function OverlayProvider({ children }: { children: ReactNode }) {
       back,
       closeAll,
       registerScrollContainer,
-      setCallback,
-      getCallbacks,
     }),
     [
       stack,
@@ -302,8 +271,6 @@ export function OverlayProvider({ children }: { children: ReactNode }) {
       back,
       closeAll,
       registerScrollContainer,
-      setCallback,
-      getCallbacks,
     ],
   );
 

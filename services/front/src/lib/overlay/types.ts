@@ -14,16 +14,6 @@ export type OverlayEntry =
 
 export type OverlayEntryType = OverlayEntry["type"];
 
-// Page-registered callbacks that fire from inside overlay detail components.
-// The Provider holds a mutable ref of these; pages register via
-// `useOverlayCallback(name, fn)`. Keys are optional — any page can register
-// only the callbacks it cares about, omitted ones silently no-op.
-//
-// Add new event names here as content modules grow (e.g. onCommentDeleted).
-export type OverlayCallbacks = {
-  onArgumentRated?: (argUri: string, preference: number | null) => void;
-};
-
 // Optional second argument to `navigate(entry, options?)`. Carries metadata
 // about *why* the user is leaving the current view, used to scroll the user
 // back to where they were when they return.

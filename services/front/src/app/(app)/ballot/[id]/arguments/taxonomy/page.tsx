@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
-import { getBallot, getTaxonomy } from "@/lib/agent";
+import { useQuery } from "@tanstack/react-query";
+import { getBallot } from "@/lib/agent";
+import { useTaxonomyBase, useTaxonomyFull } from "@/lib/queries/taxonomy";
 import { useOverlay } from "@/lib/overlay";
-import type { Ballot, TaxonomyTree } from "@/types/ballots";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -33,12 +34,6 @@ export default function TaxonomyPage() {
   const tc = useTranslations("common");
   const { navigate } = useOverlay();
 
-  const [ballot, setBallot] = useState<Ballot | null>(null);
-  const [tax, setTax] = useState<TaxonomyTree | null>(null);
-  // Voller verschachtelter Baum (alle Ebenen) — nur fürs Sunburst.
-  const [fullTree, setFullTree] = useState<TaxonomyTree | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
   const openArgument = useCallback(
@@ -51,28 +46,44 @@ export default function TaxonomyPage() {
     [navigate, id],
   );
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [b, tx, full] = await Promise.all([
-        getBallot(id, locale),
-        getTaxonomy(id, locale),
-        getTaxonomy(id, locale, undefined, "full"),
-      ]);
-      setBallot(b);
-      setTax(tx);
-      setFullTree(full);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [id, locale]);
+  // Ballot + Taxonomie aus dem zentralen Query-Cache. Eine Bewertung im Overlay
+  // patcht die `["taxonomy", id, …]`-Einträge (siehe useArgumentRatingCache),
+  // sodass die Karten hier ohne Refetch live aktualisieren.
+  const enabled = !!id;
+  const {
+    data: ballot = null,
+    isPending: ballotPending,
+    error: ballotError,
+    refetch: refetchBallot,
+  } = useQuery({
+    queryKey: ["ballot", id, locale],
+    queryFn: () => getBallot(id, locale),
+    enabled,
+  });
+  const {
+    data: tax = null,
+    isPending: taxPending,
+    error: taxError,
+    refetch: refetchBase,
+  } = useTaxonomyBase(id, locale, enabled);
+  const { data: fullTree = null, refetch: refetchFull } = useTaxonomyFull(
+    id,
+    locale,
+    enabled,
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const loading = ballotPending || taxPending;
+  const queryError = ballotError ?? taxError;
+  const error = queryError
+    ? queryError instanceof Error
+      ? queryError.message
+      : String(queryError)
+    : null;
+  const reload = () => {
+    refetchBallot();
+    refetchBase();
+    refetchFull();
+  };
 
   const root = tax?.tree;
 
@@ -83,7 +94,9 @@ export default function TaxonomyPage() {
         <ViewToggle active="taxonomy" ballotId={id} />
       </nav>
 
-      {ballot && <ArgumentariumHeader ballot={ballot} />}
+      {ballot && (
+        <ArgumentariumHeader ballot={ballot} topicCount={root?.children?.length} />
+      )}
 
       {loading && (
         <Card>
@@ -100,7 +113,7 @@ export default function TaxonomyPage() {
             <span>
               <strong>{tc("error")}:</strong> {error}
             </span>
-            <Button variant="destructive" size="sm" onClick={load}>
+            <Button variant="destructive" size="sm" onClick={reload}>
               {tc("retry")}
             </Button>
           </AlertDescription>
@@ -169,7 +182,7 @@ export default function TaxonomyPage() {
           ballotRkey={ballot.rkey}
           open={addOpen}
           onOpenChange={setAddOpen}
-          onCreated={load}
+          onCreated={reload}
         />
       )}
     </div>

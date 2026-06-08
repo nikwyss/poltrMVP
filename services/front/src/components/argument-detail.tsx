@@ -4,14 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
-import { getArgument } from "@/lib/agent";
 import { buildCommentMap, rootComments } from "@/lib/commentThread";
 import { useCommentThread } from "@/hooks/useCommentThread";
 import { Separator } from "@/components/ui/separator";
-import type {
-  ArgumentWithMetadata,
-  CommentWithMetadata,
-} from "@/types/ballots";
+import type { CommentWithMetadata } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
@@ -25,7 +21,11 @@ import { CommentAvatar, CommentContent } from "@/components/comment-content";
 import { ReplyInput } from "@/components/reply-input";
 import { RelevanceRating } from "@/components/relevance-rating";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
-import { rateContent } from "@/lib/ballots";
+import {
+  useArgumentQuery,
+  useArgumentRatingCache,
+  useRateArgumentMutation,
+} from "@/lib/queries/arguments";
 import { isPdsError, pdsErrorKey, type PdsError } from "@/lib/pdsError";
 import { notifyPdsError } from "@/lib/toast";
 
@@ -118,7 +118,6 @@ export function ArgumentDetail({
   argRkey,
   onNavigateToComment,
   onNavigateToTaxonomy,
-  onRated,
   backLabel,
   registerScrollContainer,
 }: {
@@ -127,9 +126,6 @@ export function ArgumentDetail({
   onNavigateToComment: (uri: string) => void;
   // Klick auf ein Taxonomie-Breadcrumb → öffnet diese Topic-Stufe im Overlay.
   onNavigateToTaxonomy: (ballotRkey: string, topic: string) => void;
-  // Called after a rating changes so a host (e.g. the booklet list) can reflect
-  // it live without a refetch. `null` = rating cleared / rolled back to unrated.
-  onRated?: (argUri: string, preference: number | null) => void;
   backLabel: string;
   // Overlay host hands us a setter for *its* scroll-position tracking. We pass
   // the element that actually scrolls (the .ov-card wrapper); the host saves
@@ -145,18 +141,31 @@ export function ArgumentDetail({
   const te = useTranslations("errors");
   const tbk = useTranslations("booklet");
 
-  const [argument, setArgument] = useState<ArgumentWithMetadata | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // Argument aus dem zentralen Query-Cache (Key `argumentKeys.detail`). Derselbe
+  // Präfix, den `useArgumentRatingCache` patcht — Booklet-Liste und dieses
+  // Detail teilen damit eine Quelle für `viewer.preference`.
+  const enabled = isAuthenticated && !authLoading && !!ballotRkey && !!argRkey;
+  const {
+    data: argument = null,
+    isPending,
+    error: argError,
+  } = useArgumentQuery(ballotRkey, argRkey, enabled);
+  const loading = enabled && isPending;
+  const error = argError
+    ? argError instanceof Error
+      ? argError.message
+      : "Failed to load argument"
+    : "";
+
   // Relevanz-Bewertung des Users (1–100) oder null, wenn noch nicht bewertet.
-  // Initial aus `argument.viewer.preference` (vom AppView angereichert).
+  // Lokaler State für den Slider (Live-Drag); aus dem geladenen Argument geseedet.
   const [relevance, setRelevance] = useState<number | null>(null);
   // Letzter erfolgreich persistierter Wert — Rollback-Baseline bei Fehlern.
   const committedRelevance = useRef<number | null>(null);
 
   const {
     comments,
-    reload,
+    commentsLoading,
     toggleLike,
     submitComment,
     replyText,
@@ -166,7 +175,7 @@ export function ArgumentDetail({
     setReplyTarget,
     replyInputRef,
     commentError,
-  } = useCommentThread({ onError: (e) => notifyPdsError(te, e) });
+  } = useCommentThread(argument?.uri, { onError: (e) => notifyPdsError(te, e) });
 
   // Derive the top-level comment tree from the flat list.
   const roots = useMemo(() => {
@@ -179,36 +188,30 @@ export function ArgumentDetail({
     if (!isAuthenticated) router.push("/");
   }, [isAuthenticated, authLoading, router]);
 
+  // Slider-State aus dem geladenen Argument seeden — nur bei Argumentwechsel
+  // (Key = uri), damit ein Cache-Patch durch die eigene Bewertung den lokalen
+  // Wert nicht zurücksetzt.
   useEffect(() => {
-    if (!isAuthenticated || authLoading || !ballotRkey || !argRkey) return;
+    const pref = argument?.viewer?.preference ?? null;
+    setRelevance(pref);
+    committedRelevance.current = pref;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [argument?.uri]);
 
-    (async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const arg = await getArgument(ballotRkey, argRkey);
-        setArgument(arg);
-        setRelevance(arg.viewer?.preference ?? null);
-        committedRelevance.current = arg.viewer?.preference ?? null;
-        const loaded = await reload(arg.uri);
-        // No comments yet → open the top-level composer right away.
-        setReplyTarget(loaded.length === 0 ? ROOT_TARGET : null);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load argument",
-        );
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [
-    isAuthenticated,
-    authLoading,
-    ballotRkey,
-    argRkey,
-    reload,
-    setReplyTarget,
-  ]);
+  // Leerer Thread → Top-Level-Composer direkt öffnen. Einmal je Argument, sobald
+  // die Kommentarliste geladen ist (sonst würde ein Refetch die Auswahl stören).
+  const composerInitFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!argument?.uri || commentsLoading) return;
+    if (composerInitFor.current === argument.uri) return;
+    composerInitFor.current = argument.uri;
+    setReplyTarget(comments.length === 0 ? ROOT_TARGET : null);
+  }, [argument?.uri, commentsLoading, comments.length, setReplyTarget]);
+
+  // Bewertung in den zentralen Query-Cache spiegeln (Booklet-Liste + ggf.
+  // Detail). Das ersetzt den früheren `onRated`-Callback an die Host-Seite.
+  const patchRating = useArgumentRatingCache(ballotRkey);
+  const rateMutation = useRateArgumentMutation();
 
   // Gebündelter Netzwerk-Write (idempotent serverseitig, deterministischer rkey).
   // Das optimistische UI-Update hat `handleRateCommit` bereits angewandt; hier feuert
@@ -218,20 +221,24 @@ export function ArgumentDetail({
       // Rollback-Baseline = letzter erfolgreich persistierter Wert. Zwischenschritte
       // berühren `committedRelevance` nicht, daher stimmt der Wert hier.
       const prev = committedRelevance.current;
-      rateContent(uri, cid, value)
-        .then(() => {
-          committedRelevance.current = value;
-        })
-        .catch((err) => {
-          setRelevance(prev);
-          onRated?.(uri, prev);
-          notifyPdsError(
-            te,
-            isPdsError(err)
-              ? err
-              : ({ code: "unknown", status: 0 } as PdsError),
-          );
-        });
+      rateMutation.mutate(
+        { uri, cid, preference: value },
+        {
+          onSuccess: () => {
+            committedRelevance.current = value;
+          },
+          onError: (err) => {
+            setRelevance(prev); // lokalen Slider zurückrollen
+            patchRating(uri, prev); // Booklet-Karte zurückrollen
+            notifyPdsError(
+              te,
+              isPdsError(err)
+                ? err
+                : ({ code: "unknown", status: 0 } as PdsError),
+            );
+          },
+        },
+      );
     },
     RATE_DEBOUNCE_MS,
   );
@@ -240,8 +247,8 @@ export function ArgumentDetail({
   const handleRateCommit = (value: number) => {
     if (!argument) return;
     const uri = argument.uri;
-    setRelevance(value); // sofortiges optimistisches UI
-    onRated?.(uri, value); // sofortiges Update des Eltern-Elements (Booklet-Karte)
+    setRelevance(value); // sofortiges optimistisches UI (Slider/Score im Overlay)
+    patchRating(uri, value); // sofortiges Update der Booklet-Karte via Cache
     debouncedRate(uri, argument.cid, value); // gebündelter Netzwerk-Write
   };
 

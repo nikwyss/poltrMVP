@@ -9,10 +9,8 @@
  * + dessen direkte Argumente + jedes Subtopic aufgeklappt.
  * Argumente sind je Sektion auf 4/Spalte begrenzt; „Mehr anzeigen" zeigt alle.
  */
-import { useCallback, useEffect, useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
-import { getTaxonomy } from "@/lib/agent";
-import type { TaxonomyNode, TaxonomyCrumb } from "@/types/ballots";
+import { useTaxonomyTopic } from "@/lib/queries/taxonomy";
 import { Spinner } from "@/components/spinner";
 import {
   ProContraArguments,
@@ -42,36 +40,29 @@ export function TaxonomyDetail({
   const ta = useTranslations("argumentarium");
   const locale = useLocale();
 
-  const [node, setNode] = useState<TaxonomyNode | null>(null);
-  const [crumbs, setCrumbs] = useState<TaxonomyCrumb[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const tx = await getTaxonomy(ballotRkey, locale, topic);
-      setNode(tx?.tree ?? null);
-      setCrumbs(tx?.breadcrumb ?? []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [ballotRkey, locale, topic]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Topic-Variante aus dem zentralen Query-Cache. Bewertungen im Argument-Overlay
+  // patchen denselben `["taxonomy", id, …]`-Eintrag → Karten aktualisieren live.
+  const { data, isPending, error: queryError } = useTaxonomyTopic(
+    ballotRkey,
+    locale,
+    topic,
+  );
+  const node = data?.tree ?? null;
+  const crumbs = data?.breadcrumb ?? [];
+  const loading = isPending;
+  const error = queryError
+    ? queryError instanceof Error
+      ? queryError.message
+      : String(queryError)
+    : null;
 
   return (
     <div
       ref={registerScrollContainer}
-      className="flex h-full flex-col overflow-y-auto rounded-xl border border-border bg-card shadow-[0_30px_70px_-20px_rgba(45,35,22,0.45)]"
+      className="flex h-full flex-col overflow-y-auto rounded-xl border border-border bg-background shadow-[0_30px_70px_-20px_rgba(45,35,22,0.45)]"
     >
       {/* Sticky Back-Header */}
-      <div className="sticky top-0 z-10 flex items-center border-b bg-card/95 px-5 py-3 backdrop-blur-sm">
+      <div className="sticky top-0 z-10 flex items-center border-b bg-background/95 px-5 py-3 backdrop-blur-sm">
         <button
           onClick={onClose}
           className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -138,7 +129,10 @@ export function TaxonomyDetail({
                     'var(--font-serif), Georgia, "Times New Roman", serif',
                 }}
               >
-                {ta("topicTitle", { name: node.name })}
+                {ta(
+                  node.children.length > 0 ? "subtopicsTitle" : "topicTitle",
+                  { name: node.name },
+                )}
               </h2>
               {node.introduction && (
                 <p className="text-sm text-muted-foreground">
@@ -147,7 +141,8 @@ export function TaxonomyDetail({
               )}
             </header>
 
-            {/* Direkt am Top-Topic hängende Argumente (in keinem Subtopic) */}
+            {/* Direkt am Top-Topic hängende Argumente (in keinem Subtopic).
+                Default-Limit + inline „Mehr anzeigen (+N)" (klappt in-place auf). */}
             {node.arguments.length > 0 && (
               <ProContraArguments
                 args={node.arguments}
@@ -159,19 +154,29 @@ export function TaxonomyDetail({
                 „Mehr anzeigen" öffnet diese Stufe im Overlay. */}
             {node.children.length > 0 && (
               <div className="flex flex-col gap-3">
-                {node.children.map((ch) => (
-                  <ThemeCard
-                    key={ch.id}
-                    node={ch}
-                    onOpen={onNavigateToArgument}
-                    onShowMore={
-                      ch.key
-                        ? () => onNavigateToTaxonomy(ballotRkey, ch.key!)
-                        : undefined
-                    }
-                    t={t}
-                  />
-                ))}
+                {node.children.map((ch) => {
+                  // Hat das Unterthema selbst Unterthemen? Dann Drilldown-Link
+                  // („Mehr zum Unterthema") in dessen Overlay (immer, auch wenn
+                  // nicht gekürzt). Sonst ist die Karte ein Blatt → Default-Limit
+                  // + inline „Mehr anzeigen (+N)".
+                  // In der Topic-Sicht ist `children` abgeflacht ([]); das Flag
+                  // `hasChildren` vom AppView trägt die echte Struktur-Info.
+                  const hasSub = ch.hasChildren ?? ch.children.length > 0;
+                  return (
+                    <ThemeCard
+                      key={ch.id}
+                      node={ch}
+                      onOpen={onNavigateToArgument}
+                      onShowMore={
+                        hasSub && ch.key
+                          ? () => onNavigateToTaxonomy(ballotRkey, ch.key!)
+                          : undefined
+                      }
+                      subtopic
+                      t={t}
+                    />
+                  );
+                })}
               </div>
             )}
           </>

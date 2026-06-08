@@ -4,21 +4,21 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
 import { getBallot, listArguments } from "@/lib/agent";
-import { loadCached, patchCached } from "@/lib/pageCache";
+import { argumentKeys } from "@/lib/queries/arguments";
 import { useScrollRestore } from "@/lib/scrollRestore";
-import type { Ballot, ArgumentWithMetadata } from "@/types/ballots";
+import type { ArgumentWithMetadata } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
 import { ProContraColumnHeaders } from "@/components/pro-contra-column-headers";
-import { OfficialStar } from "@/components/pro-contra-badge";
 import { PageBackdrop } from "@/components/page-backdrop";
 import { ArgumentariumHeader } from "@/components/argumentarium-header";
-import { useOverlay, useOverlayCallback } from "@/lib/overlay";
+import { useOverlay } from "@/lib/overlay";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -113,23 +113,21 @@ function ArgumentCardCompact({
             {type === "PRO" ? tbk("proArgument") : tbk("contraArgument")}
           </span>
         </div>
-        {rated &&
-          (isOfficial ? (
-            <span className="na-card-status na-card-status--official">
-              {trs("official")}
+        {isOfficial ? (
+          <span className="na-card-status na-card-status--official inline-flex items-center gap-1">
+            <span className="text-amber-500 leading-none" aria-hidden>
+              ★
             </span>
-          ) : (
-            statusKey && (
-              <span className="na-card-status">{trs(statusKey)}</span>
-            )
-          ))}
+            {trs("official")}
+          </span>
+        ) : (
+          rated &&
+          statusKey && <span className="na-card-status">{trs(statusKey)}</span>
+        )}
       </div>
 
       <div className="na-card-body">
-        <div className="na-card-title">
-          {arg.record.title}
-          {isOfficial && <OfficialStar />}
-        </div>
+        <div className="na-card-title">{arg.record.title}</div>
         {rated && (
           <div
             className="na-card-score"
@@ -350,11 +348,6 @@ function BookletContent() {
   // im history.state). Wir nutzen hier nur `navigate(entry)` zum Öffnen.
   const { navigate } = useOverlay();
 
-  const [ballot, setBallot] = useState<Ballot | null>(null);
-  const [arguments_, setArguments] = useState<ArgumentWithMetadata[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
   // Sticky-Section-Rail (Akkordeon): Abschnitte, an denen man vorbeigescrollt ist,
   // pinnen oben; Abschnitte unter dem Fold pinnen unten. State pro Abschnitt-Id.
   const [railState, setRailState] = useState<
@@ -366,60 +359,52 @@ function BookletContent() {
     [navigate],
   );
 
-  // Bewertung im Overlay vergeben → Card live aktualisieren (State) und den
-  // Seiten-Cache nachziehen (für Back-Navigation / Remount), ohne Refetch.
-  // Wird via `useOverlayCallback` an das globale Overlay angemeldet, das den
-  // Callback an die ArgumentDetailPage durchreicht.
-  const handleArgRated = useCallback(
-    (argUri: string, preference: number | null) => {
-      const apply = (a: ArgumentWithMetadata): ArgumentWithMetadata => {
-        if (a.uri !== argUri) return a;
-        const viewer = { ...a.viewer };
-        if (preference === null) delete viewer.preference;
-        else viewer.preference = preference;
-        return { ...a, viewer };
-      };
-      setArguments((prev) => prev.map(apply));
-      patchCached<{ ballot: Ballot; args: ArgumentWithMetadata[] }>(
-        `ballot:${id}`,
-        (cur) => ({ ...cur, args: cur.args.map(apply) }),
-      );
-    },
-    [id],
-  );
-  useOverlayCallback("onArgumentRated", handleArgRated);
+  // Ballot + Argumente aus dem zentralen Query-Cache. Eine Bewertung im Overlay
+  // patcht denselben `argumentKeys.list`-Eintrag (siehe useArgumentRatingCache),
+  // wodurch die Karten hier ohne Callback und ohne Refetch live aktualisieren.
+  const enabled = !authLoading && isAuthenticated && !!user && !!id;
+
+  const {
+    data: ballot = null,
+    isPending: ballotPending,
+    error: ballotError,
+    refetch: refetchBallot,
+  } = useQuery({
+    queryKey: ["ballot", id],
+    queryFn: () => getBallot(id),
+    enabled,
+  });
+
+  const {
+    data: arguments_ = [],
+    isPending: argsPending,
+    error: argsError,
+    refetch: refetchArgs,
+  } = useQuery({
+    queryKey: argumentKeys.list(id),
+    queryFn: () => listArguments(id),
+    enabled,
+  });
+
+  // `isPending` ist true, solange eine Query noch nie Daten hatte. Mit
+  // `enabled:false` (vor Auth) bleiben Queries idle/pending — daher zusätzlich an
+  // `enabled` koppeln, damit der Auth-Spinner unten nicht fälschlich greift.
+  const loading = enabled && (ballotPending || argsPending);
+  const queryError = ballotError ?? argsError;
+  const error = queryError
+    ? queryError instanceof Error
+      ? queryError.message
+      : "Failed to load ballot"
+    : "";
+  const reload = () => {
+    refetchBallot();
+    refetchArgs();
+  };
 
   useEffect(() => {
     if (authLoading) return;
-    if (!isAuthenticated) {
-      router.push("/");
-      return;
-    }
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, authLoading, router, id]);
-
-  const loadData = async () => {
-    if (!user || !id) return;
-    setLoading(true);
-    setError("");
-    try {
-      const { ballot: ballotData, args: argsData } = await loadCached(
-        `ballot:${id}`,
-        async () => {
-          const [b, a] = await Promise.all([getBallot(id), listArguments(id)]);
-          return { ballot: b, args: a };
-        },
-      );
-      setBallot(ballotData);
-      setArguments(argsData);
-    } catch (err) {
-      console.error("Error loading ballot detail:", err);
-      setError(err instanceof Error ? err.message : "Failed to load ballot");
-    } finally {
-      setLoading(false);
-    }
-  };
+    if (!isAuthenticated) router.push("/");
+  }, [isAuthenticated, authLoading, router]);
 
   useScrollRestore(!loading && !!ballot);
 
@@ -531,7 +516,7 @@ function BookletContent() {
             <span>
               <strong>{tc("error")}:</strong> {error}
             </span>
-            <Button variant="destructive" size="sm" onClick={loadData}>
+            <Button variant="destructive" size="sm" onClick={reload}>
               {tc("retry")}
             </Button>
           </AlertDescription>

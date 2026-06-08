@@ -246,6 +246,7 @@
   "booklet": {
     "argumentsLabel": "Arguments",
     "commentsLabel": "Comments",
+    "topicsLabel": "Topics",
     "readMore": "Read more",
     "readLess": "Read less",
     "officialTitle": "Official arguments",
@@ -288,12 +289,15 @@
     "againstBallot": "rather against",
     "balanced": "balanced",
     "unrated": "not yet rated",
-    "bandTitle": "Position band",
+    "bandTitle": "Your position per topic",
+    "bandSubtitle": "Position and length result from your argument ratings.",
     "poleOpponents": "Closer to the No arguments",
     "poleSupporters": "Closer to the Yes arguments",
     "ambivalent": "ambivalent",
     "split": "split",
+    "neutral": "neutral",
     "rated": "rated",
+    "ratedOf": "{rated} of {total} arguments rated",
     "forYou": "For you",
     "insUnrTitle": "not enough rated yet",
     "insUnrSub": "Rate a few arguments to see what this topic means for you.",
@@ -313,8 +317,12 @@
     "disagree": "I don't see it that way",
     "showMore": "Show more (+{count})",
     "newArgument": "Suggest a new argument",
+    "themeTitle": "Topic «{name}»",
+    "subthemeTitle": "Subtopic «{name}»",
     "rateFirstHint": "Please rate at least two of the arguments above first.",
+    "rateFirstHintOne": "Please rate the argument above first.",
     "openTopicArea": "More on the topic «{name}»",
+    "openSubtopicArea": "More on the subtopic «{name}»",
     "analysisTitle": "Analysis of your ratings",
     "analysisSubtitle": "What your ratings reveal about your stance on the topics.",
     "sunburstTitle": "Your ratings by topic",
@@ -326,12 +334,12 @@
     "sunburstLeanYes": "Leaning to the Yes arguments",
     "sunburstLeanStrongYes": "Clearly with the Yes arguments",
     "sunburstLeanUnrated": "Not yet rated",
-    "sunburstDissentNote": "Torn: strong arguments on both sides"
+    "sunburstDissentNote": "Ambivalent: strong arguments on both sides"
   },
   "argumentarium": {
-    "title": "Argument collection for «{name}»",
+    "title": "Topics & arguments on «{name}»",
     "intro": "Here you'll find the arguments on this proposal, sorted by topic. From the start, the arguments published in the official voting booklet are posted here. The community is invited to contribute arguments of its own. You can rate every argument and discuss it in detail.",
-    "officialStarNote": "marks official arguments from the Federal Chancellery's ballot booklet; all others come from the community.",
-    "topicTitle": "Arguments in the area «{name}»"
+    "topicTitle": "Arguments on the topic «{name}»",
+    "subtopicsTitle": "Subtopics & arguments on the topic «{name}»"
   }
 }

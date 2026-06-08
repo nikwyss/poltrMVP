@@ -246,6 +246,7 @@
   "booklet": {
     "argumentsLabel": "Argumente",
     "commentsLabel": "Kommentare",
+    "topicsLabel": "Themen",
     "readMore": "Mehr anzeigen",
     "readLess": "Weniger anzeigen",
     "officialTitle": "Offizielle Argumente",
@@ -288,12 +289,15 @@
     "againstBallot": "eher dagegen",
     "balanced": "ausgewogen",
     "unrated": "noch nicht bewertet",
-    "bandTitle": "Positionsband",
+    "bandTitle": "Deine Position je Thema",
+    "bandSubtitle": "Position und Länge ergeben sich aus deinen Argument-Bewertungen.",
     "poleOpponents": "Näher bei den Nein-Argumenten",
     "poleSupporters": "Näher bei den Ja-Argumenten",
     "ambivalent": "ambivalent",
     "split": "gespalten",
+    "neutral": "neutral",
     "rated": "bewertet",
+    "ratedOf": "{rated} von {total} Argumenten bewertet",
     "forYou": "Für dich",
     "insUnrTitle": "noch zu wenig bewertet",
     "insUnrSub": "Bewerte ein paar Argumente, um zu sehen, was dieses Thema für dich bedeutet.",
@@ -313,11 +317,15 @@
     "disagree": "Sehe ich nicht so",
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Neues Argument vorschlagen",
+    "themeTitle": "Thema «{name}»",
+    "subthemeTitle": "Unterthema «{name}»",
     "rateFirstHint": "Bitte bewerten Sie zuerst mindestens zwei der obigen Argumente.",
-    "openTopicArea": "Mehr zum Themenfeld «{name}»",
+    "rateFirstHintOne": "Bitte bewerten Sie zuerst das obige Argument.",
+    "openTopicArea": "Mehr zum Thema «{name}»",
+    "openSubtopicArea": "Mehr zum Unterthema «{name}»",
     "analysisTitle": "Analyse deiner Bewertungen",
     "analysisSubtitle": "Was deine Bewertungen über deine Haltung zu den Themen zeigen.",
-    "sunburstTitle": "Deine Bewertungen nach Themen",
+    "sunburstTitle": "Das Meinungsrad – Deine Bewertungen nach Themen",
     "sunburstSubtitle": "Farbe und Position ergeben sich aus deinen Argument-Bewertungen.",
     "sunburstCenter": "Gesamt",
     "sunburstLeanStrongNo": "Klar bei den Nein-Argumenten",
@@ -326,12 +334,12 @@
     "sunburstLeanYes": "Eher bei den Ja-Argumenten",
     "sunburstLeanStrongYes": "Klar bei den Ja-Argumenten",
     "sunburstLeanUnrated": "Noch nicht bewertet",
-    "sunburstDissentNote": "Gespalten: starke Argumente auf beiden Seiten"
+    "sunburstDissentNote": "Ambivalent: starke Argumente auf beiden Seiten"
   },
   "argumentarium": {
-    "title": "Argumentarium zur Vorlage «{name}»",
+    "title": "Themen & Argumente zur Vorlage «{name}»",
     "intro": "Sie finden hier die Argumente zur Vorlage, thematisch sortiert. Von Anfang an sind hier die Argumente gepostet, die in der offiziellen Abstimmungsbroschüre veröffentlicht wurden. Die Community hat die Gelegenheit, selber Argumente anzuführen. Alle Argumente können von dir bewertet und ausführlich diskutiert werden.",
-    "officialStarNote": "markiert offizielle Argumente aus dem Abstimmungsbüchlein der Bundeskanzlei; alle übrigen stammen aus der Community.",
-    "topicTitle": "Argumente des Bereichs «{name}»"
+    "topicTitle": "Argumente des Themas «{name}»",
+    "subtopicsTitle": "Unterthemen & Argumente zum Thema «{name}»"
   }
 }

@@ -87,15 +87,21 @@ def _flatten_child(child: dict) -> dict:
         "id": child["id"], "key": child["key"], "name": child["name"],
         "description": child["description"], "introduction": child.get("introduction"),
         "depth": child["depth"], "importance": child.get("importance"),
+        # Struktur wird abgeflacht (children: []), aber wir merken uns, ob es
+        # ursprünglich eigene Unterthemen gab — das Frontend entscheidet damit
+        # zwischen Drilldown („Mehr zum Unterthema") und inline „Mehr anzeigen".
+        "hasChildren": len(child["children"]) > 0,
         "children": [], "arguments": list(seen.values()), "argumentCount": 0,
     }
 
 
 def _slim(node: dict) -> dict:
     """Reduziert einen (bereits aggregierten) Knoten auf die fürs Sunburst nötigen
-    Felder — ohne die `arguments`-Arrays — und das rekursiv über den ganzen Baum.
-    Hält den `shape=full`-Payload klein (die Visualisierung braucht nur Struktur +
-    Aggregate)."""
+    Felder — und das rekursiv über den ganzen Baum. Hält den `shape=full`-Payload
+    klein: nur Struktur + Aggregate, plus eine MINIMALE Argument-Projektion
+    (`uri`/`type`/`viewerPreference`). Diese Projektion erlaubt es dem Frontend,
+    nach einer Bewertung die Aggregate lokal neu zu rechnen (Sunburst zieht live
+    mit), ohne die vollen Argument-Objekte (Titel/Body/…) zu übertragen."""
     return {
         "id": node["id"], "key": node["key"], "name": node["name"],
         "description": node["description"], "introduction": node.get("introduction"),
@@ -104,7 +110,11 @@ def _slim(node: dict) -> dict:
         "proLeaning": node.get("proLeaning"),
         "dissent": node.get("dissent", 0.0),
         "ratedCount": node.get("ratedCount", 0),
-        "arguments": [],
+        "arguments": [
+            {"uri": a["uri"], "type": a["type"],
+             "viewerPreference": a.get("viewerPreference")}
+            for a in node["arguments"]
+        ],
         "children": [_slim(c) for c in node["children"]],
     }
 

@@ -246,6 +246,7 @@
   "booklet": {
     "argumentsLabel": "Argumente",
     "commentsLabel": "Kommentare",
+    "topicsLabel": "Temi",
     "readMore": "Mehr anzeigen",
     "readLess": "Weniger anzeigen",
     "officialTitle": "Offizielle Argumente",
@@ -288,12 +289,15 @@
     "againstBallot": "piuttosto contro",
     "balanced": "equilibrato",
     "unrated": "non ancora valutato",
-    "bandTitle": "Banda di posizione",
+    "bandTitle": "La tua posizione per tema",
+    "bandSubtitle": "Posizione e lunghezza derivano dalle tue valutazioni degli argomenti.",
     "poleOpponents": "Vicino agli argomenti per il No",
     "poleSupporters": "Vicino agli argomenti per il Sì",
     "ambivalent": "ambivalente",
     "split": "diviso",
+    "neutral": "neutrale",
     "rated": "valutato",
+    "ratedOf": "{rated} di {total} argomenti valutati",
     "forYou": "Per te",
     "insUnrTitle": "ancora poche valutazioni",
     "insUnrSub": "Valuta alcuni argomenti per vedere cosa significa questo tema per te.",
@@ -313,8 +317,12 @@
     "disagree": "Non la penso così",
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Proponi un nuovo argomento",
+    "themeTitle": "Tema «{name}»",
+    "subthemeTitle": "Sottotema «{name}»",
     "rateFirstHint": "Valuta prima almeno due degli argomenti qui sopra.",
+    "rateFirstHintOne": "Valuta prima l'argomento qui sopra.",
     "openTopicArea": "Più sul tema «{name}»",
+    "openSubtopicArea": "Più sul sottotema «{name}»",
     "analysisTitle": "Analisi delle tue valutazioni",
     "analysisSubtitle": "Cosa rivelano le tue valutazioni sulla tua posizione riguardo ai temi.",
     "sunburstTitle": "Le tue valutazioni per tema",
@@ -326,12 +334,12 @@
     "sunburstLeanYes": "Piuttosto con gli argomenti del Sì",
     "sunburstLeanStrongYes": "Nettamente con gli argomenti del Sì",
     "sunburstLeanUnrated": "Non ancora valutato",
-    "sunburstDissentNote": "Diviso: argomenti forti da entrambe le parti"
+    "sunburstDissentNote": "Ambivalente: argomenti forti da entrambe le parti"
   },
   "argumentarium": {
-    "title": "Argomentario sull'oggetto «{name}»",
+    "title": "Temi e argomenti sull'oggetto «{name}»",
     "intro": "Qui trovi gli argomenti relativi all'oggetto in votazione, ordinati per tema. Fin dall'inizio sono pubblicati qui gli argomenti contenuti nell'opuscolo informativo ufficiale. La comunità ha la possibilità di proporre propri argomenti. Puoi valutare ogni argomento e discuterne in dettaglio.",
-    "officialStarNote": "contrassegna gli argomenti ufficiali dell'opuscolo di voto della Cancelleria federale; tutti gli altri provengono dalla community.",
-    "topicTitle": "Argomenti dell'ambito «{name}»"
+    "topicTitle": "Argomenti del tema «{name}»",
+    "subtopicsTitle": "Sotto-temi e argomenti del tema «{name}»"
   }
 }

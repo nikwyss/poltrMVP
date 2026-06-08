@@ -246,6 +246,7 @@
   "booklet": {
     "argumentsLabel": "Argumente",
     "commentsLabel": "Kommentare",
+    "topicsLabel": "Temas",
     "readMore": "Mehr anzeigen",
     "readLess": "Weniger anzeigen",
     "officialTitle": "Offizielle Argumente",
@@ -288,12 +289,15 @@
     "againstBallot": "pli tgunci cunter",
     "balanced": "equilibrà",
     "unrated": "anc betg valità",
-    "bandTitle": "Bain da posiziun",
+    "bandTitle": "Tia posiziun tenor temas",
+    "bandSubtitle": "La posiziun e la lunghezza resultan da tias evaluaziuns dals arguments.",
     "poleOpponents": "Datiers dals arguments per in na",
     "poleSupporters": "Datiers dals arguments per in gea",
     "ambivalent": "ambivalent",
     "split": "dividì",
+    "neutral": "neutral",
     "rated": "valità",
+    "ratedOf": "{rated} da {total} arguments valità",
     "forYou": "Per tai",
     "insUnrTitle": "anc memia paucs valitads",
     "insUnrSub": "Valitescha intgins arguments per vesair tge che quest tema munta per tai.",
@@ -313,8 +317,12 @@
     "disagree": "Jau na ves quai betg uschia",
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Propa in nov argument",
+    "themeTitle": "Tema «{name}»",
+    "subthemeTitle": "Suttatema «{name}»",
     "rateFirstHint": "Per plaschair valitescha avant almain dus dals arguments survart.",
+    "rateFirstHintOne": "Per plaschair valitescha avant l'argument survart.",
     "openTopicArea": "Dapli davart il tema «{name}»",
+    "openSubtopicArea": "Dapli davart il suttatema «{name}»",
     "analysisTitle": "Analisa da tias evaluaziuns",
     "analysisSubtitle": "Tge che tias evaluaziuns mussan davart tia posiziun envers ils temas.",
     "sunburstTitle": "Tias evaluaziuns tenor temas",
@@ -326,12 +334,12 @@
     "sunburstLeanYes": "Pli tgunci datiers dals arguments per in gea",
     "sunburstLeanStrongYes": "Cleramain datiers dals arguments per in gea",
     "sunburstLeanUnrated": "Anc betg valità",
-    "sunburstDissentNote": "Dividì: arguments ferms da omaduas varts"
+    "sunburstDissentNote": "Ambivalent: arguments ferms da omaduas varts"
   },
   "argumentarium": {
-    "title": "Argumentari davart l'object «{name}»",
+    "title": "Temas & arguments davart l'object «{name}»",
     "intro": "Qua chattas ti ils arguments davart l'object da votaziun, ordinads tenor tema. Dapi l'entschatta èn publitgads qua ils arguments ch'èn cuntegnids en la broschura uffiziala da votaziun. La communitad ha la pussaivladad da proponer agens arguments. Ti pos valitar mintg'argument e discutar el detagliadamain.",
-    "officialStarNote": "markescha ils arguments uffizials da la broschura da votaziun da la Chanzlia federala; tut ils auters derivan da la communitad.",
-    "topicTitle": "Arguments dal sectur «{name}»"
+    "topicTitle": "Arguments dal tema «{name}»",
+    "subtopicsTitle": "Suttatemas & arguments dal tema «{name}»"
   }
 }

@@ -1,13 +1,7 @@
-import { useEffect } from "react";
 import { useOverlayInternal } from "./context";
-import type {
-  OverlayCallbacks,
-  OverlayEntry,
-  OverlayNavigateOptions,
-} from "./types";
+import type { OverlayEntry, OverlayNavigateOptions } from "./types";
 
-// Public API for navigation. The callback registry has its own dedicated hook
-// (`useOverlayCallback`) so consumers don't see the lower-level setter.
+// Public API for navigation.
 export type UseOverlayApi = {
   stack: OverlayEntry[];
   top: OverlayEntry | null;
@@ -42,28 +36,4 @@ export function useOverlay(): UseOverlayApi {
     closeAll: ctx.closeAll,
     registerScrollContainer: ctx.registerScrollContainer,
   };
-}
-
-// Register a page-level callback that fires from inside the overlay's detail
-// components (e.g. live-updating a list when a rating changes). Auto-cleans
-// up on unmount. Pass `undefined` (or just unmount) to unregister.
-//
-// Usage in a page component:
-//   useOverlayCallback("onArgumentRated", handleArgRated);
-export function useOverlayCallback<K extends keyof OverlayCallbacks>(
-  name: K,
-  fn: OverlayCallbacks[K] | undefined,
-) {
-  const { setCallback } = useOverlayInternal();
-  useEffect(() => {
-    setCallback(name, fn);
-    return () => setCallback(name, undefined);
-  }, [name, fn, setCallback]);
-}
-
-// Stable getter for currently-registered callbacks. Use this in the
-// <OverlayContentHost> to forward optional callbacks into detail components
-// without re-rendering on every registration change.
-export function useOverlayCallbacks(): () => OverlayCallbacks {
-  return useOverlayInternal().getCallbacks;
 }

@@ -246,6 +246,7 @@
   "booklet": {
     "argumentsLabel": "Argumente",
     "commentsLabel": "Kommentare",
+    "topicsLabel": "Thèmes",
     "readMore": "Mehr anzeigen",
     "readLess": "Weniger anzeigen",
     "officialTitle": "Offizielle Argumente",
@@ -288,12 +289,15 @@
     "againstBallot": "plutôt contre",
     "balanced": "équilibré",
     "unrated": "pas encore évalué",
-    "bandTitle": "Bande de position",
+    "bandTitle": "Ta position par thème",
+    "bandSubtitle": "La position et la longueur découlent de tes évaluations des arguments.",
     "poleOpponents": "Proche des arguments pour le non",
     "poleSupporters": "Proche des arguments pour le oui",
     "ambivalent": "ambivalent",
     "split": "partagé",
+    "neutral": "neutre",
     "rated": "évalué",
+    "ratedOf": "{rated} sur {total} arguments évalués",
     "forYou": "Pour toi",
     "insUnrTitle": "pas encore assez évalué",
     "insUnrSub": "Évalue quelques arguments pour voir ce que ce thème signifie pour toi.",
@@ -313,8 +317,12 @@
     "disagree": "Je ne le vois pas ainsi",
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Proposer un nouvel argument",
+    "themeTitle": "Thème «{name}»",
+    "subthemeTitle": "Sous-thème «{name}»",
     "rateFirstHint": "Veuillez d'abord évaluer au moins deux des arguments ci-dessus.",
+    "rateFirstHintOne": "Veuillez d'abord évaluer l'argument ci-dessus.",
     "openTopicArea": "En savoir plus sur le thème «{name}»",
+    "openSubtopicArea": "En savoir plus sur le sous-thème «{name}»",
     "analysisTitle": "Analyse de tes évaluations",
     "analysisSubtitle": "Ce que tes évaluations révèlent de ta position sur les thèmes.",
     "sunburstTitle": "Tes évaluations par thème",
@@ -326,12 +334,12 @@
     "sunburstLeanYes": "Plutôt pour les arguments du oui",
     "sunburstLeanStrongYes": "Nettement pour les arguments du oui",
     "sunburstLeanUnrated": "Pas encore évalué",
-    "sunburstDissentNote": "Partagé : arguments forts des deux côtés"
+    "sunburstDissentNote": "Ambivalent : arguments forts des deux côtés"
   },
   "argumentarium": {
-    "title": "Argumentaire sur l'objet «{name}»",
+    "title": "Thèmes & arguments sur l'objet «{name}»",
     "intro": "Tu trouves ici les arguments relatifs à l'objet, classés par thème. Dès le départ, les arguments publiés dans la brochure officielle de votation sont postés ici. La communauté a la possibilité de proposer ses propres arguments. Tu peux évaluer chaque argument et en discuter en détail.",
-    "officialStarNote": "signale les arguments officiels issus de la brochure de vote de la Chancellerie fédérale ; tous les autres proviennent de la communauté.",
-    "topicTitle": "Arguments du domaine «{name}»"
+    "topicTitle": "Arguments du thème «{name}»",
+    "subtopicsTitle": "Sous-thèmes & arguments du thème «{name}»"
   }
 }

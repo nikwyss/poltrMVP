@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { listComments, createComment } from "@/lib/agent";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { createComment } from "@/lib/agent";
 import { likeContent, unlikeContent } from "@/lib/ballots";
+import { commentKeys, useCommentsQuery } from "@/lib/queries/comments";
 import { isPdsError, type PdsError } from "@/lib/pdsError";
 import type { CommentWithMetadata } from "@/types/ballots";
 
@@ -12,16 +14,28 @@ const asPdsError = (e: unknown): PdsError =>
 /**
  * Shared thread state for the argument- and comment-detail views.
  *
- * Owns the *flat* list of comments for one argument (callers derive their own
- * tree/spine via the helpers in `lib/commentThread`), the like-toggle logic
- * (optimistic update + rollback) and the inline composer state. Because the
- * list is flat, like toggles apply to any comment — top-level or nested.
+ * The *flat* comment list for one argument lives in the TanStack Query cache
+ * (keyed by `argumentUri`), so both detail overlays share one source: a like
+ * or reply in one view is reflected in the other. Like toggles patch the cache
+ * optimistically (with rollback); a new comment invalidates the list. The
+ * inline composer state (text, target, in-flight) stays local — it's pure UI.
+ *
+ * Pass `argumentUri = undefined` while it's still being resolved (the detail
+ * loads its argument first); the list query stays disabled until then.
  */
-export function useCommentThread(options?: {
-  // Called when a like toggle fails (after rollback) — e.g. to show a toast.
-  onError?: (e: PdsError) => void;
-}) {
-  const [comments, setComments] = useState<CommentWithMetadata[]>([]);
+export function useCommentThread(
+  argumentUri: string | undefined,
+  options?: { onError?: (e: PdsError) => void },
+) {
+  const qc = useQueryClient();
+  const onError = options?.onError;
+
+  const query = useCommentsQuery(argumentUri);
+  const comments = useMemo<CommentWithMetadata[]>(
+    () => query.data ?? [],
+    [query.data],
+  );
+
   // Last comment-submit failure, for an inline alert in the composer
   // (the typed text is preserved). Cleared on a new attempt / success.
   const [commentError, setCommentError] = useState<PdsError | null>(null);
@@ -39,21 +53,16 @@ export function useCommentThread(options?: {
     if (replyTarget) replyInputRef.current?.focus();
   }, [replyTarget]);
 
-  /** Fetch the flat comment list for an argument and store it. */
-  const reload = useCallback(async (argumentUri: string) => {
-    const all = await listComments(argumentUri);
-    setComments(all);
-    return all;
-  }, []);
-
-  // Patch a single comment in the flat list.
+  // Patch a single comment in the cached flat list.
   const patchComment = useCallback(
     (uri: string, patch: Partial<CommentWithMetadata>) => {
-      setComments((prev) =>
-        prev.map((c) => (c.uri === uri ? { ...c, ...patch } : c)),
+      if (!argumentUri) return;
+      qc.setQueryData<CommentWithMetadata[]>(
+        commentKeys.list(argumentUri),
+        (prev) => prev?.map((c) => (c.uri === uri ? { ...c, ...patch } : c)),
       );
     },
-    [],
+    [qc, argumentUri],
   );
 
   /** Optimistically toggle a like with rollback on failure. */
@@ -79,25 +88,26 @@ export function useCommentThread(options?: {
           likeCount: c.likeCount ?? 0,
           viewer: c.viewer,
         });
-        options?.onError?.(asPdsError(err));
+        onError?.(asPdsError(err));
       }
     },
-    [patchComment, options],
+    [patchComment, onError],
   );
 
   /**
    * Submit the composer text as a comment on `argumentUri`, optionally as a
-   * reply to `parentUri`. Reloads the list and closes the composer on success.
+   * reply to `parentUri`. Invalidates the list (→ refetch) and closes the
+   * composer on success.
    */
   const submitComment = useCallback(
-    async (argumentUri: string, parentUri?: string) => {
+    async (argUri: string, parentUri?: string) => {
       if (!replyText.trim() || submitting) return;
       setSubmitting(true);
       setCommentError(null);
       try {
-        await createComment(argumentUri, "", replyText.trim(), parentUri);
+        await createComment(argUri, "", replyText.trim(), parentUri);
         setReplyText("");
-        await reload(argumentUri);
+        await qc.invalidateQueries({ queryKey: commentKeys.list(argUri) });
         setReplyTarget(null);
       } catch (err) {
         // Keep the typed text; surface an inline error in the composer.
@@ -106,13 +116,13 @@ export function useCommentThread(options?: {
         setSubmitting(false);
       }
     },
-    [replyText, submitting, reload],
+    [replyText, submitting, qc],
   );
 
   return {
     comments,
-    setComments,
-    reload,
+    // true while the list is loading for a known argument (idle when disabled).
+    commentsLoading: !!argumentUri && query.isPending,
     toggleLike,
     submitComment,
     // composer

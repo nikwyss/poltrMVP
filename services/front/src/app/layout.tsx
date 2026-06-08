@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { DM_Sans, Lora } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/AuthContext";
+import { QueryProvider } from "@/lib/query-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 import { NextIntlClientProvider } from "next-intl";
@@ -27,10 +28,12 @@ export default async function RootLayout({
     <html lang={locale}>
       <body className={`${dmSans.variable} ${lora.variable} ${dmSans.className}`}>
         <NextIntlClientProvider messages={messages}>
-          <AuthProvider>
-            <TooltipProvider>{children}</TooltipProvider>
-            <Toaster position="bottom-center" richColors />
-          </AuthProvider>
+          <QueryProvider>
+            <AuthProvider>
+              <TooltipProvider>{children}</TooltipProvider>
+              <Toaster position="bottom-center" richColors />
+            </AuthProvider>
+          </QueryProvider>
         </NextIntlClientProvider>
       </body>
     </html>

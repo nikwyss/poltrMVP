@@ -263,6 +263,9 @@ export interface TaxonomyNode {
   /** Argumente DIREKT an diesem Knoten (ein Argument kann an mehreren Knoten sein). */
   arguments: TaxonomyArgument[];
   children: TaxonomyNode[];
+  /** Nur in der abgeflachten Topic-Sicht (Overlay): hatte der Knoten ursprünglich
+   *  eigene Unterthemen? Steuert Drilldown vs. inline „Mehr anzeigen". */
+  hasChildren?: boolean;
 }
 
 /** Ein Breadcrumb-Segment (Vorfahren-Pfad eines Topic-Knotens). */

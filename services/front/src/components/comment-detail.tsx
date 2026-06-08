@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
-import { getComment, listComments } from "@/lib/agent";
+import { getComment } from "@/lib/agent";
 import { cn } from "@/lib/utils";
 import { buildCommentMap, buildAncestorChain } from "@/lib/commentThread";
 import { useCommentThread } from "@/hooks/useCommentThread";
@@ -209,7 +209,7 @@ export function CommentDetail({
 
   const {
     comments,
-    setComments,
+    commentsLoading,
     toggleLike,
     submitComment,
     replyText,
@@ -219,7 +219,7 @@ export function CommentDetail({
     setReplyTarget,
     replyInputRef,
     commentError,
-  } = useCommentThread({ onError: (e) => notifyPdsError(te, e) });
+  } = useCommentThread(argument?.uri, { onError: (e) => notifyPdsError(te, e) });
 
   // Derive the thread spine (ancestors → focal → direct replies) from the
   // flat comment list. Likes/replies update the list, so this stays in sync.
@@ -252,30 +252,30 @@ export function CommentDetail({
       setLoading(true);
       setError("");
       try {
+        // Nur Argument-Info + Fokus-Kommentar laden; die flache Kommentarliste
+        // holt `useCommentThread` selbst (Query keyed auf `argument.uri`).
         const { comment, argument: arg } = await getComment(commentUri);
-        const allCmts = await listComments(arg.uri);
-
         setArgument(arg);
         setFocalUri(comment.uri);
         setFocalFallback(comment);
-        setComments(allCmts);
-
-        // Empty thread → open the composer under the focal comment right away.
-        const hasReplies = allCmts.some((c) => c.parentUri === comment.uri);
-        setReplyTarget(hasReplies ? null : comment.uri);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load comment");
       } finally {
         setLoading(false);
       }
     })();
-  }, [
-    isAuthenticated,
-    authLoading,
-    commentUri,
-    setComments,
-    setReplyTarget,
-  ]);
+  }, [isAuthenticated, authLoading, commentUri]);
+
+  // Leerer Thread → Composer unter dem Fokus-Kommentar direkt öffnen. Einmal je
+  // Fokus, sobald die Kommentarliste geladen ist.
+  const composerInitFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focalUri || commentsLoading) return;
+    if (composerInitFor.current === focalUri) return;
+    composerInitFor.current = focalUri;
+    const hasReplies = comments.some((c) => c.parentUri === focalUri);
+    setReplyTarget(hasReplies ? null : focalUri);
+  }, [focalUri, commentsLoading, comments, setReplyTarget]);
 
   const handleNavigateToArgument = () => {
     if (!argument) return;

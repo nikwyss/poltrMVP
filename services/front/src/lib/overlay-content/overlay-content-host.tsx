@@ -3,7 +3,6 @@
 import { useTranslations } from "next-intl";
 import {
   OverlayHost,
-  useOverlayCallbacks,
   type OverlayEntry,
   type OverlayRenderCtx,
 } from "@/lib/overlay";
@@ -14,16 +13,15 @@ import { TaxonomyDetail } from "@/components/taxonomy-detail";
 // Single, content-aware overlay surface for the entire app. Mount once at the
 // (app) layout level; pages just call `useOverlay().navigate(entry)` to open.
 //
-// All i18n labels are read here, the entry-type switch lives here, and any
-// page-specific callbacks (registered via `useOverlayCallback`) are forwarded
-// into the detail components.
+// All i18n labels are read here and the entry-type switch lives here. Detail
+// components share state with the rest of the app through the TanStack Query
+// cache (e.g. a rating patches `argumentKeys.list`, updating the booklet live).
 //
 // New entry types are added in two places:
 //   1) lib/overlay/types.ts — extend `OverlayEntry`
 //   2) the switch below — render the matching detail component
 export function OverlayContentHost() {
   const tc = useTranslations("common");
-  const getCallbacks = useOverlayCallbacks();
 
   return (
     <OverlayHost
@@ -43,16 +41,12 @@ export function OverlayContentHost() {
         taxonomy: tc("overlayTitleTaxonomy"),
       }}
     >
-      {(entry, ctx) => renderEntry(entry, ctx, getCallbacks)}
+      {(entry, ctx) => renderEntry(entry, ctx)}
     </OverlayHost>
   );
 }
 
-function renderEntry(
-  entry: OverlayEntry,
-  ctx: OverlayRenderCtx,
-  getCallbacks: () => import("@/lib/overlay").OverlayCallbacks,
-) {
+function renderEntry(entry: OverlayEntry, ctx: OverlayRenderCtx) {
   switch (entry.type) {
     case "argument":
       return (
@@ -67,9 +61,6 @@ function renderEntry(
           }
           onNavigateToTaxonomy={(ballotRkey: string, topic: string) =>
             ctx.navigate({ type: "taxonomy", ballotRkey, topic })
-          }
-          onRated={(uri: string, pref: number | null) =>
-            getCallbacks().onArgumentRated?.(uri, pref)
           }
           backLabel={ctx.backLabel}
           registerScrollContainer={ctx.registerScrollContainer}
