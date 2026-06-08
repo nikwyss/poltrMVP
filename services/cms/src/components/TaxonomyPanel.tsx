@@ -803,7 +803,7 @@ export const TaxonomyPanelField: React.FC = () => {
               disabled={lock}
               onChange={(e) => setShowPartial(e.target.checked)}
             />
-            auch „Andere-Topf" zeigen
+            auch „Andere-Topf“ zeigen
           </label>
           <button
             type="button"
@@ -966,7 +966,7 @@ export const TaxonomyPanelField: React.FC = () => {
 
       {dirty && (
         <div style={{ fontSize: '0.72rem', color: 'var(--theme-elevation-600)' }}>
-          Ungespeicherte Änderungen — mit „Persistieren" sichern.
+          Ungespeicherte Änderungen — mit „Persistieren“ sichern.
         </div>
       )}
 
