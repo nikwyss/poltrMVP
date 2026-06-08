@@ -313,6 +313,7 @@
     "disagree": "I don't see it that way",
     "showMore": "Show more (+{count})",
     "newArgument": "Suggest a new argument",
+    "rateFirstHint": "Please rate at least two of the arguments above first.",
     "openTopicArea": "More on the topic «{name}»",
     "analysisTitle": "Analysis of your ratings",
     "analysisSubtitle": "What your ratings reveal about your stance on the topics.",

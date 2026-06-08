@@ -116,7 +116,7 @@ export default function TaxonomyPage() {
       )}
 
       {!loading && root && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-5">
           {root.children.map((ch) => (
             <ThemeCard
               key={ch.id}

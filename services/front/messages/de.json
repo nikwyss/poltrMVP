@@ -313,6 +313,7 @@
     "disagree": "Sehe ich nicht so",
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Neues Argument vorschlagen",
+    "rateFirstHint": "Bitte bewerten Sie zuerst mindestens zwei der obigen Argumente.",
     "openTopicArea": "Mehr zum Themenfeld «{name}»",
     "analysisTitle": "Analyse deiner Bewertungen",
     "analysisSubtitle": "Was deine Bewertungen über deine Haltung zu den Themen zeigen.",

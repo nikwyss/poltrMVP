@@ -313,6 +313,7 @@
     "disagree": "Je ne le vois pas ainsi",
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Proposer un nouvel argument",
+    "rateFirstHint": "Veuillez d'abord évaluer au moins deux des arguments ci-dessus.",
     "openTopicArea": "En savoir plus sur le thème «{name}»",
     "analysisTitle": "Analyse de tes évaluations",
     "analysisSubtitle": "Ce que tes évaluations révèlent de ta position sur les thèmes.",

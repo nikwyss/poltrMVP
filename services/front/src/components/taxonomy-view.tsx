@@ -170,11 +170,11 @@ export function ProContraArguments({
   return (
     <div>
       <ProContraColumnHeaders proCount={pro.length} contraCount={contra.length} />
-      <div className="mt-2 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div className="flex flex-col gap-3">
+      <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="flex flex-col gap-4">
           {visiblePro.map((a) => <ArgumentCard key={a.uri} arg={a} onOpen={onOpen} />)}
         </div>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           {visibleContra.map((a) => <ArgumentCard key={a.uri} arg={a} onOpen={onOpen} />)}
         </div>
       </div>
@@ -217,25 +217,35 @@ export function ThemeCard({
   const ins = getInsight(node, t);
   const rated = node.ratedCount ?? 0;
 
-  // Bottom-Button (nur Haupt-View, d. h. wenn onAddArgument geliefert wird):
+  // Bottom-Aktion (nur Haupt-View, d. h. wenn onAddArgument geliefert wird):
   //  - alle Argumente sichtbar  ⇒ „Neues Argument vorschlagen" (Modal)
-  //  - nicht alle (wegen Limit)  ⇒ „Themenbereich anzeigen" (öffnet das Overlay,
-  //    wo alles sichtbar ist und neue Argumente vorgeschlagen werden können).
+  //  - nicht alle (wegen Limit)  ⇒ „Mehr zum Themenfeld …" (öffnet das Overlay).
+  // Gate: erst freigeben, wenn der Nutzer ≥2 der Argumente bewertet hat — sofern
+  // das Thema überhaupt ≥2 Argumente hat. Sonst steht statt Button ein Hinweis.
   const managed = !!onAddArgument;
   const proCount = node.arguments.filter((a) => a.type === "PRO").length;
   const contraCount = node.arguments.length - proCount;
   const truncated = proCount > limit || contraCount > limit;
-  // Truncated ⇒ Overlay-Button (braucht onShowMore); sonst Vorschlag-Button.
-  const showOverlayBtn = managed && truncated && !!onShowMore;
-  const showAddBtn = managed && !truncated;
-  const hasBottomBtn = showOverlayBtn || showAddBtn;
+  const ratedArgs = node.arguments.filter((a) => typeof a.viewerPreference === "number").length;
+  const needsRating = node.arguments.length >= 2 && ratedArgs < 2;
+
+  const footer: "none" | "hint" | "overlay" | "add" = !managed
+    ? "none"
+    : needsRating
+      ? "hint"
+      : truncated
+        ? onShowMore
+          ? "overlay"
+          : "none"
+        : "add";
+  const hasFooter = footer !== "none";
 
   return (
     <Card
       className="gap-0 overflow-hidden border-border/60 py-0 shadow-none"
       style={{ borderLeft: `3px solid ${ins.bar}` }}
     >
-      <div className="flex items-baseline justify-between gap-3 px-5 pt-3.5 pb-2.5">
+      <div className="flex items-baseline justify-between gap-3 px-6 pt-4 pb-3">
         <h3 className="truncate text-base font-semibold tracking-tight">{node.name}</h3>
         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
           {rated}/{node.argumentCount} {t("rated")}
@@ -243,9 +253,9 @@ export function ThemeCard({
       </div>
 
       {(node.introduction || node.arguments.length > 0) && (
-        <div className={`px-5 ${hasBottomBtn ? "pb-3" : "pb-4"}`}>
+        <div className={`px-6 ${hasFooter ? "pb-4" : "pb-5"}`}>
           {node.introduction && (
-            <p className="mb-3 text-sm leading-relaxed text-muted-foreground">
+            <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
               {node.introduction}
             </p>
           )}
@@ -261,16 +271,22 @@ export function ThemeCard({
         </div>
       )}
 
-      {/* Bottom-Aktion: zentriert unten in der Card, beide Buttons gleich (Material-
-          Text-Button-Stil: farbiger Text + Icon, keine Füllung/Rand). */}
-      {hasBottomBtn && (
-        <div className="flex justify-center px-5 pb-4">
-          {showAddBtn ? (
+      {/* Bottom-Zeile: zentriert unten. Hinweis (zu wenig bewertet) oder Aktion
+          (beide Buttons gleich, Material-Text-Button-Stil). */}
+      {hasFooter && (
+        <div className="flex justify-center px-6 pb-5">
+          {footer === "hint" && (
+            <p className="text-center text-xs leading-snug text-muted-foreground">
+              {t("rateFirstHint")}
+            </p>
+          )}
+          {footer === "add" && (
             <button type="button" onClick={onAddArgument} className={ACTION_BTN}>
               <Plus className="h-4 w-4 shrink-0" />
               <span className="truncate">{t("newArgument")}</span>
             </button>
-          ) : (
+          )}
+          {footer === "overlay" && (
             <button type="button" onClick={onShowMore} className={ACTION_BTN}>
               <Telescope className="h-4 w-4 shrink-0" />
               <span className="truncate">{t("openTopicArea", { name: node.name })}</span>
