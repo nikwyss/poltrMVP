@@ -293,15 +293,9 @@ export function ArgumentDetail({
 
   const isPro = argument?.record.type === "PRO";
   const isOfficial = isOfficialArgument(argument?.record.source);
-  // Argumentfarbe (Pro/Contra) — für Karten-Balken, Badge und Slider.
-  const accentColor = isPro ? "var(--pro)" : "var(--contra)";
 
   return (
-    <div
-      ref={registerScrollContainer}
-      className="ov-card"
-      style={{ borderLeft: `5px solid ${argument ? accentColor : "var(--line)"}` }}
-    >
+    <div ref={registerScrollContainer} className="ov-card">
       {/* Karten-Optik wie im Booklet — lokal gescoped, damit das Overlay aus Feed
           wie Booklet identisch aussieht (na-* Klassen sind dort nicht verfügbar). */}
       <style jsx>{`
@@ -309,8 +303,8 @@ export function ArgumentDetail({
           height: 100%;
           display: flex;
           flex-direction: column;
-          background: #fff8ef;
-          border: 1px solid var(--line);
+          background: var(--background);
+          border: 1px solid var(--border);
           border-radius: 12px;
           overflow-y: auto;
           box-shadow: 0 30px 70px -20px rgba(45, 35, 22, 0.45);
@@ -367,7 +361,7 @@ export function ArgumentDetail({
       `}</style>
 
       {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-[#fff8ef]/95 backdrop-blur-sm border-b flex items-center px-5 py-3">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b flex items-center px-5 py-3">
         <button
           onClick={onClose}
           className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -469,7 +463,7 @@ export function ArgumentDetail({
 
             {/* Relevanz-Bewertung — eigene, abgesetzte Section (Panel),
                 getrennt vom oberen Argument-Teil. */}
-            <div className="rounded-xl border border-black/5 bg-white/60 px-5 py-4 shadow-sm">
+            <div className="rounded-xl border border-border/60 bg-card px-5 py-4 shadow-sm">
               <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
                 {t("yourRating")}
               </div>
