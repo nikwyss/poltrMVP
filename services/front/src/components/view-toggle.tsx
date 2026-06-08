@@ -14,7 +14,7 @@ export const ARGUMENTS_VIEWS: readonly ArgumentsView[] = [
   "taxonomy",
 ] as const;
 
-export const DEFAULT_ARGUMENTS_VIEW: ArgumentsView = "booklet";
+export const DEFAULT_ARGUMENTS_VIEW: ArgumentsView = "taxonomy";
 export const ARGUMENTS_VIEW_STORAGE_KEY = "poltr.argumentsView";
 
 export function readStoredArgumentsView(): ArgumentsView {

@@ -312,13 +312,25 @@
     "agree": "I see it that way too",
     "disagree": "I don't see it that way",
     "showMore": "Show more (+{count})",
+    "newArgument": "Suggest a new argument",
+    "openTopicArea": "More on the topic «{name}»",
+    "analysisTitle": "Analysis of your ratings",
+    "analysisSubtitle": "What your ratings reveal about your stance on the topics.",
     "sunburstTitle": "Your ratings by topic",
     "sunburstSubtitle": "Colour and position result from your argument ratings.",
-    "sunburstCenter": "Total"
+    "sunburstCenter": "Total",
+    "sunburstLeanStrongNo": "Clearly with the No arguments",
+    "sunburstLeanNo": "Leaning to the No arguments",
+    "sunburstLeanBalanced": "Balanced",
+    "sunburstLeanYes": "Leaning to the Yes arguments",
+    "sunburstLeanStrongYes": "Clearly with the Yes arguments",
+    "sunburstLeanUnrated": "Not yet rated",
+    "sunburstDissentNote": "Torn: strong arguments on both sides"
   },
   "argumentarium": {
     "title": "Argument collection for «{name}»",
     "intro": "Here you'll find the arguments on this proposal, sorted by topic. From the start, the arguments published in the official voting booklet are posted here. The community is invited to contribute arguments of its own. You can rate every argument and discuss it in detail.",
+    "officialStarNote": "marks official arguments from the Federal Chancellery's ballot booklet; all others come from the community.",
     "topicTitle": "Arguments in the area «{name}»"
   }
 }

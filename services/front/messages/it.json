@@ -312,13 +312,25 @@
     "agree": "La penso anch'io così",
     "disagree": "Non la penso così",
     "showMore": "Mehr anzeigen (+{count})",
+    "newArgument": "Proponi un nuovo argomento",
+    "openTopicArea": "Più sul tema «{name}»",
+    "analysisTitle": "Analisi delle tue valutazioni",
+    "analysisSubtitle": "Cosa rivelano le tue valutazioni sulla tua posizione riguardo ai temi.",
     "sunburstTitle": "Le tue valutazioni per tema",
     "sunburstSubtitle": "Colore e posizione derivano dalle tue valutazioni degli argomenti.",
-    "sunburstCenter": "Totale"
+    "sunburstCenter": "Totale",
+    "sunburstLeanStrongNo": "Nettamente con gli argomenti del No",
+    "sunburstLeanNo": "Piuttosto con gli argomenti del No",
+    "sunburstLeanBalanced": "Equilibrato",
+    "sunburstLeanYes": "Piuttosto con gli argomenti del Sì",
+    "sunburstLeanStrongYes": "Nettamente con gli argomenti del Sì",
+    "sunburstLeanUnrated": "Non ancora valutato",
+    "sunburstDissentNote": "Diviso: argomenti forti da entrambe le parti"
   },
   "argumentarium": {
     "title": "Argomentario sull'oggetto «{name}»",
     "intro": "Qui trovi gli argomenti relativi all'oggetto in votazione, ordinati per tema. Fin dall'inizio sono pubblicati qui gli argomenti contenuti nell'opuscolo informativo ufficiale. La comunità ha la possibilità di proporre propri argomenti. Puoi valutare ogni argomento e discuterne in dettaglio.",
+    "officialStarNote": "contrassegna gli argomenti ufficiali dell'opuscolo di voto della Cancelleria federale; tutti gli altri provengono dalla community.",
     "topicTitle": "Argomenti dell'ambito «{name}»"
   }
 }

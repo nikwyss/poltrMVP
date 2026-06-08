@@ -312,13 +312,25 @@
     "agree": "Je le vois aussi ainsi",
     "disagree": "Je ne le vois pas ainsi",
     "showMore": "Mehr anzeigen (+{count})",
+    "newArgument": "Proposer un nouvel argument",
+    "openTopicArea": "En savoir plus sur le thème «{name}»",
+    "analysisTitle": "Analyse de tes évaluations",
+    "analysisSubtitle": "Ce que tes évaluations révèlent de ta position sur les thèmes.",
     "sunburstTitle": "Tes évaluations par thème",
     "sunburstSubtitle": "La couleur et la position découlent de tes évaluations des arguments.",
-    "sunburstCenter": "Total"
+    "sunburstCenter": "Total",
+    "sunburstLeanStrongNo": "Nettement pour les arguments du non",
+    "sunburstLeanNo": "Plutôt pour les arguments du non",
+    "sunburstLeanBalanced": "Équilibré",
+    "sunburstLeanYes": "Plutôt pour les arguments du oui",
+    "sunburstLeanStrongYes": "Nettement pour les arguments du oui",
+    "sunburstLeanUnrated": "Pas encore évalué",
+    "sunburstDissentNote": "Partagé : arguments forts des deux côtés"
   },
   "argumentarium": {
     "title": "Argumentaire sur l'objet «{name}»",
     "intro": "Tu trouves ici les arguments relatifs à l'objet, classés par thème. Dès le départ, les arguments publiés dans la brochure officielle de votation sont postés ici. La communauté a la possibilité de proposer ses propres arguments. Tu peux évaluer chaque argument et en discuter en détail.",
+    "officialStarNote": "signale les arguments officiels issus de la brochure de vote de la Chancellerie fédérale ; tous les autres proviennent de la communauté.",
     "topicTitle": "Arguments du domaine «{name}»"
   }
 }

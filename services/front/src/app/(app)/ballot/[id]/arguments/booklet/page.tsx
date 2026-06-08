@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
 import { ProContraColumnHeaders } from "@/components/pro-contra-column-headers";
+import { OfficialStar } from "@/components/pro-contra-badge";
 import { PageBackdrop } from "@/components/page-backdrop";
 import { ArgumentariumHeader } from "@/components/argumentarium-header";
 import { useOverlay, useOverlayCallback } from "@/lib/overlay";
@@ -125,7 +126,10 @@ function ArgumentCardCompact({
       </div>
 
       <div className="na-card-body">
-        <div className="na-card-title">{arg.record.title}</div>
+        <div className="na-card-title">
+          {arg.record.title}
+          {isOfficial && <OfficialStar />}
+        </div>
         {rated && (
           <div
             className="na-card-score"

@@ -18,15 +18,25 @@ import {
   ThumbsUp,
   ThumbsDown,
   Scale,
+  Plus,
+  Telescope,
   type LucideIcon,
 } from "lucide-react";
 import type { TaxonomyArgument, TaxonomyNode } from "@/types/ballots";
 import { ProContraColumnHeaders } from "@/components/pro-contra-column-headers";
+import { OfficialStar } from "@/components/pro-contra-badge";
+import { Card } from "@/components/ui/card";
 
 export type T = (key: string, values?: Record<string, string | number>) => string;
 
 // Initiales Anzeige-Limit je Spalte; danach „Mehr anzeigen".
 export const PAGE_LIMIT = 4;
+
+// Bottom-Aktion der ThemeCard — Material-„Text Button": farbiger Text + Icon,
+// keine Füllung/Rand. Beide Aktionen identisch (kein Emphasis-Unterschied).
+// Warmes, dunkleres Brand-Amber (#a8600a) — lesbar auf hellen Cards.
+const ACTION_BTN =
+  "flex max-w-full items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium text-[#a8600a] transition hover:bg-[#a8600a]/10";
 
 // ---------------------------------------------------------------------------
 // „Für dich"-Insight: Zustand aus proLeaning / dissent / ratedCount ableiten.
@@ -106,7 +116,10 @@ export function ArgumentCard({ arg, onOpen }: { arg: TaxonomyArgument; onOpen: (
       </div>
 
       <div className="na-card-body">
-        <div className="na-card-title">{arg.title}</div>
+        <div className="na-card-title">
+          {arg.title}
+          {isOfficial && <OfficialStar />}
+        </div>
         {rated && (
           <div className="na-card-score" aria-label={`${tbk("relevanceTitle")}: ${relevance}`}>
             <span className="na-card-index">
@@ -132,11 +145,14 @@ export function ProContraArguments({
   onOpen,
   onShowMore,
   limit = PAGE_LIMIT,
+  hideShowMore = false,
 }: {
   args: TaxonomyArgument[];
   onOpen: (rkey: string) => void;
   onShowMore?: () => void;
   limit?: number;
+  // Eigener „Mehr anzeigen"-Button unterdrücken — der Aufrufer steuert das Laden.
+  hideShowMore?: boolean;
 }) {
   const t = useTranslations("taxonomy");
   const [expanded, setExpanded] = useState(false);
@@ -162,7 +178,7 @@ export function ProContraArguments({
           {visibleContra.map((a) => <ArgumentCard key={a.uri} arg={a} onOpen={onOpen} />)}
         </div>
       </div>
-      {hasMore && (
+      {hasMore && !hideShowMore && (
         <button
           type="button"
           className="na-show-more"
@@ -172,5 +188,96 @@ export function ProContraArguments({
         </button>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Themen-/Bereichs-Card — farbcodiert nach Bewertungs-Zustand (linker Rand),
+// Kopf mit Name + Bewertungs-Zähler, optional Einleitung, dann die Pro/Contra-
+// Argumente. Genutzt von der Main-View (Top-Themen) UND vom Detail-Overlay
+// (Unterbereiche), damit beide identisch aussehen. „Mehr anzeigen" (onShowMore)
+// öffnet das Detail-Overlay der nächsten Stufe.
+// ---------------------------------------------------------------------------
+export function ThemeCard({
+  node,
+  onOpen,
+  onShowMore,
+  onAddArgument,
+  t,
+  limit = 3,
+}: {
+  node: TaxonomyNode;
+  onOpen: (rkey: string) => void;
+  onShowMore?: () => void;
+  // Optional: zeigt einen runden „+ Neues Argument"-Button auf der unteren Kante.
+  onAddArgument?: () => void;
+  t: T;
+  limit?: number;
+}) {
+  const ins = getInsight(node, t);
+  const rated = node.ratedCount ?? 0;
+
+  // Bottom-Button (nur Haupt-View, d. h. wenn onAddArgument geliefert wird):
+  //  - alle Argumente sichtbar  ⇒ „Neues Argument vorschlagen" (Modal)
+  //  - nicht alle (wegen Limit)  ⇒ „Themenbereich anzeigen" (öffnet das Overlay,
+  //    wo alles sichtbar ist und neue Argumente vorgeschlagen werden können).
+  const managed = !!onAddArgument;
+  const proCount = node.arguments.filter((a) => a.type === "PRO").length;
+  const contraCount = node.arguments.length - proCount;
+  const truncated = proCount > limit || contraCount > limit;
+  // Truncated ⇒ Overlay-Button (braucht onShowMore); sonst Vorschlag-Button.
+  const showOverlayBtn = managed && truncated && !!onShowMore;
+  const showAddBtn = managed && !truncated;
+  const hasBottomBtn = showOverlayBtn || showAddBtn;
+
+  return (
+    <Card
+      className="gap-0 overflow-hidden border-border/60 py-0 shadow-none"
+      style={{ borderLeft: `3px solid ${ins.bar}` }}
+    >
+      <div className="flex items-baseline justify-between gap-3 px-5 pt-3.5 pb-2.5">
+        <h3 className="truncate text-base font-semibold tracking-tight">{node.name}</h3>
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+          {rated}/{node.argumentCount} {t("rated")}
+        </span>
+      </div>
+
+      {(node.introduction || node.arguments.length > 0) && (
+        <div className={`px-5 ${hasBottomBtn ? "pb-3" : "pb-4"}`}>
+          {node.introduction && (
+            <p className="mb-3 text-sm leading-relaxed text-muted-foreground">
+              {node.introduction}
+            </p>
+          )}
+          {node.arguments.length > 0 && (
+            <ProContraArguments
+              args={node.arguments}
+              onOpen={onOpen}
+              onShowMore={managed ? undefined : onShowMore}
+              limit={limit}
+              hideShowMore={managed}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Bottom-Aktion: zentriert unten in der Card, beide Buttons gleich (Material-
+          Text-Button-Stil: farbiger Text + Icon, keine Füllung/Rand). */}
+      {hasBottomBtn && (
+        <div className="flex justify-center px-5 pb-4">
+          {showAddBtn ? (
+            <button type="button" onClick={onAddArgument} className={ACTION_BTN}>
+              <Plus className="h-4 w-4 shrink-0" />
+              <span className="truncate">{t("newArgument")}</span>
+            </button>
+          ) : (
+            <button type="button" onClick={onShowMore} className={ACTION_BTN}>
+              <Telescope className="h-4 w-4 shrink-0" />
+              <span className="truncate">{t("openTopicArea", { name: node.name })}</span>
+            </button>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }

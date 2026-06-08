@@ -14,36 +14,11 @@ import { useTranslations, useLocale } from "next-intl";
 import { getTaxonomy } from "@/lib/agent";
 import type { TaxonomyNode, TaxonomyCrumb } from "@/types/ballots";
 import { Spinner } from "@/components/spinner";
-import { ProContraArguments, type T } from "@/components/taxonomy-view";
-
-function SubtopicSection({
-  node,
-  onOpen,
-  onShowMore,
-}: {
-  node: TaxonomyNode;
-  onOpen: (rkey: string) => void;
-  onShowMore?: () => void;
-}) {
-  if (!node.arguments.length) return null;
-  return (
-    <section className="space-y-3">
-      <div>
-        <h3 className="text-base font-semibold">{node.name}</h3>
-        {node.introduction && (
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {node.introduction}
-          </p>
-        )}
-      </div>
-      <ProContraArguments
-        args={node.arguments}
-        onOpen={onOpen}
-        onShowMore={onShowMore}
-      />
-    </section>
-  );
-}
+import {
+  ProContraArguments,
+  ThemeCard,
+  type T,
+} from "@/components/taxonomy-view";
 
 export function TaxonomyDetail({
   ballotRkey,
@@ -155,6 +130,7 @@ export function TaxonomyDetail({
                   ))}
                 </nav>
               )}
+
               <h2
                 className="text-2xl md:text-[1.75rem] font-bold tracking-tight leading-tight"
                 style={{
@@ -164,9 +140,9 @@ export function TaxonomyDetail({
               >
                 {ta("topicTitle", { name: node.name })}
               </h2>
-              {node.description && (
+              {node.introduction && (
                 <p className="text-sm text-muted-foreground">
-                  {node.description}
+                  {node.introduction}
                 </p>
               )}
             </header>
@@ -179,19 +155,25 @@ export function TaxonomyDetail({
               />
             )}
 
-            {/* Subtopics — aufgeklappt; „Mehr anzeigen" öffnet diese Stufe im Overlay. */}
-            {node.children.map((ch) => (
-              <SubtopicSection
-                key={ch.id}
-                node={ch}
-                onOpen={onNavigateToArgument}
-                onShowMore={
-                  ch.key
-                    ? () => onNavigateToTaxonomy(ballotRkey, ch.key!)
-                    : undefined
-                }
-              />
-            ))}
+            {/* Unterbereiche — je in einer Card (wie die Main-View „Taxonomy");
+                „Mehr anzeigen" öffnet diese Stufe im Overlay. */}
+            {node.children.length > 0 && (
+              <div className="flex flex-col gap-3">
+                {node.children.map((ch) => (
+                  <ThemeCard
+                    key={ch.id}
+                    node={ch}
+                    onOpen={onNavigateToArgument}
+                    onShowMore={
+                      ch.key
+                        ? () => onNavigateToTaxonomy(ballotRkey, ch.key!)
+                        : undefined
+                    }
+                    t={t}
+                  />
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>

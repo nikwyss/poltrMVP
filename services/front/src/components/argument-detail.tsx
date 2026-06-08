@@ -18,6 +18,7 @@ import { Spinner } from "@/components/spinner";
 import {
   PeerreviewStatusBadge,
   OfficialBadge,
+  OfficialStar,
   isOfficialArgument,
 } from "@/components/pro-contra-badge";
 import { CommentAvatar, CommentContent } from "@/components/comment-content";
@@ -433,7 +434,10 @@ export function ArgumentDetail({
                   {isPro ? tbk("proArgument") : tbk("contraArgument")}
                 </span>
               </div>
-              <h2 className="ov-arg-title">{argument.record.title}</h2>
+              <h2 className="ov-arg-title">
+                {argument.record.title}
+                {isOfficial && <OfficialStar />}
+              </h2>
               {argument.record.body && (
                 <p className="ov-arg-body">{argument.record.body}</p>
               )}

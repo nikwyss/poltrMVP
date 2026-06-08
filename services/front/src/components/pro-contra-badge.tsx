@@ -38,6 +38,22 @@ export function isOfficialArgument(source?: { $type?: string }): boolean {
   return source?.$type === OFFICIAL_SOURCE
 }
 
+/** Goldener Stern direkt nach dem Titel offizieller Argumente — macht auf einen
+ *  Blick offiziell (Bundeskanzlei) vs. Community sichtbar. Bedeutung wird im
+ *  Argumentarium-Header erklärt. */
+export function OfficialStar() {
+  const t = useTranslations('reviewStatus')
+  return (
+    <span
+      className="ml-1 align-baseline text-amber-500"
+      role="img"
+      aria-label={t('official')}
+    >
+      ★
+    </span>
+  )
+}
+
 export function OfficialBadge() {
   const t = useTranslations('reviewStatus')
   return (

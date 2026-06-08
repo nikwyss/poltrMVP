@@ -289,8 +289,8 @@
     "balanced": "ausgewogen",
     "unrated": "noch nicht bewertet",
     "bandTitle": "Positionsband",
-    "poleOpponents": "Deine Nähe zu den Nein-Argumenten",
-    "poleSupporters": "Deine Nähe zu den Ja-Argumenten",
+    "poleOpponents": "Näher bei den Nein-Argumenten",
+    "poleSupporters": "Näher bei den Ja-Argumenten",
     "ambivalent": "ambivalent",
     "split": "gespalten",
     "rated": "bewertet",
@@ -312,13 +312,25 @@
     "agree": "Sehe ich auch so",
     "disagree": "Sehe ich nicht so",
     "showMore": "Mehr anzeigen (+{count})",
+    "newArgument": "Neues Argument vorschlagen",
+    "openTopicArea": "Mehr zum Themenfeld «{name}»",
+    "analysisTitle": "Analyse deiner Bewertungen",
+    "analysisSubtitle": "Was deine Bewertungen über deine Haltung zu den Themen zeigen.",
     "sunburstTitle": "Deine Bewertungen nach Themen",
     "sunburstSubtitle": "Farbe und Position ergeben sich aus deinen Argument-Bewertungen.",
-    "sunburstCenter": "Gesamt"
+    "sunburstCenter": "Gesamt",
+    "sunburstLeanStrongNo": "Klar bei den Nein-Argumenten",
+    "sunburstLeanNo": "Eher bei den Nein-Argumenten",
+    "sunburstLeanBalanced": "Ausgewogen",
+    "sunburstLeanYes": "Eher bei den Ja-Argumenten",
+    "sunburstLeanStrongYes": "Klar bei den Ja-Argumenten",
+    "sunburstLeanUnrated": "Noch nicht bewertet",
+    "sunburstDissentNote": "Gespalten: starke Argumente auf beiden Seiten"
   },
   "argumentarium": {
     "title": "Argumentarium zur Vorlage «{name}»",
     "intro": "Sie finden hier die Argumente zur Vorlage, thematisch sortiert. Von Anfang an sind hier die Argumente gepostet, die in der offiziellen Abstimmungsbroschüre veröffentlicht wurden. Die Community hat die Gelegenheit, selber Argumente anzuführen. Alle Argumente können von dir bewertet und ausführlich diskutiert werden.",
+    "officialStarNote": "markiert offizielle Argumente aus dem Abstimmungsbüchlein der Bundeskanzlei; alle übrigen stammen aus der Community.",
     "topicTitle": "Argumente des Bereichs «{name}»"
   }
 }

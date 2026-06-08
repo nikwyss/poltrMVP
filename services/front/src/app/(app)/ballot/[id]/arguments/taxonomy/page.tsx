@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useTranslations, useLocale } from "next-intl";
 import { getBallot, getTaxonomy } from "@/lib/agent";
 import { useOverlay } from "@/lib/overlay";
-import type { Ballot, TaxonomyTree, TaxonomyNode } from "@/types/ballots";
+import type { Ballot, TaxonomyTree } from "@/types/ballots";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -14,57 +14,13 @@ import { ViewToggle } from "@/components/view-toggle";
 import { PageBackdrop } from "@/components/page-backdrop";
 import { PositionBand } from "@/components/position-band";
 import { TaxonomySunburst } from "@/components/taxonomy-sunburst";
+import { AddArgumentModal } from "@/components/add-argument-modal";
 import { ArgumentariumHeader } from "@/components/argumentarium-header";
 import {
-  getInsight,
   ProContraArguments,
+  ThemeCard,
   type T,
 } from "@/components/taxonomy-view";
-
-// ---------------------------------------------------------------------------
-// Haupt-Themenblock als Card (farbcodiert, zugeklappt by default). In der flachen
-// Main-View hat ein Top-Topic keine Unterknoten — alle Argumente seines Teilbaums
-// hängen direkt hier. „Mehr anzeigen" öffnet das Detail-Overlay des Topics.
-// ---------------------------------------------------------------------------
-function ThemeCard({
-  node,
-  onOpen,
-  onShowMore,
-  t,
-}: {
-  node: TaxonomyNode;
-  onOpen: (rkey: string) => void;
-  onShowMore?: () => void;
-  t: T;
-}) {
-  const ins = getInsight(node, t);
-  const rated = node.ratedCount ?? 0;
-  return (
-    <Card
-      className="gap-0 overflow-hidden border-border/60 py-0 shadow-none"
-      style={{ borderLeft: `3px solid ${ins.bar}` }}
-    >
-      {/* Kopf — Name + dezenter Bewertungs-Zähler (statisch, immer offen). */}
-      <div className="flex items-baseline justify-between gap-3 px-5 pt-3.5 pb-2.5">
-        <h3 className="truncate text-base font-semibold tracking-tight">{node.name}</h3>
-        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-          {rated}/{node.argumentCount} {t("rated")}
-        </span>
-      </div>
-
-      {(node.introduction || node.arguments.length > 0) && (
-        <div className="px-5 pb-4">
-          {node.introduction && (
-            <p className="mb-3 text-sm leading-relaxed text-muted-foreground">{node.introduction}</p>
-          )}
-          {node.arguments.length > 0 && (
-            <ProContraArguments args={node.arguments} onOpen={onOpen} onShowMore={onShowMore} limit={3} />
-          )}
-        </div>
-      )}
-    </Card>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Seite
@@ -83,8 +39,12 @@ export default function TaxonomyPage() {
   const [fullTree, setFullTree] = useState<TaxonomyTree | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
-  const openArgument = useCallback((rkey: string) => navigate({ type: "argument", rkey }), [navigate]);
+  const openArgument = useCallback(
+    (rkey: string) => navigate({ type: "argument", rkey }),
+    [navigate],
+  );
   // „Mehr anzeigen" eines Top-Topics → Detail-Overlay (Subtopics + alle Argumente).
   const openTopicDetail = useCallback(
     (topic: string) => navigate({ type: "taxonomy", ballotRkey: id, topic }),
@@ -110,7 +70,9 @@ export default function TaxonomyPage() {
     }
   }, [id, locale]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const root = tax?.tree;
 
@@ -135,15 +97,21 @@ export default function TaxonomyPage() {
       {error && (
         <Alert variant="destructive">
           <AlertDescription className="flex items-center justify-between">
-            <span><strong>{tc("error")}:</strong> {error}</span>
-            <Button variant="destructive" size="sm" onClick={load}>{tc("retry")}</Button>
+            <span>
+              <strong>{tc("error")}:</strong> {error}
+            </span>
+            <Button variant="destructive" size="sm" onClick={load}>
+              {tc("retry")}
+            </Button>
           </AlertDescription>
         </Alert>
       )}
 
       {!loading && !error && !root && (
         <Card>
-          <CardContent className="py-10 text-center text-muted-foreground">{t("empty")}</CardContent>
+          <CardContent className="py-10 text-center text-muted-foreground">
+            {t("empty")}
+          </CardContent>
         </Card>
       )}
 
@@ -155,26 +123,54 @@ export default function TaxonomyPage() {
               node={ch}
               onOpen={openArgument}
               onShowMore={ch.key ? () => openTopicDetail(ch.key!) : undefined}
+              onAddArgument={() => setAddOpen(true)}
               t={t}
             />
           ))}
           {root.arguments.length > 0 && (
             <Card className="border-black/5">
               <CardContent className="pt-6">
-                <p className="mb-2 text-sm font-medium text-muted-foreground">{t("other")}</p>
-                <ProContraArguments args={root.arguments} onOpen={openArgument} />
+                <p className="mb-2 text-sm font-medium text-muted-foreground">
+                  {t("other")}
+                </p>
+                <ProContraArguments
+                  args={root.arguments}
+                  onOpen={openArgument}
+                />
               </CardContent>
             </Card>
           )}
 
-          {/* Positionsband — Themen-Übersicht zwischen den Polen */}
-          <PositionBand nodes={root.children} t={t} />
+          {/* Abschnittswechsel: von der Argument-Einsicht zur Analyse der eigenen
+              Bewertungen. Bewusst ohne Karte — markiert nur den Themenwechsel. */}
+          <header className="mt-6 mb-1 px-1">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              {t("analysisTitle")}
+            </h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">{t("analysisSubtitle")}</p>
+          </header>
 
           {/* Sunburst — ganze Themen-Hierarchie, gefärbt nach eigener Haltung */}
           {fullTree?.tree && (
-            <TaxonomySunburst root={fullTree.tree} t={t} onSelect={openTopicDetail} />
+            <TaxonomySunburst
+              root={fullTree.tree}
+              t={t}
+              onSelect={openTopicDetail}
+            />
           )}
+
+          {/* Positionsband — Themen-Übersicht zwischen den Polen */}
+          <PositionBand nodes={root.children} t={t} />
         </div>
+      )}
+
+      {ballot && (
+        <AddArgumentModal
+          ballotRkey={ballot.rkey}
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          onCreated={load}
+        />
       )}
     </div>
   );

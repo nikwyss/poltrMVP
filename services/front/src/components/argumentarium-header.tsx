@@ -12,7 +12,7 @@ export function ArgumentariumHeader({ ballot }: { ballot: Ballot }) {
   const t = useTranslations("argumentarium");
   const tbk = useTranslations("booklet");
   return (
-    <div className="bg-card border border-border rounded-[calc(var(--r)+6px)] px-8 py-8 md:px-11 md:py-9 overflow-hidden">
+    <div className="px-1 pt-2">
       <div className="mb-4 flex items-start justify-between gap-6">
         <h1
           className="text-3xl md:text-[2.25rem] font-bold tracking-tight leading-[1.05]"
@@ -45,6 +45,10 @@ export function ArgumentariumHeader({ ballot }: { ballot: Ballot }) {
       </div>
       <p className="max-w-2xl text-base text-[var(--text-mid)] leading-relaxed">
         {t("intro")}
+      </p>
+      <p className="mt-3 flex max-w-2xl items-baseline gap-1.5 text-sm text-[var(--text-faint)] leading-relaxed">
+        <span className="text-amber-500">★</span>
+        {t("officialStarNote")}
       </p>
     </div>
   );
