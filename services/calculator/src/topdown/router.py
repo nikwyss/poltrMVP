@@ -1,15 +1,13 @@
 """
-REST-Endpoints für die Top-down Themen-Hierarchie (parallel zu
-/api/tags/induce-batch).
+REST-Endpoints für die Top-down Themen-Hierarchie.
 
   POST /api/topdown/induce    — Baum NEU bauen (LLM) und persistieren (ersetzt).
   POST /api/topdown/classify  — neue Argumente inkrementell in den BESTEHENDEN
                                 Baum einsortieren (Q4), ohne ihn neu zu bauen.
   GET  /api/topdown/tree      — den persistierten Baum eines Ballots lesen.
 
-Einheit = ARGUMENT (nicht mehr der Open Code): jedes Argument hängt mit gekappter
-Multimembership an höchstens zwei Knoten — einem Hauptthema (is_primary) und
-optional EINEM Nebenthema. Klassifiziert wird direkt auf dem Argumenttext.
+Einheit = ARGUMENT: jedes Argument hängt an GENAU EINEM Knoten (Thema).
+Klassifiziert wird direkt auf dem Argumenttext; je Zuordnung eine Konfidenz 1–5.
 
 Persistenz: EIN stabiler Baum pro Ballot (app_topic_node / app_topic_membership),
 inkrementell mutierbar — nicht pro Lauf versioniert. Signierte ATProto-Snapshots
@@ -24,7 +22,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from src.core import db
-from src.llm import get_llm, get_open_coder
+from src.llm import get_llm
 from src.topdown import prototype as proto
 
 logger = logging.getLogger("calculator.topdown")
@@ -85,7 +83,12 @@ async def induce_topdown(req: TopdownRequest):
         roots = proto.propose_roots(
             llm, seed, ballot_description=ballot_description,
             n_topics=req.options.n_topics)
-        assign = proto.classify_arguments(llm, [r["name"] for r in roots], to_classify)
+        conf: dict = {}
+        assign = proto.classify_arguments(
+            llm, [r["name"] for r in roots], to_classify, conf_out=conf)
+        # Klassifikator-Konfidenz an die Argument-Dicts hängen → _arg_membership.
+        for a in to_classify:
+            a["confidence"] = conf.get(a["argument_uri"])
         return proto._distribute_args(roots, to_classify, assign), assign
 
     try:
@@ -127,7 +130,7 @@ class SaveRequest(BaseModel):
     ballot_rkey: str = Field(..., description="Ballot, dessen Baum geschrieben wird.")
     tree: dict = Field(
         ..., description="Vollständiger Baum aus dem State-Editor: je Knoten "
-        "{name, description, children, arguments:[{argument_uri, is_primary, stance}]}. "
+        "{name, description, children, arguments:[{argument_uri, stance, confidence}]}. "
         "Ersetzt Knoten UND Memberships komplett.")
 
     model_config = {"json_schema_extra": {"examples": [{"ballot_rkey": "663.1", "tree": {}}]}}
@@ -174,9 +177,9 @@ class ClassifyRequest(BaseModel):
 @router.post("/classify")
 async def classify_propose(req: ClassifyRequest):
     """Vorschlag (kein Schreiben): sortiert die im übergebenen Baum noch nicht
-    verorteten Argumente top-down PRIMÄR in dessen Struktur ein. ZUERST die
-    offiziellen, DANACH die Community-Argumente. Rückgabe: `additions` =
-    [{uid, argument_uri, is_primary, stance}] zum Mergen in den State."""
+    verorteten Argumente top-down in dessen Struktur ein. ZUERST die offiziellen,
+    DANACH die Community-Argumente. Rückgabe: `additions` =
+    [{uid, argument_uri, stance, confidence}] zum Mergen in den State."""
     placed = _placed_argument_uris(req.tree)
     all_args = await db.fetch_arguments(req.ballot_rkey)
     unplaced = [a for a in all_args if a["argument_uri"] not in placed]
@@ -191,12 +194,14 @@ async def classify_propose(req: ClassifyRequest):
 
     llm = proto._CountingLLM(get_llm())
     placements: dict[str, object] = {}
+    confs: dict[str, object] = {}
 
     def _classify_group(group: list[dict]):
         items = [{"uri": a["argument_uri"], "text": a["text"]}
                  for a in group if a["argument_uri"] not in placements]
         if items:
-            placements.update(proto.classify_incremental_args(llm, req.tree, items))
+            placements.update(
+                proto.classify_incremental_args(llm, req.tree, items, conf_out=confs))
 
     try:
         await asyncio.to_thread(_classify_group, official)
@@ -208,7 +213,8 @@ async def classify_propose(req: ClassifyRequest):
     def _adds(group: list[dict]) -> list[dict]:
         return [
             {"uid": placements[a["argument_uri"]], "argument_uri": a["argument_uri"],
-             "is_primary": True, "stance": stance_by.get(a["argument_uri"])}
+             "stance": stance_by.get(a["argument_uri"]),
+             "confidence": confs.get(a["argument_uri"])}
             for a in group if a["argument_uri"] in placements
         ]
 
@@ -302,19 +308,12 @@ async def get_tree(ballot_rkey: str = Query(...)):
 
 @router.get("/status")
 async def get_status(ballot_rkey: str = Query(...)):
-    """Coverage + Baum-Stand für das CMS-Panel: Open-Code-Abdeckung (informativ,
-    läuft weiterhin parallel), ob ein Baum existiert, und wie viele Argumente noch
-    nicht eingehängt sind."""
-    try:
-        sig = get_open_coder().open_code_signature
-    except Exception:
-        sig = None
-    coverage = await db.ballot_coding_coverage(ballot_rkey, sig)
+    """Baum-Stand fürs CMS-Panel: ob ein Baum existiert und wie viele Argumente
+    noch nicht eingehängt sind."""
     tree = await db.fetch_topic_tree(ballot_rkey)
     unplaced = await db.fetch_unplaced_arguments(ballot_rkey)
     return {
         "ballot_rkey": ballot_rkey,
-        "coverage": coverage,
         "has_tree": tree is not None,
         "unplaced_arguments": len(unplaced),
     }

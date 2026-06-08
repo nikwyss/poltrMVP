@@ -7,6 +7,12 @@ export const Ballots: CollectionConfig = {
     useAsTitle: 'title',
     defaultColumns: ['title', 'voteDate', 'status', 'actions', 'updatedAt'],
     listSearchableFields: ['title', 'topic'],
+    components: {
+      edit: {
+        // Status-Select links neben den Save/Publish-Buttons (gilt übergreifend).
+        beforeDocumentControls: ['/components/BallotStatusControl#BallotStatusControl'],
+      },
+    },
   },
   access: {
     read: () => true,
@@ -17,10 +23,11 @@ export const Ballots: CollectionConfig = {
   fields: [
     // --- Sidebar fields (rendered in the sidebar across all tabs) ---
     {
-      // Quelle der ursprünglichen Texterstellung (z.B. amtssprache der Bundeskanzlei-
-      // Vorlage). Die Edit-Maske bietet via Payload-Localization einen Sprach-
-      // Switcher für alle Locales; `originLanguage` markiert, welche davon der
-      // Quelltext ist. Frontend nutzt das für "Original auf X / Übersetzt"-Badges.
+      // Quellsprache der CMS-Inhalte — FIX Deutsch (CMS-Content wird immer auf
+      // Deutsch erfasst). Kein editierbares Dropdown mehr: hardcodiert auf 'de'
+      // und ausgeblendet. Bleibt als Datenfeld erhalten, damit Frontend/AppView
+      // die "Original auf X / Übersetzt"-Badges weiter lesen können. Sichtbar nur
+      // als Seitenbemerkung (originLanguageNote, s.u.).
       name: 'originLanguage',
       type: 'select',
       required: true,
@@ -33,7 +40,18 @@ export const Ballots: CollectionConfig = {
         { label: 'English', value: 'en' },
       ],
       admin: {
+        hidden: true,
+      },
+    },
+    {
+      // Seitenbemerkung in der Sidebar: zeigt die fixe Quellsprache (Deutsch).
+      name: 'originLanguageNote',
+      type: 'ui',
+      admin: {
         position: 'sidebar',
+        components: {
+          Field: '/components/OriginLanguageNote#OriginLanguageNote',
+        },
       },
     },
     {
@@ -49,6 +67,9 @@ export const Ballots: CollectionConfig = {
       },
     },
     {
+      // Übergreifender Status. Wird NICHT in der Sidebar gerendert (hidden),
+      // sondern über `admin.components.beforeDocumentControls` als Select links
+      // neben den Save/Publish-Buttons (siehe components/BallotStatusControl.tsx).
       name: 'status',
       type: 'select',
       required: true,
@@ -59,27 +80,9 @@ export const Ballots: CollectionConfig = {
         { label: 'Archived', value: 'archived' },
       ],
       admin: {
-        position: 'sidebar',
+        hidden: true,
         description:
           'Nur draft/published werden vom Calculator codiert; archived nicht.',
-      },
-    },
-    {
-      name: 'governanceDid',
-      type: 'text',
-      admin: {
-        position: 'sidebar',
-        readOnly: true,
-        description: 'ATProto Governance Account DID (auto-created on publish — reload the page after publishing to see the value).',
-      },
-    },
-    {
-      name: 'governanceHandle',
-      type: 'text',
-      admin: {
-        position: 'sidebar',
-        readOnly: true,
-        description: 'ATProto Governance Account Handle (auto-created on publish — reload the page after publishing to see the value).',
       },
     },
     {
@@ -168,6 +171,24 @@ export const Ballots: CollectionConfig = {
               type: 'text',
               admin: {
                 description: 'Referenz auf offizielle Unterlagen (URL)',
+              },
+            },
+            {
+              name: 'governanceDid',
+              type: 'text',
+              admin: {
+                readOnly: true,
+                description:
+                  'ATProto Governance Account DID (auto-created on publish — reload the page after publishing to see the value).',
+              },
+            },
+            {
+              name: 'governanceHandle',
+              type: 'text',
+              admin: {
+                readOnly: true,
+                description:
+                  'ATProto Governance Account Handle (auto-created on publish — reload the page after publishing to see the value).',
               },
             },
           ],

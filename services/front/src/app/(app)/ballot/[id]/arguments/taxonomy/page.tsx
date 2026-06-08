@@ -14,7 +14,7 @@ import { ViewToggle } from "@/components/view-toggle";
 import { PageBackdrop } from "@/components/page-backdrop";
 import { PositionBand } from "@/components/position-band";
 import { TaxonomySunburst } from "@/components/taxonomy-sunburst";
-import { BallotHeader } from "@/components/ballot-header";
+import { ArgumentariumHeader } from "@/components/argumentarium-header";
 import {
   getInsight,
   ProContraArguments,
@@ -121,7 +121,7 @@ export default function TaxonomyPage() {
         <ViewToggle active="taxonomy" ballotId={id} />
       </nav>
 
-      {ballot && <BallotHeader ballot={ballot} />}
+      {ballot && <ArgumentariumHeader ballot={ballot} />}
 
       {loading && (
         <Card>

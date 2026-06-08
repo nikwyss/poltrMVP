@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-06-07
+
+### Argument-Views: eigener „Argumentarium"-Header; Ballot-Hero auf die Info-Seite (`services/front`)
+
+- **Neuer `ArgumentariumHeader`** (`components/argumentarium-header.tsx`) auf **booklet** + **taxonomy**: Titel „Argumentarium zur Vorlage «{name}»" + erklärender Einführungstext (thematisch sortiert, offizielle Broschüren-Argumente von Anfang an, Community kann eigene anführen, alles bewert- und diskutierbar). Neue i18n-Keys `argumentarium.title`/`argumentarium.intro` in allen 5 Locales.
+- **Der bisherige Ballot-Hero** (Datum · Typ, Serif-Titel, Argument-/Kommentar-Zähler, ausklappbare Beschreibung) ist von den Argument-Seiten verschwunden und steht jetzt auf der **Info-Seite** (`ballot/[id]/info`, lädt den Ballot via `getBallot` und rendert `BallotHeader`). Booklet: die inline Hero-Card + `ExpandableText` entfernt; Taxonomy: `BallotHeader` → `ArgumentariumHeader`.
+
+### Ballot-CMS-Layout + Membership-Schema: Status-Header, confidence 1–5, is_primary entfernt (`services/cms`, `services/calculator`, `infra`)
+
+- **CMS Ballots-Editor umgeräumt** (`Ballots.ts`, neu `components/BallotStatusControl.tsx`): Der übergreifende **Status** sitzt jetzt als Select **links neben den Save/Publish-Buttons** (`admin.components.edit.beforeDocumentControls`; das Feld selbst ist `admin.hidden` und wird über `useField` gebunden) statt in der Sidebar. **Governance DID + Handle** sind aus der Sidebar ins erste Tab „Allgemein" gewandert (read-only).
+- **`originLanguage` ist kein Dropdown mehr** (neu `components/OriginLanguageNote.tsx`): CMS-Inhalte werden immer auf Deutsch erfasst → das Feld ist auf `'de'` hardcodiert (`admin.hidden`, bleibt als Datenfeld für die „Original auf X"-Badges in Frontend/AppView) und erscheint nur noch als read-only **Seitenbemerkung** in der Sidebar.
+- **`app_topic_membership.confidence` ist jetzt eine 1–5-Skala** (smallint CHECK, wie die Node-`importance`) statt eines ungenutzten `real`. Der Klassifikator (`_CLASSIFY_ARGS_TOOL` / `classify_arguments`) gibt pro Zuordnung eine Konfidenz 1–5 zurück; sie fliesst über `/induce` und `/classify` in die Persistenz. (Hinweis: selbst-gemeldete LLM-Konfidenz ist grob/optimistisch — v.a. nützlich, um seltene unsichere Zuordnungen zu erkennen.)
+- **`is_primary` entfernt** (war vestigial, immer `true`): Spalte + Partial-Unique-Index raus, ersetzt durch `UNIQUE (ballot_rkey, argument_uri)` (= genau EIN Knoten pro Argument). Aufgeräumt in `db.py`, `prototype.py`, `router.py` und `TaxonomyPanel.tsx`. `stance` bleibt 1:1 `app_arguments.type` (PRO/CONTRA, keine semantische Analyse).
+- **Schema:** `db-setup.sql` (final) + idempotenter Upgrade-Pfad in `migrate-topics.sql` (löscht etwaige `is_primary=false`-Zeilen, dropt Spalte/Index, `confidence real→smallint`, neues Unique). Re-Run von `migrate-topics.sql` gegen prod genügt.
+
+### Legacy bottom-up Taxonomie + Open Coding vollständig entfernt (`services/calculator`, `services/appview`, `services/indexer`, `services/cms`, `infra`, `doc`)
+
+Der produktive Pfad ist die top-down Themen-Hierarchie (`app_topic_*`). Die alte, emergente Achsen-Welt (Open Coding → versionierte `app_taxonomy_*`-Läufe) wird nicht mehr gebraucht und ist komplett raus.
+
+- **Calculator:** `src/opencoding/` (Cron-Worker), `src/tags/` (Axial Coding, Prebundle, Embeddings), `src/llm/infomaniak_chat.py` und `src/prompts.py` gelöscht. `main.py` registriert nur noch den `topdown`-Router; `get_open_coder()` + die `open_code`/`axial_group`/`split_axis`-Methoden (base/anthropic_client) und alle Embedding-/Open-Coding-Env (`config.py`) entfernt. `db.py`: `fetch_open_codes_for_ballot`, `ballot_coding_coverage`, `persist_taxonomy`, `fetch_codeable_ballot_rkeys` weg. `prototype.py`: Open-Code-Pfad (`induce_tree`, code-`classify`, `serialize_node`, `load_inputs`, `persisted_to_internal`, `overlay_*`, `_print_tree`, `classify_incremental`, `overfull_candidates`, `run`) entfernt; verbliebene Prompts von „Codes" auf „Argumente" umformuliert. `/api/topdown/status` liefert kein `coverage` mehr.
+- **Schema:** `app_argument_open_codes`, `app_taxonomy_run/axis/bundle/membership`, `app_arguments_axis` aus `db-setup.sql` entfernt, calculator-GRANTs auf `app_topic_*` reduziert; Migrationen `migrate-open-codes.sql` / `migrate-taxonomy.sql` gelöscht. Neues **`drop-legacy-taxonomy.sql`** (DROP TABLE … CASCADE) für bestehende DBs.
+- **Indexer:** `cascadeDeleteArgumentDerived` löscht nur noch `app_topic_membership` (keine `app_argument_open_codes` / `app_taxonomy_membership` / `app_arguments_axis`).
+- **CMS:** Open-Coding-Coverage-Anzeige + `/status`-Coverage-Fetch aus `TaxonomyPanel.tsx` entfernt.
+- **Infra/Doku:** Opencoding-Cronjob-Sektion (`cronjobs.yaml`), Embedding-/Open-Coding-Secrets (`secrets.yaml.dist`, `.env.dist`), Calculator-README neu geschrieben; `doc/argument_clustering.md` + `doc/topdown_taxonomy_todo.md` gelöscht. `migrate-ballot-status.sql`-Grant bleibt (Calculator liest weiterhin die amtliche Vorlagen-Beschreibung als Themen-Kontext).
+
 ## 2026-06-06
 
 ### Top-down Taxonomie: voter-facing `introduction` je Thema + Card-Redesign (`infra`, `services/calculator`, `services/appview`, `services/cms`, `services/front`)

@@ -7,10 +7,8 @@ import { useDocumentInfo } from '@payloadcms/ui'
  * Taxonomy-Editor im Ballot-Editor: lädt die Top-down-Themen-Hierarchie des
  * Calculator-Service (services/calculator/src/topdown) beim Öffnen in den State.
  *
- * Einheit = ARGUMENT: jedes Argument hängt mit gekappter Multimembership an
- * höchstens zwei Knoten — einem Hauptthema (is_primary) und optional EINEM
- * Nebenthema. Klassifiziert wird direkt auf dem Argumenttext (kein Open Coding
- * mehr nötig).
+ * Einheit = ARGUMENT: jedes Argument hängt an GENAU EINEM Knoten (Thema).
+ * Klassifiziert wird direkt auf dem Argumenttext; je Zuordnung eine Konfidenz 1–5.
  *
  * ALLE Mutationen passieren lokal im State — manuell (umbenennen, verschieben,
  * löschen, ein-/ausrücken) und LLM-gestützt (Themen bauen, Argumente einsortieren,
@@ -28,8 +26,8 @@ const CALC =
 
 type ArgMembership = {
   argument_uri: string
-  is_primary?: boolean
   stance?: string | null
+  confidence?: number | null // Klassifikator-Sicherheit 1–5 (oder null)
 }
 
 type ENode = {
@@ -49,12 +47,6 @@ type Subtopic = {
   introduction?: string
   importance?: number | null
 }
-
-type Coverage = {
-  arguments_total?: number
-  done?: number
-  uncoded?: number
-} | null
 
 type UnplacedEntry = {
   argument_uri: string
@@ -101,8 +93,8 @@ function withUids(n: unknown): ENode {
     )
     .map((a) => ({
       argument_uri: String(a.argument_uri),
-      is_primary: (a.is_primary as boolean | undefined) ?? true,
       stance: (a.stance as string | null) ?? null,
+      confidence: (a.confidence as number | null | undefined) ?? null,
     }))
   return {
     uid: makeUid(),
@@ -158,15 +150,9 @@ function mergeInto(target: ArgMembership[], add: ArgMembership[]) {
   }
 }
 
-function counts(n: ENode): { primary: number; secondary: number; args: number } {
+function counts(n: ENode): { args: number } {
   const ms = collectArgs(n)
-  const prim = new Set(ms.filter((m) => m.is_primary !== false).map((m) => m.argument_uri))
-  const sec = new Set(ms.filter((m) => m.is_primary === false).map((m) => m.argument_uri))
-  return {
-    primary: prim.size,
-    secondary: sec.size,
-    args: new Set(ms.map((m) => m.argument_uri)).size,
-  }
+  return { args: new Set(ms.map((m) => m.argument_uri)).size }
 }
 
 /** Editor-Baum → Server-Form (uid + Argumente) für /classify, /grow, /save. */
@@ -179,8 +165,8 @@ function toServer(n: ENode): Record<string, unknown> {
     importance: n.importance ?? null,
     arguments: n.arguments.map((m) => ({
       argument_uri: m.argument_uri,
-      is_primary: m.is_primary ?? true,
       stance: m.stance ?? null,
+      confidence: m.confidence ?? null,
     })),
     children: n.children.map(toServer),
   }
@@ -206,9 +192,9 @@ function flatNodes(root: ENode): Array<{ uid: string; label: string }> {
   return out
 }
 
-/** Membership eines Unplaced-Eintrags (als Hauptthema). */
+/** Membership eines Unplaced-Eintrags (manuell zugeordnet → keine Konfidenz). */
 function entryMembership(e: UnplacedEntry): ArgMembership {
-  return { argument_uri: e.argument_uri, is_primary: true, stance: e.stance ?? null }
+  return { argument_uri: e.argument_uri, stance: e.stance ?? null, confidence: null }
 }
 
 /** Wendet einen /branch_unplaced-Vorschlag an: neue Hauptäste unter der Wurzel,
@@ -237,9 +223,9 @@ function applyNewBranches(
   }
 }
 
-/** Wendet einen Split-Vorschlag aus /grow im State an (wie db.split_node): nur
- *  PRIMÄR-Argumente werden gemäss `assign` (argument_uri → subtopic) auf die neuen
- *  Kinder verteilt; Nebenthema-Memberships bleiben am Elternknoten. */
+/** Wendet einen Split-Vorschlag aus /grow im State an (wie db.split_node): die
+ *  Argumente werden gemäss `assign` (argument_uri → subtopic) auf die neuen Kinder
+ *  verteilt; 'andere'/unverteilte bleiben am Elternknoten. */
 function applySplit(node: ENode, subtopics: Subtopic[], assign: Record<string, string>) {
   const used = new Set(Object.values(assign).filter((v) => v !== 'andere'))
   const nameToChild = new Map<string, ENode>()
@@ -254,9 +240,9 @@ function applySplit(node: ENode, subtopics: Subtopic[], assign: Record<string, s
   }
   const remaining: ArgMembership[] = []
   for (const m of node.arguments) {
-    const child = m.is_primary !== false ? nameToChild.get(assign[m.argument_uri]) : undefined
+    const child = nameToChild.get(assign[m.argument_uri])
     if (child) child.arguments.push(m)
-    else remaining.push(m) // Nebenthema / 'andere' / unverteilt → bleibt am Eltern
+    else remaining.push(m) // 'andere' / unverteilt → bleibt am Eltern
   }
   node.arguments = remaining
 }
@@ -268,7 +254,6 @@ export const TaxonomyPanelField: React.FC = () => {
   const [rkey, setRkey] = useState<string | null>(null)
   const [root, setRoot] = useState<ENode | null>(null)
   const [dirty, setDirty] = useState(false)
-  const [coverage, setCoverage] = useState<Coverage>(null)
   const [unplaced, setUnplaced] = useState<UnplacedEntry[]>([])
   const [showPartial, setShowPartial] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
@@ -294,14 +279,6 @@ export const TaxonomyPanelField: React.FC = () => {
       setDirty(false)
     } catch {
       setRoot(null)
-    }
-    try {
-      const st = await calc(`/api/topdown/status?ballot_rkey=${encodeURIComponent(rk)}`).catch(
-        () => null,
-      )
-      setCoverage(st?.coverage ? { ...st.coverage } : null)
-    } catch {
-      setCoverage(null)
     }
     try {
       const u = await calc(`/api/topdown/unplaced?ballot_rkey=${encodeURIComponent(rk)}`).catch(
@@ -430,7 +407,7 @@ export const TaxonomyPanelField: React.FC = () => {
       setRoot(withUids(r.tree))
       setDirty(true)
       setMsg(
-        `Struktur gebaut: ${r.stats?.arguments} Argumente, ${r.stats?.andere} andere, ${r.stats?.secondary} mit Nebenthema (${r.llm_calls} Calls). Jetzt „Argumente einsortieren".`,
+        `Struktur gebaut: ${r.stats?.arguments} Argumente, ${r.stats?.andere} andere (${r.llm_calls} Calls). Jetzt „Argumente einsortieren".`,
       )
     })
 
@@ -453,7 +430,7 @@ export const TaxonomyPanelField: React.FC = () => {
           const node = idx.get(a.uid)
           if (node)
             mergeInto(node.arguments, [
-              { argument_uri: a.argument_uri, is_primary: a.is_primary ?? true, stance: a.stance },
+              { argument_uri: a.argument_uri, stance: a.stance, confidence: a.confidence ?? null },
             ])
         }
       })
@@ -606,8 +583,8 @@ export const TaxonomyPanelField: React.FC = () => {
   const renderNode = (node: ENode, depth: number): React.ReactNode => {
     const c = counts(node)
     const isRoot = depth === 0
-    const directPrimary = new Set(
-      node.arguments.filter((m) => m.is_primary !== false).map((m) => m.argument_uri),
+    const directCount = new Set(
+      node.arguments.map((m) => m.argument_uri),
     ).size
     return (
       <div
@@ -650,7 +627,7 @@ export const TaxonomyPanelField: React.FC = () => {
             }}
           >
             {c.args} Argumente
-            {node.children.length && directPrimary ? ` · ${directPrimary} direkt` : ''}
+            {node.children.length && directCount ? ` · ${directCount} direkt` : ''}
           </span>
           {!isRoot && node.importance != null && (
             <span
@@ -987,11 +964,9 @@ export const TaxonomyPanelField: React.FC = () => {
         </button>
       </div>
 
-      {coverage && (
+      {dirty && (
         <div style={{ fontSize: '0.72rem', color: 'var(--theme-elevation-600)' }}>
-          Open-Coding: {coverage.done ?? '—'} / {coverage.arguments_total ?? '—'} Argumente
-          {typeof coverage.uncoded === 'number' ? ` · ${coverage.uncoded} ohne Open Code` : ''}
-          {dirty ? ' · ungespeicherte Änderungen' : ''}
+          Ungespeicherte Änderungen — mit „Persistieren" sichern.
         </div>
       )}
 

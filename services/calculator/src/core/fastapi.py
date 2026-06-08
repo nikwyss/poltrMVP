@@ -27,8 +27,8 @@ limiter = Limiter(key_func=get_remote_address)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # DB-Pool ist optional: nur der Open-Coding-Worker braucht ihn. Fehlt die
-    # POSTGRES_URL, startet der Service trotzdem (Tag-Endpoints bleiben nutzbar).
+    # DB-Pool ist optional beim Start: fehlt die POSTGRES_URL, startet der Service
+    # trotzdem (die /api/topdown/*-Endpoints brauchen ihn dann zur Laufzeit).
     await db.check_db_connection()
     yield
     await db.close_pool()

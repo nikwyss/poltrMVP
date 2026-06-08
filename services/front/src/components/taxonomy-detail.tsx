@@ -5,8 +5,8 @@
  *
  * Geöffnet aus der Taxonomy-Main-View über „Mehr anzeigen". Lädt die `topic`-
  * Variante von taxonomy.get (Top-Topic + seine Subtopics, jeweils mit allen
- * Argumenten des Teilbaums) und zeigt: Kopf des Top-Topics (Name, Beschreibung,
- * „Für dich"-Insight) + dessen direkte Argumente + jedes Subtopic aufgeklappt.
+ * Argumenten des Teilbaums) und zeigt: Kopf des Top-Topics (Name, Beschreibung)
+ * + dessen direkte Argumente + jedes Subtopic aufgeklappt.
  * Argumente sind je Sektion auf 4/Spalte begrenzt; „Mehr anzeigen" zeigt alle.
  */
 import { useCallback, useEffect, useState } from "react";
@@ -14,22 +14,16 @@ import { useTranslations, useLocale } from "next-intl";
 import { getTaxonomy } from "@/lib/agent";
 import type { TaxonomyNode, TaxonomyCrumb } from "@/types/ballots";
 import { Spinner } from "@/components/spinner";
-import {
-  InsightPanel,
-  ProContraArguments,
-  type T,
-} from "@/components/taxonomy-view";
+import { ProContraArguments, type T } from "@/components/taxonomy-view";
 
 function SubtopicSection({
   node,
   onOpen,
   onShowMore,
-  t,
 }: {
   node: TaxonomyNode;
   onOpen: (rkey: string) => void;
   onShowMore?: () => void;
-  t: T;
 }) {
   if (!node.arguments.length) return null;
   return (
@@ -42,7 +36,6 @@ function SubtopicSection({
           </p>
         )}
       </div>
-      <InsightPanel node={node} t={t} />
       <ProContraArguments
         args={node.arguments}
         onOpen={onOpen}
@@ -71,6 +64,7 @@ export function TaxonomyDetail({
   registerScrollContainer: (el: HTMLElement | null) => void;
 }) {
   const t = useTranslations("taxonomy") as T;
+  const ta = useTranslations("argumentarium");
   const locale = useLocale();
 
   const [node, setNode] = useState<TaxonomyNode | null>(null);
@@ -162,20 +156,19 @@ export function TaxonomyDetail({
                 </nav>
               )}
               <h2
-                className="text-2xl font-bold leading-tight"
+                className="text-2xl md:text-[1.75rem] font-bold tracking-tight leading-tight"
                 style={{
                   fontFamily:
                     'var(--font-serif), Georgia, "Times New Roman", serif',
                 }}
               >
-                {node.name}
+                {ta("topicTitle", { name: node.name })}
               </h2>
               {node.description && (
                 <p className="text-sm text-muted-foreground">
                   {node.description}
                 </p>
               )}
-              <InsightPanel node={node} t={t} />
             </header>
 
             {/* Direkt am Top-Topic hängende Argumente (in keinem Subtopic) */}
@@ -197,7 +190,6 @@ export function TaxonomyDetail({
                     ? () => onNavigateToTaxonomy(ballotRkey, ch.key!)
                     : undefined
                 }
-                t={t}
               />
             ))}
           </>

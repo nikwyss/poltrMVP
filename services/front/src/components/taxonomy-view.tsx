@@ -5,9 +5,10 @@
  * Haupt-View (`…/arguments/taxonomy/page.tsx`) UND vom Taxonomy-Detail-Overlay
  * (`taxonomy-detail.tsx`), damit beide identisch aussehen.
  *
- * Enthält: „Für dich"-Insight (getInsight/InsightPanel), die Booklet-artige
- * Argument-Karte (ArgumentCard) und die zweispaltige Pro/Contra-Liste mit
- * „Mehr anzeigen"-Limit (ProContraArguments).
+ * Enthält: `getInsight` (leitet Farbe/Zustand eines Knotens aus den Bewertungen
+ * ab — treibt die Card-Farbcodierung), die Booklet-artige Argument-Karte
+ * (ArgumentCard) und die zweispaltige Pro/Contra-Liste mit „Mehr anzeigen"-Limit
+ * (ProContraArguments).
  */
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -71,21 +72,6 @@ export function LeaningDot({ lean }: { lean: number | null | undefined }) {
     : lean < -THRESHOLD ? COL_RED
     : COL_AMBER;
   return <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: bg }} />;
-}
-
-// „Für dich"-Panel (Icon + Titel + Untertitel), farbcodiert nach Insight-Zustand.
-export function InsightPanel({ node, t }: { node: TaxonomyNode; t: T }) {
-  const ins = getInsight(node, t);
-  const Icon = ins.Icon;
-  return (
-    <div className="rounded-lg border border-black/5 bg-white/60 px-4 py-3">
-      <div className="flex items-center gap-2 text-sm font-medium" style={{ color: ins.bar }}>
-        <Icon className="h-4 w-4 shrink-0" />
-        <span>{t("forYou")}: {ins.title}</span>
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">{ins.sub}</p>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------

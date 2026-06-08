@@ -34,8 +34,8 @@ const AMBER = "rgb(217, 159, 40)";
 const SIZE = 420;
 const CX = SIZE / 2;
 const CY = SIZE / 2;
-const CENTER_R = 52; // Radius der Zentrumsscheibe
-const OUTER_R = 200; // äusserster Radius
+const CENTER_R = 46; // Radius der Zentrumsscheibe
+const OUTER_R = 202; // äusserster Radius
 const LABEL_MIN_ANGLE = 9; // ° — schmaler ⇒ kein Label (nur Tooltip)
 
 function lerp(a: number, b: number, t: number): number {
@@ -60,6 +60,33 @@ function textColor(lean: number | null | undefined): string {
   return strength > 0.45 ? "rgba(255,255,255,0.95)" : "rgba(0,0,0,0.7)";
 }
 
+// Kontrast-Umriss hinter dem Text (dunkel hinter weissem Text, hell hinter dunklem).
+function haloColor(lean: number | null | undefined): string {
+  if (lean == null) return "rgba(255,255,255,0.85)";
+  const strength = Math.min(1, Math.abs(lean));
+  return strength > 0.45 ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.85)";
+}
+
+// Label an Wortgrenzen auf bis zu maxLines Zeilen umbrechen; Überlauf mit „…".
+function wrapLabel(name: string, maxChars: number, maxLines: number): string[] {
+  const words = name.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    const candidate = cur ? `${cur} ${w}` : w;
+    if (!cur || candidate.length <= maxChars || lines.length >= maxLines - 1) {
+      cur = candidate; // erstes Wort, passt, oder letzte erlaubte Zeile (wird ggf. gekürzt)
+    } else {
+      lines.push(cur);
+      cur = w;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines.map((l) =>
+    l.length > maxChars ? `${l.slice(0, Math.max(1, maxChars - 1))}…` : l,
+  );
+}
+
 function polar(r: number, angleDeg: number): [number, number] {
   const a = ((angleDeg - 90) * Math.PI) / 180;
   return [CX + r * Math.cos(a), CY + r * Math.sin(a)];
@@ -78,6 +105,17 @@ function arcPath(rInner: number, rOuter: number, a0: number, a1: number): string
     `A ${rInner} ${rInner} 0 ${large} 0 ${x0i} ${y0i}`,
     "Z",
   ].join(" ");
+}
+
+// Bogen-Mittellinie als Pfad für gekrümmten Text (<textPath>). Untere Hälfte
+// umgekehrt zeichnen, damit der Text aufrecht statt kopfüber steht.
+function textArcPath(r: number, a0: number, a1: number, flip: boolean): string {
+  const [s0, s1] = flip ? [a1, a0] : [a0, a1];
+  const [xs, ys] = polar(r, s0);
+  const [xe, ye] = polar(r, s1);
+  const large = Math.abs(a1 - a0) > 180 ? 1 : 0;
+  const sweep = flip ? 0 : 1;
+  return `M ${xs} ${ys} A ${r} ${r} 0 ${large} ${sweep} ${xe} ${ye}`;
 }
 
 interface Seg {
@@ -130,7 +168,10 @@ export function TaxonomySunburst({
   return (
     <Card className="border-black/5">
       <CardContent className="pt-6">
-        <p className="mb-1 text-xs text-muted-foreground">{t("sunburstTitle")}</p>
+        <p className="mb-0.5 text-xs text-muted-foreground">{t("sunburstTitle")}</p>
+        <p className="mb-3 text-[11px] leading-snug text-muted-foreground/70">
+          {t("sunburstSubtitle")}
+        </p>
 
         {/* Legende: Pole wie im Positionsband */}
         <div className="mb-3 flex items-center justify-center gap-3 text-[11px] font-medium">
@@ -146,7 +187,7 @@ export function TaxonomySunburst({
           <span style={{ color: `rgb(${BLUE.join(",")})` }}>{t("poleSupporters")}</span>
         </div>
 
-        <div className="mx-auto w-full max-w-[460px]">
+        <div className="mx-auto w-full max-w-[580px]">
           <svg
             viewBox={`0 0 ${SIZE} ${SIZE}`}
             className="h-auto w-full"
@@ -162,16 +203,19 @@ export function TaxonomySunburst({
               const mid = (s.a0 + s.a1) / 2;
               const labelR = (rInner + rOuter) / 2;
               const [lx, ly] = polar(labelR, mid);
-              // Label tangential ausrichten; auf der linken Hälfte um 180° drehen.
+              const showLabel = span >= LABEL_MIN_ANGLE && ringStep > 16;
+              // Innerster Ring: Text gekrümmt entlang des Bogens; tiefere Ringe radial.
+              const curved = s.level === 1;
+              // Radiale Ausrichtung (tiefere Ringe): tangential gedreht, links gespiegelt.
               let rot = mid - 90;
               if (mid > 180) rot += 180;
-              const showLabel = span >= LABEL_MIN_ANGLE && ringStep > 16;
-              // Sehr grobe Zeichenkapazität entlang des Bogens.
+              // Untere Hälfte: Text-Pfad umkehren, sonst stünde der Text kopfüber.
+              const flip = mid > 90 && mid < 270;
+              // Grobe Zeichenkapazität pro Zeile entlang des Bogens.
               const maxChars = Math.max(3, Math.floor((span / 360) * 2 * Math.PI * labelR / 6.5));
-              const label =
-                s.node.name.length > maxChars
-                  ? s.node.name.slice(0, Math.max(1, maxChars - 1)) + "…"
-                  : s.node.name;
+              // 2. Zeile nur, wenn der Ring radial genug Platz bietet.
+              const maxLines = ringStep >= 28 ? 2 : 1;
+              const lines = wrapLabel(s.node.name, maxChars, maxLines);
               return (
                 <g key={`${s.node.id}-${s.level}`}>
                   <path
@@ -197,7 +241,36 @@ export function TaxonomySunburst({
                       {` · ${s.node.ratedCount ?? 0}/${s.node.argumentCount} ${t("rated")}`}
                     </title>
                   </path>
-                  {showLabel && (
+                  {showLabel &&
+                    curved &&
+                    lines.map((line, i) => {
+                      const n = lines.length;
+                      // Mehrzeilig: Zeilen radial um die Ring-Mittellinie verteilen.
+                      const ri = labelR + (flip ? -1 : 1) * ((n - 1) / 2 - i) * 11;
+                      const pid = `lp-${s.node.id}-${s.level}-${i}`;
+                      return (
+                        <g key={pid}>
+                          <path id={pid} d={textArcPath(ri, s.a0, s.a1, flip)} fill="none" />
+                          <text
+                            fill={textColor(s.node.proLeaning)}
+                            fontSize={10}
+                            style={{
+                              pointerEvents: "none",
+                              userSelect: "none",
+                              paintOrder: "stroke",
+                              stroke: haloColor(s.node.proLeaning),
+                              strokeWidth: 2.4,
+                              strokeLinejoin: "round",
+                            }}
+                          >
+                            <textPath href={`#${pid}`} startOffset="50%" textAnchor="middle">
+                              {line}
+                            </textPath>
+                          </text>
+                        </g>
+                      );
+                    })}
+                  {showLabel && !curved && (
                     <text
                       x={lx}
                       y={ly}
@@ -206,9 +279,24 @@ export function TaxonomySunburst({
                       textAnchor="middle"
                       dominantBaseline="central"
                       transform={`rotate(${rot} ${lx} ${ly})`}
-                      style={{ pointerEvents: "none", userSelect: "none" }}
+                      style={{
+                        pointerEvents: "none",
+                        userSelect: "none",
+                        paintOrder: "stroke",
+                        stroke: haloColor(s.node.proLeaning),
+                        strokeWidth: 2.4,
+                        strokeLinejoin: "round",
+                      }}
                     >
-                      {label}
+                      {lines.map((line, i) => (
+                        <tspan
+                          key={`${i}-${line}`}
+                          x={lx}
+                          dy={i === 0 ? `${-(lines.length - 1) * 0.55}em` : "1.1em"}
+                        >
+                          {line}
+                        </tspan>
+                      ))}
                     </text>
                   )}
                 </g>

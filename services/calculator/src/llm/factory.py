@@ -24,17 +24,3 @@ def get_llm() -> LLMClient:
 
     logger.info("Using AnthropicLLM (model=%s)", config.LLM_MODEL)
     return AnthropicLLM()
-
-
-def get_open_coder() -> LLMClient:
-    """Open-Coding-Backend. Infomaniak-Gemma wenn konfiguriert (mengenintensiver
-    Schritt), sonst Fallback auf Anthropic (`get_llm`). Liefert ein Objekt mit
-    `open_code` + `open_code_signature`."""
-    from src.llm.infomaniak_chat import InfomaniakOpenCoder, is_configured
-
-    if is_configured():
-        coder = InfomaniakOpenCoder()
-        logger.info("Open coding via Infomaniak (model=%s)", coder.model)
-        return coder
-    logger.info("Infomaniak not configured — open coding falls back to Anthropic.")
-    return get_llm()

@@ -1,9 +1,9 @@
 """
-Postgres-Pool (AppView-Schema) für den Open-Coding-Worker.
+Postgres-Pool (AppView-Schema) für die Top-down Themen-Hierarchie.
 
 Nach dem Vorbild von services/appview/src/core/db.py. Der Calculator liest
-`app_arguments` und schreibt `app_argument_open_codes` (siehe
-doc/argument_clustering.md §9 / README „Roadmap").
+`app_arguments` und liest/schreibt die Top-down-Hierarchie
+(`app_topic_node` / `app_topic_membership`).
 """
 
 from __future__ import annotations
@@ -54,28 +54,6 @@ async def close_pool() -> None:
     if pool:
         await pool.close()
         pool = None
-
-
-async def fetch_codeable_ballot_rkeys() -> list[str] | None:
-    """rkeys der Ballots aus der CMS-DB, deren Status codierbar ist
-    (OPENCODING_CODEABLE_STATUSES). Rückgabe `None`, wenn keine CMS-DB
-    konfiguriert ist → der Worker filtert dann NICHT nach Status.
-
-    Eigene Kurzverbindung zur cms-DB (getrennte DB; kein Cross-DB-Join möglich).
-    Wirft bei Fehlern (z.B. fehlender Grant) — der Batch schlägt dann fehl und
-    wird beim nächsten Cron erneut versucht, statt versehentlich archivierte
-    Ballots zu codieren.
-    """
-    if not config.CMS_POSTGRES_URL:
-        return None
-    conn = await asyncpg.connect(config.CMS_POSTGRES_URL)
-    try:
-        rows = await conn.fetch(
-            "SELECT rkey FROM ballots WHERE status::text = ANY($1::text[])",
-            config.OPENCODING_CODEABLE_STATUSES)
-    finally:
-        await conn.close()
-    return [r["rkey"] for r in rows]
 
 
 def lexical_to_text(value) -> str:
@@ -151,185 +129,6 @@ async def fetch_ballot_description(ballot_rkey: str) -> str | None:
     return text or None
 
 
-async def fetch_open_codes_for_ballot(ballot_rkey: str, *,
-                                      limit: int | None = None,
-                                      source_type: str | None = None) -> list[dict]:
-    """Persistierte Open Codes (status='done') eines Ballots für die axiale
-    Induktion (/induce-batch). Open Coding selbst macht der Cron-Worker — dieser
-    Endpoint generiert nichts mehr, sondern liest hier.
-
-    `source_type` (z.B. 'official') filtert optional auf eine Argument-Quelle —
-    der Top-down-Baum wird initial nur aus den offiziellen Argumenten gebaut.
-
-    Rückgabe: [{argument_uri, text, stance, codes:[{code,note,confidence}]}],
-    offizielle Argumente zuerst, dann nach created_at. `stance` = Haltung des
-    Arguments (`app_arguments.type`, normalisiert auf 'pro'/'contra'/None).
-    """
-    pool = await get_pool()
-    sql = """
-        SELECT oc.argument_uri, oc.codes, a.title, a.body, a.type
-        FROM app_argument_open_codes oc
-        JOIN app_arguments a ON a.uri = oc.argument_uri
-        WHERE oc.ballot_rkey = $1 AND oc.status = 'done' AND NOT a.deleted
-    """
-    params: list = [ballot_rkey]
-    if source_type:
-        params.append(source_type)
-        sql += f" AND a.source_type = ${len(params)}"
-    sql += " ORDER BY (a.source_type = 'official') DESC, a.created_at ASC"
-    if limit:
-        params.append(limit)
-        sql += f" LIMIT ${len(params)}"
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(sql, *params)
-
-    out: list[dict] = []
-    for r in rows:
-        codes = r["codes"]
-        if isinstance(codes, str):
-            try:
-                codes = json.loads(codes)
-            except (TypeError, ValueError):
-                codes = []
-        if not isinstance(codes, list):
-            codes = []
-        title, body = r["title"] or "", r["body"] or ""
-        stance = (r["type"] or "").strip().lower()
-        out.append({
-            "argument_uri": r["argument_uri"],
-            "text": f"{title}\n\n{body}".strip(),
-            "stance": stance if stance in ("pro", "contra") else None,
-            "codes": codes,
-        })
-    return out
-
-
-async def ballot_coding_coverage(ballot_rkey: str,
-                                 current_sig: str | None = None) -> dict:
-    """Open-Coding-Abdeckung eines Ballots — rein informativ für die
-    /induce-batch-Antwort. Zeigt, über wie viele Argumente die Achsen gebaut
-    wurden und ob die Code-Basis vollständig/aktuell ist (z.B. ob gerade ein
-    Re-Code läuft, der nur einen Teil als `done` zurücklässt).
-
-    `done` (= `done_current_sig` + `done_stale_sig`) entspricht dem, was
-    `fetch_open_codes_for_ballot` liest, also dem axialen Input. Eine Zeile gilt
-    als *current*, wenn sie `done` ist, die aktuelle Open-Coder-Signatur trägt
-    UND ihr `argument_cid` noch zum Argument passt (nicht nachträglich editiert).
-    """
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-        """
-        SELECT
-          count(*)                                                      AS arguments_total,
-          count(*) FILTER (WHERE oc.status = 'done')                    AS done,
-          count(*) FILTER (WHERE oc.status = 'done'
-                             AND oc.coder_signature = $2
-                             AND oc.argument_cid = a.cid)               AS done_current_sig,
-          count(*) FILTER (WHERE oc.status = 'done'
-                             AND (oc.coder_signature IS DISTINCT FROM $2
-                                  OR oc.argument_cid <> a.cid))         AS done_stale_sig,
-          count(*) FILTER (WHERE oc.status = 'empty')                   AS empty,
-          count(*) FILTER (WHERE oc.status = 'processing')              AS processing,
-          count(*) FILTER (WHERE oc.status IN ('failed','failed_permanent')) AS failed,
-          count(*) FILTER (WHERE oc.argument_uri IS NULL)               AS uncoded
-        FROM app_arguments a
-        LEFT JOIN app_argument_open_codes oc ON oc.argument_uri = a.uri
-        WHERE a.ballot_rkey = $1 AND a.deleted = false
-        """,
-        ballot_rkey, current_sig,
-    )
-    cov = dict(row)
-    cov["current_open_coder_signature"] = current_sig
-    return cov
-
-
-async def persist_taxonomy(ballot_rkey: str, data: dict, *,
-                           axial_model: str | None, code_count: int,
-                           run_metrics: dict | None = None) -> int:
-    """Schreibt einen Taxonomie-Lauf in die 4 Tabellen (run/axis/bundle/
-    membership) und gibt die `run_id` zurück. `data` = TagSystem
-    .taxonomy_for_persistence(); `run_metrics` = Lauf-weite Qualitätsindikatoren
-    (bundled + stage0_* + prebundle_*). Versioniert: jeder Lauf = ein neuer Run.
-    """
-    m = run_metrics or {}
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            run_id = await conn.fetchval(
-                """INSERT INTO app_taxonomy_run (ballot_rkey, axial_model,
-                       code_count, bundled,
-                       stage0_applied, stage0_min_frequency, stage0_kept, stage0_margin,
-                       prebundle_backend, prebundle_target, prebundle_rounds,
-                       prebundle_final_floor, prebundle_capped, prebundle_max_size,
-                       prebundle_max_bundle, arguments_total, arguments_unassigned)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-                           $15, $16, $17)
-                   RETURNING id""",
-                ballot_rkey, axial_model, code_count, m.get("bundled"),
-                m.get("stage0_applied"), m.get("stage0_min_frequency"),
-                m.get("stage0_kept"), m.get("stage0_margin"),
-                m.get("prebundle_backend"), m.get("prebundle_target"),
-                m.get("prebundle_rounds"), m.get("prebundle_final_floor"),
-                m.get("prebundle_capped"), m.get("prebundle_max_size"),
-                m.get("prebundle_max_bundle"), m.get("arguments_total"),
-                m.get("arguments_unassigned"))
-
-            axis_db: dict[str, int] = {}      # local_id -> db id
-            for a in data["axes"]:
-                axis_db[a["local_id"]] = await conn.fetchval(
-                    """INSERT INTO app_taxonomy_axis
-                           (run_id, label, description, pole_a, pole_b, kind,
-                            bundle_count, argument_count, code_count, pro_share)
-                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id""",
-                    run_id, a["label"], a["description"],
-                    a.get("pole_a"), a.get("pole_b"), a["kind"],
-                    a.get("bundle_count", 0), a.get("argument_count", 0),
-                    a.get("code_count", 0), a.get("pro_share"))
-
-            bundle_db: dict[str, int] = {}
-            for b in data["bundles"]:
-                axis_id = axis_db.get(b["axis_local_id"])
-                bundle_db[b["local_id"]] = await conn.fetchval(
-                    """INSERT INTO app_taxonomy_bundle
-                           (run_id, axis_id, representative, code_count,
-                            cohesion, avg_confidence)
-                       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id""",
-                    run_id, axis_id, b["representative"], b.get("code_count", 0),
-                    b.get("cohesion"), b.get("avg_confidence"))
-
-            rows = [
-                (run_id, mb["argument_uri"], mb["code"],
-                 bundle_db.get(mb["bundle_local_id"]), axis_db[mb["axis_local_id"]],
-                 mb.get("pole"), mb.get("stance"), mb.get("confidence"))
-                for mb in data["memberships"]
-            ]
-            if rows:
-                await conn.executemany(
-                    """INSERT INTO app_taxonomy_membership
-                           (run_id, argument_uri, code, bundle_id, axis_id,
-                            pole, stance, confidence)
-                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
-                    rows)
-
-            # Rollup Argument → Achse (Pol aus Code-Polen abgeleitet, kein LLM).
-            aa_rows = [
-                (run_id, r["argument_uri"], axis_db[r["axis_local_id"]],
-                 r.get("pole"), r.get("stance"), r.get("code_count", 0),
-                 r.get("confidence"), bool(r.get("conflict")))
-                for r in data.get("argument_axes", [])
-                if r["axis_local_id"] in axis_db
-            ]
-            if aa_rows:
-                await conn.executemany(
-                    """INSERT INTO app_arguments_axis
-                           (run_id, argument_uri, axis_id, pole, stance,
-                            code_count, confidence, conflict)
-                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)""",
-                    aa_rows)
-    return run_id
-
-
 # =========================================================================
 #  Top-down Themen-Hierarchie (app_topic_node / app_topic_membership)
 # =========================================================================
@@ -360,9 +159,9 @@ async def _insert_topic_tree(conn, ballot_rkey: str, tree: dict) -> dict:
     """Knoten + Argument-Memberships eines Baums schreiben (in offener Transaktion).
 
     Einheit = Argument: jeder Knoten trägt `arguments`:
-        [{argument_uri, is_primary, confidence, stance, code?}]
-    `is_primary` trennt Haupt- (true) von Nebenthema (false) → gekappte
-    Multimembership. Rückgabe: {nodes, memberships}."""
+        [{argument_uri, confidence, stance}]
+    Jedes Argument hängt an GENAU EINEM Knoten. `confidence` = Klassifikator-
+    Sicherheit 1–5 (oder None). Rückgabe: {nodes, memberships}."""
     used_slugs: set[str] = set()
     stats = {"nodes": 0, "memberships": 0}
 
@@ -387,17 +186,16 @@ async def _insert_topic_tree(conn, ballot_rkey: str, tree: dict) -> dict:
             if not uri or uri in seen:
                 continue
             seen.add(uri)
-            rows.append((ballot_rkey, nid, uri, bool(a.get("is_primary", True)),
-                         a.get("confidence"), a.get("stance"), a.get("code")))
+            rows.append((ballot_rkey, nid, uri,
+                         a.get("confidence"), a.get("stance")))
         if rows:
             await conn.executemany(
                 """INSERT INTO app_topic_membership
-                       (ballot_rkey, node_id, argument_uri, is_primary, confidence, stance, code)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7)
+                       (ballot_rkey, node_id, argument_uri, confidence, stance)
+                   VALUES ($1, $2, $3, $4, $5)
                    ON CONFLICT (ballot_rkey, argument_uri, node_id) DO UPDATE
-                     SET is_primary = EXCLUDED.is_primary,
-                         confidence = EXCLUDED.confidence,
-                         stance = EXCLUDED.stance, code = EXCLUDED.code,
+                     SET confidence = EXCLUDED.confidence,
+                         stance = EXCLUDED.stance,
                          updated_at = now()""",
                 rows)
             stats["memberships"] += len(rows)
@@ -412,7 +210,7 @@ async def _insert_topic_tree(conn, ballot_rkey: str, tree: dict) -> dict:
 async def persist_topic_tree(ballot_rkey: str, tree: dict) -> dict:
     """Vollständiges Ersetzen: löscht den bestehenden Baum des Ballots (CASCADE
     räumt die Memberships) und schreibt den neuen. `tree` = Nested-Dict, jeder
-    Knoten mit `arguments` (Einheit = Argument; is_primary = Haupt-/Nebenthema).
+    Knoten mit `arguments` (Einheit = Argument; genau ein Knoten pro Argument).
     Rückgabe: {nodes, memberships}."""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -442,7 +240,7 @@ async def fetch_topic_tree(ballot_rkey: str) -> dict | None:
         if not nodes:
             return None
         mems = await conn.fetch(
-            """SELECT node_id, argument_uri, is_primary, confidence, stance, code
+            """SELECT node_id, argument_uri, confidence, stance
                FROM app_topic_membership WHERE ballot_rkey = $1""", ballot_rkey)
 
     by_id: dict[int, dict] = {
@@ -465,15 +263,14 @@ async def fetch_topic_tree(ballot_rkey: str) -> dict | None:
         node = by_id.get(m["node_id"])
         if node:
             node["arguments"].append({
-                "argument_uri": m["argument_uri"], "is_primary": m["is_primary"],
-                "confidence": m["confidence"], "stance": m["stance"],
-                "code": m["code"]})
+                "argument_uri": m["argument_uri"],
+                "confidence": m["confidence"], "stance": m["stance"]})
     return root
 
 
 async def fetch_arguments(ballot_rkey: str, *, limit: int | None = None) -> list[dict]:
     """Alle nicht gelöschten Argumente eines Ballots MIT Text — die Einheit der
-    Klassifikation (nicht mehr der Open Code). Rückgabe:
+    Klassifikation. Rückgabe:
     [{argument_uri, text, stance, source_type}], OFFIZIELLE zuerst (sie bestimmen
     die Wurzelstruktur und beim Einsortieren die Platzierung)."""
     pool = await get_pool()
@@ -507,7 +304,7 @@ async def fetch_argument_texts(ballot_rkey: str) -> dict[str, str]:
 
 
 async def fetch_unplaced_arguments(ballot_rkey: str) -> list[dict]:
-    """argument_uris OHNE Primär-Membership an einem echten (Nicht-Wurzel-)Knoten
+    """argument_uris OHNE Membership an einem echten (Nicht-Wurzel-)Knoten
     — d.h. noch nicht in ein Thema eingehängt. Rückgabe: [{argument_uri}]."""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -518,7 +315,7 @@ async def fetch_unplaced_arguments(ballot_rkey: str) -> list[dict]:
                      SELECT 1 FROM app_topic_membership m
                      JOIN app_topic_node n ON n.id = m.node_id
                      WHERE m.ballot_rkey = $1 AND m.argument_uri = a.uri
-                       AND m.is_primary AND n.parent_id IS NOT NULL)
+                       AND n.parent_id IS NOT NULL)
             """, ballot_rkey)
     return [{"argument_uri": r["uri"]} for r in rows]
 
@@ -578,19 +375,19 @@ async def fetch_unplaced_detailed(ballot_rkey: str) -> list[dict]:
 
 async def fetch_overfull_nodes(ballot_rkey: str, threshold: int,
                                max_depth: int) -> list[dict]:
-    """Knoten, deren DIREKTE Primär-Argumente (Memberships mit is_primary, die
-    genau auf diesen Knoten zeigen — nicht auf Nachfahren) eine Schwelle
-    überschreiten und die noch vertieft werden dürfen (depth < max_depth). Der
-    Wurzelknoten ist dabei mit drin → seine Direkt-Argumente sind der „andere"-Topf,
-    dessen Split neue Hauptäste erzeugt. Rückgabe: [{node_id, name, depth,
-    arguments:[uri,…]}], grösste zuerst."""
+    """Knoten, deren DIREKTE Argumente (Memberships, die genau auf diesen Knoten
+    zeigen — nicht auf Nachfahren) eine Schwelle überschreiten und die noch
+    vertieft werden dürfen (depth < max_depth). Der Wurzelknoten ist dabei mit
+    drin → seine Direkt-Argumente sind der „andere"-Topf, dessen Split neue
+    Hauptäste erzeugt. Rückgabe: [{node_id, name, depth, arguments:[uri,…]}],
+    grösste zuerst."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """SELECT n.id, n.name, n.depth,
                       array_agg(DISTINCT m.argument_uri) AS args
                FROM app_topic_node n
-               JOIN app_topic_membership m ON m.node_id = n.id AND m.is_primary
+               JOIN app_topic_membership m ON m.node_id = n.id
                WHERE n.ballot_rkey = $1 AND n.depth < $2
                GROUP BY n.id, n.name, n.depth
                HAVING count(DISTINCT m.argument_uri) >= $3
@@ -636,8 +433,7 @@ async def split_node(ballot_rkey: str, parent_id: int, parent_depth: int,
                     continue  # 'andere' oder leeres Unterthema → bleibt am Eltern
                 await conn.execute(
                     """UPDATE app_topic_membership SET node_id = $1, updated_at = now()
-                       WHERE ballot_rkey = $2 AND argument_uri = $3 AND node_id = $4
-                         AND is_primary""",
+                       WHERE ballot_rkey = $2 AND argument_uri = $3 AND node_id = $4""",
                     child, ballot_rkey, arg, parent_id)
                 moved += 1
             await conn.execute(
@@ -647,13 +443,15 @@ async def split_node(ballot_rkey: str, parent_id: int, parent_depth: int,
 
 async def add_topic_memberships(ballot_rkey: str, placements: dict[str, int],
                                 args_by_uri: dict[str, dict]) -> int:
-    """Inkrementell: hängt neue PRIMÄR-Argument-Memberships an die per `placements`
+    """Inkrementell: hängt neue Argument-Memberships an die per `placements`
     (argument_uri → node_id) bestimmten Knoten. `args_by_uri` liefert die Haltung
     (stance) je Argument. Nur für NOCH NICHT verortete Argumente gedacht (sonst
-    kann ein zweites Primärthema entstehen). Idempotent (ON CONFLICT)."""
+    verletzt ein zweiter Knoten das ein-Knoten-pro-Argument-Constraint).
+    Idempotent (ON CONFLICT)."""
     rows = [
-        (ballot_rkey, node_id, uri, True, None,
-         (args_by_uri.get(uri) or {}).get("stance"), None)
+        (ballot_rkey, node_id, uri,
+         (args_by_uri.get(uri) or {}).get("confidence"),
+         (args_by_uri.get(uri) or {}).get("stance"))
         for uri, node_id in placements.items()
     ]
     if not rows:
@@ -662,10 +460,10 @@ async def add_topic_memberships(ballot_rkey: str, placements: dict[str, int],
     async with pool.acquire() as conn:
         await conn.executemany(
             """INSERT INTO app_topic_membership
-                   (ballot_rkey, node_id, argument_uri, is_primary, confidence, stance, code)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)
+                   (ballot_rkey, node_id, argument_uri, confidence, stance)
+               VALUES ($1, $2, $3, $4, $5)
                ON CONFLICT (ballot_rkey, argument_uri, node_id) DO UPDATE
-                 SET is_primary = EXCLUDED.is_primary, stance = EXCLUDED.stance,
+                 SET confidence = EXCLUDED.confidence, stance = EXCLUDED.stance,
                      updated_at = now()""",
             rows)
     return len(rows)

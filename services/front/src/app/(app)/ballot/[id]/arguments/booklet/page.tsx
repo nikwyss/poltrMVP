@@ -8,7 +8,6 @@ import { useAuth } from "@/lib/AuthContext";
 import { getBallot, listArguments } from "@/lib/agent";
 import { loadCached, patchCached } from "@/lib/pageCache";
 import { useScrollRestore } from "@/lib/scrollRestore";
-import { formatDate } from "@/lib/utils";
 import type { Ballot, ArgumentWithMetadata } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +16,7 @@ import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
 import { ProContraColumnHeaders } from "@/components/pro-contra-column-headers";
 import { PageBackdrop } from "@/components/page-backdrop";
+import { ArgumentariumHeader } from "@/components/argumentarium-header";
 import { useOverlay, useOverlayCallback } from "@/lib/overlay";
 
 // ---------------------------------------------------------------------------
@@ -64,47 +64,6 @@ function sourceKind(
   if (t === "app.ch.poltr.ballot.argument#sourceOrganization")
     return "organization";
   return "user";
-}
-
-// ---------------------------------------------------------------------------
-// Expandable description — clamps to 5 lines, "mehr/weniger"-Toggle. Der
-// Button erscheint nur, wenn der Text tatsächlich über 5 Zeilen hinausgeht.
-// ---------------------------------------------------------------------------
-
-function ExpandableText({ text }: { text: string }) {
-  const tbk = useTranslations("booklet");
-  const [expanded, setExpanded] = useState(false);
-  const [clamped, setClamped] = useState(false);
-  const ref = useRef<HTMLParagraphElement>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const check = () => setClamped(el.scrollHeight > el.clientHeight + 1);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, [text]);
-
-  return (
-    <div className="mb-5 max-w-2xl">
-      <p
-        ref={ref}
-        className={`text-base text-[var(--text-mid)] leading-relaxed ${expanded ? "" : "line-clamp-5"}`}
-      >
-        {text}
-      </p>
-      {(clamped || expanded) && (
-        <button
-          type="button"
-          onClick={() => setExpanded((e) => !e)}
-          className="mt-1.5 text-xs font-semibold text-[var(--text-faint)] hover:text-[var(--text)] transition-colors"
-        >
-          {expanded ? tbk("readLess") : tbk("readMore")}
-        </button>
-      )}
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -382,7 +341,6 @@ function BookletContent() {
   const t = useTranslations("ballotDetail");
   const tc = useTranslations("common");
   const tbk = useTranslations("booklet");
-  const tbt = useTranslations("ballotType");
 
   // Overlay-Stack lebt im Modul `lib/overlay` (URL = stack, scroll & pushCount
   // im history.state). Wir nutzen hier nur `navigate(entry)` zum Öffnen.
@@ -578,57 +536,8 @@ function BookletContent() {
 
       {!loading && ballot && (
         <>
-          {/* Hero card */}
-          <div className="bg-card border border-border rounded-[calc(var(--r)+6px)] px-8 py-8 md:px-11 md:py-9 animate-fade-up overflow-hidden">
-            <div className="flex items-center gap-2 mb-3.5">
-              <span className="label">
-                {formatDate(ballot.voteDate)}
-              </span>
-              {ballot.ballotType && (
-                <>
-                  <span className="label">·</span>
-                  <span className="text-[0.8125rem] font-semibold text-[var(--brand)]">
-                    {tbt(ballot.ballotType)}
-                  </span>
-                </>
-              )}
-            </div>
-
-            <div className="flex justify-between items-start gap-6 mb-5">
-              <h1
-                className="text-4xl md:text-[2.75rem] font-bold tracking-tight leading-[0.92]"
-                style={{
-                  fontFamily:
-                    'var(--font-serif), Georgia, "Times New Roman", serif',
-                }}
-              >
-                {ballot.title}
-              </h1>
-              <div className="flex gap-8 shrink-0 pt-1">
-                {(ballot.argumentCount ?? 0) > 0 && (
-                  <div className="flex flex-col items-center">
-                    <span className="text-3xl font-bold leading-none tracking-tight text-[var(--text)]">
-                      {ballot.argumentCount}
-                    </span>
-                    <span className="mt-2 text-sm text-[var(--text-faint)]">
-                      {tbk("argumentsLabel")}
-                    </span>
-                  </div>
-                )}
-                {(ballot.commentCount ?? 0) > 0 && (
-                  <div className="flex flex-col items-center">
-                    <span className="text-3xl font-bold leading-none tracking-tight text-[var(--text)]">
-                      {ballot.commentCount}
-                    </span>
-                    <span className="mt-2 text-sm text-[var(--text-faint)]">
-                      {tbk("commentsLabel")}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {ballot.description && <ExpandableText text={ballot.description} />}
+          <div className="animate-fade-up">
+            <ArgumentariumHeader ballot={ballot} />
           </div>
 
           {/* Section 1: Official */}

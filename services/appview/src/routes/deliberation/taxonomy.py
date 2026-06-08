@@ -4,9 +4,10 @@ eingeordneten Argumenten (für die Frontend-View „taxonomy", neben booklet/fee
 
 Liest die vom Calculator gepflegte Top-down-Hierarchie (app_topic_node /
 app_topic_membership) und reichert jeden Knoten mit seinen Argumenten an: ein
-Argument hängt über seine Open Codes an einem Knoten und kann — über mehrere
-Codes — an mehreren Knoten erscheinen (Multi-Thema). Read-only, ATProto-
-unabhängig (Analyse-Schicht; die Argumente selbst sind ATProto-Records).
+Argument wird direkt einem Hauptthema zugeordnet und kann mit gekappter
+Multimembership zusätzlich an einem Nebenthema erscheinen (Multi-Thema).
+Read-only, ATProto-unabhängig (Analyse-Schicht; die Argumente selbst sind
+ATProto-Records).
 
 Antwort:
   { ballotRkey, tree: Node }

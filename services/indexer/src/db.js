@@ -311,9 +311,9 @@ export async function markArgumentDeleted(uri) {
 }
 
 /**
- * Hard-delete the machine-derived analysis rows tied to an argument: open codes
- * (Calculator) and the taxonomy/axis memberships. These are recomputable output,
- * NOT democratic content, so removing them on argument deletion is safe and keeps
+ * Hard-delete the machine-derived analysis rows tied to an argument: the
+ * top-down topic memberships (Calculator). These are recomputable output, NOT
+ * democratic content, so removing them on argument deletion is safe and keeps
  * the analysis tables free of orphans.
  *
  * Deliberately NOT touched here:
@@ -322,10 +322,7 @@ export async function markArgumentDeleted(uri) {
  *   - comments / likes — soft-delete columns + read-filters handle them.
  */
 export async function cascadeDeleteArgumentDerived(uri) {
-  await pool.query(`DELETE FROM app_argument_open_codes WHERE argument_uri = $1`, [uri]);
-  await pool.query(`DELETE FROM app_topic_membership    WHERE argument_uri = $1`, [uri]);
-  await pool.query(`DELETE FROM app_taxonomy_membership WHERE argument_uri = $1`, [uri]);
-  await pool.query(`DELETE FROM app_arguments_axis      WHERE argument_uri = $1`, [uri]);
+  await pool.query(`DELETE FROM app_topic_membership WHERE argument_uri = $1`, [uri]);
 }
 
 /**

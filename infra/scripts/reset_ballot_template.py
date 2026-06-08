@@ -216,7 +216,7 @@ def reset_postgres(db_url: str, ballot_rkey: str, gov_did: str, execute: bool) -
 
             # (label, full DELETE statement). Community args are deleted last so the
             # likes/activity subqueries above still resolve. app_arguments delete
-            # cascades to app_argument_open_codes and app_peerreviews (FK CASCADE).
+            # cascades to app_peerreviews (FK CASCADE).
             steps = [
                 ("app_likes (ratings/likes)", f"DELETE FROM app_likes WHERE {like_where}"),
                 ("app_activity_seen", f"DELETE FROM app_activity_seen WHERE {seen_where}"),
@@ -226,9 +226,7 @@ def reset_postgres(db_url: str, ballot_rkey: str, gov_did: str, execute: bool) -
                 ("app_peerreview_invitations", f"DELETE FROM app_peerreview_invitations WHERE {pr_where}"),
                 ("app_topic_membership", "DELETE FROM app_topic_membership WHERE ballot_rkey = %(b)s"),
                 ("app_topic_node", "DELETE FROM app_topic_node WHERE ballot_rkey = %(b)s"),
-                ("app_taxonomy_run (+axis/bundle/membership/arguments_axis)",
-                 "DELETE FROM app_taxonomy_run WHERE ballot_rkey = %(b)s"),
-                ("app_arguments (community; cascades open_codes + peerreviews)",
+                ("app_arguments (community; cascades peerreviews)",
                  "DELETE FROM app_arguments WHERE ballot_rkey = %(b)s "
                  "AND source_type IS DISTINCT FROM 'official'"),
             ]

@@ -78,7 +78,7 @@ export const handleEvent = async (evt) => {
     }
     if (action === "delete") {
       // Soft-delete the argument (reads everywhere filter `NOT deleted`), then
-      // clean up its machine-derived analysis rows (open codes + taxonomy/axis).
+      // clean up its machine-derived analysis rows (top-down topic memberships).
       // Peer reviews, comments and likes are NOT removed — they stay and are
       // hidden via read-filters (peer reviews are democratically sensitive and
       // must never be hard-deleted).
