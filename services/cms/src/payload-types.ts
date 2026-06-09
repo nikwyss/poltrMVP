@@ -98,15 +98,10 @@ export interface Config {
   db: {
     defaultIDType: number;
   };
-  fallbackLocale:
-    | ('false' | 'none' | 'null')
-    | false
-    | null
-    | ('de' | 'fr' | 'it' | 'rm' | 'en')
-    | ('de' | 'fr' | 'it' | 'rm' | 'en')[];
+  fallbackLocale: ('false' | 'none' | 'null') | false | null | ('de-CH' | 'en-GB') | ('de-CH' | 'en-GB')[];
   globals: {};
   globalsSelect: {};
-  locale: 'de' | 'fr' | 'it' | 'rm' | 'en';
+  locale: 'de-CH' | 'en-GB';
   user: User & {
     collection: 'users';
   };
@@ -275,7 +270,7 @@ export interface Block {
  */
 export interface Ballot {
   id: number;
-  originLanguage: 'de' | 'fr' | 'it' | 'rm' | 'en';
+  originLanguage: 'de-CH' | 'fr-CH' | 'it-CH' | 'rm' | 'en-GB';
   /**
    * Nur draft/published werden vom Calculator codiert; archived nicht.
    */
@@ -371,7 +366,7 @@ export interface ImportedArgument {
   /**
    * Quellsprache des Arguments. Bestimmt, welche Locale beim Publish als Original (Top-Level title/body + langs) in den ATProto-Record geht; alle übrigen befüllten Locales landen als translations[].
    */
-  originLanguage: 'de' | 'fr' | 'it' | 'rm' | 'en';
+  originLanguage: 'de-CH' | 'fr-CH' | 'it-CH' | 'rm' | 'en-GB';
   /**
    * Auf "Published" setzen, um den Record auf den PDS zu schreiben.
    */

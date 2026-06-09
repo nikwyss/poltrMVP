@@ -251,6 +251,9 @@ class CommentImporter:
             "title": comment.title.strip(),
             "body": body_text,
             "argument": argument_uri,
+            # Origin language of the body (BCP-47) — imported comments are Swiss
+            # German by default. Keeps the record self-describing.
+            "langs": [os.getenv("POLTR_DEFAULT_LANGUAGE", "de-CH")],
             "createdAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")[:-4] + "Z",
         }
         if parent_uri:

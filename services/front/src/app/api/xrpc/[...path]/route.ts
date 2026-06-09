@@ -21,6 +21,15 @@ async function proxyRequest(request: NextRequest, { params }: { params: Promise<
     url.searchParams.set(key, value);
   });
 
+  // Reflect the in-app language switch: inject ?lang from the `locale` cookie
+  // (set by the locale switcher) unless the caller already passed one. The
+  // AppView prefers ?lang over Accept-Language, so this localizes arguments and
+  // comments to the chosen UI language without touching every call site.
+  if (!url.searchParams.has('lang')) {
+    const locale = request.cookies.get('locale')?.value;
+    if (locale) url.searchParams.set('lang', locale);
+  }
+
   const headers: HeadersInit = {};
 
   // Forward content-type if present

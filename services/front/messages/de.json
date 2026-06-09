@@ -35,6 +35,7 @@
     "overlayTitleTaxonomy": "Thema"
   },
   "nav": {
+    "dossier": "Abstimmungsdossier",
     "home": "Start",
     "ballots": "Abstimmungen",
     "review": "Begutachtung",

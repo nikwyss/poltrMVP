@@ -12,7 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
-import { PageBackdrop } from "@/components/page-backdrop";
+// import { PageBackdrop } from "@/components/page-backdrop";
 import { PositionBand } from "@/components/position-band";
 import { TaxonomySunburst } from "@/components/taxonomy-sunburst";
 import { AddArgumentModal } from "@/components/add-argument-modal";
@@ -89,13 +89,16 @@ export default function TaxonomyPage() {
 
   return (
     <div className="space-y-5 pb-[35vh]">
-      <PageBackdrop src="/images/kleinemythe.svg" />
+      {/* <PageBackdrop src="/images/kleinemythe.svg" /> */}
       <nav className="flex items-center justify-end text-sm text-muted-foreground">
         <ViewToggle active="taxonomy" ballotId={id} />
       </nav>
 
       {ballot && (
-        <ArgumentariumHeader ballot={ballot} topicCount={root?.children?.length} />
+        <ArgumentariumHeader
+          ballot={ballot}
+          topicCount={root?.children?.length}
+        />
       )}
 
       {loading && (
@@ -160,7 +163,9 @@ export default function TaxonomyPage() {
             <h2 className="text-lg font-semibold tracking-tight text-foreground">
               {t("analysisTitle")}
             </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">{t("analysisSubtitle")}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {t("analysisSubtitle")}
+            </p>
           </header>
 
           {/* Sunburst — ganze Themen-Hierarchie, gefärbt nach eigener Haltung */}

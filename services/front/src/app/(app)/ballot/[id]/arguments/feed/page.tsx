@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/spinner";
 import { ProContraBadge } from "@/components/pro-contra-badge";
-import { PageBackdrop } from "@/components/page-backdrop";
+// import { PageBackdrop } from "@/components/page-backdrop";
 import { AddArgumentModal } from "@/components/add-argument-modal";
 
 import { ViewToggle } from "@/components/view-toggle";
@@ -591,7 +591,7 @@ function BallotFeedContent() {
 
   return (
     <div className="space-y-5 pb-[35vh]">
-      <PageBackdrop src="/images/kleinemythe.svg" />
+      {/* <PageBackdrop src="/images/kleinemythe.svg" /> */}
       {/* Breadcrumb + view toggle */}
       <nav className="flex items-center justify-between text-sm text-muted-foreground">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -631,15 +631,17 @@ function BallotFeedContent() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex justify-between items-start mb-4">
-                <h1 className="m-0 text-2xl font-bold">
-                  {ballot.title}
-                </h1>
+                <h1 className="m-0 text-2xl font-bold">{ballot.title}</h1>
                 {ballot.availableLangs && ballot.availableLangs.length > 0 && (
                   <div className="flex items-center gap-1 shrink-0 ml-2">
                     {ballot.availableLangs.map((code) => (
                       <Badge
                         key={code}
-                        variant={code === ballot.originLanguage ? "default" : "secondary"}
+                        variant={
+                          code === ballot.originLanguage
+                            ? "default"
+                            : "secondary"
+                        }
                         className="uppercase text-[0.625rem]"
                         title={
                           code === ballot.originLanguage
@@ -670,8 +672,7 @@ function BallotFeedContent() {
 
               <div className="flex justify-between items-center">
                 <div className="text-sm text-muted-foreground">
-                  <strong>{t("voteDate")}</strong>{" "}
-                  {formatDate(ballot.voteDate)}
+                  <strong>{t("voteDate")}</strong> {formatDate(ballot.voteDate)}
                 </div>
                 {ballot.officialRef && (
                   <span className="text-xs text-muted-foreground">
@@ -791,7 +792,6 @@ function BallotFeedContent() {
           onCreated={() => loadActivities(filter, true)}
         />
       )}
-
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { useLocale } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getArgument } from "@/lib/agent";
 import { rateContent } from "@/lib/ballots";
@@ -32,8 +33,11 @@ export function useArgumentQuery(
   rkey: string,
   enabled: boolean,
 ) {
+  const locale = useLocale();
   return useQuery({
-    queryKey: argumentKeys.detail(ballotRkey, rkey),
+    // Locale in the key so switching language refetches (localized via the
+    // proxy's ?lang injection). detailPrefix stays locale-free for cache patches.
+    queryKey: [...argumentKeys.detail(ballotRkey, rkey), locale],
     queryFn: () => getArgument(ballotRkey, rkey),
     enabled,
   });
@@ -62,9 +66,10 @@ export function useArgumentRatingCache(ballotId: string) {
       const apply = (a: ArgumentWithMetadata) =>
         a.uri === uri ? withPreference(a, preference) : a;
 
-      // Booklet-Liste (`viewer.preference`).
-      qc.setQueryData<ArgumentWithMetadata[]>(
-        argumentKeys.list(ballotId),
+      // Booklet-Liste (`viewer.preference`) — Prefix-Match über alle Locales,
+      // da der Listen-Key jetzt die Locale enthält.
+      qc.setQueriesData<ArgumentWithMetadata[]>(
+        { queryKey: argumentKeys.list(ballotId) },
         (prev) => prev?.map(apply),
       );
       // Einzel-Argument im Overlay-Detail (`viewer.preference`).

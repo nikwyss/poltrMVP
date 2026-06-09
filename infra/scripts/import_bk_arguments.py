@@ -225,6 +225,9 @@ def main() -> int:
                 "body": arg["body"],
                 "type": arg["type"],
                 "ballot": ballot_rkey,
+                # Origin language of title/body (BCP-47) — official Bundeskanzlei
+                # content is Swiss German by default. Keeps the record self-describing.
+                "langs": [os.getenv("POLTR_DEFAULT_LANGUAGE", "de-CH")],
                 "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "source": {
                     "$type": OFFICIAL_REF,

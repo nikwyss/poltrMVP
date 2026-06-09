@@ -2,6 +2,14 @@
 
 ## 2026-06-09
 
+### Taxonomie-Übersetzung: Topic-Knoten via Apertus, direkt-in-DB (`services/appview`, `infra`)
+
+- **`app_topic_node` um Übersetzung erweitert** (`langs` / `translations` jsonb / `translation_status`, plus Partial-Index + Reset-Trigger). Migration `infra/scripts/postgres/migrate-topic-translations.sql`, auch in `db-setup.sql`. Übersetzt werden die **voter-facing** Felder `name` + `introduction`; `description` bleibt intern/deutsch.
+- **Zentraler Unterschied zu Argumenten:** Taxonomie lebt nur in der DB (kein PDS/Firehose) → der Worker schreibt die Übersetzung **direkt per `UPDATE`** und rechnet `translation_status` selbst (`_derive_status`). Status flippt sofort auf `complete` → kein Re-Translation-Loop, kein Circuit-Breaker nötig.
+- **Gleicher Worker** (`translator.py`): LLM-Call zu `_chat_completion` generalisiert (Argumente + Topics teilen Apertus-Call/Retry/Dual-Parser); neue `_process_topics_batch` / `_process_topic`, gated über `APPVIEW_TRANSLATE_TOPICS_ENABLED` (Default **an** — low-volume). Name-only-Knoten (leere `introduction`) werden korrekt behandelt.
+- **Serving** (`taxonomy.py`): neuer `pick_node_translation` (analog `pick_translation`) lokalisiert `name`/`introduction` pro Knoten nach `?lang`. Frontend unverändert (schickt `lang` schon).
+- **Reset-Trigger:** ändert sich `name`/`introduction` (Calculator-Rebuild / CMS-Edit), werden `translations` verworfen und Status auf `pending` → Worker übersetzt neu.
+
 ### Argument-/Comment-Übersetzung: LLM-Call angeschlossen (Apertus @ Infomaniak), vorerst nur `de,en` (`services/appview`, `services/indexer`, `infra`, `doc`)
 
 - **`_translate_via_llm` ist kein Stub mehr** (`services/appview/src/translation/translator.py`): Der Worker übersetzt Argumente (inline `translations[]`) und Comments (Sidecar-Records) jetzt über **Infomaniak AI Tools** (OpenAI-kompatible Chat-Completions, Schweizer Hosting → Datensouveränität) mit dem Schweizer Open-Modell **Apertus** (`swiss-ai/Apertus-70B-Instruct-2509`, Default). Strukturierte Ausgabe per JSON-Prompt erzwungen (Infomaniak unterstützt kein forced tool-use); ` ```json `-Fences werden gestrippt, transiente Gateway-Fehler (429/5xx) mit 1/2/4 s Backoff wiederholt, permanente (400/401) sofort durchgereicht. Kein stiller Provider-Fallback. Pipeline (DB → Worker → PDS → Indexer → DB) unverändert, Schreibweg bleibt `putRecord` auf den Governance-Account.

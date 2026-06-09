@@ -124,12 +124,41 @@ CREATE TABLE app_topic_node (              -- Adjazenzliste: parent_id → Elter
   introduction text,                  -- voter-facing: warum das Thema zählt & für wen (Stimmbürgerschaft) — im Frontend gezeigt
   depth        integer NOT NULL DEFAULT 0,
   importance   smallint CHECK (importance IS NULL OR importance BETWEEN 1 AND 5),  -- LLM-Prior 1–5 (nur CMS)
+  -- Übersetzung der voter-facing Felder name + introduction (description bleibt
+  -- intern/deutsch). Vom appview-Translation-Worker direkt hier befüllt (kein
+  -- PDS/Firehose — Taxonomie lebt nur in der DB). translations:
+  --   [{lang, name, introduction, source:'ai'|'manual', model, translatedAt}]
+  langs              text[] NOT NULL DEFAULT ARRAY['de-CH'],
+  translations       jsonb  NOT NULL DEFAULT '[]'::jsonb,
+  translation_status text   NOT NULL DEFAULT 'pending'
+    CHECK (translation_status IN ('pending', 'partial', 'complete', 'manual_only')),
   created_at   timestamptz NOT NULL DEFAULT now(),
   updated_at   timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX app_topic_node_ballot_idx ON app_topic_node (ballot_rkey);
 CREATE INDEX app_topic_node_parent_idx ON app_topic_node (parent_id);
 CREATE UNIQUE INDEX app_topic_node_key_uidx ON app_topic_node (ballot_rkey, key) WHERE key IS NOT NULL;
+-- Worker-Queue: nur unübersetzte Knoten.
+CREATE INDEX app_topic_node_tx_status_idx ON app_topic_node (translation_status)
+  WHERE translation_status IN ('pending', 'partial');
+
+-- Quelltext geändert (Rebuild/CMS-Edit) → Übersetzungen verwerfen, Status zurück
+-- auf 'pending', damit der Worker neu übersetzt.
+CREATE OR REPLACE FUNCTION app_topic_node_reset_translations() RETURNS trigger AS $$
+BEGIN
+  IF NEW.name IS DISTINCT FROM OLD.name
+     OR NEW.introduction IS DISTINCT FROM OLD.introduction THEN
+    NEW.translations := '[]'::jsonb;
+    NEW.translation_status := 'pending';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS app_topic_node_reset_translations_trg ON app_topic_node;
+CREATE TRIGGER app_topic_node_reset_translations_trg
+  BEFORE UPDATE ON app_topic_node
+  FOR EACH ROW EXECUTE FUNCTION app_topic_node_reset_translations();
 
 CREATE TABLE app_topic_membership (       -- Argument → Knoten (Einheit = Argument; genau EIN Knoten pro Argument)
   ballot_rkey  text NOT NULL,

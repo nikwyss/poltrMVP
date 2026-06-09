@@ -115,3 +115,58 @@ def pick_translation(
 
     # Final fallback: original text (no requested-language coverage).
     return out
+
+
+def pick_node_translation(
+    langs: Optional[list],
+    translations: Optional[list],
+    name: Optional[str],
+    introduction: Optional[str],
+    requested: str,
+) -> dict:
+    """Like pick_translation, but for taxonomy nodes (name + introduction).
+
+    Translation entries look like {lang, name, introduction, source}. Returns
+    {name, introduction, availableLangs, translatedFrom?, translationSource?}.
+    """
+    origin = list(langs or [DEFAULT_LANGUAGE])
+    tx_list = list(translations or [])
+
+    available: list[str] = []
+    seen: set[str] = set()
+    for l in origin:
+        if l and l not in seen:
+            available.append(l)
+            seen.add(l)
+    for t in tx_list:
+        if isinstance(t, dict):
+            l = t.get("lang")
+            if isinstance(l, str) and l not in seen:
+                available.append(l)
+                seen.add(l)
+
+    base = {
+        "name": name or "",
+        "introduction": introduction or "",
+        "availableLangs": available,
+    }
+    if requested in origin:
+        return base
+
+    def _from_tx(t: dict) -> dict:
+        return {
+            "name": t.get("name") or (name or ""),
+            "introduction": t.get("introduction") or "",
+            "availableLangs": available,
+            "translatedFrom": origin[0] if origin else DEFAULT_LANGUAGE,
+            "translationSource": t.get("source") or "manual",
+        }
+
+    for t in tx_list:
+        if isinstance(t, dict) and t.get("lang") == requested and t.get("name"):
+            return _from_tx(t)
+    if requested != DEFAULT_LANGUAGE:
+        for t in tx_list:
+            if isinstance(t, dict) and t.get("lang") == DEFAULT_LANGUAGE and t.get("name"):
+                return _from_tx(t)
+    return base

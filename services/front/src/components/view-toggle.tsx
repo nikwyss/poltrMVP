@@ -36,9 +36,9 @@ const viewDefs: {
   labelKey: string;
   segment: string;
 }[] = [
-  { key: "feed", icon: List, labelKey: "feed", segment: "feed" },
-  { key: "booklet", icon: BookOpen, labelKey: "booklet", segment: "booklet" },
   { key: "taxonomy", icon: Network, labelKey: "taxonomy", segment: "taxonomy" },
+  { key: "booklet", icon: BookOpen, labelKey: "booklet", segment: "booklet" },
+  { key: "feed", icon: List, labelKey: "feed", segment: "feed" },
 ];
 
 export function ViewToggle({

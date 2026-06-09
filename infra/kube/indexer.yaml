@@ -27,6 +27,19 @@ spec:
                 secretKeyRef:
                   name: pds-secrets
                   key: PDS_HOSTNAME
+            # Language config: appview-secrets is the single source of truth.
+            # The indexer must use the SAME set as the appview, otherwise it
+            # derives translation_status against a different language set.
+            - name: POLTR_LANGUAGES
+              valueFrom:
+                secretKeyRef:
+                  name: appview-secrets
+                  key: POLTR_LANGUAGES
+            - name: POLTR_DEFAULT_LANGUAGE
+              valueFrom:
+                secretKeyRef:
+                  name: appview-secrets
+                  key: POLTR_DEFAULT_LANGUAGE
 
           ports:
             # Admin/backfill HTTP server listens on BACKFILL_PORT (3001).

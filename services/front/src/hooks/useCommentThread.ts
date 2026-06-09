@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocale } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { createComment } from "@/lib/agent";
 import { likeContent, unlikeContent } from "@/lib/ballots";
@@ -28,6 +29,7 @@ export function useCommentThread(
   options?: { onError?: (e: PdsError) => void },
 ) {
   const qc = useQueryClient();
+  const locale = useLocale();
   const onError = options?.onError;
 
   const query = useCommentsQuery(argumentUri);
@@ -105,7 +107,7 @@ export function useCommentThread(
       setSubmitting(true);
       setCommentError(null);
       try {
-        await createComment(argUri, "", replyText.trim(), parentUri);
+        await createComment(argUri, "", replyText.trim(), parentUri, [locale]);
         setReplyText("");
         await qc.invalidateQueries({ queryKey: commentKeys.list(argUri) });
         setReplyTarget(null);
@@ -116,7 +118,7 @@ export function useCommentThread(
         setSubmitting(false);
       }
     },
-    [replyText, submitting, qc],
+    [replyText, submitting, qc, locale],
   );
 
   return {

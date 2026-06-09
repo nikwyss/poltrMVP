@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
 import { getBallot, listArguments } from "@/lib/agent";
@@ -16,7 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
 import { ProContraColumnHeaders } from "@/components/pro-contra-column-headers";
-import { PageBackdrop } from "@/components/page-backdrop";
+// import { PageBackdrop } from "@/components/page-backdrop";
 import { ArgumentariumHeader } from "@/components/argumentarium-header";
 import { useOverlay } from "@/lib/overlay";
 
@@ -364,14 +364,16 @@ function BookletContent() {
   // wodurch die Karten hier ohne Callback und ohne Refetch live aktualisieren.
   const enabled = !authLoading && isAuthenticated && !!user && !!id;
 
+  const locale = useLocale();
+
   const {
     data: ballot = null,
     isPending: ballotPending,
     error: ballotError,
     refetch: refetchBallot,
   } = useQuery({
-    queryKey: ["ballot", id],
-    queryFn: () => getBallot(id),
+    queryKey: ["ballot", id, locale],
+    queryFn: () => getBallot(id, locale),
     enabled,
   });
 
@@ -381,7 +383,8 @@ function BookletContent() {
     error: argsError,
     refetch: refetchArgs,
   } = useQuery({
-    queryKey: argumentKeys.list(id),
+    // Locale in the key so a language switch refetches the localized list.
+    queryKey: [...argumentKeys.list(id), locale],
     queryFn: () => listArguments(id),
     enabled,
   });
@@ -494,7 +497,7 @@ function BookletContent() {
       className="max-w-[var(--page-max)] mx-auto pb-[35vh]"
       style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}
     >
-      <PageBackdrop src="/images/schrattenfluh.svg" />
+      {/* <PageBackdrop src="/images/schrattenfluh.svg" /> */}
 
       {/* View-Toggle (Titel steckt in der Hero-Card darunter) */}
       <nav className="flex items-center justify-end gap-2 pt-5 text-xs label">
@@ -1102,7 +1105,6 @@ function BookletContent() {
           }
         }
       `}</style>
-
     </div>
   );
 }

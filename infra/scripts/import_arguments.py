@@ -99,6 +99,9 @@ class ArgumentImporter:
             "body": arg.body.strip(),
             "type": arg.type,
             "ballot": self.ballot_uri,
+            # Origin language of title/body — keeps the record self-describing
+            # (BCP-47). Imported content is Swiss German by default.
+            "langs": [os.getenv("POLTR_DEFAULT_LANGUAGE", "de-CH")],
             "source": {
                 "$type": "app.ch.poltr.ballot.argument#sourceUser",
                 "authorDid": author_did,

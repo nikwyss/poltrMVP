@@ -181,10 +181,12 @@ export async function createComment(
   title: string,
   body: string,
   parentUri?: string,
+  langs?: string[],
 ): Promise<{ uri: string; cid: string }> {
   const authenticatedFetch = getAuthenticatedFetch();
-  const payload: Record<string, string> = { argument: argumentUri, title, body };
+  const payload: Record<string, unknown> = { argument: argumentUri, title, body };
   if (parentUri) payload.parent = parentUri;
+  if (langs && langs.length) payload.langs = langs;
   const res = await authenticatedFetch('/api/xrpc/app.ch.poltr.comment.create', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

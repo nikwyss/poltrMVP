@@ -21,6 +21,14 @@ async function proxyRequest(request: NextRequest, { params }: { params: Promise<
     url.searchParams.set(key, value);
   });
 
+  // Reflect the in-app language switch: inject ?lang from the `locale` cookie
+  // (set by the locale switcher) unless the caller already passed one — so
+  // ballots localize to the chosen UI language, not just the browser's.
+  if (!url.searchParams.has('lang')) {
+    const locale = request.cookies.get('locale')?.value;
+    if (locale) url.searchParams.set('lang', locale);
+  }
+
   const headers: HeadersInit = {};
 
   const contentType = request.headers.get('content-type');

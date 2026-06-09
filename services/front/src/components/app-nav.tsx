@@ -50,9 +50,9 @@ export function AppNav() {
         >
           {/* Logo */}
           <Link href="/home" className="flex items-center gap-2.5 no-underline">
-            <img src="/logo5.svg" alt="smartvotes Abstimmungsdossier" className="h-9 w-9 shrink-0" />
+            <img src="/logo5.svg" alt={`smartvotes ${t("dossier")}`} className="h-9 w-9 shrink-0" />
             <span className="font-bold text-[0.9375rem] uppercase tracking-[0.18em] hidden sm:inline ">
-               Abstimmungsdossier
+               {t("dossier")}
             </span>
           </Link>
 

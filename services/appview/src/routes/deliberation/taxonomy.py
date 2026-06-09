@@ -27,7 +27,11 @@ from fastapi.responses import JSONResponse
 from src.auth.middleware import TSession, verify_session_token
 from src.core.db import get_pool
 from src.core.fastapi import logger
-from src.routes.deliberation._lang import pick_translation, resolve_requested_lang
+from src.routes.deliberation._lang import (
+    pick_node_translation,
+    pick_translation,
+    resolve_requested_lang,
+)
 
 router = APIRouter(prefix="/xrpc", tags=["poltr-taxonomy"])
 
@@ -186,7 +190,7 @@ async def get_taxonomy(
         async with pool.acquire() as conn:
             nodes = await conn.fetch(
                 """SELECT id, parent_id, key, name, description, introduction,
-                          depth, importance
+                          depth, importance, langs, translations
                    FROM app_topic_node WHERE ballot_rkey = $1
                    ORDER BY depth, id""",
                 ballot_rkey,
@@ -246,15 +250,26 @@ async def get_taxonomy(
                 sign = 1.0 if r["type"] == "PRO" else -1.0
                 arg_meta[r["uri"]] = sign * (float(pref) - 50.0) / 50.0
 
-        by_id: dict[int, dict] = {
-            n["id"]: {
-                "id": n["id"], "key": n["key"], "name": n["name"],
-                "description": n["description"], "introduction": n["introduction"],
+        def _node_dict(n) -> dict:
+            ntx = n["translations"]
+            if isinstance(ntx, str):
+                try:
+                    ntx = json.loads(ntx)
+                except (TypeError, ValueError):
+                    ntx = None
+            loc = pick_node_translation(
+                n["langs"], ntx, n["name"], n["introduction"], requested_lang
+            )
+            return {
+                "id": n["id"], "key": n["key"], "name": loc["name"],
+                # description stays internal/German (not translated, not shown).
+                "description": n["description"], "introduction": loc["introduction"],
                 "depth": n["depth"], "importance": n["importance"],
+                "availableLangs": loc.get("availableLangs"),
                 "children": [], "arguments": [], "argumentCount": 0,
             }
-            for n in nodes
-        }
+
+        by_id: dict[int, dict] = {n["id"]: _node_dict(n) for n in nodes}
         root = None
         for n in nodes:
             node = by_id[n["id"]]
