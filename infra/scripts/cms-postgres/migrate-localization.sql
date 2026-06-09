@@ -15,28 +15,28 @@
 BEGIN;
 
 -- ---------------------------------------------------------------------------
--- 1. New _locales enum (5 POLTR languages)
+-- 1. New _locales enum (BCP-47 region-flavoured POLTR languages)
 -- ---------------------------------------------------------------------------
 DO $$ BEGIN
-  CREATE TYPE "_locales" AS ENUM ('de','fr','it','rm','en');
+  CREATE TYPE "_locales" AS ENUM ('de-CH','fr-CH','it-CH','rm','en-GB');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ---------------------------------------------------------------------------
 -- 2. originLanguage select fields (Ballots + OfficialArguments)
 -- ---------------------------------------------------------------------------
 DO $$ BEGIN
-  CREATE TYPE "enum_ballots_origin_language" AS ENUM ('de','fr','it','rm','en');
+  CREATE TYPE "enum_ballots_origin_language" AS ENUM ('de-CH','fr-CH','it-CH','rm','en-GB');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  CREATE TYPE "enum_imported_arguments_origin_language" AS ENUM ('de','fr','it','rm','en');
+  CREATE TYPE "enum_imported_arguments_origin_language" AS ENUM ('de-CH','fr-CH','it-CH','rm','en-GB');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 ALTER TABLE "ballots"
-  ADD COLUMN IF NOT EXISTS "origin_language" "enum_ballots_origin_language" DEFAULT 'de' NOT NULL;
+  ADD COLUMN IF NOT EXISTS "origin_language" "enum_ballots_origin_language" DEFAULT 'de-CH' NOT NULL;
 
 ALTER TABLE "imported_arguments"
-  ADD COLUMN IF NOT EXISTS "origin_language" "enum_imported_arguments_origin_language" DEFAULT 'de' NOT NULL;
+  ADD COLUMN IF NOT EXISTS "origin_language" "enum_imported_arguments_origin_language" DEFAULT 'de-CH' NOT NULL;
 
 -- ---------------------------------------------------------------------------
 -- 3. Locales side-tables. Payload moves `localized: true` fields here:
@@ -92,10 +92,13 @@ SELECT
   b.title,
   b.description,
   b.topic,
-  CASE
-    WHEN to_jsonb(b)->>'language' IN ('de','fr','it','rm','en')
-      THEN (to_jsonb(b)->>'language')::"_locales"
-    ELSE 'de'::"_locales"
+  CASE to_jsonb(b)->>'language'
+    WHEN 'de' THEN 'de-CH'::"_locales"
+    WHEN 'fr' THEN 'fr-CH'::"_locales"
+    WHEN 'it' THEN 'it-CH'::"_locales"
+    WHEN 'rm' THEN 'rm'::"_locales"
+    WHEN 'en' THEN 'en-GB'::"_locales"
+    ELSE 'de-CH'::"_locales"
   END,
   b.id
 FROM "ballots" b
@@ -109,7 +112,7 @@ INSERT INTO "imported_arguments_locales" ("title", "body", "_locale", "_parent_i
 SELECT
   a.title,
   a.body,
-  'de'::"_locales",
+  'de-CH'::"_locales",
   a.id
 FROM "imported_arguments" a
 WHERE NOT EXISTS (

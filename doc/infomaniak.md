@@ -5,11 +5,13 @@ DNS-Zonen) bietet **AI Tools**: eine OpenAI-kompatible API für Chat Completions
 und Embeddings. Interessant für **Datensouveränität** (CH-Hosting) und weil die
 mengenintensiven Schritte günstiger laufen als auf Claude.
 
-> Status: aktuell **nicht** im Code verwendet — der Calculator läuft komplett auf
-> Anthropic (`claude-sonnet-4-6`). Diese Notiz hält fest, wie man Infomaniak als
-> KI-Provider anbindet, für eine spätere Reaktivierung. Die Env-Variablen liegen
-> als (auskommentierte) Platzhalter in `services/calculator/.env.dist` und
-> `infra/kube/secrets.yaml.dist`.
+> Status: **in Verwendung** vom AppView-Übersetzungs-Worker
+> (`services/appview/src/translation/translator.py`) — Argumente/Comments werden
+> über Apertus (`swiss-ai/Apertus-70B-Instruct-2509`) übersetzt, via die unten
+> beschriebenen Chat-Completions. Der Calculator läuft weiterhin auf Anthropic
+> (`claude-sonnet-4-6`); seine Infomaniak-Env-Variablen sind weiterhin Platzhalter
+> in `services/calculator/.env.dist`. Übersetzungs-Worker und Calculator teilen
+> sich dasselbe Infomaniak-Produkt + Token.
 
 ## Auth & Basis
 

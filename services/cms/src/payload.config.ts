@@ -19,17 +19,17 @@ const dirname = path.dirname(filename)
 // `POLTR_LANGUAGES` env var. Payload requires statically declared locales
 // (it generates per-locale DB columns at boot/migration time), so the list
 // is materialized here at module load; redeploy + migration on extension.
-const SUPPORTED_LANGUAGES = (process.env.POLTR_LANGUAGES || 'de,fr,it,rm,en')
+const SUPPORTED_LANGUAGES = (process.env.POLTR_LANGUAGES || 'de-CH,en-GB')
   .split(',')
   .map((c) => c.trim())
   .filter(Boolean)
 
 const LOCALE_LABELS: Record<string, string> = {
-  de: 'Deutsch',
-  fr: 'Français',
-  it: 'Italiano',
+  'de-CH': 'Deutsch',
+  'fr-CH': 'Français',
+  'it-CH': 'Italiano',
   rm: 'Rumantsch',
-  en: 'English',
+  'en-GB': 'English',
 }
 
 export default buildConfig({
@@ -50,7 +50,7 @@ export default buildConfig({
       code,
       label: LOCALE_LABELS[code] || code.toUpperCase(),
     })),
-    defaultLocale: process.env.POLTR_DEFAULT_LANGUAGE || 'de',
+    defaultLocale: process.env.POLTR_DEFAULT_LANGUAGE || 'de-CH',
     fallback: true,
   },
   db: postgresAdapter({

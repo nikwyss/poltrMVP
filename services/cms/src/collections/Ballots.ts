@@ -31,13 +31,13 @@ export const Ballots: CollectionConfig = {
       name: 'originLanguage',
       type: 'select',
       required: true,
-      defaultValue: 'de',
+      defaultValue: 'de-CH',
       options: [
-        { label: 'Deutsch', value: 'de' },
-        { label: 'Français', value: 'fr' },
-        { label: 'Italiano', value: 'it' },
+        { label: 'Deutsch', value: 'de-CH' },
+        { label: 'Français', value: 'fr-CH' },
+        { label: 'Italiano', value: 'it-CH' },
         { label: 'Rumantsch', value: 'rm' },
-        { label: 'English', value: 'en' },
+        { label: 'English', value: 'en-GB' },
       ],
       admin: {
         hidden: true,

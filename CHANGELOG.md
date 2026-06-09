@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-06-09
+
+### Argument-/Comment-Übersetzung: LLM-Call angeschlossen (Apertus @ Infomaniak), vorerst nur `de,en` (`services/appview`, `services/indexer`, `infra`, `doc`)
+
+- **`_translate_via_llm` ist kein Stub mehr** (`services/appview/src/translation/translator.py`): Der Worker übersetzt Argumente (inline `translations[]`) und Comments (Sidecar-Records) jetzt über **Infomaniak AI Tools** (OpenAI-kompatible Chat-Completions, Schweizer Hosting → Datensouveränität) mit dem Schweizer Open-Modell **Apertus** (`swiss-ai/Apertus-70B-Instruct-2509`, Default). Strukturierte Ausgabe per JSON-Prompt erzwungen (Infomaniak unterstützt kein forced tool-use); ` ```json `-Fences werden gestrippt, transiente Gateway-Fehler (429/5xx) mit 1/2/4 s Backoff wiederholt, permanente (400/401) sofort durchgereicht. Kein stiller Provider-Fallback. Pipeline (DB → Worker → PDS → Indexer → DB) unverändert, Schreibweg bleibt `putRecord` auf den Governance-Account.
+- **Neue Env-Vars** (`APPVIEW_TRANSLATE_BASE_URL`, `_PRODUCT_ID`, `_API_KEY`; `APPVIEW_TRANSLATE_MODEL`-Default jetzt Apertus statt `claude-haiku-4-5`). Worker teilt sich Infomaniak-Produkt + Token mit den Calculator-Embeddings. Verdrahtet in `appview-secrets` (`secrets.yaml` + `.dist`) und `services/appview/.env.dist`; `APPVIEW_TRANSLATE_ENABLED=true`.
+- **Sprachen vorerst auf `de,en` reduziert** (Original Deutsch → Englisch): `POLTR_LANGUAGES=de,en` konsistent in `appview-secrets` **und** `indexer-secrets` (`secrets.yaml` + beide `.env.dist`). Andere Zielsprachen (fr/it/rm) damit deaktiviert. **Hinweis:** Die Frontend-UI-Sprachen (`NEXT_PUBLIC_POLTR_LANGUAGES`) sind davon getrennt und ggf. separat anzupassen.
+- **Doku:** `doc/RECORD_TRANSLATIONS.md` (Phase-2-Stub-Hinweise → angeschlossen, Env-Tabelle) und `doc/infomaniak.md` (Status „in Verwendung") aktualisiert.
+
 ## 2026-06-07
 
 ### Argument-Views: eigener „Argumentarium"-Header; Ballot-Hero auf die Info-Seite (`services/front`)

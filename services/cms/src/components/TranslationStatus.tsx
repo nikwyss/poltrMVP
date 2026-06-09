@@ -18,7 +18,7 @@ type LocaleMap = Record<string, { title?: string | null } | null | undefined>
 
 const LANGUAGES = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_POLTR_LANGUAGES
   ? process.env.NEXT_PUBLIC_POLTR_LANGUAGES
-  : 'de,fr,it,rm,en'
+  : 'de-CH,en-GB'
 )
   .split(',')
   .map((c) => c.trim())

@@ -620,12 +620,14 @@ async def _poll_loop():
 
 async def _process_batch():
     await _process_arguments_batch()    # inline-Variante (Arguments)
-    await _process_comments_batch()     # Sidecar-Variante (Comments)
+
+    # DISABLED: due to 
+    # await _process_comments_batch()     # Sidecar-Variante (Comments)
 
 async def _process_arguments_batch():
     # 1. SELECT … FROM app_arguments WHERE translation_status IN ('pending','partial')
     # 2. fehlende Sprachen = SUPPORTED_LANGUAGES - (langs ∪ translations[].lang)
-    # 3. TODO: Anthropic SDK Call — Stub bis Phase 2
+    # 3. _translate_via_llm → Infomaniak Apertus (OpenAI-kompatibel, JSON-Prompt)
     # 4. putRecord mit erweitertem translations[] auf den Argument-Record selbst
     #    (governance-Account hat Schreibrecht).
     # 5. KEIN direktes DB-Update — Firehose → Indexer macht das.
@@ -636,7 +638,7 @@ async def _process_comments_batch():
     #      FROM app_comments c WHERE c.translation_status IN ('pending','partial')
     # 2. Pro Comment: missing = SUPPORTED_LANGUAGES - (c.langs ∪ existing sidecar langs)
     # 3. Für jede fehlende Sprache:
-    #      - LLM-Call (TODO Phase 2)
+    #      - LLM-Call (_translate_via_llm → Infomaniak Apertus)
     #      - createRecord/putRecord auf collection 'app.ch.poltr.comment.translation'
     #        im governance-Account des Ballots — composed rkey = f"{commentRkey}-{lang}"
     #      - Record-Body: { subject: {uri: c.uri}, ballot: ballot_rkey, lang, body, source:'ai', model, translatedAt }
@@ -654,10 +656,20 @@ Start/Stop einbinden wo `peer_review` heute schon startet (Suche `start_peer_rev
 | `APPVIEW_TRANSLATE_ENABLED` | `false` | Schalter |
 | `APPVIEW_TRANSLATE_POLL_INTERVAL_SECONDS` | `30` | Poll-Intervall |
 | `APPVIEW_TRANSLATE_BATCH_SIZE` | `20` | Max Records pro Lauf |
-| `ANTHROPIC_API_KEY` | — | später, für KI-Phase |
-| `APPVIEW_TRANSLATE_MODEL` | `claude-haiku-4-5` | später |
+| `APPVIEW_TRANSLATE_BASE_URL` | `https://api.infomaniak.com` | Infomaniak AI Tools Basis-URL |
+| `APPVIEW_TRANSLATE_PRODUCT_ID` | — | Infomaniak AI-Product-ID (`GET /1/ai`) |
+| `APPVIEW_TRANSLATE_API_KEY` | — | Infomaniak Bearer-Token |
+| `APPVIEW_TRANSLATE_MODEL` | `swiss-ai/Apertus-70B-Instruct-2509` | Chat-Modell (Apertus, CH-hosted) |
 
-Der Worker schreibt heute schon DB-Updates (`translation_status`) und hat einen klar markierten `# TODO: KI-Call` Stub. So ist die ganze Pipeline (DB → Worker → PDS → Indexer → DB) live testbar mit manuellen "Fake"-Übersetzungen, und Phase 2 muss nur den Stub durch echte Anthropic-Calls ersetzen.
+Der LLM-Call ist seit der Apertus-Integration **angeschlossen**: `_translate_via_llm`
+ruft die OpenAI-kompatiblen Chat-Completions von Infomaniak AI Tools (Schweizer
+Hosting, Datensouveränität — derselbe Provider wie die Calculator-Embeddings) mit
+dem Schweizer Open-Modell **Apertus** auf. Strukturierte Ausgabe wird per
+JSON-Prompt erzwungen (Infomaniak unterstützt kein forced tool-use, siehe
+[doc/infomaniak.md](infomaniak.md)); transiente Gateway-Fehler (429/5xx) werden
+mit 1/2/4 s Backoff wiederholt, permanente (400/401) sofort durchgereicht. Die
+ganze Pipeline (DB → Worker → PDS → Indexer → DB) bleibt unverändert; geschrieben
+wird ausschliesslich über `putRecord` auf den Governance-Account.
 
 ---
 

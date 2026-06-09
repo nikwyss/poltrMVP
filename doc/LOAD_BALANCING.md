@@ -1,5 +1,31 @@
 # Load Balancing & Ingress
 
+## ⚠️ appview is single-replica by design — do not scale horizontally without changes
+
+appview runs **in-process background loops** as asyncio tasks (started in
+[`services/appview/src/core/fastapi.py`](../services/appview/src/core/fastapi.py)):
+the **translation worker** (`src/translation/translator.py`) and the **crosspost
+poller** (`src/atproto/crosspost.py`). Each is a DB-polling singleton. (Peer-review
+assignment is *not* a loop — it runs request-driven via the auth middleware — so it
+is unaffected.)
+
+If you scale appview to **more than one replica** — or run uvicorn with **multiple
+workers** — each process starts its own copy of every loop, so you get **multiple
+parallel pollers hitting the same database**. The work is idempotent (the
+translator writes via `putRecord` on a composed rkey and re-checks missing
+languages, so nothing breaks), but it is **wasteful**: duplicate LLM calls,
+duplicate provider cost, redundant DB load.
+
+**Therefore:**
+- Keep `replicas: 1` and a single uvicorn worker for appview (`infra/kube/appview.yaml`).
+- The web request handling itself is stateless and *would* scale fine — the
+  blocker is purely these singleton loops.
+- If appview ever needs to scale out, first extract the background loops into a
+  **dedicated single-replica worker pod or a Cronjob/Job** (it still needs the
+  `APPVIEW_PDS_CREDS_MASTER_KEY_B64` for governance credentials), and disable the
+  in-process loops in the web replicas (e.g. `APPVIEW_TRANSLATE_ENABLED=false`
+  there). This is also the right pattern for large one-off translation backfills.
+
 ## Current Setup: Dev/Test (hostPort, no LB)
 
 The ingress-nginx controller uses **hostPort** to bind directly to ports 80/443 on the Kubernetes node. A floating IP on the node provides public access. No OpenStack load balancer needed.

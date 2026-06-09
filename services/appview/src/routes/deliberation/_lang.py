@@ -13,7 +13,7 @@ from typing import Optional
 
 from fastapi import Header, Query
 
-from src.core.languages import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES_SET
+from src.core.languages import DEFAULT_LANGUAGE, normalize_lang
 
 
 def resolve_requested_lang(
@@ -23,18 +23,19 @@ def resolve_requested_lang(
     """Pick the language the caller wants this response in.
 
     Precedence: explicit `?lang=` query → first valid entry of Accept-Language
-    → DEFAULT_LANGUAGE. Codes not in SUPPORTED_LANGUAGES_SET are ignored.
+    → DEFAULT_LANGUAGE. Tags are normalized onto our canonical region-flavoured
+    locales (de-DE/de → de-CH); unsupported base languages are ignored.
     """
-    if lang_query and lang_query in SUPPORTED_LANGUAGES_SET:
-        return lang_query
+    norm = normalize_lang(lang_query)
+    if norm:
+        return norm
     if accept_language:
-        # Cheap parse: take the first comma-separated entry, strip quality/q=…
+        # Cheap parse: walk comma-separated entries, strip quality/q=…
         for raw in accept_language.split(","):
-            code = raw.split(";", 1)[0].strip().lower()
-            # Truncate region tags like 'de-CH' → 'de'.
-            base = code.split("-", 1)[0]
-            if base in SUPPORTED_LANGUAGES_SET:
-                return base
+            code = raw.split(";", 1)[0].strip()
+            norm = normalize_lang(code)
+            if norm:
+                return norm
     return DEFAULT_LANGUAGE
 
 

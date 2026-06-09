@@ -83,7 +83,7 @@ CREATE TABLE app_arguments (
   source_verified_did text,             -- Optional DID that vouches for the record
   -- Multilingual content: original languages (BCP-47, Bluesky-compatible `langs` array)
   -- plus inline translations. translation_status drives the background worker queue.
-  langs              text[] NOT NULL DEFAULT ARRAY['de'],
+  langs              text[] NOT NULL DEFAULT ARRAY['de-CH'],
   translations       jsonb  NOT NULL DEFAULT '[]'::jsonb,
   translation_status text   NOT NULL DEFAULT 'pending'
     CHECK (translation_status IN ('pending', 'partial', 'complete', 'manual_only')),
@@ -265,7 +265,7 @@ CREATE TABLE app_comments (
   -- the row. Translations are SIDECAR records (see app_comment_translations
   -- below) because comments live in foreign repos (user or Bluesky) that
   -- POLTR cannot write to.
-  langs              text[] NOT NULL DEFAULT ARRAY['de'],
+  langs              text[] NOT NULL DEFAULT ARRAY['de-CH'],
   translation_status text   NOT NULL DEFAULT 'pending'
     CHECK (translation_status IN ('pending', 'partial', 'complete', 'manual_only')),
   created_at        timestamptz NOT NULL,

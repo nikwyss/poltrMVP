@@ -17,7 +17,7 @@ BEGIN;
 -- ---------------------------------------------------------------------------
 
 ALTER TABLE app_arguments
-  ADD COLUMN IF NOT EXISTS langs              text[] NOT NULL DEFAULT ARRAY['de'],
+  ADD COLUMN IF NOT EXISTS langs              text[] NOT NULL DEFAULT ARRAY['de-CH'],
   ADD COLUMN IF NOT EXISTS translations       jsonb  NOT NULL DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS translation_status text   NOT NULL DEFAULT 'pending';
 
@@ -40,7 +40,7 @@ CREATE INDEX IF NOT EXISTS app_arguments_langs_idx
 -- ---------------------------------------------------------------------------
 
 ALTER TABLE app_comments
-  ADD COLUMN IF NOT EXISTS langs              text[] NOT NULL DEFAULT ARRAY['de'],
+  ADD COLUMN IF NOT EXISTS langs              text[] NOT NULL DEFAULT ARRAY['de-CH'],
   ADD COLUMN IF NOT EXISTS translation_status text   NOT NULL DEFAULT 'pending';
 
 -- Drop any inline-translations column that previous (rejected) migration drafts

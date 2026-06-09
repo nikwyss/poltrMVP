@@ -402,7 +402,7 @@ async function buildArgumentRecord(
   doc: ImportedArgumentDoc,
   ballotRkey: string,
 ): Promise<Record<string, unknown>> {
-  const origin = doc.originLanguage || 'de'
+  const origin = doc.originLanguage || 'de-CH'
   const originSnap = await loadLocaleSnapshot(payload, doc.id, origin)
   const originTitle = originSnap.title ?? doc.title
   const originBody = originSnap.body ?? doc.body

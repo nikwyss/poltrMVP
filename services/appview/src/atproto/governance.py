@@ -154,6 +154,38 @@ async def put_governance_record(
     return resp.json()
 
 
+async def get_governance_record(
+    client: httpx.AsyncClient, did: str, collection: str, rkey: str
+) -> dict | None:
+    """Fetch the current value of a record from a governance repo (read-only).
+
+    Returns the record `value` dict, or None if it doesn't exist. getRecord is
+    public, so no session token is needed. Used for read-modify-write so we
+    never reconstruct a record from scratch (which would drop fields like
+    `source`)."""
+    try:
+        resp = await client.get(
+            f"{_pds_internal_url()}/xrpc/com.atproto.repo.getRecord",
+            params={"repo": did, "collection": collection, "rkey": rkey},
+        )
+    except httpx.RequestError as exc:
+        raise from_network_error(
+            exc, op=f"governance.getRecord:{collection}", did=did
+        ) from exc
+
+    if resp.status_code == 400:
+        # RecordNotFound / could-not-locate → treat as missing.
+        return None
+    if resp.status_code != 200:
+        logger.error(
+            f"Governance getRecord failed for {collection}/{rkey} "
+            f"({resp.status_code}): {resp.text}"
+        )
+        raise from_response(resp, op=f"governance.getRecord:{collection}", did=did)
+
+    return resp.json().get("value")
+
+
 def compose_review_rkey(argument_uri: str, did: str) -> str:
     """Compose a deterministic rkey for review records.
 

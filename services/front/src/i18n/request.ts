@@ -1,6 +1,6 @@
 import { getRequestConfig } from 'next-intl/server';
 import { cookies, headers } from 'next/headers';
-import { locales, defaultLocale } from './config';
+import { locales, defaultLocale, baseToCanonical, messageBaseFor } from './config';
 
 function resolveLocaleFromHeader(acceptLanguage: string | null): string {
   if (!acceptLanguage) return defaultLocale;
@@ -14,13 +14,12 @@ function resolveLocaleFromHeader(acceptLanguage: string | null): string {
     .sort((a, b) => b.q - a.q);
 
   for (const { lang } of preferred) {
-    // Exact match (e.g. "de")
-    const exact = locales.find((l) => l === lang);
+    // Exact canonical match (e.g. "de-ch" → "de-CH").
+    const exact = locales.find((l) => l.toLowerCase() === lang);
     if (exact) return exact;
-    // Prefix match (e.g. "de-CH" → "de")
-    const prefix = lang.split('-')[0];
-    const match = locales.find((l) => l === prefix);
-    if (match) return match;
+    // Match by base subtag → our region-flavoured locale (de-DE/de → de-CH).
+    const base = baseToCanonical[lang.split('-')[0]];
+    if (base) return base;
   }
 
   return defaultLocale;
@@ -40,6 +39,8 @@ export default getRequestConfig(async () => {
 
   return {
     locale,
-    messages: (await import(`../../messages/${locale}.json`)).default,
+    // Shared bundle per base language: de-CH → messages/de.json.
+    messages: (await import(`../../messages/${messageBaseFor(locale)}.json`))
+      .default,
   };
 });
