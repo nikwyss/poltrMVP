@@ -6,6 +6,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { getBallot } from "@/lib/agent";
 import { useTaxonomyBase, useTaxonomyFull } from "@/lib/queries/taxonomy";
+import { useRatingGate } from "@/lib/queries/rating-gate";
 import { useOverlay } from "@/lib/overlay";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -15,6 +16,7 @@ import { ViewToggle } from "@/components/view-toggle";
 // import { PageBackdrop } from "@/components/page-backdrop";
 import { PositionBand } from "@/components/position-band";
 import { TaxonomySunburst } from "@/components/taxonomy-sunburst";
+import { LockedSection, GatePlaceholder } from "@/components/locked-section";
 import { AddArgumentModal } from "@/components/add-argument-modal";
 import { ArgumentariumHeader } from "@/components/argumentarium-header";
 import {
@@ -71,6 +73,11 @@ export default function TaxonomyPage() {
     locale,
     enabled,
   );
+
+  // Bewertungs-Gate: die Analyse-Sektion (Sunburst + Positionsband) wird erst
+  // freigeschaltet, wenn der Nutzer in jedem Top-Thema genügend bewertet hat.
+  // Leitet sich live aus demselben Taxonomie-Cache ab (kein Refetch nötig).
+  const gate = useRatingGate(id, locale, enabled);
 
   const loading = ballotPending || taxPending;
   const queryError = ballotError ?? taxError;
@@ -157,28 +164,48 @@ export default function TaxonomyPage() {
             </Card>
           )}
 
-          {/* Abschnittswechsel: von der Argument-Einsicht zur Analyse der eigenen
-              Bewertungen. Bewusst ohne Karte — markiert nur den Themenwechsel. */}
-          <header className="mt-6 mb-1 px-1">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              {t("analysisTitle")}
-            </h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {t("analysisSubtitle")}
-            </p>
-          </header>
+          {/* Abschnittswechsel: von der Argument-Einsicht zur Analyse der
+              eigenen Bewertungen. Gesperrt, bis in jedem Top-Thema genügend
+              bewertet wurde — sonst zeigt die Sektion einen Platzhalter. */}
+          <LockedSection
+            unlocked={gate.unlocked}
+            placeholder={
+              <GatePlaceholder
+                title={t("analysisLockedTitle")}
+                description={t("analysisLockedDesc")}
+                progress={{
+                  value: gate.topicsMet,
+                  total: gate.topicsTotal,
+                  label: t("analysisLockedProgress", {
+                    met: gate.topicsMet,
+                    total: gate.topicsTotal,
+                  }),
+                }}
+              />
+            }
+          >
+            {/* Bewusst ohne Karte — markiert nur den Themenwechsel. */}
+            <header className="mt-6 mb-1 px-1">
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                {t("analysisTitle")}
+              </h2>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {t("analysisSubtitle")}
+              </p>
+            </header>
 
-          {/* Sunburst — ganze Themen-Hierarchie, gefärbt nach eigener Haltung */}
-          {fullTree?.tree && (
-            <TaxonomySunburst
-              root={fullTree.tree}
-              t={t}
-              onSelect={openTopicDetail}
-            />
-          )}
+            {/* Sunburst — ganze Themen-Hierarchie, gefärbt nach eigener Haltung */}
+            {fullTree?.tree && (
+              <TaxonomySunburst
+                root={fullTree.tree}
+                t={t}
+                onSelect={openTopicDetail}
+              />
+            )}
 
-          {/* Positionsband — Themen-Übersicht zwischen den Polen */}
-          <PositionBand nodes={root.children} t={t} />
+            {/* Positionsband — Themen-Übersicht zwischen den Polen */}
+            <PositionBand nodes={root.children} t={t} />
+          </LockedSection>
         </div>
       )}
 
