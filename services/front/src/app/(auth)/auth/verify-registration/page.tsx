@@ -56,7 +56,9 @@ function VerifyRegistrationContent() {
         });
 
         setStatus('success');
-        const dest = consumeReturnTo();
+        // Server-Wert (cross-device) bevorzugen; localStorage trotzdem leeren.
+        const stashed = consumeReturnTo();
+        const dest = data.returnUrl || stashed;
         setTimeout(() => router.push(dest), 2000);
       } catch (err) {
         setStatus('error');

@@ -69,7 +69,9 @@ function MagicLinkSentContent() {
         height: data.user.height,
       });
 
-      router.push(consumeReturnTo());
+      // Server-Wert (cross-device) bevorzugen; localStorage trotzdem leeren.
+      const stashed = consumeReturnTo();
+      router.push(data.returnUrl || stashed);
     } catch {
       setError(t('invalidCodeGeneric'));
     } finally {

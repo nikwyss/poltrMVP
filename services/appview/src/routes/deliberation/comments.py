@@ -19,10 +19,11 @@ from fastapi.responses import JSONResponse
 from src.atproto.atproto_api import pds_create_record
 from src.auth.middleware import TSession, verify_session_token
 from src.core.db import get_pool
-from src.core.fastapi import logger
+from src.core.fastapi import logger, limiter
 from src.core.languages import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES_SET
 from src.core.lib import get_date_iso, get_number, get_string
 from src.routes.deliberation._lang import resolve_requested_lang
+from src.routes.deliberation.quota import QuotaExceeded, release, reserve, set_uri
 
 router = APIRouter(prefix="/xrpc", tags=["poltr-comments"])
 
@@ -310,6 +311,7 @@ async def get_comment(
 
 
 @router.post("/app.ch.poltr.comment.create")
+@limiter.limit("20/minute")
 async def create_comment(
     request: Request,
     session: TSession = Depends(verify_session_token),
@@ -345,12 +347,12 @@ async def create_comment(
             content={"error": "invalid_request", "message": "body required"},
         )
 
-    # Validate argument exists
+    # Validate argument exists and resolve its ballot (needed for the quota key).
     try:
         db_pool = await get_pool()
         async with db_pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT uri FROM app_arguments WHERE uri = $1 AND NOT deleted",
+                "SELECT uri, ballot_rkey FROM app_arguments WHERE uri = $1 AND NOT deleted",
                 argument_uri,
             )
         if not row:
@@ -365,6 +367,13 @@ async def create_comment(
             content={"error": "internal_error", "details": str(err)},
         )
 
+    # Enforce per-(user, ballot) creation quota (daily + lifetime). Reserve a
+    # ledger slot now; release it below if the PDS write fails.
+    try:
+        reservation_id = await reserve(session.did, "comment", row["ballot_rkey"])
+    except QuotaExceeded as q:
+        return q.response()
+
     record = {
         "$type": "app.ch.poltr.comment",
         "title": title,
@@ -377,5 +386,12 @@ async def create_comment(
         record["parent"] = parent_uri
 
     # PDS failures raise PDSError → handled centrally (see core/fastapi.py).
-    result = await pds_create_record(session, "app.ch.poltr.comment", record)
+    # Release the reserved quota slot if the write fails, then re-raise.
+    try:
+        result = await pds_create_record(session, "app.ch.poltr.comment", record)
+    except Exception:
+        await release(reservation_id)
+        raise
+
+    await set_uri(reservation_id, result.get("uri"))
     return JSONResponse(status_code=200, content=result)

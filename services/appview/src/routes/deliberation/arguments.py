@@ -20,10 +20,11 @@ from fastapi.responses import JSONResponse
 from src.atproto.governance import create_governance_record, get_did_for_ballot
 from src.auth.middleware import TSession, verify_session_token
 from src.core.db import get_pool
-from src.core.fastapi import logger
+from src.core.fastapi import logger, limiter
 from src.core.languages import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES_SET
 from src.core.lib import get_date_iso, get_number, get_string
 from src.routes.deliberation._lang import pick_translation, resolve_requested_lang
+from src.routes.deliberation.quota import QuotaExceeded, release, reserve, set_uri
 
 router = APIRouter(prefix="/xrpc", tags=["poltr-arguments"])
 
@@ -390,6 +391,7 @@ async def get_argument(
 
 
 @router.post("/app.ch.poltr.argument.create")
+@limiter.limit("6/minute")
 async def create_argument(
     request: Request,
     session: TSession = Depends(verify_session_token),
@@ -445,6 +447,13 @@ async def create_argument(
             },
         )
 
+    # Enforce per-(user, ballot) creation quota (daily + lifetime). Reserve a
+    # ledger slot now; release it below if the PDS write fails.
+    try:
+        reservation_id = await reserve(session.did, "argument", str(ballot_id))
+    except QuotaExceeded as q:
+        return q.response()
+
     record = {
         "$type": "app.ch.poltr.ballot.argument",
         "title": title,
@@ -460,9 +469,15 @@ async def create_argument(
     }
 
     # PDS failures raise PDSError → handled centrally (see core/fastapi.py).
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        result = await create_governance_record(
-            client, gov_did, "app.ch.poltr.ballot.argument", record
-        )
+    # Release the reserved quota slot if the write fails, then re-raise.
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            result = await create_governance_record(
+                client, gov_did, "app.ch.poltr.ballot.argument", record
+            )
+    except Exception:
+        await release(reservation_id)
+        raise
 
+    await set_uri(reservation_id, result.get("uri"))
     return JSONResponse(status_code=200, content=result)

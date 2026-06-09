@@ -313,6 +313,25 @@ CREATE INDEX app_comments_translation_status_idx
 CREATE INDEX app_comments_langs_idx ON app_comments USING GIN (langs);
 
 -- ---------------------------------------------------------------------------
+-- Per-user content-creation quota ledger (arguments + comments). Written
+-- synchronously by the create handlers so the daily / per-ballot caps are
+-- race-free (the app_arguments/app_comments tables lag the firehose).
+-- Append-only: deletions do NOT refund quota. See src/routes/deliberation/quota.py.
+-- ---------------------------------------------------------------------------
+CREATE TABLE app_content_creations (
+  id          bigserial PRIMARY KEY,
+  did         text NOT NULL,                 -- author DID (session user)
+  kind        text NOT NULL CHECK (kind IN ('argument','comment')),
+  ballot_rkey text NOT NULL,                 -- CMS ballot ID
+  uri         text UNIQUE,                   -- resulting record URI (null until the PDS write returns)
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+-- One index serves both counts: lifetime via the (did,kind,ballot_rkey) prefix,
+-- daily via the trailing created_at.
+CREATE INDEX app_content_creations_lookup_idx
+  ON app_content_creations (did, kind, ballot_rkey, created_at);
+
+-- ---------------------------------------------------------------------------
 -- Sidecar translations for comments. Owned by the ballot's governance account
 -- on the PDS (NSID: app.ch.poltr.comment.translation), populated here from the
 -- firehose. Original comment records stay untouched in their foreign repo.
