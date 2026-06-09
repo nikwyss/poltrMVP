@@ -8,19 +8,55 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 import src.core.db as db
 from src.core.email_service import email_service
+from src.auth.auth_email_guard import auth_email_capped, record_auth_email_sent
 
 # Short code config: no ambiguous chars (0/O, 1/I/L)
 SHORT_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 SHORT_CODE_LENGTH = 6
 MAX_FAILED_ATTEMPTS = 5
 
+# Per-email send throttle (anti email-bombing), applied on top of the per-IP
+# slowapi limit. At most MAX_SENDS_PER_EMAIL emails to one address per window.
+# See doc/SECURITY_AUTH.md #2.
+MAX_SENDS_PER_EMAIL = 10
+SEND_WINDOW_MINUTES = 15
+
+# Neutral response returned by sendMagicLink for ALL non-error outcomes (sent,
+# throttled, or no such account) so the endpoint never reveals whether an
+# account exists. See doc/SECURITY_AUTH.md #3.
+def _neutral_send_response() -> JSONResponse:
+    return JSONResponse(
+        status_code=200,
+        content={
+            "success": True,
+            "message": "If an account exists for this email, a sign-in link has been sent.",
+        },
+    )
+
 
 def generate_short_code() -> str:
     return "".join(secrets.choice(SHORT_CODE_ALPHABET) for _ in range(SHORT_CODE_LENGTH))
 
 
+def safe_return_url(url: str | None) -> str | None:
+    """Only accept same-origin relative paths (open-redirect guard).
+
+    The frontend later does router.push() on this value, so an absolute or
+    protocol-relative URL (//evil.com) must never be stored. Auth/root paths are
+    pointless to return to and would loop, so they are rejected too.
+    """
+    if not url or not isinstance(url, str):
+        return None
+    if not url.startswith("/") or url.startswith("//") or url.startswith("/\\"):
+        return None
+    if url == "/" or url.startswith("/auth/"):
+        return None
+    return url
+
+
 class SendMagicLinkData(BaseModel):
     email: EmailStr
+    returnUrl: str | None = None
 
 
 class VerifyLoginMagicLinkData(BaseModel):
@@ -47,37 +83,49 @@ async def send_magic_link_handler(data: SendMagicLinkData, locale: str = "de"):
 
         email = data.email.lower()
 
-        # Check that account exists before sending a magic link
+        # Global hourly circuit breaker. Checked first and returns the neutral
+        # response so it reveals nothing. See doc/SECURITY_AUTH.md #4.
+        if await auth_email_capped():
+            return _neutral_send_response()
+
         async with db.pool.acquire() as conn:
-            row = await conn.fetchrow(
+            # Per-email throttle: cap emails to one address per window. Checked
+            # FIRST and returns the neutral response so it leaks nothing about
+            # account existence. See doc/SECURITY_AUTH.md #2.
+            recent_sends = await conn.fetchval(
+                """
+                SELECT count(*) FROM auth_pending_logins
+                WHERE email = $1 AND created_at > now() - ($2 || ' minutes')::interval
+                """,
+                email,
+                str(SEND_WINDOW_MINUTES),
+            )
+            if recent_sends >= MAX_SENDS_PER_EMAIL:
+                return _neutral_send_response()
+
+            # Only send to a real account, but return the SAME neutral response
+            # either way so the endpoint never reveals whether one exists (#3).
+            account = await conn.fetchrow(
                 "SELECT 1 FROM auth_creds WHERE email = $1", email
             )
-            if not row:
-                return JSONResponse(
-                    status_code=404,
-                    content={
-                        "error": "user_not_found",
-                        "message": "No account found for this email",
-                    },
-                )
+            if not account:
+                return _neutral_send_response()
 
-        # Generate secure random token and short code
-        token = secrets.token_urlsafe(32)
-        short_code = generate_short_code()
+            # Generate secure random token and short code
+            token = secrets.token_urlsafe(32)
+            short_code = generate_short_code()
+            return_url = safe_return_url(data.returnUrl)
+            expires_at = datetime.utcnow() + timedelta(minutes=15)
 
-        # Set expiration to 15 minutes from now
-        expires_at = datetime.utcnow() + timedelta(minutes=15)
-
-        # Store token in database
-        async with db.pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO auth_pending_logins (email, token, short_code, expires_at)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO auth_pending_logins (email, token, short_code, return_url, expires_at)
+                VALUES ($1, $2, $3, $4, $5)
                 """,
                 email,
                 token,
                 short_code,
+                return_url,
                 expires_at,
             )
 
@@ -86,18 +134,14 @@ async def send_magic_link_handler(data: SendMagicLinkData, locale: str = "de"):
             email, token, purpose="login", short_code=short_code, locale=locale
         )
 
-        # send_magic_link
-
         if not success:
             return JSONResponse(
                 status_code=500,
                 content={"error": "email_failed", "message": "Failed to send email"},
             )
 
-        return JSONResponse(
-            status_code=200,
-            content={"success": True, "message": "Magic link sent to your email"},
-        )
+        await record_auth_email_sent("login")
+        return _neutral_send_response()
 
     except Exception as e:
         print(f"Send magic link error: {e}")
@@ -108,8 +152,12 @@ async def send_magic_link_handler(data: SendMagicLinkData, locale: str = "de"):
 
 async def verify_login_magic_link_handler(
     data: VerifyLoginMagicLinkData,
-) -> JSONResponse | str | None:
-    """Verify magic link token and create session"""
+) -> JSONResponse | tuple[str, str | None] | None:
+    """Verify magic link token and create session.
+
+    Returns (email, return_url) on success — return_url is the path the user
+    originally wanted (or None), so the route can hand it back to the frontend.
+    """
     if db.pool is None:
         print("Pool is None, initializing now...")
         await db.init_pool()
@@ -122,7 +170,7 @@ async def verify_login_magic_link_handler(
         # Find token
         row = await conn.fetchrow(
             """
-            SELECT id, email, expires_at
+            SELECT id, email, return_url, expires_at
             FROM auth_pending_logins
             WHERE token = $1
             """,
@@ -156,12 +204,12 @@ async def verify_login_magic_link_handler(
         # Delete pending login
         await conn.execute("DELETE FROM auth_pending_logins WHERE id = $1", row["id"])
 
-        return email
+        return email, row["return_url"]
 
 
 async def verify_registration_magic_link_handler(
     data: VerifyRegistrationMagicLinkData,
-) -> JSONResponse | str | None:
+) -> JSONResponse | tuple[str, str | None] | None:
 
     # ensure pool initialized
     if db.pool is None:
@@ -175,7 +223,7 @@ async def verify_registration_magic_link_handler(
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, email, expires_at
+            SELECT id, email, return_url, expires_at
             FROM auth_pending_registrations
             WHERE token = $1
             """,
@@ -194,13 +242,16 @@ async def verify_registration_magic_link_handler(
         # delete pending registration
         await conn.execute("DELETE FROM auth_pending_registrations WHERE id = $1", row["id"])
 
-        return email
+        return email, row["return_url"]
 
 
 async def verify_short_code_handler(
     data: VerifyShortCodeData,
-) -> JSONResponse | str | None:
-    """Verify a 6-character short code for login or registration."""
+) -> JSONResponse | tuple[str, str | None] | None:
+    """Verify a 6-character short code for login or registration.
+
+    Returns (email, return_url) on success.
+    """
     if db.pool is None:
         await db.init_pool()
 
@@ -250,6 +301,6 @@ async def verify_short_code_handler(
 
         # Success — delete row (invalidates both magic link and short code)
         result = await conn.fetchrow(
-            f"DELETE FROM {table} WHERE id = $1 RETURNING email", row["id"]
+            f"DELETE FROM {table} WHERE id = $1 RETURNING email, return_url", row["id"]
         )
-        return result["email"] if result else None
+        return (result["email"], result["return_url"]) if result else None

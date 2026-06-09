@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/AuthContext';
+import { consumeReturnTo } from '@/lib/auth-redirect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +22,7 @@ export default function Login() {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      router.replace('/home');
+      router.replace(consumeReturnTo());
     }
   }, [isAuthenticated, authLoading, router]);
 

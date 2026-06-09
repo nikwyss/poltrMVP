@@ -34,11 +34,16 @@ def _gen_password() -> str:
     return "".join(secrets.choice(alphabet) for _ in range(64))
 
 
-async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
+async def create_account(
+    user_email: str, return_url: str | None = None
+) -> JSONResponse | RedirectResponse:
     """Register a new user. Three phases:
     1. Prepare: generate handle, password, pseudonym
     2. PDS provisioning: create account, write profile, relay sync
     3. AppView registration: store credentials + pseudonym in DB, create session
+
+    `return_url` (if set) is echoed back in the response so the frontend can send
+    the new user to the deep link they originally requested.
     """
     if db.pool is None:
         await db.init_pool()
@@ -99,6 +104,7 @@ async def create_account(user_email: str) -> JSONResponse | RedirectResponse:
         did=did, handle=handle,
         display_name=pseudonym["displayName"],
         profile=pseudonym,
+        return_url=return_url,
     )
 
     logger.debug(f"Registration complete for {user_email}")

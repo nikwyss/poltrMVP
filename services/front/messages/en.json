@@ -66,8 +66,8 @@
   },
   "magicLink": {
     "checkEmail": "Check your email!",
-    "sentConfirmation": "We've sent a confirmation link to:",
-    "sentMagic": "We've sent a magic link to:",
+    "sentConfirmation": "If this address isn't already registered, we've sent a confirmation link to:",
+    "sentMagic": "If an account exists for this address, we've sent a sign-in link to:",
     "clickToRegister": "Click the link in the email to complete your registration. The link will expire in 30 minutes.",
     "clickToLogin": "Click the link in the email to log in. The link will expire in 15 minutes.",
     "orEnterCode": "Or enter your 6-character code:",

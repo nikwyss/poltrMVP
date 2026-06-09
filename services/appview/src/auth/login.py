@@ -21,8 +21,13 @@ APPVIEW_SESSION_LIFETIME_DAYS = int(os.getenv("APPVIEW_SESSION_LIFETIME_DAYS", "
 logger = logging.getLogger(__name__)
 
 
-async def login_account(user_email: str) -> JSONResponse:
-    """Log in an existing user. Pure AppView operation — no PDS call needed."""
+async def login_account(user_email: str, return_url: str | None = None) -> JSONResponse:
+    """Log in an existing user. Pure AppView operation — no PDS call needed.
+
+    `return_url` (if set) is echoed back so the frontend can redirect the user to
+    the deep link they originally requested — works across devices because it is
+    read from the pending-login row, not browser storage.
+    """
     if db.pool is None:
         await db.init_pool()
 
@@ -60,6 +65,7 @@ async def login_account(user_email: str) -> JSONResponse:
             "mountainFullname": row["mountain_fullname"],
             "height": float(row["height"]) if row["height"] is not None else None,
         },
+        return_url=return_url,
     )
     logger.debug(f"Login successful for {user_email}")
     return response
@@ -70,6 +76,7 @@ async def create_session_cookie(
     handle: str,
     display_name: str | None = None,
     profile: dict | None = None,
+    return_url: str | None = None,
 ) -> JSONResponse:
     """Create a session and set the httpOnly cookie.
 
@@ -111,6 +118,7 @@ async def create_session_cookie(
             "user": user_data,
             "session_token": session_token,
             "expires_at": session_expires.isoformat(),
+            "returnUrl": return_url,
         },
     )
 

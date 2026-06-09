@@ -26,8 +26,10 @@ from src.auth.magic_link_handler import (
     verify_registration_magic_link_handler,
     verify_short_code_handler,
     generate_short_code,
+    safe_return_url,
 )
 from src.atproto.atproto_api import pds_create_app_password, pds_set_birthdate
+from src.auth.auth_email_guard import auth_email_capped, record_auth_email_sent
 from src.core.fastapi import limiter
 
 EIDPROTO_URL = os.getenv("EIDPROTO_URL", "https://eidproto.poltr.info")
@@ -50,7 +52,7 @@ async def send_magic_link(request: Request, data: SendMagicLinkData):
 async def verify_magic_link_get(request: Request, data: VerifyLoginMagicLinkData):
     """Verify magic link token and create session (GET via email link) (NEW)"""
 
-    response: str | JSONResponse | None = await verify_login_magic_link_handler(data)
+    response = await verify_login_magic_link_handler(data)
 
     if isinstance(response, JSONResponse):
         return response
@@ -61,17 +63,36 @@ async def verify_magic_link_get(request: Request, data: VerifyLoginMagicLinkData
             content={"error": "invalid_token", "message": "Invalid token"},
         )
 
-    return await login_account(user_email=response)
+    email, return_url = response
+    return await login_account(user_email=email, return_url=return_url)
+
+
+# Neutral response returned by register for ALL non-error outcomes (sent,
+# throttled, or email already taken) so the endpoint never reveals whether an
+# account exists. See doc/SECURITY_AUTH.md #3.
+def _neutral_register_response() -> JSONResponse:
+    return JSONResponse(status_code=200, content={"message": "Confirmation email sent"})
+
+
+# Per-email send throttle for registration; see auth.magic_link_handler.
+REGISTER_MAX_SENDS_PER_EMAIL = 10
+REGISTER_SEND_WINDOW_MINUTES = 15
 
 
 @router.post("/ch.poltr.auth.register")
-@limiter.limit("10/minute")
+# 3/min per IP: no human registers 3×/minute, and it keeps a single host's
+# contribution (180/hr) below the global hourly cap so tripping the circuit
+# breaker requires several coordinated IPs. See doc/SECURITY_AUTH.md #4.
+@limiter.limit("3/minute")
 async def register(request: Request):
     """Accept an email and send confirmation link before creating account."""
     body = await request.json()
     email = body.get("email")
     if not email:
         return JSONResponse(status_code=400, content={"message": "email required"})
+    email = email.lower()
+
+    return_url = safe_return_url(body.get("returnUrl"))
 
     import secrets
     from datetime import datetime, timedelta
@@ -80,14 +101,15 @@ async def register(request: Request):
     short_code = generate_short_code()
     expires_at = datetime.utcnow() + timedelta(minutes=30)
 
+    # Global hourly circuit breaker — refuse early (before the upsert) so a
+    # capped request neither rotates the pending token nor inflates the per-email
+    # counter. Neutral response reveals nothing. See doc/SECURITY_AUTH.md #4.
+    if await auth_email_capped():
+        return _neutral_register_response()
+
+    # Email already registered → neutral response, send nothing (no enumeration).
     if not await check_email_availability(email=email):
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "email_taken",
-                "message": "An account with this email already exists",
-            },
-        )
+        return _neutral_register_response()
 
     try:
         if db.pool is None:
@@ -97,22 +119,47 @@ async def register(request: Request):
                     status_code=500, content={"message": "DB connection failed"}
                 )
         async with db.pool.acquire() as conn:
-            await conn.execute(
+            # Upsert and maintain the per-email window counter atomically. The
+            # window resets once it has elapsed; otherwise send_count climbs.
+            send_count = await conn.fetchval(
                 """
-                INSERT INTO auth_pending_registrations (email, token, short_code, expires_at)
-                VALUES ($1, $2, $3, $4)
-                ON CONFLICT (email) DO UPDATE SET token = EXCLUDED.token, short_code = EXCLUDED.short_code, failed_attempts = 0, expires_at = EXCLUDED.expires_at
+                INSERT INTO auth_pending_registrations
+                    (email, token, short_code, return_url, expires_at)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (email) DO UPDATE SET
+                    token = EXCLUDED.token,
+                    short_code = EXCLUDED.short_code,
+                    return_url = EXCLUDED.return_url,
+                    failed_attempts = 0,
+                    expires_at = EXCLUDED.expires_at,
+                    send_count = CASE
+                        WHEN auth_pending_registrations.window_started_at
+                             > now() - ($6 || ' minutes')::interval
+                        THEN auth_pending_registrations.send_count + 1
+                        ELSE 1 END,
+                    window_started_at = CASE
+                        WHEN auth_pending_registrations.window_started_at
+                             > now() - ($6 || ' minutes')::interval
+                        THEN auth_pending_registrations.window_started_at
+                        ELSE now() END
+                RETURNING send_count
                 """,
                 email,
                 token,
                 short_code,
+                return_url,
                 expires_at,
+                str(REGISTER_SEND_WINDOW_MINUTES),
             )
     except Exception as e:
         return JSONResponse(
             status_code=500,
             content={"message": f"Failed to store pending registration: {e}"},
         )
+
+    # Over the per-email cap → neutral response, send nothing (anti email-bombing).
+    if send_count > REGISTER_MAX_SENDS_PER_EMAIL:
+        return _neutral_register_response()
 
     try:
         from src.core.email_service import email_service
@@ -132,16 +179,15 @@ async def register(request: Request):
             content={"message": f"Failed to send confirmation email: {e}"},
         )
 
-    return JSONResponse(status_code=200, content={"message": "Confirmation email sent"})
+    await record_auth_email_sent("registration")
+    return _neutral_register_response()
 
 
 @router.post("/ch.poltr.auth.verifyRegistration")
 @limiter.limit("10/minute")
 async def confirm_registration(request: Request, data: VerifyRegistrationMagicLinkData):
     """Finalize registration when user clicks confirmation link."""
-    response: str | JSONResponse | None = await verify_registration_magic_link_handler(
-        data
-    )
+    response = await verify_registration_magic_link_handler(data)
 
     if isinstance(response, JSONResponse):
         return response
@@ -153,7 +199,9 @@ async def confirm_registration(request: Request, data: VerifyRegistrationMagicLi
             content={"error": "invalid_token", "message": "Invalid token"},
         )
 
-    if not await check_email_availability(email=response):
+    email, return_url = response
+
+    if not await check_email_availability(email=email):
         return JSONResponse(
             status_code=400,
             content={
@@ -162,7 +210,7 @@ async def confirm_registration(request: Request, data: VerifyRegistrationMagicLi
             },
         )
 
-    return await create_account(user_email=response)
+    return await create_account(user_email=email, return_url=return_url)
 
 
 @router.post("/ch.poltr.auth.verifyShortCode")
@@ -180,8 +228,10 @@ async def verify_short_code(request: Request, data: VerifyShortCodeData):
             content={"error": "invalid_code", "message": "Invalid code"},
         )
 
+    email, return_url = response
+
     if data.purpose == "registration":
-        if not await check_email_availability(email=response):
+        if not await check_email_availability(email=email):
             return JSONResponse(
                 status_code=400,
                 content={
@@ -189,9 +239,9 @@ async def verify_short_code(request: Request, data: VerifyShortCodeData):
                     "message": "An account with this email already exists",
                 },
             )
-        return await create_account(user_email=response)
+        return await create_account(user_email=email, return_url=return_url)
     else:
-        return await login_account(user_email=response)
+        return await login_account(user_email=email, return_url=return_url)
 
 
 @router.get("/ch.poltr.auth.session")

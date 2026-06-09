@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/AuthContext';
+import { consumeReturnTo } from '@/lib/auth-redirect';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Spinner } from '@/components/spinner';
@@ -55,7 +56,8 @@ function VerifyRegistrationContent() {
         });
 
         setStatus('success');
-        setTimeout(() => router.push('/home'), 2000);
+        const dest = consumeReturnTo();
+        setTimeout(() => router.push(dest), 2000);
       } catch (err) {
         setStatus('error');
         setError(err instanceof Error ? err.message : t('verificationFailed'));

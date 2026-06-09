@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/AuthContext';
+import { consumeReturnTo } from '@/lib/auth-redirect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -68,7 +69,7 @@ function MagicLinkSentContent() {
         height: data.user.height,
       });
 
-      router.push('/home');
+      router.push(consumeReturnTo());
     } catch {
       setError(t('invalidCodeGeneric'));
     } finally {

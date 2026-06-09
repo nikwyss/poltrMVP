@@ -405,6 +405,9 @@ CREATE TABLE auth.auth_pending_logins (
   token           varchar(64) NOT NULL UNIQUE,
   short_code      varchar(6),
   failed_attempts integer NOT NULL DEFAULT 0,
+  -- Same-origin relative path the user wanted before being sent to login, so we
+  -- can redirect back after auth (cross-device; read from this row, not browser).
+  return_url      text,
   expires_at      timestamp NOT NULL,
   created_at      timestamp DEFAULT now()
 );
@@ -420,14 +423,33 @@ CREATE TABLE auth.auth_pending_registrations (
   token           varchar(64) NOT NULL UNIQUE,
   short_code      varchar(6),
   failed_attempts integer NOT NULL DEFAULT 0,
+  -- See auth_pending_logins.return_url.
+  return_url      text,
   expires_at      timestamp NOT NULL,
-  created_at      timestamp DEFAULT now()
+  created_at      timestamp DEFAULT now(),
+  -- Per-email send throttle (anti email-bombing). Table is UNIQUE(email) with
+  -- upsert, so the per-email window cap is tracked on the row rather than by
+  -- counting rows (cf. auth_pending_logins). See doc/SECURITY_AUTH.md #2.
+  send_count        integer NOT NULL DEFAULT 1,
+  window_started_at timestamp NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_auth_pending_registrations_token ON auth.auth_pending_registrations (token);
 CREATE INDEX idx_auth_pending_registrations_email ON auth.auth_pending_registrations (email);
 CREATE INDEX idx_auth_pending_registrations_expires_at ON auth.auth_pending_registrations (expires_at);
 CREATE UNIQUE INDEX idx_auth_pending_registrations_short_code ON auth.auth_pending_registrations (short_code) WHERE short_code IS NOT NULL;
+
+-- Outbound auth-email ledger for the global hourly circuit breaker (one row per
+-- auth email actually sent). The breaker counts rows in the last hour to enforce
+-- a platform-wide alert threshold + hard cap. Rows older than 2h are pruned on
+-- each insert, so the table stays tiny. See doc/SECURITY_AUTH.md #4.
+CREATE TABLE auth.auth_email_sends (
+  id         serial PRIMARY KEY,
+  purpose    varchar(20) NOT NULL,
+  created_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_auth_email_sends_created_at ON auth.auth_email_sends (created_at);
 
 CREATE TABLE auth.mountain_templates (
   id        serial PRIMARY KEY,

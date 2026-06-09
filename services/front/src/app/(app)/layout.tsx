@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import { useTranslations } from "next-intl"
 import { useAuth } from "@/lib/AuthContext"
+import { stashReturnTo } from "@/lib/auth-redirect"
 import { AppNav } from "@/components/app-nav"
 import { Spinner } from "@/components/spinner"
 
@@ -14,6 +15,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
+      // Ursprungs-Link (inkl. ?ov=…) merken, damit der Nutzer nach dem Login
+      // wieder hierher zurückgeleitet wird (siehe lib/auth-redirect).
+      stashReturnTo(window.location.pathname + window.location.search)
       router.push("/")
     }
   }, [isAuthenticated, loading, router])

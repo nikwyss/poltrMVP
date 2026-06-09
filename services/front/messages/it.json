@@ -66,8 +66,8 @@
   },
   "magicLink": {
     "checkEmail": "Prüfe deine E-Mails!",
-    "sentConfirmation": "Wir haben einen Bestätigungslink gesendet an:",
-    "sentMagic": "Wir haben einen Magic Link gesendet an:",
+    "sentConfirmation": "Falls diese Adresse noch nicht registriert ist, haben wir einen Bestätigungslink gesendet an:",
+    "sentMagic": "Falls ein Konto für diese Adresse besteht, haben wir einen Magic Link gesendet an:",
     "clickToRegister": "Klicke auf den Link in der E-Mail, um deine Registrierung abzuschliessen. Der Link ist 30 Minuten gültig.",
     "clickToLogin": "Klicke auf den Link in der E-Mail, um dich anzumelden. Der Link ist 15 Minuten gültig.",
     "orEnterCode": "Oder gib deinen 6-stelligen Code ein:",
