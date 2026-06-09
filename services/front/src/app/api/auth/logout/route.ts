@@ -1,9 +1,10 @@
 import { cookies } from 'next/headers';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { appviewForwardHeaders } from '@/lib/appview-proxy';
 
 const APPVIEW_URL = process.env.APPVIEW_URL || 'https://app.poltr.info';
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   // Call AppView to delete all sessions for this user
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get('poltr_session')?.value;
@@ -12,7 +13,7 @@ export async function POST() {
     try {
       await fetch(`${APPVIEW_URL}/xrpc/ch.poltr.auth.logout`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${sessionToken}` },
+        headers: { Authorization: `Bearer ${sessionToken}`, ...appviewForwardHeaders(request) },
       });
     } catch {
       // Best-effort — clear cookie even if AppView is unreachable

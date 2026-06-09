@@ -1,4 +1,5 @@
 import os
+import hmac
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -25,8 +26,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger("appview")
 
-# Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address)
+# Initialize rate limiter.
+#
+# Rate-limit key = real client IP. All user traffic is proxied by the frontend,
+# so the AppView would otherwise see every request from the frontend pod's IP —
+# one shared bucket for the whole user base. The frontend forwards the real
+# browser IP in X-Poltr-Client-IP, authenticated by APPVIEW_PROXY_SECRET so a
+# direct caller cannot spoof it. Without a valid secret we fall back to the
+# connection IP (get_remote_address). See doc/SECURITY_AUTH.md #1.
+_PROXY_SECRET = os.getenv("APPVIEW_PROXY_SECRET", "")
+
+
+def _client_ip_key(request: Request) -> str:
+    if _PROXY_SECRET:
+        presented = request.headers.get("x-poltr-proxy-secret", "")
+        if hmac.compare_digest(presented, _PROXY_SECRET):
+            forwarded = request.headers.get("x-poltr-client-ip")
+            if forwarded:
+                return forwarded
+    return get_remote_address(request)
+
+
+limiter = Limiter(key_func=_client_ip_key)
 
 
 def start_participation_loops():

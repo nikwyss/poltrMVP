@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { appviewForwardHeaders } from '@/lib/appview-proxy';
 
 const APPVIEW_URL = process.env.APPVIEW_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -7,7 +8,7 @@ export async function POST(request: NextRequest) {
 
   const res = await fetch(`${APPVIEW_URL}/xrpc/ch.poltr.auth.verifyShortCode`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...appviewForwardHeaders(request) },
     body: JSON.stringify(body),
   });
 

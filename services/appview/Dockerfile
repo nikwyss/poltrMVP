@@ -9,7 +9,8 @@ COPY . .
 
 EXPOSE 3000
 
-# --proxy-headers + --forwarded-allow-ips='*': honor the ingress X-Forwarded-For
-# so the rate limiter keys on the real client IP, not the ingress pod IP.
-# Safe: pod is only reachable via the in-cluster ingress. See doc/SECURITY_AUTH.md #1.
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "3000", "--proxy-headers", "--forwarded-allow-ips=*"]
+# NOTE: do NOT enable --forwarded-allow-ips='*' — it trusts X-Forwarded-For from
+# any direct caller, who could then spoof their rate-limit key. The real client
+# IP is delivered instead via the secret-gated X-Poltr-Client-IP header from the
+# frontend proxy (see _client_ip_key in src/core/fastapi.py / doc/SECURITY_AUTH.md #1).
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "3000"]

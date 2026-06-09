@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { appviewForwardHeaders } from '@/lib/appview-proxy';
 
 const APPVIEW_URL = process.env.APPVIEW_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -30,7 +31,9 @@ async function proxyRequest(request: NextRequest, { params }: { params: Promise<
     if (locale) url.searchParams.set('lang', locale);
   }
 
-  const headers: HeadersInit = {};
+  // Start with the real-client-IP forwarding headers (secret-gated) so the
+  // AppView rate limiter keys per-client, not per frontend-pod.
+  const headers: Record<string, string> = { ...appviewForwardHeaders(request) };
 
   // Forward content-type if present
   const contentType = request.headers.get('content-type');

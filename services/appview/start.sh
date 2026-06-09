@@ -15,9 +15,8 @@ elif [ -d "$SCRIPT_DIR/.venv" ]; then
 fi
 
 # Start the application.
-# --proxy-headers + --forwarded-allow-ips='*' make uvicorn honor the ingress's
-# X-Forwarded-For so request.client.host (and thus the rate limiter) sees the
-# real client IP, not the ingress pod IP. Safe because the pod is only reachable
-# via the in-cluster ingress. See doc/SECURITY_AUTH.md #1.
-exec uvicorn src.main:app --host 0.0.0.0 --port 3000 \
-    --proxy-headers --forwarded-allow-ips='*'
+# NOTE: do NOT enable --forwarded-allow-ips='*' — it trusts X-Forwarded-For from
+# any direct caller, who could then spoof their rate-limit key. The real client
+# IP is delivered instead via the secret-gated X-Poltr-Client-IP header from the
+# frontend proxy (see _client_ip_key in src/core/fastapi.py / doc/SECURITY_AUTH.md #1).
+exec uvicorn src.main:app --host 0.0.0.0 --port 3000

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appviewForwardHeaders } from "@/lib/appview-proxy";
 
 const APPVIEW_URL =
   process.env.APPVIEW_URL ||
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
   // Validate token against the appview
   try {
     const res = await fetch(`${APPVIEW_URL}/xrpc/ch.poltr.auth.session`, {
-      headers: { Authorization: `Bearer ${sessionToken}` },
+      headers: { Authorization: `Bearer ${sessionToken}`, ...appviewForwardHeaders(request) },
     });
 
     if (res.status === 401) {

@@ -260,12 +260,21 @@ async def verify_short_code_handler(
     table = "auth_pending_logins" if data.purpose == "login" else "auth_pending_registrations"
 
     async with db.pool.acquire() as conn:
-        # Atomic increment and return — prevents race conditions
+        # Atomic increment and return — prevents race conditions. Target ONLY the
+        # most recent valid pending row: the login table can hold several rows
+        # per email (each sendMagicLink inserts one), so a bare WHERE email = $1
+        # would touch all of them and RETURNING/fetchrow would compare against an
+        # arbitrary (old) short_code → spurious "invalid code".
         row = await conn.fetchrow(
             f"""
             UPDATE {table}
             SET failed_attempts = failed_attempts + 1
-            WHERE email = $1 AND short_code IS NOT NULL AND expires_at > now()
+            WHERE id = (
+                SELECT id FROM {table}
+                WHERE email = $1 AND short_code IS NOT NULL AND expires_at > now()
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+            )
             RETURNING id, short_code, failed_attempts
             """,
             email,

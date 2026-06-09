@@ -32,25 +32,45 @@ per-email) is the primary protection; CAPTCHA is a friction layer on top.
 
 ---
 
-## 1. Rate limiter saw the ingress IP — limits were effectively global ✅
+## 1. Rate-limit key = real client IP (proxy-collapse + spoofing) ✅
 
-**Problem.** `slowapi`'s `Limiter(key_func=get_remote_address)`
-([`core/fastapi.py`](../services/appview/src/core/fastapi.py)) keys on
-`request.client.host`. Uvicorn was started without `--proxy-headers`
-(`Dockerfile`, `start.sh`), so behind the nginx ingress every request resolved
-to the **ingress pod IP**. Result: the per-endpoint limits (e.g. `5/minute` on
-`sendMagicLink`) were a single global bucket shared by the whole internet —
-ineffective against attackers and a foot-gun that let legitimate users trip each
-other's limits.
+**Problem.** Two compounding issues meant `slowapi`'s
+`Limiter(key_func=get_remote_address)` ([`core/fastapi.py`](../services/appview/src/core/fastapi.py))
+could not key on the real client:
 
-**Fix.** Start uvicorn with `--proxy-headers --forwarded-allow-ips='*'` so
-`X-Forwarded-For` from the ingress is honored and `get_remote_address` sees the
-real client IP. Trusting `*` is acceptable because the AppView pod is only
-reachable via the in-cluster ingress (ClusterIP), never directly.
+1. **Proxy collapse.** All user traffic is proxied through the frontend's
+   Next.js XRPC routes (`services/front/src/app/api/{xrpc,auth}/…`), which fetch
+   the AppView server-side **without** forwarding the browser IP. So the AppView
+   saw every proxied request as coming from the *frontend pod's* IP — one shared
+   bucket for the entire user base. (A naive global default limit would have
+   locked everyone out at once.)
+2. **Spoofable XFF.** An interim fix started uvicorn with
+   `--proxy-headers --forwarded-allow-ips='*'`, but that trusts `X-Forwarded-For`
+   from *any* direct caller — so someone hitting `app.poltr.info` directly could
+   rotate a fake XFF per request and evade the limit entirely.
 
-**Watch.** If the AppView is ever exposed without a trusted proxy in front,
-`--forwarded-allow-ips='*'` becomes a spoofing vector — tighten it to the
-ingress CIDR.
+**Fix (client-IP chain).**
+- The frontend proxy forwards the real browser IP in a header
+  `X-Poltr-Client-IP`, authenticated by a shared `APPVIEW_PROXY_SECRET`
+  (`X-Poltr-Proxy-Secret`) — see [`front/src/lib/appview-proxy.ts`](../services/front/src/lib/appview-proxy.ts),
+  applied in the XRPC proxy and all `/api/auth/*` proxy routes.
+- The AppView limiter uses a custom `key_func` (`_client_ip_key` in
+  [`core/fastapi.py`](../services/appview/src/core/fastapi.py)) that trusts that
+  header **only** when the secret matches (constant-time compare), else falls
+  back to `get_remote_address`.
+- The spoofable `--forwarded-allow-ips='*'` was **reverted** (`Dockerfile`,
+  `start.sh`). Direct/un-secreted callers are now keyed by the connection IP
+  (the ingress peer) — spoof-proof, and an acceptable aggregate bucket since all
+  legitimate traffic comes through the secreted proxy.
+
+**Consequence.** Legitimate per-user traffic is now keyed by real browser IP, so
+the per-endpoint limits (auth) and any future global default actually bind
+per-client instead of collapsing. `APPVIEW_PROXY_SECRET` must be set identically
+in `appview-secrets` and `front-secrets`; if unset, keying safely degrades to
+the connection IP (old global-bucket behaviour, no regression).
+
+**Watch.** For *authenticated* write endpoints, consider keying on the session
+DID instead of IP (immune to IP sharing/rotation) — see Tier-1 follow-up.
 
 ## 2. No per-email send cap — email-bombing ✅
 
