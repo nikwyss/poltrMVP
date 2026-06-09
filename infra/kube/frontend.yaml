@@ -33,6 +33,14 @@ spec:
                 secretKeyRef:
                   name: appview-secrets
                   key: APPVIEW_HOSTNAME
+            # Inherit the proxy secret from appview-secrets (single source of
+            # truth) so the XRPC proxy can forward the real client IP to the
+            # AppView rate limiter. See doc/SECURITY_AUTH.md #1.
+            - name: APPVIEW_PROXY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: appview-secrets
+                  key: APPVIEW_PROXY_SECRET
           ports:
             - containerPort: 3000
           resources:

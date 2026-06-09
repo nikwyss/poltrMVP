@@ -65,9 +65,11 @@ could not key on the real client:
 
 **Consequence.** Legitimate per-user traffic is now keyed by real browser IP, so
 the per-endpoint limits (auth) and any future global default actually bind
-per-client instead of collapsing. `APPVIEW_PROXY_SECRET` must be set identically
-in `appview-secrets` and `front-secrets`; if unset, keying safely degrades to
-the connection IP (old global-bucket behaviour, no regression).
+per-client instead of collapsing. `APPVIEW_PROXY_SECRET` lives once in
+`appview-secrets`; the frontend inherits it via a `secretKeyRef` to
+`appview-secrets` in `frontend.yaml` (single source of truth, nothing to keep in
+sync). If unset, keying safely degrades to the connection IP (old global-bucket
+behaviour, no regression).
 
 **Watch.** For *authenticated* write endpoints, consider keying on the session
 DID instead of IP (immune to IP sharing/rotation) — see Tier-1 follow-up.
