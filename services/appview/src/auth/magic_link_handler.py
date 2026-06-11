@@ -19,7 +19,7 @@ MAX_FAILED_ATTEMPTS = 5
 # Magic-link / short-code validity for the unified ch.poltr.auth.start flow.
 # One value for both branches so the flow is indistinguishable to the user
 # before the email arrives.
-MAGIC_LINK_TTL_MINUTES = 15
+MAGIC_LINK_TTL_MINUTES = 10
 
 # Per-email send throttle (anti email-bombing), applied on top of the per-IP
 # slowapi limit. At most MAX_SENDS_PER_EMAIL emails to one address per window.
@@ -172,7 +172,7 @@ async def send_magic_link_handler(data: SendMagicLinkData, locale: str = "de"):
             token = secrets.token_urlsafe(32)
             short_code = generate_short_code()
             return_url = safe_return_url(data.returnUrl)
-            expires_at = datetime.utcnow() + timedelta(minutes=15)
+            expires_at = datetime.utcnow() + timedelta(minutes=10)
 
             await conn.execute(
                 """

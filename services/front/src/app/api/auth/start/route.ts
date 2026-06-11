@@ -3,9 +3,9 @@ import { appviewForwardHeaders } from '@/lib/appview-proxy';
 
 const APPVIEW_URL = process.env.APPVIEW_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-// Initiator cookie lifetime — matches the magic-link TTL (15 min). After it
+// Initiator cookie lifetime — matches the magic-link TTL (10 min). After it
 // lapses the link simply falls through to the different-browser code path.
-const INITIATOR_TTL = 15 * 60;
+const INITIATOR_TTL = 10 * 60;
 
 export async function POST(request: NextRequest) {
   const body = await request.json();

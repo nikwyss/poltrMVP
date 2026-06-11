@@ -159,7 +159,7 @@ async def register(request: Request):
 
     token = secrets.token_urlsafe(32)
     short_code = generate_short_code()
-    expires_at = datetime.utcnow() + timedelta(minutes=30)
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
 
     # Global hourly circuit breaker — refuse early (before the upsert) so a
     # capped request neither rotates the pending token nor inflates the per-email

@@ -32,7 +32,7 @@ is shown **in-browser** and only when the link opens in a *different* browser th
 the one that entered the email:
 
 - `start` returns an `initiatorSecret`; the frontend stores its **SHA-256** in a
-  `httpOnly` cookie (`poltr_auth_init`, 15 min) and the appview stores the same
+  `httpOnly` cookie (`poltr_auth_init`, 10 min) and the appview stores the same
   hash in the pending row's `initiator_id`.
 - `/auth/verify` runs a **non-consuming** preflight (`checkLink`): if the cookie
   matches → *same browser* (show a confirm button); else → *different browser*,
@@ -181,3 +181,21 @@ a referendum surge locks out real citizens — err generous. Env-tunable; needs 
 pod restart (read at startup).
 
 **Rotate** the proxy secret to `openssl rand -hex 32` (single place: `appview-secrets`).
+
+
+
+## Was CAPTCHA beim start wirklich bringt
+Es erschwert automatisiertes Send-Spam (E-Mail-Bombing eines Opfers, Reputations-/Amplification-Angriff auf euren Mailversand). Aber:
+
+Deine Per-IP-Limits (3/min·25/h·60/Tag·100/Woche) + Per-Email (10/15min) + globaler Breaker (500/h) decken den realistischen Single-Source-Missbrauch schon ab.
+CAPTCHA-Tokens sind farmbar (Solver-Dienste, billig) → es ersetzt nie Rate-Limiting, es ist nur eine Reibungsschicht obendrauf. Steht so auch schon in eurer SECURITY_AUTH.md (dort als „deferred" mit dem Breaker als Kompensation).
+Der eine Fall, wo es echt hilft
+Verteilter Angriff (viele IPs), der den globalen Breaker füllt und damit echte Bürger:innen aussperrt — genau da beissen Per-IP-Limits nicht. Aber dafür gibt es eine nicht-CAPTCHA-Alternative, die in eurer TODO schon steht: ein Per-IP/Subnet-Contribution-Cap auf das globale Budget. Das löst den verteilten Fall ohne jede Nutzer-Reibung — ich würde das vor CAPTCHA bauen.
+
+Falls doch CAPTCHA — dann so
+Adaptiv, nicht immer an: Challenge nur zeigen, wenn ein Soft-Signal trippt (Breaker nähert sich der Alert-Schwelle, IP/Subnet über Soft-Limit). So bleibt der „ein Feld, kein Passwort"-Flow für 99 % frictionless — Reibung nur unter Last.
+Privacy-first Anbieter: Friendly Captcha (EU/DE, GDPR, kein Tracking, Datensouveränität — passt zu eurem Apertus/Infomaniak-Ethos) > Cloudflare Turnstile (unsichtbar, privacy-schonend) ≫ Google reCAPTCHA (Tracking — für eine Anonymitäts-Plattform das Schlechteste). Jeder Drittanbieter sieht beim Auth-Schritt die IP + das Signal „hier loggt sich wer ein" → das ist genau der Korrelations-Touchpoint aus unserer Deanonymisierungs-Diskussion. Friendly Captcha hält das in der EU und trackerfrei.
+Ehrliche Priorisierung
+Deine grossen Risiken sind Deanonymisierung + Sybil (Email↔DID-Klartext, eID-Gating der Zahlen — auf 2027 vertagt). CAPTCHA adressiert davon nichts und könnte den Anonymitäts-Touchpoint sogar minim verschlechtern. Es bekämpft ein vergleichsweise kleines Risiko (Send-Spam), das deine Limits grösstenteils schon haben. Ich würde die Reibungs-/Privacy-„Kosten" lieber dort investieren.
+
+Konkret: Lass es vorerst weg. Wenn du proaktiv etwas willst, bau den Per-IP-Contribution-Cap auf den Breaker (frictionless, löst den verteilten Fall). CAPTCHA erst, wenn ihr im Log echten verteilten Missbrauch seht — dann adaptiv + Friendly Captcha. Soll ich den Contribution-Cap skizzieren/implementieren?

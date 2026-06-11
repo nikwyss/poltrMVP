@@ -15,14 +15,14 @@ _EMAIL_STRINGS: dict[str, dict] = {
             "heading": "Neuer Account erstellt",
             "intro": "Willkommen bei POLTR! Klicke auf den Button, um deinen neuen Account zu aktivieren und dich anzumelden:",
             "action_text": "Account aktivieren & anmelden",
-            "expiry_text": "15 Minuten",
+            "expiry_text": "10 Minuten",
         },
         "login": {
             "subject": "Willkommen zurück – POLTR",
             "heading": "Willkommen zurück",
             "intro": "Schön, dich wiederzusehen. Klicke auf den Button, um dich anzumelden:",
             "action_text": "Anmelden",
-            "expiry_text": "15 Minuten",
+            "expiry_text": "10 Minuten",
         },
         "copy_link": "Oder kopiere diesen Link in deinen Browser:",
         "expires": "Dieser Link läuft in {expiry} ab.",
@@ -34,14 +34,14 @@ _EMAIL_STRINGS: dict[str, dict] = {
             "heading": "New account created",
             "intro": "Welcome to POLTR! Click the button to activate your new account and sign in:",
             "action_text": "Activate account & sign in",
-            "expiry_text": "15 minutes",
+            "expiry_text": "10 minutes",
         },
         "login": {
             "subject": "Welcome back – POLTR",
             "heading": "Welcome back",
             "intro": "Good to see you again. Click the button to sign in:",
             "action_text": "Sign in",
-            "expiry_text": "15 minutes",
+            "expiry_text": "10 minutes",
         },
         "copy_link": "Or copy and paste this link in your browser:",
         "expires": "This link will expire in {expiry}.",
@@ -89,19 +89,47 @@ class EmailService:
 
             expires_sentence = strings["expires"].format(expiry=expiry_text)
 
-            html_body = f"""
-            <html>
-                <body>
-                    <h1 style="font-family: Georgia, 'Times New Roman', serif; font-size: 28px;">{heading}</h1>
-                    <p>{intro}</p>
-                    <p><a href="{link}" style="background-color: #F29400; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">{action_text}</a></p>
-                    <p>{strings["copy_link"]}</p>
-                    <p>{link}</p>
-                    <p>{expires_sentence}</p>
-                    <p>{strings["ignore"]}</p>
-                </body>
-            </html>
-            """
+            # Plain, single-column layout. Inline styles + a table-wrapped button
+            # for broad email-client compatibility (incl. Outlook). Brand orange
+            # #F29400, muted secondary text; no images, no tracking.
+            html_body = f"""\
+<!DOCTYPE html>
+<html lang="{locale}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  </head>
+  <body style="margin:0; padding:0; background:#f4f2ef;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2ef;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px; background:#ffffff; border-radius:12px;">
+            <tr>
+              <td style="padding:40px 32px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#1a1814;">
+                <p style="margin:0 0 6px; font-size:12px; letter-spacing:3px; text-transform:uppercase; color:#9b9691;">POLTR</p>
+                <h1 style="margin:0 0 16px; font-family:Georgia,'Times New Roman',serif; font-size:25px; font-weight:600; color:#1a1814;">{heading}</h1>
+                <p style="margin:0 0 28px; font-size:15px; line-height:1.55; color:#4a4640;">{intro}</p>
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td style="border-radius:8px; background:#F29400;">
+                      <a href="{link}" style="display:inline-block; padding:13px 30px; font-size:15px; font-weight:600; color:#ffffff; text-decoration:none; border-radius:8px;">{action_text}</a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:28px 0 6px; font-size:13px; color:#9b9691;">{strings["copy_link"]}</p>
+                <p style="margin:0 0 24px; font-size:13px; line-height:1.5; word-break:break-all;"><a href="{link}" style="color:#b07000; text-decoration:none;">{link}</a></p>
+                <hr style="border:none; border-top:1px solid #ececea; margin:0 0 20px;">
+                <p style="margin:0 0 6px; font-size:13px; color:#9b9691;">{expires_sentence}</p>
+                <p style="margin:0; font-size:13px; color:#9b9691;">{strings["ignore"]}</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+"""
 
             text_body = f"""
             {heading}
