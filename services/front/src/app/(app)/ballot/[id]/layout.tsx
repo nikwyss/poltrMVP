@@ -95,35 +95,33 @@ export default function VorlageLayout({
             (trennt „Kontext oben" von „Inhalt unten" ohne weisse Fläche). */}
         <nav className="sticky top-[59px] z-40 border-b border-[#E0DCD1] bg-[var(--bg)]">
           <div
-            className="mx-auto flex items-center gap-1 overflow-x-auto"
+            className="mx-auto flex h-11 items-stretch gap-6 overflow-x-auto"
             style={{
               maxWidth: "var(--page-max)",
               padding: "0 var(--page-px)",
-              height: 44,
             }}
           >
-            {/* Pills mit gap — der weisse aktive Pill grenzt sich selbst ab,
-                daher keine zusätzlichen Trennstriche. */}
-            <div className="flex items-center gap-1">
-              {tabs.map((tab) => {
-                const href = `/ballot/${id}/${tab.segment}`;
-                const isActive = activeSegment === tab.segment;
-                return (
-                  <Link
-                    key={tab.segment}
-                    href={href}
-                    className={cn(
-                      "px-3 py-1.5 text-[0.78125rem] rounded-[var(--r-sm)] no-underline transition-all duration-150 whitespace-nowrap",
-                      isActive
-                        ? "bg-[var(--surface)] text-[var(--text)] font-semibold border border-[#E0DCD1] shadow-[0_1px_2px_rgba(80,75,60,0.08)]"
-                        : "font-medium text-[var(--text-mid)] border border-transparent hover:bg-accent hover:text-[var(--text)]",
-                    )}
-                  >
-                    {t(tab.key)}
-                  </Link>
-                );
-              })}
-            </div>
+            {/* Underline-Tabs: aktiver Tab fett + dunkler Unterstrich am unteren
+                Rand (sitzt auf der Hairline); inaktive muted, kein Hintergrund.
+                Kein -mb-px → kein 1px-Überlauf, der eine Scrollbar auslöst. */}
+            {tabs.map((tab) => {
+              const href = `/ballot/${id}/${tab.segment}`;
+              const isActive = activeSegment === tab.segment;
+              return (
+                <Link
+                  key={tab.segment}
+                  href={href}
+                  className={cn(
+                    "inline-flex items-center border-b-2 text-[0.8125rem] no-underline transition-colors whitespace-nowrap",
+                    isActive
+                      ? "border-[var(--text)] font-semibold text-[var(--text)]"
+                      : "border-transparent font-medium text-[var(--text-mid)] hover:text-[var(--text)]",
+                  )}
+                >
+                  {t(tab.key)}
+                </Link>
+              );
+            })}
           </div>
         </nav>
 
