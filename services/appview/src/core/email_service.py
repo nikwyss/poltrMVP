@@ -4,39 +4,46 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Literal, Optional
 
-# Email translations keyed by locale
+# Email translations keyed by locale. The email carries ONLY the magic link now
+# (no short code). The two purposes are STRONGLY contrasted — "new account" vs
+# "welcome back" — because that contrast is the only place the user learns whether
+# they just registered or logged in.
 _EMAIL_STRINGS: dict[str, dict] = {
     "de": {
         "registration": {
-            "subject": "Registrierung bestätigen – POLTR",
-            "action_text": "Konto bestätigen",
-            "expiry_text": "30 Minuten",
-        },
-        "login": {
-            "subject": "Dein Magic Link! – POLTR",
-            "action_text": "Bei POLTR anmelden",
+            "subject": "Dein neuer POLTR-Account – POLTR",
+            "heading": "Neuer Account erstellt",
+            "intro": "Willkommen bei POLTR! Klicke auf den Button, um deinen neuen Account zu aktivieren und dich anzumelden:",
+            "action_text": "Account aktivieren & anmelden",
             "expiry_text": "15 Minuten",
         },
-        "click_below": "Klicke auf den Button, um fortzufahren:",
+        "login": {
+            "subject": "Willkommen zurück – POLTR",
+            "heading": "Willkommen zurück",
+            "intro": "Schön, dich wiederzusehen. Klicke auf den Button, um dich anzumelden:",
+            "action_text": "Anmelden",
+            "expiry_text": "15 Minuten",
+        },
         "copy_link": "Oder kopiere diesen Link in deinen Browser:",
-        "short_code_hint": "Oder gib diesen Code auf der Anmeldeseite ein:",
         "expires": "Dieser Link läuft in {expiry} ab.",
         "ignore": "Falls du das nicht angefordert hast, kannst du diese E-Mail ignorieren.",
     },
     "en": {
         "registration": {
-            "subject": "Confirm your registration – POLTR",
-            "action_text": "Confirm your account",
-            "expiry_text": "30 minutes",
-        },
-        "login": {
-            "subject": "Your Magic Link! – POLTR",
-            "action_text": "Login to POLTR",
+            "subject": "Your new POLTR account – POLTR",
+            "heading": "New account created",
+            "intro": "Welcome to POLTR! Click the button to activate your new account and sign in:",
+            "action_text": "Activate account & sign in",
             "expiry_text": "15 minutes",
         },
-        "click_below": "Click the button below to continue:",
+        "login": {
+            "subject": "Welcome back – POLTR",
+            "heading": "Welcome back",
+            "intro": "Good to see you again. Click the button to sign in:",
+            "action_text": "Sign in",
+            "expiry_text": "15 minutes",
+        },
         "copy_link": "Or copy and paste this link in your browser:",
-        "short_code_hint": "Or enter this code on the login page:",
         "expires": "This link will expire in {expiry}.",
         "ignore": "If you didn't request this, you can safely ignore this email.",
     },
@@ -58,48 +65,38 @@ class EmailService:
         to_email: str,
         token: str,
         purpose: Literal["registration", "login"] = "registration",
-        short_code: str | None = None,
+        short_code: str | None = None,  # DEPRECATED: ignored — the email is link-only now
         locale: str = "de",
     ) -> bool:
-        """Send a confirmation link (and optional short code) for registration or login"""
+        """Send a magic-link email for registration or login.
+
+        The email contains ONLY the link. The 6-char short code is never emailed;
+        it is shown in-browser and only when the link opens in a different browser.
+        """
         try:
             strings = _EMAIL_STRINGS.get(locale, _EMAIL_STRINGS["de"])
             purpose_strings = strings[purpose]
             subject = purpose_strings["subject"]
+            heading = purpose_strings["heading"]
+            intro = purpose_strings["intro"]
             action_text = purpose_strings["action_text"]
             expiry_text = purpose_strings["expiry_text"]
 
-            if purpose == "registration":
-                link = f"{self.frontend_url}/auth/verify-registration?token={token}"
-            elif purpose == "login":
-                link = f"{self.frontend_url}/auth/verify-login?token={token}"
-            else:
-                raise ValueError("Invalid purpose for confirmation link")
-
-            short_code_html = ""
-            short_code_text = ""
-            if short_code:
-                short_code_html = f"""
-                    <p style="margin-top: 24px; color: #666;">{strings["short_code_hint"]}</p>
-                    <p style="font-size: 32px; font-family: monospace; letter-spacing: 8px;
-                              font-weight: bold; text-align: center; padding: 16px;
-                              background: #f5f5f5; border-radius: 8px; margin: 8px 0;">
-                        {short_code}
-                    </p>
-                """
-                short_code_text = f"\n            {strings['short_code_hint']} {short_code}\n"
+            # Unified verify page for both purposes (the email text already tells
+            # the user which one it is). Referrer-Policy: no-referrer is set on
+            # that page so the token does not leak via Referer.
+            link = f"{self.frontend_url}/auth/verify?token={token}"
 
             expires_sentence = strings["expires"].format(expiry=expiry_text)
 
             html_body = f"""
             <html>
                 <body>
-                    <h2>{subject}</h2>
-                    <p>{strings["click_below"]}</p>
-                    <p><a href="{link}" style="background-color: #0085ff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">{action_text}</a></p>
+                    <h1 style="font-family: Georgia, 'Times New Roman', serif; font-size: 28px;">{heading}</h1>
+                    <p>{intro}</p>
+                    <p><a href="{link}" style="background-color: #F29400; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">{action_text}</a></p>
                     <p>{strings["copy_link"]}</p>
                     <p>{link}</p>
-                    {short_code_html}
                     <p>{expires_sentence}</p>
                     <p>{strings["ignore"]}</p>
                 </body>
@@ -107,11 +104,11 @@ class EmailService:
             """
 
             text_body = f"""
-            {subject}
+            {heading}
 
-            {strings["click_below"]}
+            {intro}
             {link}
-            {short_code_text}
+
             {expires_sentence}
             {strings["ignore"]}
             """
@@ -143,9 +140,8 @@ class EmailService:
                 print(f"\n{'='*60}")
                 print(f"EMAIL LINK (dev mode - localhost or no SMTP configured):")
                 print(f"Email: {to_email}")
+                print(f"Purpose: {purpose}")
                 print(f"Link: {link}")
-                if short_code:
-                    print(f"Short Code: {short_code}")
                 print(f"{'='*60}\n")
 
             return True

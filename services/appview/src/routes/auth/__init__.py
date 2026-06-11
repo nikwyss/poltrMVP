@@ -5,11 +5,14 @@ Authentication endpoints for magic link login, registration, app passwords,
 and E-ID verification.
 """
 
+import logging
 import os
 import time
 import httpx
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 from src.auth.login import check_email_availability, login_account
 from src.auth.register import create_account
@@ -20,11 +23,17 @@ from src.auth.magic_link_handler import (
     VerifyLoginMagicLinkData,
     VerifyRegistrationMagicLinkData,
     VerifyShortCodeData,
+    StartData,
+    CheckLinkData,
+    WaitStatusData,
     send_magic_link_handler,
     verify_login_magic_link_handler,
     SendMagicLinkData,
     verify_registration_magic_link_handler,
     verify_short_code_handler,
+    start_handler,
+    check_link_handler,
+    wait_status_handler,
     generate_short_code,
     safe_return_url,
 )
@@ -39,12 +48,47 @@ APP_PASSWORD_ENABLED = os.getenv("APPVIEW_APP_PASSWORD_ENABLED", "false").lower(
 router = APIRouter(prefix="/xrpc", tags=["auth"])
 
 
+@router.post("/ch.poltr.auth.start")
+@limiter.limit("5/minute")
+async def start(request: Request, data: StartData):
+    """Unified auth entry point (login OR registration, decided server-side).
+
+    Returns a neutral response identical for both cases plus an `initiatorSecret`
+    the frontend stores in a httpOnly cookie. The only branch the user can observe
+    is which email arrives. See doc/SECURITY_AUTH.md.
+    """
+    locale = request.cookies.get("locale", "de")
+    return await start_handler(data, locale=locale)
+
+
 @router.post("/ch.poltr.auth.sendMagicLink")
 @limiter.limit("5/minute")
 async def send_magic_link(request: Request, data: SendMagicLinkData):
-    """Send magic link to user's email"""
+    """DEPRECATED: ersetzt durch ch.poltr.auth.start. Funktional unverändert."""
+    logger.warning(
+        "DEPRECATED ch.poltr.auth.sendMagicLink called — use ch.poltr.auth.start"
+    )
     locale = request.cookies.get("locale", "de")
     return await send_magic_link_handler(data, locale=locale)
+
+
+@router.post("/ch.poltr.auth.checkLink")
+@limiter.limit("20/minute")
+async def check_link(request: Request, data: CheckLinkData):
+    """Non-consuming preflight for /auth/verify: same-browser vs different-browser
+    (reveals the short code only in the different-browser case)."""
+    return await check_link_handler(data)
+
+
+@router.post("/ch.poltr.auth.waitStatus")
+@limiter.limit("60/minute")
+async def wait_status(request: Request, data: WaitStatusData):
+    """Polling status for the waiting screen: authenticated | pending | gone."""
+    authz = request.headers.get("authorization")
+    token = request.cookies.get("session_token")
+    if not token and authz and authz.startswith("Bearer "):
+        token = authz.replace("Bearer ", "")
+    return await wait_status_handler(data, token)
 
 
 @router.post("/ch.poltr.auth.verifyLogin")
@@ -85,7 +129,10 @@ REGISTER_SEND_WINDOW_MINUTES = 15
 # breaker requires several coordinated IPs. See doc/SECURITY_AUTH.md #4.
 @limiter.limit("3/minute")
 async def register(request: Request):
-    """Accept an email and send confirmation link before creating account."""
+    """DEPRECATED: ersetzt durch ch.poltr.auth.start. Funktional unverändert."""
+    logger.warning(
+        "DEPRECATED ch.poltr.auth.register called — use ch.poltr.auth.start"
+    )
     body = await request.json()
     email = body.get("email")
     if not email:
@@ -216,7 +263,9 @@ async def confirm_registration(request: Request, data: VerifyRegistrationMagicLi
 @router.post("/ch.poltr.auth.verifyShortCode")
 @limiter.limit("10/minute")
 async def verify_short_code(request: Request, data: VerifyShortCodeData):
-    """Verify a 6-character short code for login or registration."""
+    """Verify a 6-character short code. Purpose-agnostic: the matching pending
+    table (not the request) decides login vs registration, so the waiting screen
+    never has to know which it is."""
     response = await verify_short_code_handler(data)
 
     if isinstance(response, JSONResponse):
@@ -228,9 +277,9 @@ async def verify_short_code(request: Request, data: VerifyShortCodeData):
             content={"error": "invalid_code", "message": "Invalid code"},
         )
 
-    email, return_url = response
+    email, return_url, purpose = response
 
-    if data.purpose == "registration":
+    if purpose == "registration":
         if not await check_email_availability(email=email):
             return JSONResponse(
                 status_code=400,

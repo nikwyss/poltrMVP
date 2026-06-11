@@ -153,14 +153,28 @@ async def client(patch_db):
 # Helpers
 # ---------------------------------------------------------------------------
 
-def make_pending_login_row(email="user@test.com", token="test-token", expired=False):
+def make_pending_login_row(
+    email="user@test.com", token="test-token", expired=False,
+    short_code="ABC234", initiator_id=None,
+):
     exp = datetime.utcnow() + (timedelta(minutes=-1) if expired else timedelta(minutes=15))
-    return {"id": 1, "email": email, "expires_at": exp, "token": token}
+    return {
+        "id": 1, "email": email, "expires_at": exp, "token": token,
+        "return_url": None, "short_code": short_code,
+        "failed_attempts": 0, "initiator_id": initiator_id,
+    }
 
 
-def make_pending_registration_row(email="new@test.com", token="reg-token", expired=False):
+def make_pending_registration_row(
+    email="new@test.com", token="reg-token", expired=False,
+    short_code="ABC234", initiator_id=None,
+):
     exp = datetime.utcnow() + (timedelta(minutes=-1) if expired else timedelta(minutes=30))
-    return {"id": 1, "email": email, "expires_at": exp, "token": token}
+    return {
+        "id": 1, "email": email, "expires_at": exp, "token": token,
+        "return_url": None, "short_code": short_code,
+        "failed_attempts": 0, "initiator_id": initiator_id,
+    }
 
 
 def make_creds_row(email="user@test.com", did="did:plc:abc123", handle="user123.id.poltr.ch"):
@@ -170,4 +184,10 @@ def make_creds_row(email="user@test.com", did="did:plc:abc123", handle="user123.
         "email": email,
         "app_pw_ciphertext": b"fake-ct",
         "app_pw_nonce": b"fake-nonce-24-bytes!",
+        # Profile fields read by login_account's auth_creds⋈app_profiles SELECT.
+        "display_name": "Test User",
+        "canton": "BE",
+        "color": "blue",
+        "mountain_fullname": "TestBerg (BE)",
+        "height": 2000.0,
     }

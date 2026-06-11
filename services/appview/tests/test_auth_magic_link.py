@@ -57,10 +57,15 @@ async def test_send_magic_link_success():
 
 @pytest.mark.asyncio
 async def test_send_magic_link_unknown_email():
-    """Should return 404 when no account exists for the email."""
+    """Unknown email → neutral 200, no email sent (anti-enumeration, SECURITY_AUTH #3)."""
     pool = FakePool({"auth_creds": []})
 
-    with patch("src.core.db.pool", pool):
+    with (
+        patch("src.core.db.pool", pool),
+        patch("src.auth.magic_link_handler.email_service") as mock_email,
+    ):
+        mock_email.send_confirmation_link = MagicMock(return_value=True)
+
         from src.auth.magic_link_handler import (
             SendMagicLinkData,
             send_magic_link_handler,
@@ -68,11 +73,12 @@ async def test_send_magic_link_unknown_email():
 
         resp = await send_magic_link_handler(SendMagicLinkData(email="nobody@test.com"))
 
-        assert resp.status_code == 404
-        assert resp.body is not None
+        # Same neutral response as the happy path; reveals nothing about existence.
+        assert resp.status_code == 200
         import json
         body = json.loads(resp.body)
-        assert body["error"] == "user_not_found"
+        assert body["success"] is True
+        mock_email.send_confirmation_link.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -119,8 +125,8 @@ async def test_verify_login_valid_token():
             VerifyLoginMagicLinkData(token="good-token")
         )
 
-        # Should return the email string
-        assert result == "user@test.com"
+        # Returns (email, return_url) so the route can echo the deep link back.
+        assert result == ("user@test.com", None)
 
         # Should have issued a DELETE
         conn = pool.last_conn
@@ -190,7 +196,7 @@ async def test_verify_registration_valid_token():
             VerifyRegistrationMagicLinkData(token="reg-token")
         )
 
-        assert result == "new@test.com"
+        assert result == ("new@test.com", None)
 
         conn = pool.last_conn
         deletes = [q for q in conn.executed if q[0] == "execute" and "DELETE" in q[1]]

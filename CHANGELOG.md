@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-06-11
+
+### Einheitlicher Auth-Screen + vereinfachte Magic-Link-Email (`services/appview`, `services/front`, `infra`, `doc`)
+
+- **Ein einziger Begrüssungs-Screen** statt Login/Registrieren-Trennung (`front/src/app/(auth)/page.tsx`): Maskottchen-Tile, Serif-Titel „Willkommen", ein E-Mail-Feld, „Link senden", Copy „Neu hier? Dein Konto wird automatisch erstellt." Die Register-Seite und die beiden alten Verify-Seiten (`auth/register`, `auth/verify-login`, `auth/verify-registration`) sind gelöscht.
+- **Neuer Unified-Endpoint `ch.poltr.auth.start`** (`routes/auth/__init__.py`, `auth/magic_link_handler.py`): entscheidet **serverseitig** Login vs. Registrierung und versendet den passenden Text — die HTTP-Antwort ist für beide Fälle identisch (enumeration-safe). Bis zur E-Mail ist der Flow für den Nutzer ununterscheidbar; erst der **stark kontrastierte E-Mail-Text** („Willkommen zurück" vs. „Dein neuer POLTR-Account") verrät, was passiert ist. `sendMagicLink` und `register` bleiben lauffähig, sind aber **deprecated** (Log-Warnung).
+- **E-Mail = nur noch Magic-Link** (`core/email_service.py`): kein 6-stelliger Code mehr in der Mail; Link vereinheitlicht auf `/auth/verify?token=…`.
+- **Cross-Browser-Code** (`auth/verify/`): Öffnet der Link in einem **anderen** Browser als dem der E-Mail-Eingabe, zeigt dieser Browser (B) den 6-stelligen Code — einzugeben auf dem Startgerät (A). Gleicher Browser → Bestätigungs-Button. Erkennung über ein `httpOnly`-Initiator-Cookie (`poltr_auth_init`, SHA-256 in neuer Spalte `initiator_id`, Migration `007`); Preflight `ch.poltr.auth.checkLink` (non-consuming). `ch.poltr.auth.verifyShortCode` ist jetzt purpose-agnostisch (sucht beide Pending-Tabellen).
+- **Warte-Screen pollt** (`ch.poltr.auth.waitStatus`): erkennt Login-in-anderem-Tab → „Angemeldet, Zur App / Tab schliessen", sowie abgelaufenen/verbrauchten Link → „Neuen Link anfordern".
+- **Security-Härtungen:** Anti-Phishing-Warnung + Ziel-E-Mail an der Code-Anzeige (gegen Device-Code-Phishing); `Referrer-Policy: no-referrer` auf `/auth/verify`; `start` löscht alte Login-Pending-Rows → ein lebender Code (Brute-Force-Cap nicht durch Neu-Anfordern umgehbar); `return_url` serverseitig via `safe_return_url`. Dokumentiert in `doc/SECURITY_AUTH.md`.
+- **Hinweis (separater Workstream):** Deanonymisierung/Sybil (Email↔DID-Linkage im Klartext, DID-Genesis-Timing, eID-Gating) bleiben bewusst ausserhalb dieses Umbaus.
+
 ## 2026-06-09
 
 ### Taxonomie-Übersetzung: Topic-Knoten via Apertus, direkt-in-DB (`services/appview`, `infra`)

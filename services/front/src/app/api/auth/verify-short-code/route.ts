@@ -5,11 +5,14 @@ const APPVIEW_URL = process.env.APPVIEW_URL || process.env.NEXT_PUBLIC_API_URL |
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
+  // Device binding: only the originating browser (which holds the initiator
+  // cookie) may redeem the code, even though the code is displayed on the link device.
+  const initiatorSecret = request.cookies.get('poltr_auth_init')?.value;
 
   const res = await fetch(`${APPVIEW_URL}/xrpc/ch.poltr.auth.verifyShortCode`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...appviewForwardHeaders(request) },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, initiatorSecret }),
   });
 
   const data = await res.json();

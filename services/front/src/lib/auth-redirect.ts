@@ -12,12 +12,12 @@
 //    NICHT. Daher localStorage.
 //
 // Cross-Device: localStorage wird über Geräte/Browser NICHT geteilt. Damit der
-// Magic-Link auch auf einem anderen Gerät zurückführt, schickt die Login-/
-// Register-Seite den gemerkten Pfad zusätzlich an den Server (sendMagicLink/
-// register → Spalte `return_url` in der Pending-Zeile). Die Verify-Seiten
-// bevorzugen deshalb `data.returnUrl` aus der Antwort und fallen nur auf den
-// localStorage-Wert zurück. `peekReturnTo` liest den Pfad fürs Mitschicken, OHNE
-// ihn zu löschen — gelöscht wird erst beim finalen `consumeReturnTo`.
+// Magic-Link auch auf einem anderen Gerät zurückführt, schickt der Begrüssungs-
+// Screen den gemerkten Pfad zusätzlich an den Server (ch.poltr.auth.start →
+// Spalte `return_url` in der Pending-Zeile). Die Verify-/Code-Pfade bevorzugen
+// deshalb `data.returnUrl` aus der Antwort und fallen nur auf den localStorage-
+// Wert zurück. `peekReturnTo` liest den Pfad fürs Mitschicken, OHNE ihn zu
+// löschen — gelöscht wird erst beim finalen `consumeReturnTo`.
 
 const RETURN_TO_KEY = "poltr_return_to";
 

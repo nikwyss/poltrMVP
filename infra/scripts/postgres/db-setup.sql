@@ -428,7 +428,10 @@ CREATE TABLE auth.auth_pending_logins (
   -- can redirect back after auth (cross-device; read from this row, not browser).
   return_url      text,
   expires_at      timestamp NOT NULL,
-  created_at      timestamp DEFAULT now()
+  created_at      timestamp DEFAULT now(),
+  -- SHA-256 of the initiator secret (httpOnly cookie set at ch.poltr.auth.start).
+  -- checkLink compares it to decide same-browser vs different-browser. See #007.
+  initiator_id    varchar(64)
 );
 
 CREATE INDEX idx_auth_pending_logins_token ON auth.auth_pending_logins (token);
@@ -450,7 +453,9 @@ CREATE TABLE auth.auth_pending_registrations (
   -- upsert, so the per-email window cap is tracked on the row rather than by
   -- counting rows (cf. auth_pending_logins). See doc/SECURITY_AUTH.md #2.
   send_count        integer NOT NULL DEFAULT 1,
-  window_started_at timestamp NOT NULL DEFAULT now()
+  window_started_at timestamp NOT NULL DEFAULT now(),
+  -- See auth_pending_logins.initiator_id.
+  initiator_id    varchar(64)
 );
 
 CREATE INDEX idx_auth_pending_registrations_token ON auth.auth_pending_registrations (token);

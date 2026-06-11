@@ -5,13 +5,15 @@ const APPVIEW_URL = process.env.APPVIEW_URL || process.env.NEXT_PUBLIC_API_URL |
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
+  // Device binding: forward the initiator cookie (see verify-login).
+  const initiatorSecret = request.cookies.get('poltr_auth_init')?.value;
 
   let res: Response;
   try {
     res = await fetch(`${APPVIEW_URL}/xrpc/ch.poltr.auth.verifyRegistration`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...appviewForwardHeaders(request) },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, initiatorSecret }),
     });
   } catch {
     return NextResponse.json(

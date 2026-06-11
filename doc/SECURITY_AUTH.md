@@ -1,19 +1,53 @@
 # Auth Security — Magic-Link Abuse Surface
 
-Hardening for the passwordless (magic-link + short-code) auth flow against bots,
-email-bombing, and account enumeration. Keep current as controls change.
+Hardening for the passwordless (magic-link) auth flow against bots, email-bombing,
+account enumeration, and cross-device code phishing. Keep current as controls change.
 
 **Endpoints** (in [`routes/auth/__init__.py`](../services/appview/src/routes/auth/__init__.py)):
 
 | Endpoint | Sends email? | Per-IP limit |
 |----------|--------------|--------------|
-| `sendMagicLink` | ✅ login link + code | 5/min |
-| `register` | ✅ registration link + code | 3/min |
+| `start` | ✅ login **or** registration link (decided server-side) | 5/min |
+| `checkLink` | no (non-consuming preflight) | 20/min |
+| `waitStatus` | no (polling) | 60/min |
 | `verifyLogin` / `verifyRegistration` / `verifyShortCode` | no (consume token) | 10/min |
+| `sendMagicLink`, `register` | ✅ **DEPRECATED** — replaced by `start` (kept, log a warning) | 5/min, 3/min |
 
-The two email-sending endpoints are the real abuse surface. Rate limiting (per-IP
-**and** per-email) + the global breaker are the primary protection; CAPTCHA would
-be a friction layer on top.
+`start` is the single email-sending entry point and the real abuse surface. Rate
+limiting (per-IP **and** per-email) + the global breaker are the primary protection;
+CAPTCHA would be a friction layer on top.
+
+## Unified flow & cross-browser code (#007)
+
+The **email carries only the magic link** — never the short code. The 6-char code
+is shown **in-browser** and only when the link opens in a *different* browser than
+the one that entered the email:
+
+- `start` returns an `initiatorSecret`; the frontend stores its **SHA-256** in a
+  `httpOnly` cookie (`poltr_auth_init`, 15 min) and the appview stores the same
+  hash in the pending row's `initiator_id`.
+- `/auth/verify` runs a **non-consuming** preflight (`checkLink`): if the cookie
+  matches → *same browser* (show a confirm button); else → *different browser*,
+  reveal the short code to be typed on the originating device (no direct-login
+  button there).
+- **Device binding** 🔒 — `verifyLogin` / `verifyRegistration` / `verifyShortCode`
+  require the initiator cookie to **match** the pending row's `initiator_id`, so a
+  login only completes in the browser that started it. A forwarded or leaked link
+  therefore **cannot sign in on a stranger's device** — it only reveals a code to
+  carry back to the originating device (which holds the cookie). The short-code
+  check verifies the cookie **before** counting an attempt, so a wrong-device
+  caller can't burn the code's 5-attempt budget. Rows without `initiator_id`
+  (deprecated `sendMagicLink`/`register`) are unbound. **Scope:** this closes
+  link-leakage/forwarding, **not** full inbox compromise (an attacker who reads
+  the inbox can initiate *and* complete on their own browser).
+- **Anti-phishing:** the code page (`verify-client.tsx`) shows the target email +
+  a warning ("if you didn't start this elsewhere, don't share this code") to blunt
+  device-code phishing.
+- **Token leak:** `/auth/verify` sets `Referrer-Policy: no-referrer` so the
+  `?token=` cannot leak via `Referer`. Preflight is non-consuming, so unfurl/prefetch
+  bots that GET the page don't burn the link.
+- **Deanonymisation/Sybil** (Email↔DID linkage, DID-genesis timing, eID-gating) are
+  a separate, higher-priority privacy workstream — out of scope here.
 
 ---
 
@@ -37,12 +71,18 @@ sending. Login counts `auth_pending_logins` rows in-window; registration tracks
 `send_count`/`window_started_at` on its (unique) row (migration `003`). Over the
 cap → neutral response, no send. In addition to (not instead of) the per-IP limit.
 
-**No account enumeration** ✅ — `sendMagicLink` and `register` always return the
-same neutral `200` regardless of account existence; email only sent on the valid
-branch. "Check your email" screen uses conditional wording
-(`magicLink.sentMagic` / `sentConfirmation` in `messages/*.json`). Post-token
-endpoints still return `email_taken` — not a leak (caller already controls the
-mailbox).
+**One live code per email** ✅ — `start` **deletes prior `auth_pending_logins`
+rows for the email** before inserting (registration is already `UNIQUE(email)`
+upsert). So the 5-attempt brute-force cap can't be multiplied by re-requesting a
+link (which would otherwise mint a fresh code + counter each time); the per-email
+window cap above bounds how often a new code can be requested at all.
+
+**No account enumeration** ✅ — `start` returns the **identical** neutral `200`
+(plus the random `initiatorSecret`) whether the email is new or existing; the only
+difference is *which* email goes out ("Welcome back" vs "new account"), visible
+only to the real mailbox owner. The waiting screen wording is neutral
+(`magicLink.sentTo`). Post-token endpoints still return `email_taken` — not a leak
+(caller already controls the mailbox).
 
 **Global hourly circuit breaker** ✅ — platform-wide cap on outbound auth emails
 ([`auth/auth_email_guard.py`](../services/appview/src/auth/auth_email_guard.py)),
@@ -56,7 +96,8 @@ pruned to 2h). Fails **open** on DB error.
 | `APPVIEW_AUTH_EMAIL_CAP_PER_HOUR` | `100` | `500` | refuse, neutral response |
 
 **Short-code verify** ✅ — per-row `failed_attempts` cap (5); verify targets the
-most-recent valid pending row (login table can hold several rows per email).
+most-recent valid pending row and is **purpose-agnostic** (searches both pending
+tables, so the waiting screen never learns login-vs-registration before the email).
 
 ---
 

@@ -1,32 +1,57 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
 import { useTranslations } from 'next-intl';
+import { MailCheck } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { consumeReturnTo } from '@/lib/auth-redirect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardTitle } from '@/components/ui/card';
 import { Spinner } from '@/components/spinner';
+
+type WaitState = 'waiting' | 'authenticated' | 'gone';
 
 function MagicLinkSentContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
   const t = useTranslations('magicLink');
-  const tc = useTranslations('common');
-  const email = searchParams.get('email') || 'your email';
-  const purpose = searchParams.get('purpose');
-  const isRegistration = purpose === 'registration';
+  const email = searchParams.get('email') || '';
 
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [waitState, setWaitState] = useState<WaitState>('waiting');
+  const redirecting = useRef(false);
+
+  // Poll: detect a login completed in another tab (authenticated) or an expired/
+  // used link (gone). The direct code path below redirects on its own.
+  useEffect(() => {
+    let active = true;
+    const tick = async () => {
+      try {
+        const res = await fetch('/api/auth/wait-status', { method: 'POST' });
+        const data = await res.json();
+        if (!active) return;
+        if (data.state === 'authenticated') setWaitState('authenticated');
+        else if (data.state === 'gone') setWaitState('gone');
+      } catch {
+        // transient — keep polling
+      }
+    };
+    const id = setInterval(() => {
+      if (waitState === 'waiting') tick();
+    }, 3000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, [waitState]);
 
   const handleVerifyCode = async () => {
-    if (code.length !== 6) return;
+    if (code.length !== 6 || redirecting.current) return;
     setSubmitting(true);
     setError('');
 
@@ -34,11 +59,7 @@ function MagicLinkSentContent() {
       const response = await fetch('/api/auth/verify-short-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          code: code.toUpperCase(),
-          purpose: isRegistration ? 'registration' : 'login',
-        }),
+        body: JSON.stringify({ email, code: code.toUpperCase() }),
       });
 
       const data = await response.json();
@@ -59,6 +80,7 @@ function MagicLinkSentContent() {
         return;
       }
 
+      redirecting.current = true;
       login({
         did: data.user.did,
         handle: data.user.handle,
@@ -69,7 +91,6 @@ function MagicLinkSentContent() {
         height: data.user.height,
       });
 
-      // Server-Wert (cross-device) bevorzugen; localStorage trotzdem leeren.
       const stashed = consumeReturnTo();
       router.push(data.returnUrl || stashed);
     } catch {
@@ -79,55 +100,99 @@ function MagicLinkSentContent() {
     }
   };
 
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-5">
-      <Card className="w-full max-w-lg text-center">
-        <CardHeader>
-          <div className="text-5xl mb-2">&#9993;</div>
-          <CardTitle className="text-2xl">{t('checkEmail')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground">
-            {isRegistration ? t('sentConfirmation') : t('sentMagic')}
-          </p>
-          <p className="text-lg font-bold text-primary">
-            {email}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {isRegistration ? t('clickToRegister') : t('clickToLogin')}
-          </p>
-
-          <div className="border-t pt-4 mt-4 space-y-3">
-            <p className="text-sm text-muted-foreground">
-              {t('orEnterCode')}
-            </p>
-            <Input
-              type="text"
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^ABCDEFGHJKMNPQRSTUVWXYZ23456789]/g, ''))}
-              placeholder={t('codePlaceholder')}
-              className="text-center text-2xl font-mono tracking-[0.3em] uppercase"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleVerifyCode();
-              }}
-            />
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
-            <Button
-              onClick={handleVerifyCode}
-              disabled={code.length !== 6 || submitting}
-              className="w-full"
-            >
-              {submitting ? t('verifying') : t('verifyCode')}
+  // Login completed in another tab of the same browser.
+  if (waitState === 'authenticated') {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-5">
+        <Card className="w-full max-w-sm text-center">
+          <CardContent className="space-y-4 pt-6">
+            <div className="text-5xl">&#9989;</div>
+            <CardTitle className="text-xl">{t('authenticatedTitle')}</CardTitle>
+            {/* Hard navigation, not router.push: the login happened in another tab,
+                so THIS tab's AuthContext is stale (isAuthenticated still false) and
+                a client-side push would bounce off the (app) guard back to login.
+                A full load re-initialises AuthContext against the now-valid cookie. */}
+            <Button className="h-11 w-full" onClick={() => { window.location.href = consumeReturnTo(); }}>
+              {t('toApp')}
             </Button>
-          </div>
+            <p className="text-xs text-muted-foreground">{t('canCloseTab')}</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
-          <Button variant="outline" onClick={() => router.push('/')}>
-            {tc('backToLogin')}
+  // Link expired or already used elsewhere.
+  if (waitState === 'gone') {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center p-5">
+        <Card className="w-full max-w-sm text-center">
+          <CardContent className="space-y-4 pt-6">
+            <div className="text-5xl">&#9203;</div>
+            <CardTitle className="text-xl">{t('expiredTitle')}</CardTitle>
+            <p className="text-muted-foreground">{t('expiredBody')}</p>
+            <Button className="h-11 w-full" onClick={() => router.push('/')}>
+              {t('requestNew')}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center p-6">
+      <Card className="w-full max-w-sm px-7 py-9">
+        <div className="flex flex-col items-center text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
+            <MailCheck className="h-7 w-7 text-primary" />
+          </div>
+          <p className="mt-4 text-xs font-medium uppercase tracking-[0.35em] text-muted-foreground">
+            POLTR
+          </p>
+          <h1 className="mt-2 font-serif text-3xl font-semibold tracking-tight">
+            {t('checkInbox')}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">{t('sentTo')}</p>
+          {email && <p className="mt-1 font-semibold text-foreground">{email}</p>}
+        </div>
+
+        <div className="mt-6 flex flex-col items-center gap-1">
+          <p className="text-xs text-muted-foreground">{t('spamHint')}</p>
+          <Button variant="link" className="text-xs" onClick={() => router.push('/')}>
+            {t('wrongAddress')}
           </Button>
-        </CardContent>
+        </div>
+
+        {/* Cross-device fallback: code shown on the other browser, typed here. */}
+        <div className="mt-5 space-y-3 border-t pt-5">
+          <p className="text-xs text-muted-foreground">{t('otherDeviceReveal')}</p>
+          <Input
+            type="text"
+            maxLength={6}
+            value={code}
+            onChange={(e) =>
+              setCode(
+                e.target.value
+                  .toUpperCase()
+                  .replace(/[^ABCDEFGHJKMNPQRSTUVWXYZ23456789]/g, '')
+              )
+            }
+            placeholder={t('codePlaceholder')}
+            className="text-center font-mono text-2xl uppercase tracking-[0.3em]"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleVerifyCode();
+            }}
+          />
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button
+            onClick={handleVerifyCode}
+            disabled={code.length !== 6 || submitting}
+            className="w-full"
+          >
+            {submitting ? t('verifying') : t('verifyCode')}
+          </Button>
+        </div>
       </Card>
     </div>
   );
@@ -135,11 +200,13 @@ function MagicLinkSentContent() {
 
 export default function MagicLinkSent() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <Spinner />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <Spinner />
+        </div>
+      }
+    >
       <MagicLinkSentContent />
     </Suspense>
   );

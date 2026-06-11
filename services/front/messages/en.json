@@ -43,56 +43,35 @@
     "profile": "Profile"
   },
   "login": {
-    "title": "Login to POLTR",
-    "description": "Enter your email to login to poltr.",
+    "title": "Welcome",
+    "description": "We will email you a sign-in link. No password.",
     "emailLabel": "Email address",
-    "emailPlaceholder": "your@email.com",
+    "emailPlaceholder": "you@email.com",
     "sending": "Sending...",
-    "sendMagicLink": "Send Magic Link",
-    "noAccount": "Don't have an account? Register",
+    "sendMagicLink": "Send link",
+    "autoCreateHint": "New here? Your account is created automatically.",
     "serverError": "Server error — please try again later",
-    "failedToSend": "Failed to send magic link"
-  },
-  "register": {
-    "title": "Create POLTR Account",
-    "description": "Your credentials are randomly generated for security",
-    "emailLabel": "Email",
-    "emailPlaceholder": "your@email.com",
-    "creating": "Creating Account...",
-    "createAccount": "Create Account",
-    "hasAccount": "Already have an account? Login",
-    "failed": "Registration failed",
-    "failedGeneric": "Failed to create account"
+    "failedToSend": "Could not send the link"
   },
   "magicLink": {
-    "checkEmail": "Check your email!",
-    "sentConfirmation": "If this address isn't already registered, we've sent a confirmation link to:",
-    "sentMagic": "If an account exists for this address, we've sent a sign-in link to:",
-    "clickToRegister": "Click the link in the email to complete your registration. The link will expire in 30 minutes.",
-    "clickToLogin": "Click the link in the email to log in. The link will expire in 15 minutes.",
-    "orEnterCode": "Or enter your 6-character code:",
+    "sentTo": "Your verification is on its way to",
+    "otherDevicePrompt": "Enter the number shown on the other device:",
     "codePlaceholder": "e.g. A3B7KM",
-    "verifyCode": "Verify Code",
+    "verifyCode": "Sign in",
     "verifying": "Verifying...",
     "invalidCode": "Invalid code. {remaining} attempts remaining.",
     "invalidCodeGeneric": "Invalid or expired code.",
-    "tooManyAttempts": "Too many failed attempts. Please request a new code."
-  },
-  "verifyLogin": {
-    "invalidToken": "Invalid or missing token",
-    "verificationFailed": "Verification failed",
-    "verifying": "Verifying your magic link...",
-    "success": "Success!",
-    "redirecting": "Redirecting you to the app...",
-    "failed": "Verification Failed"
-  },
-  "verifyRegistration": {
-    "invalidToken": "Invalid or missing token",
-    "verificationFailed": "Verification failed",
-    "verifying": "Verifying your registration...",
-    "success": "Registration Complete!",
-    "redirecting": "Redirecting you to the app...",
-    "failed": "Verification Failed"
+    "tooManyAttempts": "Too many failed attempts. Please request a new link.",
+    "authenticatedTitle": "You are signed in",
+    "toApp": "Go to app",
+    "canCloseTab": "You can close this tab.",
+    "expiredTitle": "Link expired",
+    "expiredBody": "This sign-in link has expired or was already used.",
+    "requestNew": "Request a new link",
+    "checkInbox": "Check your inbox",
+    "wrongAddress": "Wrong address? Back",
+    "otherDeviceReveal": "Opened the link on another device? Enter the code",
+    "spamHint": "Nothing there? Check your spam folder."
   },
   "callback": {
     "noSession": "No session returned from callback",
@@ -351,5 +330,23 @@
     "intro": "Here you'll find the arguments on this proposal, sorted by topic. From the start, the arguments published in the official voting booklet are posted here. The community is invited to contribute arguments of its own. You can rate every argument and discuss it in detail.",
     "topicTitle": "Arguments on the topic «{name}»",
     "subtopicsTitle": "Subtopics & arguments on the topic «{name}»"
+  },
+  "verify": {
+    "loading": "One moment...",
+    "sameHeadingLogin": "Welcome back",
+    "sameHeadingRegister": "Welcome to POLTR",
+    "loginHere": "Sign in here",
+    "activateHere": "Activate account & sign in",
+    "diffHeading": "Different browser detected",
+    "diffBody": "Enter this code on the device where you started ({email}):",
+    "diffWarning": "If you did not just start a sign-in somewhere else, do not share this code with anyone and close this page. POLTR will never ask you for this code.",
+    "invalidToken": "Invalid or missing link",
+    "expired": "This link has expired",
+    "failed": "Something went wrong",
+    "success": "Success!",
+    "redirecting": "Redirecting you...",
+    "diffFooter": "You can close this page afterwards.",
+    "wrongDevice": "Please complete the sign-in on the device where you started.",
+    "diffStartOver": "Sign in on this device instead"
   }
 }
