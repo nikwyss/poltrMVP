@@ -7,11 +7,19 @@ account enumeration, and cross-device code phishing. Keep current as controls ch
 
 | Endpoint | Sends email? | Per-IP limit |
 |----------|--------------|--------------|
-| `start` | ✅ login **or** registration link (decided server-side) | 5/min |
+| `start` | ✅ login **or** registration link (decided server-side) | 3/min + 25/hour + 40/day + 100/7days |
 | `checkLink` | no (non-consuming preflight) | 20/min |
 | `waitStatus` | no (polling) | 60/min |
 | `verifyLogin` / `verifyRegistration` / `verifyShortCode` | no (consume token) | 10/min |
-| `sendMagicLink`, `register` | ✅ **DEPRECATED** — replaced by `start` (kept, log a warning) | 5/min, 3/min |
+| `sendMagicLink`, `register` | ✅ **DEPRECATED** — replaced by `start`, mirror its limits (no looser bypass) | 3/min + 25/hour + 40/day + 100/7days |
+
+⚠️ All four windows are keyed on the **real client IP**. Behind a shared NAT
+(mobile CGNAT, corporate/school proxy, public Wi-Fi) many users share one IP, so
+the **daily (40) and weekly (100) caps are the ones most likely to lock out
+legitimate clusters** during a referendum surge. The per-email (10/15min) and the
+global breaker (500/hr) already bound abuse independently; if real users get
+locked out, raise the day/week caps first. (`limits` has no `week` granularity →
+expressed as `100 per 7 days`.)
 
 `start` is the single email-sending entry point and the real abuse surface. Rate
 limiting (per-IP **and** per-email) + the global breaker are the primary protection;

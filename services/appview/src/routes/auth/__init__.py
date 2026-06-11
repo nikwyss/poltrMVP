@@ -43,13 +43,23 @@ from src.core.fastapi import limiter
 
 EIDPROTO_URL = os.getenv("EIDPROTO_URL", "https://eidproto.poltr.info")
 FRONTEND_URL = os.getenv("APPVIEW_FRONTEND_URL", "https://poltr.ch")
-APP_PASSWORD_ENABLED = os.getenv("APPVIEW_APP_PASSWORD_ENABLED", "false").lower() == "true"
+APP_PASSWORD_ENABLED = (
+    os.getenv("APPVIEW_APP_PASSWORD_ENABLED", "false").lower() == "true"
+)
 
 router = APIRouter(prefix="/xrpc", tags=["auth"])
 
 
 @router.post("/ch.poltr.auth.start")
-@limiter.limit("5/minute")
+# Per-IP caps across four windows, layered under per-email (10/15min) and the
+# global breaker. NOTE: keyed on real client IP — these are TIGHT for shared NATs
+# (mobile CGNAT / corporate / school), where many users share one IP. Raise if
+# referendum-surge lockouts appear. ("week" isn't a limits granularity → 7 days.)
+# See doc/SECURITY_AUTH.md.
+@limiter.limit("3/minute")
+@limiter.limit("25/hour")
+@limiter.limit("60/day")
+@limiter.limit("100 per 7 days")
 async def start(request: Request, data: StartData):
     """Unified auth entry point (login OR registration, decided server-side).
 
@@ -62,7 +72,11 @@ async def start(request: Request, data: StartData):
 
 
 @router.post("/ch.poltr.auth.sendMagicLink")
-@limiter.limit("5/minute")
+# Mirror ch.poltr.auth.start so this deprecated path isn't a looser bypass.
+@limiter.limit("3/minute")
+@limiter.limit("25/hour")
+@limiter.limit("40/day")
+@limiter.limit("100 per 7 days")
 async def send_magic_link(request: Request, data: SendMagicLinkData):
     """DEPRECATED: ersetzt durch ch.poltr.auth.start. Funktional unverändert."""
     logger.warning(
@@ -124,15 +138,14 @@ REGISTER_SEND_WINDOW_MINUTES = 15
 
 
 @router.post("/ch.poltr.auth.register")
-# 3/min per IP: no human registers 3×/minute, and it keeps a single host's
-# contribution (180/hr) below the global hourly cap so tripping the circuit
-# breaker requires several coordinated IPs. See doc/SECURITY_AUTH.md #4.
+# Mirror ch.poltr.auth.start (deprecated path must not be a looser bypass).
 @limiter.limit("3/minute")
+@limiter.limit("25/hour")
+@limiter.limit("40/day")
+@limiter.limit("100 per 7 days")
 async def register(request: Request):
     """DEPRECATED: ersetzt durch ch.poltr.auth.start. Funktional unverändert."""
-    logger.warning(
-        "DEPRECATED ch.poltr.auth.register called — use ch.poltr.auth.start"
-    )
+    logger.warning("DEPRECATED ch.poltr.auth.register called — use ch.poltr.auth.start")
     body = await request.json()
     email = body.get("email")
     if not email:
@@ -317,28 +330,30 @@ async def check_session(
     except Exception:
         pass
 
-    display_name = (row["display_name"] if row else None) or (
-        session.user.get("displayName") if session.user else None
-    ) or (handle.split(".")[0] if handle else "")
+    display_name = (
+        (row["display_name"] if row else None)
+        or (session.user.get("displayName") if session.user else None)
+        or (handle.split(".")[0] if handle else "")
+    )
 
     height = row["height"] if row else None
 
-    return JSONResponse(content={
-        "authenticated": True,
-        "did": session.did,
-        "handle": handle,
-        "displayName": display_name,
-        "canton": row["canton"] if row else None,
-        "color": row["color"] if row else None,
-        "mountainFullname": row["mountain_fullname"] if row else None,
-        "height": float(height) if height is not None else None,
-    })
+    return JSONResponse(
+        content={
+            "authenticated": True,
+            "did": session.did,
+            "handle": handle,
+            "displayName": display_name,
+            "canton": row["canton"] if row else None,
+            "color": row["color"] if row else None,
+            "mountainFullname": row["mountain_fullname"] if row else None,
+            "height": float(height) if height is not None else None,
+        }
+    )
 
 
 @router.post("/ch.poltr.auth.logout")
-async def logout(
-    request: Request, session: TSession = Depends(verify_session_token)
-):
+async def logout(request: Request, session: TSession = Depends(verify_session_token)):
     """Logout: delete all sessions for this user (all devices)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -358,14 +373,15 @@ async def create_app_password(
     if not APP_PASSWORD_ENABLED:
         return JSONResponse(
             status_code=403,
-            content={"error": "disabled", "message": "App password creation is disabled"},
+            content={
+                "error": "disabled",
+                "message": "App password creation is disabled",
+            },
         )
     try:
         await pds_set_birthdate(session)
 
-        result = await pds_create_app_password(
-            session, f"poltr-{int(time.time())}"
-        )
+        result = await pds_create_app_password(session, f"poltr-{int(time.time())}")
         return JSONResponse(content=result.model_dump())
     except Exception as e:
         return JSONResponse(
@@ -389,6 +405,7 @@ async def initiate_eid_verification(
         async with httpx.AsyncClient(timeout=30.0) as client:
             # Get a fresh access token before sending to eidproto
             from src.atproto.atproto_api import _relogin_from_stored_creds
+
             fresh = await _relogin_from_stored_creds(session.did, client, pds_url)
             fresh_access_token = fresh["accessJwt"]
 
@@ -408,14 +425,16 @@ async def initiate_eid_verification(
                     status_code=response.status_code,
                     content={
                         "error": "eidproto_error",
-                        "message": error_data.get("error", "Failed to create verification session"),
+                        "message": error_data.get(
+                            "error", "Failed to create verification session"
+                        ),
                     },
                 )
 
             data = response.json()
-            return JSONResponse(content={
-                "redirect_url": f"{EIDPROTO_URL}{data['redirect_url']}"
-            })
+            return JSONResponse(
+                content={"redirect_url": f"{EIDPROTO_URL}{data['redirect_url']}"}
+            )
 
     except httpx.RequestError as e:
         return JSONResponse(
