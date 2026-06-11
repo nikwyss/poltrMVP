@@ -229,7 +229,7 @@
   "ballotType": {
     "obligatorisches_referendum": "Obligatorisches Referendum",
     "fakultatives_referendum": "Fakultatives Referendum",
-    "volksinitiative": "Eidgenössische Volksinitiative",
+    "volksinitiative": "Eidg. Volksinitiative",
     "direkter_gegenentwurf": "Direkter Gegenentwurf",
     "stichfrage": "Stichfrage"
   },
@@ -348,7 +348,7 @@
   "argumentarium": {
     "title": "Themen & Argumente zur Vorlage «{name}»",
     "heading": "Themen & Argumente",
-    "intro": "Hier findest du die Argumente zur Vorlage, thematisch sortiert. Von Anfang an sind hier die Argumente gepostet, die in der offiziellen Abstimmungsbroschüre veröffentlicht wurden. Die Community hat die Gelegenheit, selber Argumente anzuführen. Alle Argumente kannst du bewerten und ausführlich diskutieren.",
+    "intro": "Hier kannst du die Argumente zur Vorlage bewerten und diskutieren. Zu Beginn sind nur die Argumente der offiziellen Abstimmungsbroschüre vorhanden. Die Community hat die Gelegenheit, selber Argumente anzuführen.",
     "topicTitle": "Argumente des Themas «{name}»",
     "subtopicsTitle": "Unterthemen & Argumente zum Thema «{name}»"
   }

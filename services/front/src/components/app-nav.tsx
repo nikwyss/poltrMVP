@@ -50,37 +50,15 @@ export function AppNav() {
         >
           {/* Logo */}
           <Link href="/home" className="flex items-center gap-2.5 no-underline">
-            <img src="/logo5.svg" alt={`smartvotes ${t("dossier")}`} className="h-9 w-9 shrink-0" />
+            <img
+              src="/logo5.svg"
+              alt={`smartvotes ${t("dossier")}`}
+              className="h-9 w-9 shrink-0"
+            />
             <span className="font-bold text-[0.9375rem] uppercase tracking-[0.18em] hidden sm:inline ">
-               {t("dossier")}
+              {t("dossier")}
             </span>
           </Link>
-
-          {/* Desktop nav links — hidden when inside a vorlage (sub-nav handles it) */}
-          {!isVorlagePage && (
-            <div className="hidden sm:flex items-center gap-0.5">
-              {navKeys.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  pathname.startsWith(item.href + "/");
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "px-3.5 py-1 text-[0.8125rem] font-medium rounded-[var(--r-sm)] border border-transparent no-underline transition-all duration-150",
-                      isActive
-                        ? "stone-tab-active"
-                        : "text-[var(--text-mid)] hover:bg-accent hover:text-[var(--text)]",
-                    )}
-                  >
-                    {t(item.key)}
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-
           {/* Right side: locale switcher + user pill + mobile toggle */}
           <div className="flex items-center gap-2">
             <LocaleSwitcher />

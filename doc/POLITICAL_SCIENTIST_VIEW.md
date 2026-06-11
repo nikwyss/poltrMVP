@@ -87,3 +87,8 @@ User können eigenen Argumente vorschlagen. Community prüft Vorschläge gegense
 
 ## Grauer hintergrund
 "das durchgehende Sandstein-Beige inzwischen deine Identität. Es hat diese warme, papierne «Abstimmungsbüchlein»-Anmutung, die perfekt zum Dossier-Konzept passt und dich von jedem generischen weissen SaaS-Interface unterscheidet."
+
+
+## Blockadenschutz vor DoS Attacken - Spoofing.
+- Rate limits (per email und per IP)
+- captcha noch nicht implementiert. aufgrund US-Abhängigkeit (Cloudflare Turnstile) oder Kosten (Friendly Captcha))

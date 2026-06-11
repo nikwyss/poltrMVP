@@ -79,7 +79,7 @@ export default function VorlageLayout({
 
           {ballot?.title && (
             <h1
-              className="mt-2.5 mb-4 text-3xl md:text-[2.25rem] font-normal tracking-tight leading-[0.95]"
+              className="mt-7 mb-4 text-3xl md:text-[2.25rem] font-normal tracking-tight leading-[0.95]"
               style={{
                 fontFamily:
                   'var(--font-serif), Georgia, "Times New Roman", serif',
