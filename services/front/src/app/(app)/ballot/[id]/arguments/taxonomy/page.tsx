@@ -97,14 +97,11 @@ export default function TaxonomyPage() {
   return (
     <div className="space-y-5 pb-[35vh]">
       {/* <PageBackdrop src="/images/kleinemythe.svg" /> */}
-      <nav className="flex items-center justify-end text-sm text-muted-foreground">
-        <ViewToggle active="taxonomy" ballotId={id} />
-      </nav>
-
       {ballot && (
         <ArgumentariumHeader
           ballot={ballot}
           topicCount={root?.children?.length}
+          actions={<ViewToggle active="taxonomy" ballotId={id} />}
         />
       )}
 
@@ -140,10 +137,12 @@ export default function TaxonomyPage() {
 
       {!loading && root && (
         <div className="flex flex-col gap-5">
-          {root.children.map((ch) => (
+          {root.children.map((ch, i) => (
             <ThemeCard
               key={ch.id}
               node={ch}
+              index={i}
+              total={root.children.length}
               onOpen={openArgument}
               onShowMore={ch.key ? () => openTopicDetail(ch.key!) : undefined}
               onAddArgument={() => setAddOpen(true)}

@@ -21,11 +21,17 @@ import {
   Plus,
   Telescope,
   ChevronDown,
+  Star,
   type LucideIcon,
 } from "lucide-react";
 import type { TaxonomyArgument, TaxonomyNode } from "@/types/ballots";
 import { ProContraColumnHeaders } from "@/components/pro-contra-column-headers";
 import { Card } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export type T = (key: string, values?: Record<string, string | number>) => string;
 
@@ -93,8 +99,11 @@ export function LeaningDot({ lean }: { lean: number | null | undefined }) {
 }
 
 // ---------------------------------------------------------------------------
-// Argument-Karte — identisch zur Booklet-Karte (na-card): Pro/Contra-Badge,
-// „Offiziell", Titel, und der Relevanz-Score nur wenn bereits bewertet.
+// Argument-Mini-Karte (Taxonomy). Scan-optimiert: Titel ist die grösste Ebene
+// (was man sucht), darunter die Bewertung als Mini-Balken + Zahl mit Label
+// „Deine Bewertung". Unbewertet = expliziter Zustand (warmer Highlight, leerer
+// Balken + „Jetzt bewerten" als CTA in Brand-Orange). KEIN Pro/Contra-Pill —
+// das ergibt sich aus der Spaltenposition; die Akzentfarbe trägt die Pol-Info.
 // KEIN Bewertungselement hier — bewertet wird erst im Overlay nach dem Klick.
 // ---------------------------------------------------------------------------
 export function ArgumentCard({ arg, onOpen }: { arg: TaxonomyArgument; onOpen: (rkey: string) => void }) {
@@ -104,42 +113,87 @@ export function ArgumentCard({ arg, onOpen }: { arg: TaxonomyArgument; onOpen: (
   const relevance = typeof arg.viewerPreference === "number" ? arg.viewerPreference : null;
   const rated = relevance !== null;
   const isOfficial = arg.sourceType === "official";
+  // Pol-Farbe (Pro = Blau, Contra = Terrakotta) trägt jetzt die Pro/Contra-Info,
+  // da der Badge entfällt: linker Rand, Balkenfüllung und Zahl.
+  const accent = isPro ? "var(--pro)" : "var(--contra)";
 
   return (
     <div
-      className={`na-card na-card-${arg.type.toLowerCase()} na-card-${rated ? "rated" : "unrated"}`}
       onClick={() => onOpen(arg.rkey)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen(arg.rkey);
+        }
+      }}
       role="button"
       tabIndex={0}
+      style={{ borderLeft: `4px solid ${accent}` }}
+      className={`flex cursor-pointer flex-col gap-2.5 rounded-xl border border-[var(--line)] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-all duration-150 hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(0,0,0,0.07)] ${
+        rated ? "bg-white" : "bg-[var(--brand-dim)]"
+      }`}
     >
-      <div className="na-card-top">
-        <div className="na-card-top-left">
-          <span className="na-badge">
-            {isPro ? tbk("proArgument") : tbk("contraArgument")}
-          </span>
-        </div>
+      {/* Titel — grösste Ebene, Serif, das Scan-Ziel. Das Offiziell-Tag sitzt
+          rechts in derselben Zeile (spart die separate Badge-Zeile, ~24px/Karte). */}
+      <div className="flex items-start justify-between gap-2">
+        <h4
+          className="min-w-0 flex-1 text-[1.1875rem] font-normal leading-snug tracking-tight text-[var(--text)] [overflow-wrap:anywhere]"
+          style={{ fontFamily: 'var(--font-serif), Georgia, "Times New Roman", serif' }}
+        >
+          {arg.title}
+        </h4>
         {isOfficial && (
-          <span className="na-card-status na-card-status--official inline-flex items-center gap-1">
-            <span className="text-amber-500 leading-none" aria-hidden>★</span>
-            {trs("official")}
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="mt-0.5 inline-flex shrink-0 cursor-help items-center gap-1 text-[0.6875rem] font-semibold text-[#8a6b2b]">
+                <Star className="h-3 w-3" aria-hidden />
+                {trs("official")}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              {trs("officialTooltip")}
+            </TooltipContent>
+          </Tooltip>
         )}
       </div>
 
-      <div className="na-card-body">
-        <div className="na-card-title">
-          {arg.title}
-        </div>
-        {rated && (
-          <div className="na-card-score" aria-label={`${tbk("relevanceTitle")}: ${relevance}`}>
-            <span className="na-card-index">
+      {/* Bewertung: Mini-Balken macht Werte zwischen Karten vergleichbar */}
+      {rated ? (
+        <div
+          className="flex flex-col gap-1"
+          aria-label={`${tbk("yourRating")}: ${relevance}/100`}
+        >
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-[var(--line)]">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${relevance}%`, background: accent }}
+              />
+            </div>
+            <span
+              className="shrink-0 text-[0.8125rem] font-bold tabular-nums"
+              style={{ color: accent }}
+            >
               {relevance}
-              <span className="na-card-index-max">/100</span>
+              <span className="font-normal text-[var(--text-faint)]">/100</span>
             </span>
-            <span className="na-card-score-label">{tbk("relevanceForYou")}</span>
           </div>
-        )}
-      </div>
+          <span className="text-[0.6875rem] text-[var(--text-faint)]">
+            {tbk("yourRating")}
+          </span>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {/* Unsichtbarer Platzhalter in Balkenzeilen-Höhe → unbewertete Karten
+              sind gleich hoch wie einzeilige bewertete; der CTA bleibt unten. */}
+          <span aria-hidden className="invisible text-[0.8125rem] font-bold">
+            0
+          </span>
+          <span className="text-[0.6875rem] font-semibold text-[var(--brand)]">
+            {tbk("rateNow")}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -235,8 +289,10 @@ export function ThemeCard({
   onShowMore,
   onAddArgument,
   subtopic = false,
+  index,
+  total,
   t,
-  limit = 3,
+  limit = 2,
 }: {
   node: TaxonomyNode;
   onOpen: (rkey: string) => void;
@@ -246,6 +302,9 @@ export function ThemeCard({
   // Im Detail-Overlay sind die Karten Unterthemen ⇒ „Mehr zum Unterthema …"
   // statt „Mehr zum Thema …".
   subtopic?: boolean;
+  // Position (0-basiert) + Gesamtzahl für die Eyebrow-Zeile „THEMA 1 VON 5".
+  index?: number;
+  total?: number;
   t: T;
   limit?: number;
 }) {
@@ -286,12 +345,30 @@ export function ThemeCard({
 
   return (
     <Card className="gap-0 overflow-hidden border-border/60 py-0 shadow-none">
-      <div className="flex items-baseline justify-between gap-3 px-6 pt-4 pb-3">
-        <h3 className="truncate text-base font-semibold tracking-tight">
-          {t(subtopic ? "subthemeTitle" : "themeTitle", { name: node.name })}
-        </h3>
-        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-          {t("ratedOf", { rated, total: node.argumentCount })}
+      <div className="flex items-start justify-between gap-3 px-6 pt-4 pb-3">
+        <div className="min-w-0">
+          {/* Eyebrow statt doppelter Etikettierung („Thema «…»"): kleine
+              Muted-Caps-Zeile, darunter der Titel in Serif ohne Guillemets. */}
+          {typeof total === "number" && total > 0 && (
+            <p className="mb-1 text-[0.6875rem] font-semibold uppercase tracking-[0.09em] text-muted-foreground">
+              {t(subtopic ? "subthemeEyebrow" : "themeEyebrow", {
+                index: (index ?? 0) + 1,
+                total,
+              })}
+            </p>
+          )}
+          <h3
+            className="truncate text-[1.0625rem] font-bold tracking-tight leading-snug"
+            style={{
+              fontFamily:
+                'var(--font-serif), Georgia, "Times New Roman", serif',
+            }}
+          >
+            {node.name}
+          </h3>
+        </div>
+        <span className="mt-0.5 inline-flex shrink-0 items-center rounded-[var(--r-full)] bg-[var(--surface-up)] px-2.5 py-1 text-[0.6875rem] font-medium tabular-nums text-muted-foreground">
+          {rated}/{node.argumentCount} {t("rated")}
         </span>
       </div>
 

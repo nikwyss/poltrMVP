@@ -237,7 +237,8 @@
     "preliminary": "Unter Begutachtung",
     "peerReviewed": "Begutachtet",
     "rejected": "Abgelehnt",
-    "official": "Offiziell"
+    "official": "Offiziell",
+    "officialTooltip": "Quest argument è vegnì publitgà uschia en la broschura da votaziun uffiziala da la Chanzlia federala."
   },
   "viewToggle": {
     "feed": "Feed",
@@ -263,15 +264,17 @@
     "statusUnread": "Bewerten",
     "relevanceTitle": "Vossa concordanza",
     "relevanceForYou": "Concordanza",
+    "yourRating": "Tia valitaziun",
+    "rateNow": "Valitar ussa",
     "fallbackBundesrat": "Bundesrat",
     "fallbackInitiativkomitee": "Initiativkomitee",
     "fallbackOrganization": "Organisation"
   },
   "vorlage": {
     "backToHome": "Startseite",
-    "info": "Infos",
+    "info": "Davart l'object",
     "chat": "Chatbot",
-    "arguments": "Argumente",
+    "arguments": "Temas & arguments",
     "review": "Begutachtung",
     "comingSoon": "Dieser Bereich wird bald verfügbar sein."
   },
@@ -319,7 +322,9 @@
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Propa in nov argument",
     "themeTitle": "Tema «{name}»",
+    "themeEyebrow": "Tema {index} da {total}",
     "subthemeTitle": "Suttatema «{name}»",
+    "subthemeEyebrow": "Suttatema {index} da {total}",
     "rateFirstHint": "Per plaschair valitescha avant almain dus dals arguments survart.",
     "rateFirstHintOne": "Per plaschair valitescha avant l'argument survart.",
     "openTopicArea": "Dapli davart il tema «{name}»",
@@ -342,6 +347,7 @@
   },
   "argumentarium": {
     "title": "Temas & arguments davart l'object «{name}»",
+    "heading": "Temas & arguments",
     "intro": "Qua chattas ti ils arguments davart l'object da votaziun, ordinads tenor tema. Dapi l'entschatta èn publitgads qua ils arguments ch'èn cuntegnids en la broschura uffiziala da votaziun. La communitad ha la pussaivladad da proponer agens arguments. Ti pos valitar mintg'argument e discutar el detagliadamain.",
     "topicTitle": "Arguments dal tema «{name}»",
     "subtopicsTitle": "Suttatemas & arguments dal tema «{name}»"

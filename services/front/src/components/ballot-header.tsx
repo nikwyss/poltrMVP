@@ -1,13 +1,13 @@
 "use client";
 
 /**
- * Ballot-„Hero"-Header (Datum · Typ, Serif-Titel, grosse Argument-/Kommentar-
- * Zähler, ausklappbare Beschreibung). 1:1 aus dem Booklet extrahiert, damit ihn
- * mehrere Views (booklet, taxonomy, …) teilen können.
+ * Ballot-Übersichtskarte auf der Info-Seite: grosse Argument-/Kommentar-Zähler
+ * plus ausklappbare Beschreibung. Datum · Typ und der Titel stehen seit dem
+ * Layout-Refactor im globalen Vorlagen-Titelband (ballot/[id]/layout.tsx),
+ * nicht mehr hier.
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { formatDate } from "@/lib/utils";
 import type { Ballot } from "@/types/ballots";
 
 // Beschreibung — auf 5 Zeilen geklemmt, „mehr/weniger"-Toggle (nur wenn nötig).
@@ -49,40 +49,27 @@ function ExpandableText({ text }: { text: string }) {
 
 export function BallotHeader({ ballot }: { ballot: Ballot }) {
   const tbk = useTranslations("booklet");
-  const tbt = useTranslations("ballotType");
+
+  const hasArguments = (ballot.argumentCount ?? 0) > 0;
+  const hasComments = (ballot.commentCount ?? 0) > 0;
+
+  // Ohne Beschreibung und ohne Zähler hat die Karte keinen Inhalt mehr.
+  if (!ballot.description && !hasArguments && !hasComments) return null;
 
   return (
     <div className="bg-card border border-border rounded-[calc(var(--r)+6px)] px-8 py-8 md:px-11 md:py-9 overflow-hidden">
-      <div className="flex items-center gap-2 mb-3.5">
-        <span className="label">{formatDate(ballot.voteDate)}</span>
-        {ballot.ballotType && (
-          <>
-            <span className="label">·</span>
-            <span className="text-[0.8125rem] font-semibold text-[var(--brand)]">
-              {tbt(ballot.ballotType)}
-            </span>
-          </>
-        )}
-      </div>
-
-      <div className="flex justify-between items-start gap-6 mb-5">
-        <h1
-          className="text-4xl md:text-[2.75rem] font-bold tracking-tight leading-[0.92]"
-          style={{ fontFamily: 'var(--font-serif), Georgia, "Times New Roman", serif' }}
-        >
-          {ballot.title}
-        </h1>
-        <div className="flex gap-8 shrink-0 pt-1">
-          {(ballot.argumentCount ?? 0) > 0 && (
-            <div className="flex flex-col items-center">
+      {(hasArguments || hasComments) && (
+        <div className="flex gap-8 mb-6">
+          {hasArguments && (
+            <div className="flex flex-col">
               <span className="text-3xl font-bold leading-none tracking-tight text-[var(--text)]">
                 {ballot.argumentCount}
               </span>
               <span className="mt-2 text-sm text-[var(--text-faint)]">{tbk("argumentsLabel")}</span>
             </div>
           )}
-          {(ballot.commentCount ?? 0) > 0 && (
-            <div className="flex flex-col items-center">
+          {hasComments && (
+            <div className="flex flex-col">
               <span className="text-3xl font-bold leading-none tracking-tight text-[var(--text)]">
                 {ballot.commentCount}
               </span>
@@ -90,7 +77,7 @@ export function BallotHeader({ ballot }: { ballot: Ballot }) {
             </div>
           )}
         </div>
-      </div>
+      )}
 
       {ballot.description && <ExpandableText text={ballot.description} />}
     </div>

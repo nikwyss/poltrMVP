@@ -2,8 +2,10 @@
 
 import { useParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
-import { cn } from "@/lib/utils";
+import { useTranslations, useLocale } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
+import { cn, formatDate } from "@/lib/utils";
+import { getBallot } from "@/lib/agent";
 import { ArrowLeft } from "lucide-react";
 import { OverlayProvider } from "@/lib/overlay";
 import { OverlayContentHost } from "@/lib/overlay-content";
@@ -22,7 +24,16 @@ export default function VorlageLayout({
   const params = useParams();
   const pathname = usePathname();
   const id = params.id as string;
+  const locale = useLocale();
   const t = useTranslations("vorlage");
+  const tbt = useTranslations("ballotType");
+
+  // Geteilter Cache mit den Content-Seiten (info/booklet/taxonomy nutzen denselben
+  // queryKey), daher kein zusätzlicher Request im Normalfall.
+  const { data: ballot } = useQuery({
+    queryKey: ["ballot", id, locale],
+    queryFn: () => getBallot(id, locale),
+  });
 
   const activeSegment = tabs.find((tab) =>
     pathname.startsWith(`/ballot/${id}/${tab.segment}`),
@@ -33,9 +44,56 @@ export default function VorlageLayout({
     // profile, peerreview) are only available within a ballot context where
     // useParams().id resolves to the current ballotRkey.
     <OverlayProvider>
-      <div className="flex flex-col gap-0">
-        {/* Sub-navigation bar */}
-        <nav className="sticky top-[59px] z-40 bg-[var(--bg)]/88 backdrop-blur-xl supports-[backdrop-filter]:bg-[var(--bg)]/60">
+      <div className="flex flex-1 flex-col">
+        {/* Vorlagen-Titelband — scrollt mit weg; nur die Tab-Leiste klebt oben.
+            Back-Link + Datum·Typ in einer Zeile, darunter der grosse Titel. */}
+        <div
+          className="mx-auto w-full"
+          style={{ maxWidth: "var(--page-max)", padding: "0 var(--page-px)" }}
+        >
+          <div className="flex items-center justify-between gap-4 pt-5">
+            <Link
+              href="/home"
+              className="flex items-center gap-1 text-[0.8125rem] text-[var(--text-mid)] hover:text-[var(--text)] transition-colors no-underline shrink-0"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>{t("backToHome")}</span>
+            </Link>
+
+            {ballot && (
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="label truncate">
+                  {formatDate(ballot.voteDate)}
+                </span>
+                {ballot.ballotType && (
+                  <>
+                    <span className="label">·</span>
+                    <span className="text-[0.8125rem] font-semibold text-[var(--brand)] truncate">
+                      {tbt(ballot.ballotType)}
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {ballot?.title && (
+            <h1
+              className="mt-2.5 mb-4 text-3xl md:text-[2.25rem] font-normal tracking-tight leading-[0.95]"
+              style={{
+                fontFamily:
+                  'var(--font-serif), Georgia, "Times New Roman", serif',
+              }}
+            >
+              {ballot.title}
+            </h1>
+          )}
+        </div>
+
+        {/* Sub-navigation bar (Tabs) — klebt unter dem Hauptheader. Solides
+            Beige + full-width Hairline darunter schliesst die Header-Zone ab
+            (trennt „Kontext oben" von „Inhalt unten" ohne weisse Fläche). */}
+        <nav className="sticky top-[59px] z-40 border-b border-[#E0DCD1] bg-[var(--bg)]">
           <div
             className="mx-auto flex items-center gap-1 overflow-x-auto"
             style={{
@@ -44,47 +102,39 @@ export default function VorlageLayout({
               height: 44,
             }}
           >
-            <Link
-              href="/home"
-              className="flex items-center gap-1 text-[0.8125rem] text-[var(--text-mid)] hover:text-[var(--text)] transition-colors no-underline shrink-0 mr-2 pr-2 border-r border-border"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t("backToHome")}</span>
-            </Link>
-
-            {/* Tab-Gruppe als Mauerwerk: feine Quaderfugen zwischen den Tabs */}
-            <div className="flex items-center">
-              {tabs.map((tab, i) => {
+            {/* Pills mit gap — der weisse aktive Pill grenzt sich selbst ab,
+                daher keine zusätzlichen Trennstriche. */}
+            <div className="flex items-center gap-1">
+              {tabs.map((tab) => {
                 const href = `/ballot/${id}/${tab.segment}`;
                 const isActive = activeSegment === tab.segment;
                 return (
-                  <div key={tab.segment} className="flex items-center">
-                    {i > 0 && (
-                      <span
-                        aria-hidden
-                        className="h-4 w-px bg-[var(--line-mid)] shrink-0"
-                      />
+                  <Link
+                    key={tab.segment}
+                    href={href}
+                    className={cn(
+                      "px-3 py-1.5 text-[0.78125rem] rounded-[var(--r-sm)] no-underline transition-all duration-150 whitespace-nowrap",
+                      isActive
+                        ? "bg-[var(--surface)] text-[var(--text)] font-semibold border border-[#E0DCD1] shadow-[0_1px_2px_rgba(80,75,60,0.08)]"
+                        : "font-medium text-[var(--text-mid)] border border-transparent hover:bg-accent hover:text-[var(--text)]",
                     )}
-                    <Link
-                      href={href}
-                      className={cn(
-                        "mx-1 px-3 py-1.5 text-[0.78125rem] font-medium rounded-[var(--r-sm)] border border-transparent no-underline transition-all duration-150 whitespace-nowrap",
-                        isActive
-                          ? "stone-tab-active"
-                          : "text-[var(--text-mid)] hover:bg-accent hover:text-[var(--text)]",
-                      )}
-                    >
-                      {t(tab.key)}
-                    </Link>
-                  </div>
+                  >
+                    {t(tab.key)}
+                  </Link>
                 );
               })}
             </div>
           </div>
         </nav>
 
-        {/* Page content */}
-        <div>{children}</div>
+        {/* Page content — eigener max-width-Inner mit Seitenpadding, da das
+            App-Shell-`main` für Ballot-Seiten vollbreit (ohne Hülle) rendert. */}
+        <div
+          className="mx-auto w-full max-w-[var(--page-max)] flex-1"
+          style={{ padding: "0 var(--page-px) 6rem" }}
+        >
+          {children}
+        </div>
       </div>
       <OverlayContentHost />
     </OverlayProvider>

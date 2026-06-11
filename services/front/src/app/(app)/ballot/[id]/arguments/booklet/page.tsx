@@ -499,11 +499,6 @@ function BookletContent() {
     >
       {/* <PageBackdrop src="/images/schrattenfluh.svg" /> */}
 
-      {/* View-Toggle (Titel steckt in der Hero-Card darunter) */}
-      <nav className="flex items-center justify-end gap-2 pt-5 text-xs label">
-        <ViewToggle active="booklet" ballotId={id} />
-      </nav>
-
       {loading && (
         <Card>
           <CardContent className="flex items-center justify-center py-10 gap-3">
@@ -529,7 +524,10 @@ function BookletContent() {
       {!loading && ballot && (
         <>
           <div className="animate-fade-up">
-            <ArgumentariumHeader ballot={ballot} />
+            <ArgumentariumHeader
+              ballot={ballot}
+              actions={<ViewToggle active="booklet" ballotId={id} />}
+            />
           </div>
 
           {/* Section 1: Official */}

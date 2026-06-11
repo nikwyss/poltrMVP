@@ -237,7 +237,8 @@
     "preliminary": "Unter Begutachtung",
     "peerReviewed": "Begutachtet",
     "rejected": "Abgelehnt",
-    "official": "Offiziell"
+    "official": "Offiziell",
+    "officialTooltip": "Cet argument a été publié tel quel dans la brochure de vote officielle de la Chancellerie fédérale."
   },
   "viewToggle": {
     "feed": "Feed",
@@ -263,15 +264,17 @@
     "statusUnread": "Bewerten",
     "relevanceTitle": "Votre accord",
     "relevanceForYou": "Accord",
+    "yourRating": "Ton évaluation",
+    "rateNow": "Évaluer",
     "fallbackBundesrat": "Bundesrat",
     "fallbackInitiativkomitee": "Initiativkomitee",
     "fallbackOrganization": "Organisation"
   },
   "vorlage": {
     "backToHome": "Startseite",
-    "info": "Infos",
+    "info": "À propos de l'objet",
     "chat": "Chatbot",
-    "arguments": "Argumente",
+    "arguments": "Thèmes & arguments",
     "review": "Begutachtung",
     "comingSoon": "Dieser Bereich wird bald verfügbar sein."
   },
@@ -319,7 +322,9 @@
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Proposer un nouvel argument",
     "themeTitle": "Thème «{name}»",
+    "themeEyebrow": "Thème {index} sur {total}",
     "subthemeTitle": "Sous-thème «{name}»",
+    "subthemeEyebrow": "Sous-thème {index} sur {total}",
     "rateFirstHint": "Veuillez d'abord évaluer au moins deux des arguments ci-dessus.",
     "rateFirstHintOne": "Veuillez d'abord évaluer l'argument ci-dessus.",
     "openTopicArea": "En savoir plus sur le thème «{name}»",
@@ -342,6 +347,7 @@
   },
   "argumentarium": {
     "title": "Thèmes & arguments sur l'objet «{name}»",
+    "heading": "Thèmes & arguments",
     "intro": "Tu trouves ici les arguments relatifs à l'objet, classés par thème. Dès le départ, les arguments publiés dans la brochure officielle de votation sont postés ici. La communauté a la possibilité de proposer ses propres arguments. Tu peux évaluer chaque argument et en discuter en détail.",
     "topicTitle": "Arguments du thème «{name}»",
     "subtopicsTitle": "Sous-thèmes & arguments du thème «{name}»"

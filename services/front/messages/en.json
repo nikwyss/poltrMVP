@@ -237,7 +237,8 @@
     "preliminary": "Preliminary",
     "peerReviewed": "Peer-reviewed",
     "rejected": "Rejected",
-    "official": "Official"
+    "official": "Official",
+    "officialTooltip": "This argument was published as-is in the official voting brochure of the Federal Chancellery."
   },
   "viewToggle": {
     "feed": "Feed",
@@ -263,15 +264,17 @@
     "statusUnread": "Review",
     "relevanceTitle": "Your agreement",
     "relevanceForYou": "Agreement",
+    "yourRating": "Your rating",
+    "rateNow": "Rate now",
     "fallbackBundesrat": "Federal Council",
     "fallbackInitiativkomitee": "Initiative Committee",
     "fallbackOrganization": "Organization"
   },
   "vorlage": {
     "backToHome": "Home",
-    "info": "Info",
+    "info": "About the ballot",
     "chat": "Chatbot",
-    "arguments": "Arguments",
+    "arguments": "Topics & arguments",
     "review": "Review",
     "comingSoon": "This section will be available soon."
   },
@@ -319,7 +322,9 @@
     "showMore": "Show more (+{count})",
     "newArgument": "Suggest a new argument",
     "themeTitle": "Topic «{name}»",
+    "themeEyebrow": "Topic {index} of {total}",
     "subthemeTitle": "Subtopic «{name}»",
+    "subthemeEyebrow": "Subtopic {index} of {total}",
     "rateFirstHint": "Please rate at least two of the arguments above first.",
     "rateFirstHintOne": "Please rate the argument above first.",
     "openTopicArea": "More on the topic «{name}»",
@@ -342,6 +347,7 @@
   },
   "argumentarium": {
     "title": "Topics & arguments on «{name}»",
+    "heading": "Topics & arguments",
     "intro": "Here you'll find the arguments on this proposal, sorted by topic. From the start, the arguments published in the official voting booklet are posted here. The community is invited to contribute arguments of its own. You can rate every argument and discuss it in detail.",
     "topicTitle": "Arguments on the topic «{name}»",
     "subtopicsTitle": "Subtopics & arguments on the topic «{name}»"

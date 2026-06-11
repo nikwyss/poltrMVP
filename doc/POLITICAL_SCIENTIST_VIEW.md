@@ -2,7 +2,7 @@
 
 ## User Benefits
 - Für sich selbst: Meinugnsbildung
-- Partizipation (Argumente) fliesst in Meinungsbild für andere ein. (auch via KI-Chatbot)
+- Partizipation (Argumente) fliesst in Meinungsbild für andere ein. (auch via KI-Chatbot) => Some Impact
 - 
 
 ## Keine Engagement-Optimierung
@@ -12,8 +12,8 @@
 
 ## Inklusion & Barrierefreiheit
 - CH-Mehrsprachigkeit (DE/FR/IT, ev. RM) — sonst strukturelle Exklusion.
-- Leichte Sprache / Plain Language als Teil des "Light Path".
 - Barrierefreiheit (Sehschwäche bereits bei Farben bedacht — konsequent weiterdenken: Screenreader, Kontraste).
+- Option: Leichte Sprache / Plain Language als Teil des "Light Path".
 
 ## One point of truth. 
 - DER Ort um offizielle Argumente zu diskutieren. Dazu gehört auch die Argumente, die eben fehlen.
@@ -42,13 +42,14 @@
 - Trotzdem mit Identifikationswert und auch utnerhaltungswert
 
 ## Randomisierung:
-- aber statisch: pro -user bleibt reihenfogle konstant
--   
+- randomisierung aber konstant: pro -user bleibt reihenfogle konstant
+  
 
 ## KI und Diskussionsmoderation
 - KI darf helfen, aber nie das letzte wort haben. (human approval)
 - Nicht nur "human approval", sondern: KI-Eingriffe sind als solche gekennzeichnet (kein verdecktes Moderieren).
 - Transparente Prompts/Modelle (Lizenz) → KI-Entscheide sind auditierbar, nicht Blackbox.
+- Ziel: sie helfen cognitive load für user und moderationskosten tief zu halten.
 
 ## Moderation (Ozone)
 - Öffentliche, nachvollziehbare Moderationslabels statt stiller Löschung.
@@ -72,6 +73,8 @@ Transparenzer Code, transparente Pompts, transparente Modelle
 ## Bottom-Up:
 User können eigenen Argumente vorschlagen. Community prüft Vorschläge gegenseitig.
 
+# Against Domination
+- User dürfen nur beschränkte menge Kommentare und Argument-Vorschläge einbringen. (Tageslimit und Ballotlimite)
 
 # NOT IMPLEMENTED
 
@@ -80,3 +83,7 @@ User können eigenen Argumente vorschlagen. Community prüft Vorschläge gegense
 - Trotzdem strikte Trennung: Verifikation ≠ Identität. Beteiligung bleibt anonym/pseudonym.
 - Demokratische Qualität = Manipulationsresistenz OHNE Deanonymisierung.
 - Zentrale Spannung: niedrige Hürde (Anonymität) vs. Integrität (Verifikation) — eID löst beides.
+
+
+## Grauer hintergrund
+"das durchgehende Sandstein-Beige inzwischen deine Identität. Es hat diese warme, papierne «Abstimmungsbüchlein»-Anmutung, die perfekt zum Dossier-Konzept passt und dich von jedem generischen weissen SaaS-Interface unterscheidet."

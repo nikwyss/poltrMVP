@@ -1,6 +1,6 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { useEffect } from "react"
 import { useTranslations } from "next-intl"
 import { useAuth } from "@/lib/AuthContext"
@@ -11,7 +11,12 @@ import { Spinner } from "@/components/spinner"
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
   const tc = useTranslations("common")
+
+  // Ballot-Seiten verwalten ihre eigenen vollbreiten Bänder (Tab-Linie + weisse
+  // Content-Fläche), daher ohne die zentrierte max-width-/Padding-Hülle rendern.
+  const isBallotPage = pathname.startsWith("/ballot/")
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -37,9 +42,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col">
       <AppNav />
-      <main className="mx-auto w-full flex-1" style={{ maxWidth: 'var(--page-max)', padding: '0 var(--page-px) 100px' }}>
-        {children}
-      </main>
+      {isBallotPage ? (
+        <main className="flex w-full flex-1 flex-col">{children}</main>
+      ) : (
+        <main className="mx-auto w-full flex-1" style={{ maxWidth: 'var(--page-max)', padding: '0 var(--page-px) 100px' }}>
+          {children}
+        </main>
+      )}
       <footer className="border-t border-border py-6 text-center label">
         <div className="mx-auto" style={{ maxWidth: 'var(--page-max)', padding: '0 var(--page-px)' }}>
           <a href="/impressum" className="hover:text-foreground transition-colors">

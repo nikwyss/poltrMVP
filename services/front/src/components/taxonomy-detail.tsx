@@ -154,7 +154,7 @@ export function TaxonomyDetail({
                 „Mehr anzeigen" öffnet diese Stufe im Overlay. */}
             {node.children.length > 0 && (
               <div className="flex flex-col gap-3">
-                {node.children.map((ch) => {
+                {node.children.map((ch, i) => {
                   // Hat das Unterthema selbst Unterthemen? Dann Drilldown-Link
                   // („Mehr zum Unterthema") in dessen Overlay (immer, auch wenn
                   // nicht gekürzt). Sonst ist die Karte ein Blatt → Default-Limit
@@ -166,6 +166,8 @@ export function TaxonomyDetail({
                     <ThemeCard
                       key={ch.id}
                       node={ch}
+                      index={i}
+                      total={node.children.length}
                       onOpen={onNavigateToArgument}
                       onShowMore={
                         hasSub && ch.key

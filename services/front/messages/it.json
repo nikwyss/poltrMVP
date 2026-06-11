@@ -237,7 +237,8 @@
     "preliminary": "Unter Begutachtung",
     "peerReviewed": "Begutachtet",
     "rejected": "Abgelehnt",
-    "official": "Offiziell"
+    "official": "Offiziell",
+    "officialTooltip": "Questo argomento è stato pubblicato così nell'opuscolo informativo ufficiale della Cancelleria federale."
   },
   "viewToggle": {
     "feed": "Feed",
@@ -263,15 +264,17 @@
     "statusUnread": "Bewerten",
     "relevanceTitle": "Il tuo accordo",
     "relevanceForYou": "Accordo",
+    "yourRating": "La tua valutazione",
+    "rateNow": "Valuta ora",
     "fallbackBundesrat": "Bundesrat",
     "fallbackInitiativkomitee": "Initiativkomitee",
     "fallbackOrganization": "Organisation"
   },
   "vorlage": {
     "backToHome": "Startseite",
-    "info": "Infos",
+    "info": "Informazioni sull'oggetto",
     "chat": "Chatbot",
-    "arguments": "Argumente",
+    "arguments": "Temi e argomenti",
     "review": "Begutachtung",
     "comingSoon": "Dieser Bereich wird bald verfügbar sein."
   },
@@ -319,7 +322,9 @@
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Proponi un nuovo argomento",
     "themeTitle": "Tema «{name}»",
+    "themeEyebrow": "Tema {index} di {total}",
     "subthemeTitle": "Sottotema «{name}»",
+    "subthemeEyebrow": "Sottotema {index} di {total}",
     "rateFirstHint": "Valuta prima almeno due degli argomenti qui sopra.",
     "rateFirstHintOne": "Valuta prima l'argomento qui sopra.",
     "openTopicArea": "Più sul tema «{name}»",
@@ -342,6 +347,7 @@
   },
   "argumentarium": {
     "title": "Temi e argomenti sull'oggetto «{name}»",
+    "heading": "Temi e argomenti",
     "intro": "Qui trovi gli argomenti relativi all'oggetto in votazione, ordinati per tema. Fin dall'inizio sono pubblicati qui gli argomenti contenuti nell'opuscolo informativo ufficiale. La comunità ha la possibilità di proporre propri argomenti. Puoi valutare ogni argomento e discuterne in dettaglio.",
     "topicTitle": "Argomenti del tema «{name}»",
     "subtopicsTitle": "Sotto-temi e argomenti del tema «{name}»"
