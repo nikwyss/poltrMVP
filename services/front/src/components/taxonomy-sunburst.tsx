@@ -44,15 +44,20 @@ const SIZE = 420;
 const CX = SIZE / 2;
 const CY = SIZE / 2;
 const CENTER_R = 30; // Radius der Zentrumsscheibe (kleines Loch → mehr Ringfläche)
+const CENTER_R_COMPACT = 20; // Mobile: kleineres Loch ⇒ Ring 1 bekommt mehr Platz
 const OUTER_R = 206; // äusserster Radius (fast bis an den Rand → mehr Textplatz)
 const LABEL_MIN_ANGLE = 9; // ° — schmaler ⇒ kein Label (nur Tooltip)
 const LABEL_R_FRAC = 0.62; // Label-Position im Ring: >0.5 ⇒ nach aussen (mehr Bogenlänge)
+const LABEL_OUTER_PAD = 11; // Compact: Abstand der äussersten Label-Zeile vom Ringrand
 const CORNER_R = 4; // abgerundete Segment-Ecken
 const PAD_DEG = 1.4; // ° Luft zwischen Segmenten (statt Trennlinien)
 const RING_GAP = 3; // radiale Lücke zwischen den Ring-Ebenen
 const OUTER_OPACITY = 0.62; // Deckkraft des äussersten Rings (innen = 1)
 const MAX_LEVELS = 3; // nie mehr als 3 Ringe zeichnen (4. Ebene wird weggelassen)
 const THIRD_RING_WIDTH = 16; // 3. Ring nur als dünnes Band; Ebene 1 & 2 teilen den Rest
+// Mobile-Variante (`compact`): 2. Ring als Band, etwas länger als der 3. Ring;
+// Ring 1 bekommt den ganzen Rest (einziger beschrifteter Ring).
+const SECOND_RING_COMPACT_W = 34;
 
 function lerp(a: number, b: number, t: number): number {
   return Math.round(a + (b - a) * t);
@@ -105,21 +110,42 @@ function textColor(lean: number | null | undefined): string {
 }
 
 // Label an Wortgrenzen auf bis zu maxLines Zeilen umbrechen; Überlauf mit „…".
-function wrapLabel(name: string, maxChars: number, maxLines: number): string[] {
+// Mit `hyphenate` werden zu lange Einzelwörter über mehrere Zeilen mit Bindestrich
+// gebrochen (füllt den Platz, zeigt den ganzen Namen) statt abgeschnitten.
+function wrapLabel(
+  name: string,
+  maxChars: number,
+  maxLines: number,
+  hyphenate = false,
+): string[] {
   const words = name.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let cur = "";
-  for (const w of words) {
+  // Ein (zu langes) Wort silbenlos mit „-" auf so viele Zeilen wie nötig brechen,
+  // solange noch Zeilen frei sind; der Rest landet in `cur`.
+  const hyphenateWord = (w: string): string => {
+    while (hyphenate && w.length > maxChars && lines.length < maxLines - 1) {
+      lines.push(`${w.slice(0, maxChars - 1)}-`);
+      w = w.slice(maxChars - 1);
+    }
+    return w;
+  };
+  for (let w of words) {
+    if (lines.length >= maxLines) break;
+    if (hyphenate && !cur && w.length > maxChars) {
+      cur = hyphenateWord(w);
+      continue;
+    }
     const candidate = cur ? `${cur} ${w}` : w;
     if (!cur || candidate.length <= maxChars || lines.length >= maxLines - 1) {
       cur = candidate; // erstes Wort, passt, oder letzte erlaubte Zeile (wird ggf. gekürzt)
     } else {
       lines.push(cur);
-      cur = w;
+      cur = hyphenateWord(w);
     }
   }
-  if (cur) lines.push(cur);
-  return lines.map((l) =>
+  if (cur && lines.length < maxLines) lines.push(cur);
+  return lines.slice(0, maxLines).map((l) =>
     l.length > maxChars ? `${l.slice(0, Math.max(1, maxChars - 1))}…` : l,
   );
 }
@@ -228,8 +254,16 @@ function layout(root: TaxonomyNode): { segs: Seg[]; maxLevel: number } {
 // Ring-Grenzradien je Ebenenzahl. Bei 3 Ebenen bekommt der äusserste Ring nur
 // THIRD_RING_WIDTH (dünnes Band); Ebene 1 & 2 teilen den verbleibenden Platz.
 // Rückgabe: radii[level-1]..radii[level] = [Innen, Aussen] des Rings `level`.
-function ringRadii(levels: number): number[] {
+function ringRadii(levels: number, compact = false): number[] {
   if (levels <= 1) return [CENTER_R, OUTER_R];
+  if (compact) {
+    // Mobile: nur Ring 1 beschriftet ⇒ ihm den Grossteil des Platzes geben
+    // (kleineres Mittelloch); Ring 2 & 3 sind reine Bänder (Ring 2 etwas länger).
+    if (levels === 2) return [CENTER_R_COMPACT, OUTER_R - SECOND_RING_COMPACT_W, OUTER_R];
+    const inner3 = OUTER_R - THIRD_RING_WIDTH;
+    const inner2 = inner3 - SECOND_RING_COMPACT_W;
+    return [CENTER_R_COMPACT, inner2, inner3, OUTER_R];
+  }
   if (levels === 2) {
     const step = (OUTER_R - CENTER_R) / 2;
     return [CENTER_R, CENTER_R + step, OUTER_R];
@@ -243,25 +277,29 @@ export function TaxonomySunburst({
   root,
   t,
   onSelect,
+  compact = false,
 }: {
   root: TaxonomyNode;
   t: T;
   onSelect?: (key: string) => void;
+  // Mobile-Variante: nur Ring 1 beschriften; Ring 2 & 3 als Bänder (Ring 2 etwas
+  // länger als Ring 3). Default = volle Desktop-Darstellung.
+  compact?: boolean;
 }) {
   const [hover, setHover] = useState<TaxonomyNode | null>(null);
 
   const { segs, radii, maxLevel } = useMemo(() => {
     const { segs, maxLevel } = layout(root);
-    const radii = ringRadii(maxLevel);
+    const radii = ringRadii(maxLevel, compact);
     return { segs, radii, maxLevel };
-  }, [root]);
+  }, [root, compact]);
 
   if (!segs.length) return null;
 
   // Einebenig (nur Top-Topics) ⇒ grössere Labels, da der eine Ring sehr dick ist;
-  // ab zwei Ebenen kompakt. (Per-Segment skaliert die 2. Ebene zusätzlich runter.)
-  const labelFont = maxLevel <= 1 ? 13 : 10;
-  // Chart-Breite: einebenig kompakt (wenig Inhalt), mehrebenig grösser.
+  // ab zwei Ebenen kompakt. Compact: nur Ring 1 trägt Labels und ist dick ⇒ gross.
+  const labelFont = compact ? 13 : maxLevel <= 1 ? 13 : 10;
+  // Chart-Breite: einebenig/compact kompakt, mehrebenig grösser.
   const chartMaxW = maxLevel <= 1 ? 440 : 680;
 
   // Standardmässig kein Panel; nur beim Hover erscheint Titel + Bewertung seitlich.
@@ -280,14 +318,17 @@ export function TaxonomySunburst({
   const panelSide = activeMid > 0 && activeMid < 180 ? "left" : "right";
 
   return (
-    <Card className="border-black/5">
-      <CardContent className="pt-6">
+    <Card className="border-black/5 py-5">
+      <CardContent className="px-4">
         <p className="mb-0.5 text-sm font-medium text-foreground/90">{t("sunburstTitle")}</p>
         <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
           {t("sunburstSubtitle")}
         </p>
 
-        <div className="relative mx-auto w-full" style={{ maxWidth: chartMaxW }}>
+        <div
+          className={`relative w-full ${compact ? "-mx-4 max-w-none" : "mx-auto"}`}
+          style={compact ? undefined : { maxWidth: chartMaxW }}
+        >
           <svg
             viewBox={`0 0 ${SIZE} ${SIZE}`}
             className="h-auto w-full"
@@ -318,32 +359,55 @@ export function TaxonomySunburst({
               // 2.+ Ebene (radiale Labels) eine Spur kleiner als die Top-Topics.
               const segFont = curved ? labelFont : Math.max(8, labelFont - 1);
               const segScale = segFont / 10;
+              const lineGap = 11 * segScale; // radialer Abstand der gekrümmten Zeilen
               // Bei gespaltenen radialen Segmenten ein Innenband für den Blitz frei
               // halten ⇒ Label zentriert nur im äusseren Rest (kein Overlap).
               const boltGap = split && !curved ? 16 : 0;
               const labelInnerR = rInner + boltGap;
-              // Gekrümmte Labels nach aussen rücken (mehr Bogenlänge). Radiale Labels
-              // mittig im verfügbaren Band — dort begrenzt die Ringdicke die Länge.
-              const labelR = curved
-                ? rInner + (rOuter - rInner) * LABEL_R_FRAC
-                : (labelInnerR + rOuter) / 2;
+              // Compact-Ring 1 ist dick und der EINZIGE beschriftete Ring ⇒ bis zu
+              // 4 Zeilen, damit lange Namen (ggf. mit Bindestrich umgebrochen) den
+              // Platz füllen statt abgeschnitten zu werden.
+              const maxLines = curved
+                ? compact
+                  ? 4
+                  : thickness >= 30
+                    ? 3
+                    : 2
+                : thickness >= 28
+                  ? 2
+                  : 1;
+              // Zeichenkapazität an der INNERSTEN möglichen Zeile bemessen (kleinster
+              // Radius = kürzester Bogen). Compact: worst case = maxLines, am
+              // Aussenrand verankert — so überläuft auch ein voller Block nie.
+              const charR = curved
+                ? compact
+                  ? rOuter - LABEL_OUTER_PAD - (maxLines - 1) * lineGap
+                  : rInner + (rOuter - rInner) * LABEL_R_FRAC - ((maxLines - 1) / 2) * lineGap
+                : 0;
+              const maxChars = curved
+                ? Math.max(3, Math.floor((span / 360) * 2 * Math.PI * charR / (6.5 * segScale)))
+                : Math.max(4, Math.floor((rOuter - labelInnerR - 6) / (5.8 * segScale)));
+              // Compact: lange Einzelwörter mit Bindestrich umbrechen statt mit „…".
+              const lines = wrapLabel(s.node.name, maxChars, maxLines, curved && compact);
+              // Label-Radius aus der TATSÄCHLICHEN Zeilenzahl. Compact: oberste Zeile
+              // ans Aussenrand-Limit (rOuter − Pad) verankern, Block füllt nach innen
+              // ⇒ auch kurze Labels sitzen aussen statt mittig zu schweben. Desktop:
+              // Fraktion wie gehabt.
+              const labelR = !curved
+                ? (labelInnerR + rOuter) / 2
+                : compact
+                  ? rOuter - LABEL_OUTER_PAD - ((lines.length - 1) / 2) * lineGap
+                  : rInner + (rOuter - rInner) * LABEL_R_FRAC;
               const [lx, ly] = polar(labelR, mid);
               // Dünne Ringe (z. B. der 3.) bekommen kein Label — nur Farbe.
-              const showLabel = span >= LABEL_MIN_ANGLE && thickness > 22;
+              // Compact (mobil): ausschliesslich Ring 1 beschriften.
+              const showLabel =
+                span >= LABEL_MIN_ANGLE && thickness > 22 && (!compact || s.level === 1);
               // Radiale Ausrichtung (tiefere Ringe): tangential gedreht, links gespiegelt.
               let rot = mid - 90;
               if (mid > 180) rot += 180;
               // Untere Hälfte: Text-Pfad umkehren, sonst stünde der Text kopfüber.
               const flip = mid > 90 && mid < 270;
-              // Zeichenkapazität pro Zeile: gekrümmt entlang des Bogens, radial entlang
-              // der Ringdicke (dort schnitt die alte Bogen-Formel zu früh ab).
-              const maxChars = curved
-                ? Math.max(3, Math.floor((span / 360) * 2 * Math.PI * labelR / (6.5 * segScale)))
-                : Math.max(4, Math.floor((rOuter - labelInnerR - 6) / (5.8 * segScale)));
-              // Top-Topics (innerster Ring) bis zu 3 Zeilen — dort ist am meisten
-              // Platz, so passen die vollen Namen. Tiefere Ringe max. 2 bzw. 1.
-              const maxLines = curved ? (thickness >= 30 ? 3 : 2) : thickness >= 28 ? 2 : 1;
-              const lines = wrapLabel(s.node.name, maxChars, maxLines);
               return (
                 <g key={`${s.node.id}-${s.level}`}>
                   <path
@@ -427,7 +491,13 @@ export function TaxonomySunburst({
 
             {/* Zentrumsscheibe — nimmt die Hintergrundfarbe an, damit der Ring
                 schwebt statt auf einer Scheibe zu kleben. */}
-            <circle cx={CX} cy={CY} r={CENTER_R} fill="var(--card)" stroke="rgba(0,0,0,0.05)" />
+            <circle
+              cx={CX}
+              cy={CY}
+              r={compact ? CENTER_R_COMPACT : CENTER_R}
+              fill="var(--card)"
+              stroke="rgba(0,0,0,0.05)"
+            />
           </svg>
 
           {/* Hover-Panel: seitlich (gegenüber dem aktiven Segment) statt in der

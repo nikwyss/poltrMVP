@@ -29,7 +29,7 @@
   --r-full: 100px;         /* fully round: tags, avatars */
   --gap: 14px;             /* base spacing rhythm */
   --page-max: 1080px;
-  --page-px: 40px;
+  --page-px: 16px;
 
   /* ── Surface layers ── */
   --bg: #f4f2ef;           /* page background */
@@ -98,6 +98,14 @@
   --sidebar-accent-foreground: var(--text);
   --sidebar-border: var(--line);
   --sidebar-ring: var(--brand);
+}
+
+/* Wider page gutter on tablet/desktop; mobile keeps the tighter 16px default
+   above so cards don't waste a third of the screen on margins. */
+@media (min-width: 768px) {
+  :root {
+    --page-px: 40px;
+  }
 }
 
 .dark {

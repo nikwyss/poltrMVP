@@ -16,6 +16,7 @@ import { ViewToggle } from "@/components/view-toggle";
 // import { PageBackdrop } from "@/components/page-backdrop";
 import { PositionBand } from "@/components/position-band";
 import { TaxonomySunburst } from "@/components/taxonomy-sunburst";
+import { TaxonomyIcicle } from "@/components/taxonomy-icicle";
 import { LockedSection, GatePlaceholder } from "@/components/locked-section";
 import { AddArgumentModal } from "@/components/add-argument-modal";
 import { ArgumentariumHeader } from "@/components/argumentarium-header";
@@ -193,17 +194,26 @@ export default function TaxonomyPage() {
               </p>
             </header>
 
-            {/* Sunburst — ganze Themen-Hierarchie, gefärbt nach eigener Haltung */}
+            {/* Meinungsrad (radial). Desktop: voll (alle Ringe beschriftet).
+                Mobile: compact (nur Ring 1 beschriftet, Ring 2 & 3 als Bänder). */}
             {fullTree?.tree && (
-              <TaxonomySunburst
-                root={fullTree.tree}
-                t={t}
-                onSelect={openTopicDetail}
-              />
+              <>
+                <div className="hidden md:block">
+                  <TaxonomySunburst root={fullTree.tree} t={t} onSelect={openTopicDetail} />
+                </div>
+                <div className="-mx-2 md:hidden">
+                  <TaxonomySunburst root={fullTree.tree} t={t} onSelect={openTopicDetail} compact />
+                </div>
+              </>
             )}
 
             {/* Positionsband — Themen-Übersicht zwischen den Polen */}
             <PositionBand nodes={root.children} t={t} />
+
+            {/* Eiszapfen — ausgerollte Hierarchie (Breite ∝ Grösse), nach Haltung */}
+            {fullTree?.tree && (
+              <TaxonomyIcicle root={fullTree.tree} t={t} onSelect={openTopicDetail} />
+            )}
           </LockedSection>
         </div>
       )}

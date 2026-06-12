@@ -56,8 +56,8 @@ export function PositionBand({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
   const rowGrid = "grid grid-cols-[minmax(140px,230px)_1fr] items-center gap-3";
 
   return (
-    <Card className="border-black/5">
-      <CardContent className="pt-6">
+    <Card className="border-black/5 py-5">
+      <CardContent className="px-4">
         <p className="mb-0.5 text-sm font-medium text-foreground/90">
           {t("bandTitle")}
         </p>

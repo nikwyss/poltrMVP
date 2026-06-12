@@ -232,6 +232,15 @@ export function ProContraArguments({
   const hasMore = remaining > 0;
   const handleMore = onShowMore ?? (() => setExpanded(true));
 
+  // Mobile (einspaltig): flache Liste in Original-`args`-Reihenfolge (Backend
+  // liefert bereits „offiziell zuerst, dann geseedet gemischt"). Gleiche
+  // Sichtbarkeits-Mathe wie der Desktop-Zweispalter, damit der geteilte
+  // „Mehr anzeigen"-Button in beiden Layouts denselben Count zeigt.
+  const visibleCount = visiblePro.length + visibleContra.length;
+  const flatVisible = args.slice(0, visibleCount);
+  const flatPeek =
+    !expanded && args.length > visibleCount ? args[visibleCount] : null;
+
   // Eine Spalte: sichtbare Karten + (falls noch welche ausgeblendet sind) der
   // angeschnittene „Peek" der nächsten Karte als rein visueller Vorgeschmack.
   const renderColumn = (items: TaxonomyArgument[]) => {
@@ -241,9 +250,11 @@ export function ProContraArguments({
       <div className="flex flex-col gap-4">
         {visible.map((a) => <ArgumentCard key={a.uri} arg={a} onOpen={onOpen} />)}
         {peek && (
+          // Nur im Zweispalter (md+): Peek am unteren Rand jeder Spalte. Die
+          // mobile flache Liste hat ihren eigenen Peek (flatPeek).
           <div
             aria-hidden
-            className="relative h-[3.25rem] overflow-hidden"
+            className="relative hidden h-[3.25rem] overflow-hidden md:block"
             style={{ maskImage: PEEK_MASK, WebkitMaskImage: PEEK_MASK }}
           >
             <div className="pointer-events-none">
@@ -257,10 +268,33 @@ export function ProContraArguments({
 
   return (
     <div>
-      <ProContraColumnHeaders proCount={pro.length} contraCount={contra.length} />
-      <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
+      {/* Spaltenköpfe nur im Zweispalter — über einer flachen Einspaltigkeit
+          wären zwei nebeneinanderliegende Pro/Contra-Köpfe irreführend. */}
+      <div className="hidden md:block">
+        <ProContraColumnHeaders proCount={pro.length} contraCount={contra.length} />
+      </div>
+      {/* Desktop: zwei Spalten Pro / Contra. */}
+      <div className="mt-3 hidden gap-4 md:grid md:grid-cols-2">
         {renderColumn(pro)}
         {renderColumn(contra)}
+      </div>
+      {/* Mobile: flache Liste in Backend-Reihenfolge (offiziell zuerst, dann
+          Community geseedet gemischt), ein Peek am echten Box-Ende. */}
+      <div className="mt-3 flex flex-col gap-4 md:hidden">
+        {flatVisible.map((a) => (
+          <ArgumentCard key={a.uri} arg={a} onOpen={onOpen} />
+        ))}
+        {flatPeek && (
+          <div
+            aria-hidden
+            className="relative h-[3.25rem] overflow-hidden"
+            style={{ maskImage: PEEK_MASK, WebkitMaskImage: PEEK_MASK }}
+          >
+            <div className="pointer-events-none">
+              <ArgumentCard arg={flatPeek} onOpen={() => {}} />
+            </div>
+          </div>
+        )}
       </div>
       {hasMore && !hideShowMore && (
         <div className="mt-3 flex justify-center">
@@ -345,7 +379,7 @@ export function ThemeCard({
 
   return (
     <Card className="gap-0 overflow-hidden border-border/60 py-0 shadow-none">
-      <div className="flex items-start justify-between gap-3 px-6 pt-4 pb-3">
+      <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3 sm:px-6">
         <div className="min-w-0">
           {/* Eyebrow statt doppelter Etikettierung („Thema «…»"): kleine
               Muted-Caps-Zeile, darunter der Titel in Serif ohne Guillemets. */}
@@ -373,7 +407,7 @@ export function ThemeCard({
       </div>
 
       {(node.introduction || node.arguments.length > 0) && (
-        <div className={`px-6 ${hasFooter ? "pb-4" : "pb-5"}`}>
+        <div className={`px-4 sm:px-6 ${hasFooter ? "pb-4" : "pb-5"}`}>
           {node.introduction && (
             <p className="mb-4 text-sm leading-relaxed text-muted-foreground">
               {node.introduction}
@@ -396,7 +430,7 @@ export function ThemeCard({
       {/* Bottom-Zeile: zentriert unten. Hinweis (zu wenig bewertet) oder Aktion
           (beide Buttons gleich, Material-Text-Button-Stil). */}
       {hasFooter && (
-        <div className="flex justify-center px-6 pb-5">
+        <div className="flex justify-center px-4 pb-5 sm:px-6">
           {footer === "hint" && (
             <p className="text-center text-xs leading-snug text-muted-foreground">
               {t(
