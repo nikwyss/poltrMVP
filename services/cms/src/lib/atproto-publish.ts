@@ -410,7 +410,17 @@ async function buildArgumentRecord(
   const now = new Date().toISOString()
   const translations: Array<Record<string, unknown>> = []
 
-  for (const lang of SUPPORTED_LANGUAGES) {
+  // Locale-Liste aus der Payload-Config (Single Source of Truth). Fällt auf die
+  // env-basierte SUPPORTED_LANGUAGES zurück, wenn keine Localization aktiv ist.
+  // Wichtig: nur die tatsächlich konfigurierten Locale-Codes (z.B. de-CH, en-GB)
+  // liefern beim findByID echte Übersetzungen — falsche Codes ergäben nie eine.
+  const configuredLocales: string[] = payload?.config?.localization?.locales
+    ? payload.config.localization.locales.map((l: { code?: string } | string) =>
+        typeof l === 'string' ? l : (l.code as string),
+      )
+    : SUPPORTED_LANGUAGES
+
+  for (const lang of configuredLocales) {
     if (lang === origin) continue
     const snap = await loadLocaleSnapshot(payload, doc.id, lang)
     if (!snap.title || !snap.body) continue

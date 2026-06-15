@@ -199,6 +199,19 @@ export const Ballots: CollectionConfig = {
             'Kuratierte PRO/CONTRA-Argumente (Bundeskanzlei etc.). Hier direkt anlegen und bearbeiten — auf "Published" gesetzte Argumente werden auf den PDS geschrieben.',
           fields: [
             {
+              // Import-Werkzeug: JSON-Datei mit offiziellen Argumenten hochladen
+              // + Vorlage herunterladen. Ruft POST /api/imported-arguments/import.
+              // Siehe components/ImportOfficialArguments.tsx.
+              name: 'importOfficialArguments',
+              type: 'ui',
+              label: 'Import',
+              admin: {
+                components: {
+                  Field: '/components/ImportOfficialArguments#ImportOfficialArguments',
+                },
+              },
+            },
+            {
               // Reverse-Relationship auf imported-arguments.ballot: zeigt die
               // zugehörigen offiziellen Argumente inline an, mit "Create New"
               // (Drawer öffnet vorbefüllt mit dieser Vorlage). Siehe

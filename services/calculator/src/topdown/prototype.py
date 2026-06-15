@@ -51,7 +51,7 @@ _PROPOSE_TOOL = {
                             "type": "string",
                             "description": "1-2 Sätze AN DIE STIMMBÜRGERSCHAFT: warum dieses "
                             "Thema bei der Abstimmung von Bedeutung ist und ganz grob erwähnen ob es fürs Ja- oder Nein-Lager (oder beide) wichtig ist. "
-                            "Verständlich, neutral, und indirekte Rede (Beispiel: 'Das Ja-Lager geht davon aus, dass...', Das Nein-Lager zweifelt an, dass). Schweizer Rechtschreibung (ss statt ß).",
+                            "Verständlich, als neutraler Erzähler mit indirekter Rede (Beispiel: 'Das Ja-Lager geht davon aus, dass...', Das Nein-Lager zweifelt an, dass). Schweizer Rechtschreibung (ss statt ß).",
                         },
                         "importance": {
                             "type": "integer",
@@ -80,10 +80,12 @@ _IMPORTANCE_NOTE = (
 # An alle propose-Systemprompts angehängt: zusätzlich zur internen `description`
 # eine voter-facing `introduction` verfassen (was die Stimmbürger:innen lesen).
 _INTRODUCTION_NOTE = (
-    " Verfasse pro Thema ZUSÄTZLICH eine kurze `introduction` (2–3 Sätze) DIREKT "
-    "AN DIE STIMMBÜRGERSCHAFT: warum dieses Thema bei der Abstimmung von Bedeutung "
-    "ist und für wen es besonders relevant ist (wer ist betroffen). Allgemein "
-    "verständlich und neutral — keine Wertung pro/contra, keine Empfehlung."
+    " Verfasse pro Thema ZUSÄTZLICH eine kurze `introduction` (1–2 Sätze) AN DIE "
+    "STIMMBÜRGERSCHAFT: warum dieses Thema bei der Abstimmung von Bedeutung ist "
+    "und ganz grob erwähnen ob es fürs Ja- oder Nein-Lager (oder beide) wichtig ist. "
+    "Verständlich, als neutraler Erzähler mit indirekter Rede (Beispiel: 'Das Ja-Lager "
+    "geht davon aus, dass...', Das Nein-Lager zweifelt an, dass). Schweizer "
+    "Rechtschreibung (ss statt ß)."
 )
 
 # Klassifikation (Einheit = Argument): jedes Argument wird GENAU EINEM Thema
@@ -202,7 +204,11 @@ def _auri(a: dict) -> str:
 
 
 def classify_arguments(
-    llm, topic_names: list[str], args: list[dict], *, batch_size: int = 40,
+    llm,
+    topic_names: list[str],
+    args: list[dict],
+    *,
+    batch_size: int = 40,
     conf_out: dict | None = None,
 ) -> dict[str, str]:
     """Jedes Argument GENAU EINEM Thema (oder 'andere') zuordnen.
@@ -457,7 +463,8 @@ def classify_incremental_args(
                 placements[it["uri"]] = _node_key(node)
             return
         assign = classify_arguments(
-            llm, [ch["name"] for ch in children], items, conf_out=conf_out)
+            llm, [ch["name"] for ch in children], items, conf_out=conf_out
+        )
         by_child: dict[str, list[dict]] = defaultdict(list)
         for it in items:
             topic = assign.get(it["uri"], "andere")

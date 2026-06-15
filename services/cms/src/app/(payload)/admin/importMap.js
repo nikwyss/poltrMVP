@@ -24,6 +24,7 @@ import { ItalicFeatureClient as ItalicFeatureClient_e70f5e05f09f93e00b997edb1ef0
 import { OriginLanguageNote as OriginLanguageNote_2daee11fad14142d037ae5340cdaf6e0 } from '../../../components/OriginLanguageNote'
 import { TranslationStatusField as TranslationStatusField_91ddc8ccf9c02dac2fc99be8e6a08334 } from '../../../components/TranslationStatus'
 import { BallotRowActions as BallotRowActions_27247f9ef0256b32833a115f07794d72 } from '../../../components/BallotRowActions'
+import { ImportOfficialArguments as ImportOfficialArguments_0af0a21c1c1309c2a5dffc2e17e706dd } from '../../../components/ImportOfficialArguments'
 import { TaxonomyPanelField as TaxonomyPanelField_0243455b1cfee0d1537b7ac0c317ba8d } from '../../../components/TaxonomyPanel'
 import { BallotStatusControl as BallotStatusControl_2c9b4599c39ebf6b5c9cc206ebf6c96b } from '../../../components/BallotStatusControl'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
@@ -55,6 +56,7 @@ export const importMap = {
   "/components/OriginLanguageNote#OriginLanguageNote": OriginLanguageNote_2daee11fad14142d037ae5340cdaf6e0,
   "/components/TranslationStatus#TranslationStatusField": TranslationStatusField_91ddc8ccf9c02dac2fc99be8e6a08334,
   "/components/BallotRowActions#BallotRowActions": BallotRowActions_27247f9ef0256b32833a115f07794d72,
+  "/components/ImportOfficialArguments#ImportOfficialArguments": ImportOfficialArguments_0af0a21c1c1309c2a5dffc2e17e706dd,
   "/components/TaxonomyPanel#TaxonomyPanelField": TaxonomyPanelField_0243455b1cfee0d1537b7ac0c317ba8d,
   "/components/BallotStatusControl#BallotStatusControl": BallotStatusControl_2c9b4599c39ebf6b5c9cc206ebf6c96b,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1

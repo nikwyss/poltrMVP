@@ -1,4 +1,5 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, TypedLocale } from 'payload'
+import { addDataAndFileToRequest } from 'payload'
 
 /**
  * Curated arguments that originate outside the platform: today the
@@ -34,6 +35,320 @@ export const OfficialArguments: CollectionConfig = {
     update: ({ req: { user } }) => !!user,
     delete: ({ req: { user } }) => !!user,
   },
+  endpoints: [
+    {
+      // Bulk-Upsert offizieller Argumente aus einer hochgeladenen JSON-Datei.
+      // Wird vom Ballot-Editor (components/ImportOfficialArguments.tsx) aufgerufen:
+      // POST /api/imported-arguments/import
+      // Body: { ballotId, items: [{id?,type,title,body,section?,documentRef?}],
+      //         publish?, section?, documentRef? }
+      //
+      // - Eintrag MIT id  → vorhandenes offizielles Argument dieser Vorlage
+      //   aktualisieren (PDS-Record bleibt am selben rkey, putRecord).
+      // - Eintrag OHNE id → neu anlegen.
+      // - Titel müssen je Vorlage eindeutig sein: würde der Import zwei
+      //   gleiche Titel erzeugen, wird ALLES abgebrochen (nichts geschrieben).
+      path: '/import',
+      method: 'post',
+      handler: async (req) => {
+        if (!req.user) {
+          return Response.json({ error: 'Nicht angemeldet.' }, { status: 401 })
+        }
+        await addDataAndFileToRequest(req)
+        const data = (req.data || {}) as {
+          ballotId?: number | string
+          items?: Array<Record<string, unknown>>
+          publish?: boolean
+          section?: string
+          documentRef?: string
+        }
+        const ballotId = Number(data.ballotId)
+        if (!ballotId || !Array.isArray(data.items)) {
+          return Response.json(
+            { error: 'ballotId (Zahl) und items[] sind erforderlich.' },
+            { status: 400 },
+          )
+        }
+        const publish = data.publish !== false
+        const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+
+        // Konfigurierte Content-Locales = Single Source of Truth (Payload-Config).
+        const localization = req.payload.config.localization
+        const LOCALES: string[] = localization
+          ? localization.locales.map((l: { code?: string } | string) =>
+              typeof l === 'string' ? l : (l.code as string),
+            )
+          : ['de-CH']
+        const DEFAULT_LOCALE: string =
+          (localization && (localization.defaultLocale as string)) || LOCALES[0] || 'de-CH'
+        // Locale-Codes sind zur Laufzeit aus der Config; gegen LOCALES validiert.
+        const L = (s: string) => s as TypedLocale
+
+        type LangText = { title: string; body: string }
+        type ParsedItem = {
+          id?: number
+          type: 'PRO' | 'CONTRA'
+          originLanguage: string
+          byLocale: Map<string, LangText>
+          section?: string
+          documentRef?: string
+          primaryTitle: string
+        }
+
+        // --- 1) Felder + Sprachen validieren/parsen ----------------------
+        const verr: string[] = []
+        const parsed: ParsedItem[] = []
+        for (let i = 0; i < data.items.length; i++) {
+          const it = data.items[i]
+          const label = `#${i + 1}`
+          const type = String(it.type ?? '').toUpperCase().trim()
+          let id: number | undefined
+          const rawId = it.id
+          if (rawId !== undefined && rawId !== null && rawId !== '') {
+            id = Number(rawId)
+            if (!Number.isInteger(id) || id <= 0) {
+              verr.push(`${label}: ungültige id "${String(rawId)}".`)
+              continue
+            }
+          }
+          if (type !== 'PRO' && type !== 'CONTRA') {
+            verr.push(`${label}: type muss PRO oder CONTRA sein (war "${String(it.type ?? '')}").`)
+            continue
+          }
+
+          // Sprachen einsammeln: `translations` (locale → {title,body}) plus
+          // flache title/body (→ originLanguage). Unbekannte Locales => Fehler.
+          const byLocale = new Map<string, LangText>()
+          let unknownLocale: string | null = null
+          const rawTr = it.translations
+          if (rawTr && typeof rawTr === 'object' && !Array.isArray(rawTr)) {
+            for (const [lc, val] of Object.entries(rawTr as Record<string, unknown>)) {
+              if (!LOCALES.includes(lc)) {
+                unknownLocale = lc
+                continue
+              }
+              const v = (val || {}) as Record<string, unknown>
+              const t = String(v.title ?? '').trim()
+              const b = String(v.body ?? '').trim()
+              if (t || b) byLocale.set(lc, { title: t, body: b })
+            }
+          }
+          const originLanguage = String(it.originLanguage ?? DEFAULT_LOCALE).trim() || DEFAULT_LOCALE
+          const flatTitle = String(it.title ?? '').trim()
+          const flatBody = String(it.body ?? '').trim()
+          if ((flatTitle || flatBody) && LOCALES.includes(originLanguage) && !byLocale.has(originLanguage)) {
+            byLocale.set(originLanguage, { title: flatTitle, body: flatBody })
+          }
+
+          if (unknownLocale) {
+            verr.push(
+              `${label}: Sprache "${unknownLocale}" ist nicht konfiguriert (erlaubt: ${LOCALES.join(', ')}).`,
+            )
+            continue
+          }
+          if (!LOCALES.includes(originLanguage)) {
+            verr.push(
+              `${label}: originLanguage "${originLanguage}" ist nicht konfiguriert (erlaubt: ${LOCALES.join(', ')}).`,
+            )
+            continue
+          }
+          const originText = byLocale.get(originLanguage)
+          if (!originText || !originText.title || !originText.body) {
+            verr.push(
+              `${label}: title und body in der Origin-Sprache (${originLanguage}) dürfen nicht leer sein.`,
+            )
+            continue
+          }
+          let incomplete: string | null = null
+          for (const [lc, v] of byLocale) {
+            if (!v.title || !v.body) {
+              incomplete = lc
+              break
+            }
+          }
+          if (incomplete) {
+            verr.push(`${label}: Sprache ${incomplete} hat title oder body leer (beides nötig).`)
+            continue
+          }
+
+          const section = ((it.section as string) || data.section || '').trim()
+          const documentRef = ((it.documentRef as string) || data.documentRef || '').trim()
+          parsed.push({
+            id,
+            type,
+            originLanguage,
+            byLocale,
+            section: section || undefined,
+            documentRef: documentRef || undefined,
+            primaryTitle: (byLocale.get(DEFAULT_LOCALE) || originText).title,
+          })
+        }
+
+        // --- 2) Bestehende offizielle Argumente dieser Vorlage laden -----
+        const existing = await req.payload.find({
+          collection: 'imported-arguments',
+          where: {
+            and: [{ ballot: { equals: ballotId } }, { sourceType: { equals: 'official' } }],
+          },
+          limit: 1000,
+          depth: 0,
+          locale: L(DEFAULT_LOCALE),
+        })
+        const existingById = new Map<number, { title: string }>()
+        for (const d of existing.docs) {
+          existingById.set(Number(d.id), { title: String(d.title ?? '') })
+        }
+
+        // --- 3) id-Einträge prüfen: muss offizielles Argument DIESER Vorlage sein
+        const seenIds = new Set<number>()
+        for (const it of parsed) {
+          if (it.id === undefined) continue
+          if (seenIds.has(it.id)) {
+            verr.push(`Argument-id ${it.id} kommt mehrfach in der Datei vor.`)
+            continue
+          }
+          seenIds.add(it.id)
+          if (!existingById.has(it.id)) {
+            verr.push(
+              `id ${it.id} ("${it.primaryTitle}") ist kein offizielles Argument dieser Vorlage — Update nicht möglich.`,
+            )
+          }
+        }
+
+        // --- 4) Titel-Eindeutigkeit (auf Default-Locale-Titel) -----------
+        const projectedTitle = new Map<number, string>()
+        for (const [id, v] of existingById) projectedTitle.set(id, v.title)
+        for (const it of parsed) {
+          if (it.id !== undefined && existingById.has(it.id)) projectedTitle.set(it.id, it.primaryTitle)
+        }
+        const titleBuckets = new Map<string, string[]>()
+        const bumpTitle = (t: string) => {
+          const k = norm(t)
+          const arr = titleBuckets.get(k) || []
+          arr.push(t)
+          titleBuckets.set(k, arr)
+        }
+        for (const t of projectedTitle.values()) bumpTitle(t)
+        for (const it of parsed) if (it.id === undefined) bumpTitle(it.primaryTitle)
+        for (const titles of titleBuckets.values()) {
+          if (titles.length > 1) {
+            verr.push(
+              `Doppelter Titel würde entstehen: "${titles[0]}" (${titles.length}×). Titel müssen je Vorlage eindeutig sein.`,
+            )
+          }
+        }
+
+        // --- Abbruch bei Validierungsfehler: nichts schreiben ------------
+        if (verr.length) {
+          return Response.json(
+            { error: 'Import abgebrochen (Validierung).', errors: verr, created: 0, updated: 0, published: 0 },
+            { status: 400 },
+          )
+        }
+
+        // --- 5) Ausführen: id → Update, sonst → Create ------------------
+        //
+        // CMS-Doc mit `skipPublishHook` schreiben (Hook macht NICHTS), PDS DANACH
+        // explizit synchronisieren. Grund: der afterChange-Hook feuert in der
+        // laufenden Transaktion und liest per findByID OHNE `req` — er sieht beim
+        // Update alten Text (→ stale) bzw. scheitert bei create-with-published
+        // (→ Rollback + Waise). Post-commit-Sync liest die committeten Texte
+        // korrekt; der rkey bleibt bei Updates erhalten (putRecord).
+        //
+        // Mehrsprachig: zuerst die Origin-Sprache schreiben (inkl. nicht-
+        // lokalisierter Felder), danach je weitere Locale nur title/body.
+        const lib = await import('../lib/atproto-publish')
+        const result = { created: 0, updated: 0, published: 0, skipped: 0, errors: [] as string[] }
+        for (const it of parsed) {
+          const label = it.id ? `id ${it.id}` : `"${it.primaryTitle}"`
+          try {
+            const originText = it.byLocale.get(it.originLanguage)!
+            let docId: number
+            if (it.id !== undefined) {
+              await req.payload.update({
+                collection: 'imported-arguments',
+                id: it.id,
+                locale: L(it.originLanguage),
+                data: {
+                  type: it.type,
+                  title: originText.title,
+                  body: originText.body,
+                  originLanguage: L(it.originLanguage),
+                  ...(it.section !== undefined ? { section: it.section } : {}),
+                  ...(it.documentRef !== undefined ? { documentRef: it.documentRef } : {}),
+                  ...(publish ? { status: 'published' } : {}),
+                },
+                context: { skipPublishHook: true },
+              })
+              docId = it.id
+              result.updated++
+            } else {
+              const doc = await req.payload.create({
+                collection: 'imported-arguments',
+                locale: L(it.originLanguage),
+                data: {
+                  ballot: ballotId,
+                  sourceType: 'official',
+                  type: it.type,
+                  title: originText.title,
+                  body: originText.body,
+                  originLanguage: L(it.originLanguage),
+                  ...(it.section ? { section: it.section } : {}),
+                  ...(it.documentRef ? { documentRef: it.documentRef } : {}),
+                  status: publish ? 'published' : 'draft',
+                },
+                context: { skipPublishHook: true },
+              })
+              docId = Number(doc.id)
+              result.created++
+            }
+
+            // Weitere Sprachen (nur title/body).
+            for (const [lc, v] of it.byLocale) {
+              if (lc === it.originLanguage) continue
+              await req.payload.update({
+                collection: 'imported-arguments',
+                id: docId,
+                locale: L(lc),
+                data: { title: v.title, body: v.body },
+                context: { skipPublishHook: true },
+              })
+            }
+
+            // Post-commit PDS-Sync (committete Texte, ohne req).
+            const fresh = await req.payload.findByID({ collection: 'imported-arguments', id: docId })
+            const isPublished = (fresh as { status?: string }).status === 'published'
+            const pdsUri = (fresh as { pdsUri?: string }).pdsUri
+            const pdsCid = (fresh as { pdsCid?: string }).pdsCid
+            if (isPublished && pdsUri) {
+              const { cid } = await lib.updateImportedArgument(req.payload, fresh)
+              if (cid && cid !== pdsCid) {
+                await req.payload.update({
+                  collection: 'imported-arguments',
+                  id: docId,
+                  data: { pdsCid: cid },
+                  context: { skipPublishHook: true },
+                })
+              }
+              result.published++
+            } else if (isPublished && !pdsUri) {
+              const { uri, cid } = await lib.publishImportedArgument(req.payload, fresh)
+              await req.payload.update({
+                collection: 'imported-arguments',
+                id: docId,
+                data: { pdsUri: uri, pdsCid: cid },
+                context: { skipPublishHook: true },
+              })
+              result.published++
+            }
+          } catch (err) {
+            result.errors.push(`${label}: ${err instanceof Error ? err.message : String(err)}`)
+          }
+        }
+        return Response.json(result)
+      },
+    },
+  ],
   fields: [
     {
       name: 'ballot',
