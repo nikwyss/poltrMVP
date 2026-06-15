@@ -122,8 +122,13 @@ def _serialize_argument_row(row: dict, peer_review_on: bool, requested_lang: str
         "author": author,
         "likeCount": get_number(row, "like_count"),
         "commentCount": get_number(row, "comment_count"),
+        # Official arguments are curated content and never go through peer
+        # review, so they carry no review status regardless of what the DB
+        # stored (the column is NOT NULL, so the indexer seeds 'approved').
         "peerreviewStatus": (
-            get_string(row, "peerreview_status") if peer_review_on else None
+            get_string(row, "peerreview_status")
+            if peer_review_on and source_type != "official"
+            else None
         ),
         "indexedAt": get_date_iso(row, "indexed_at"),
         "viewer": viewer_obj if viewer_obj else None,

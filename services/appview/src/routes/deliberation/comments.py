@@ -260,7 +260,8 @@ async def get_comment(
             a.uri AS arg_uri, a.rkey AS arg_rkey, a.title AS arg_title,
             a.body AS arg_body, a.type AS arg_type,
             a.like_count AS arg_like_count, a.comment_count AS arg_comment_count,
-            a.peerreview_status AS arg_peerreview_status, a.ballot_rkey AS arg_ballot_rkey
+            a.peerreview_status AS arg_peerreview_status, a.ballot_rkey AS arg_ballot_rkey,
+            a.source_type AS arg_source_type
         FROM app_comments c
         LEFT JOIN app_profiles p ON p.did = c.did
         LEFT JOIN app_arguments a ON a.uri = c.argument_uri
@@ -290,7 +291,12 @@ async def get_comment(
             "type": get_string(row, "arg_type"),
             "likeCount": get_number(row, "arg_like_count"),
             "commentCount": get_number(row, "arg_comment_count"),
-            "peerreviewStatus": get_string(row, "arg_peerreview_status"),
+            # Official arguments are curated content and are never peer-reviewed.
+            "peerreviewStatus": (
+                None
+                if get_string(row, "arg_source_type") == "official"
+                else get_string(row, "arg_peerreview_status")
+            ),
             "ballotRkey": get_string(row, "arg_ballot_rkey") or "",
         }
         argument = {k: v for k, v in argument_raw.items() if v is not None}
