@@ -131,8 +131,8 @@ export default function Home() {
   }
   if (!isAuthenticated || !user) return null;
 
-  const today = new Date().toISOString().split("T")[0];
-  const upcoming = ballots.filter((b) => b.voteDate >= today);
+  // No date filtering — AppView already returns only published ballots.
+  const upcoming = ballots;
 
   return (
     <div
