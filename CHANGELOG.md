@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-06-15
+
+### Taxonomie-Snapshots: versionierte, öffentlich nachvollziehbare ATProto-Records beim Persistieren (`services/cms`, `lexicons`, `infra`)
+
+- **Neues Lexikon `app.ch.poltr.taxonomy.snapshot`** (`lexicons/app/ch/poltr/taxonomy/snapshot.json`, neben dem bestehenden `app.ch.poltr.taxonomy.get`): unveränderlicher Schnappschuss der Top-down-Themen-Hierarchie eines Ballots. Knoten inline (`key`, `name`, `description`, `introduction`, `importance`, `parent`-key), Argumente per **rkey** (gleiches Governance-Repo), `version` + `contentHash` + `prev` (Strong-Ref auf Vorgänger) für eine verkettete History. Nur Originalsprache (de-CH); Übersetzungen sind regenerierbare Ableitungen.
+- **Schreibpfad im CMS** (`services/cms/src/lib/atproto-publish.ts`, neue `publishTaxonomySnapshot`): liest den **persistierten** Baum vom Calculator (`GET /api/topdown/tree` → DB-Sicht mit stabilen Slugs), serialisiert, dedupliziert über Content-Hash (unveränderter Baum → kein neuer Record) und schreibt append-only mit TID-rkey auf das Governance-Konto des Ballots. Wiederverwendet die vorhandenen Helfer (`loadGovernanceCreds`, `pdsCreateSession`, `pdsCreateRecord`) — kein neuer Creds-Pfad, kein AppView-Endpoint.
+- **Trigger** (`services/cms/src/collections/Ballots.ts`, `components/TaxonomyPanel.tsx`): neuer Collection-Endpoint `POST /api/ballots/taxonomy-snapshot`; der „Persistieren"-Button feuert ihn **nach** erfolgreichem `/save`. Snapshot-Fehler verschlucken die erfolgreiche Persistierung nicht (nur Hinweis in der UI).
+- **History-Index** `app_taxonomy_snapshot` (`infra/scripts/postgres/db-setup.sql` + `migrate-taxonomy-snapshots.sql`): `(ballot_rkey, version, at_uri, cid, content_hash, created_at)` — CMS-Versionsanzeige ohne PDS-Abfrage; Quelle der Wahrheit für den **aktuellen** Baum bleibt `app_taxonomy_node`/`app_taxonomy_membership`.
+- **Größenanalyse:** selbst beim Maximum (3000 Argumente, ~500 Knoten) ~210 KB CBOR — ~5× Puffer unter dem 1-MiB-Record-Limit, kein Blob nötig. Neue Env `CALCULATOR_INTERNAL_URL` (`infra/kube/cms.yaml`) für den serverseitigen Calculator-Zugriff.
+
+### Taxonomie-Tabellen vereinheitlicht: `app_topic_*` → `app_taxonomy_*` (`services/calculator`, `services/appview`, `services/indexer`, `services/cms`, `infra`)
+
+- **Umbenennung** `app_topic_node` → `app_taxonomy_node`, `app_topic_membership` → `app_taxonomy_membership` (+ das neue `app_taxonomy_snapshot`), inkl. Indexe, Reset-Trigger/Funktion und benannte Check-Constraints. Damit heisst die gesamte Taxonomie-Schicht durchgängig `taxonomy` (DB-Storage = vormals einziger `topic`-Ausreisser, jetzt aligned mit `app.ch.poltr.taxonomy.*`, `taxonomy.py`, `TaxonomyPanel`).
+- **Alle SQL-Referenzen** in Calculator (`core/db.py`), AppView (`deliberation/taxonomy.py`, `deliberation/arguments.py`, `translation/translator.py`), Indexer (`db.js`), CMS (`lib/atproto-publish.ts`) und `infra/scripts/reset_ballot_template.py` angepasst.
+- **DB-Migration** `infra/scripts/postgres/migrate-rename-taxonomy.sql` (`ALTER … RENAME`, idempotent, No-op auf frischen DBs) für bestehende Deployments; `db-setup.sql` nutzt die neuen Namen direkt. Historische Migrationen (`migrate-topics.sql`, `migrate-topic-translations.sql`) bleiben eingefroren. GRANTs/Trigger überleben das RENAME → kein Re-Grant nötig.
+- **Deploy-Reihenfolge:** Migration **vor** dem Rollout der neuen Service-Images ausführen (die alten Images lesen noch `app_topic_*`).
+
 ## 2026-06-11
 
 ### Einheitlicher Auth-Screen + vereinfachte Magic-Link-Email (`services/appview`, `services/front`, `infra`, `doc`)

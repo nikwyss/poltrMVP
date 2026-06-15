@@ -537,3 +537,220 @@ export async function deleteImportedArgument(
   const { accessJwt } = await pdsCreateSession(did, password)
   await pdsDeleteRecord(did, accessJwt, ARGUMENT_NSID, rkeyFromUri(doc.pdsUri))
 }
+
+// ---------------------------------------------------------------------------
+// Taxonomy snapshots
+//
+// Beim „Persistieren" der Top-down-Taxonomie im CMS wird der persistierte Baum
+// als unveränderlicher, öffentlich nachvollziehbarer Record auf das Governance-
+// Konto des Ballots geschrieben (append-only, ein Record je echter Änderung).
+// Die Versionshistorie wird zusätzlich in app_taxonomy_snapshot indexiert.
+// ---------------------------------------------------------------------------
+
+const SNAPSHOT_NSID = 'app.ch.poltr.taxonomy.snapshot'
+
+// Server-seitiger Zugriff auf den Calculator (liefert den persistierten Baum).
+// Bevorzugt die interne K8s-Service-URL; fällt auf die öffentliche zurück.
+const CALCULATOR_URL =
+  process.env.CALCULATOR_INTERNAL_URL ||
+  process.env.NEXT_PUBLIC_CALCULATOR_URL ||
+  'https://calculator.poltr.info'
+
+/** Roh-Knoten, wie ihn der Calculator unter GET /api/topdown/tree liefert. */
+type CalcTreeNode = {
+  id?: number | null
+  key?: string | null
+  name: string
+  description?: string | null
+  introduction?: string | null
+  importance?: number | null
+  children?: CalcTreeNode[]
+  arguments?: Array<{
+    argument_uri: string
+    confidence?: number | null
+    stance?: string | null
+  }>
+}
+
+type SnapshotArg = { rkey: string; confidence?: number; stance?: string }
+type SnapshotNode = {
+  key: string
+  name: string
+  description?: string
+  introduction?: string
+  importance?: number
+  parent?: string
+  arguments?: SnapshotArg[]
+}
+
+/** Persistierten Baum vom Calculator holen. `null`, wenn (noch) kein Baum existiert. */
+async function fetchPersistedTree(ballotRkey: string): Promise<CalcTreeNode | null> {
+  const url = `${CALCULATOR_URL}/api/topdown/tree?ballot_rkey=${encodeURIComponent(ballotRkey)}`
+  const resp = await fetch(url, { headers: { 'Content-Type': 'application/json' } })
+  if (resp.status === 404) return null
+  if (!resp.ok) {
+    throw new Error(`Calculator /tree fehlgeschlagen (${resp.status}): ${await resp.text()}`)
+  }
+  const data = (await resp.json()) as { tree?: CalcTreeNode | null }
+  return data.tree ?? null
+}
+
+/**
+ * Wurzel-Baum → flache Knotenliste (ohne die strukturelle Wurzel) in DFS-Reihenfolge.
+ * Elternbezug über den stabilen `key`-Slug; Argumente per rkey (gleiches Repo).
+ */
+function flattenTree(root: CalcTreeNode): SnapshotNode[] {
+  const out: SnapshotNode[] = []
+  const keyOf = (n: CalcTreeNode): string => n.key || `node-${n.id ?? out.length}`
+
+  const walk = (node: CalcTreeNode, parentKey: string | null) => {
+    const sn: SnapshotNode = { key: keyOf(node), name: node.name }
+    if (node.description) sn.description = node.description
+    if (node.introduction) sn.introduction = node.introduction
+    if (node.importance != null) sn.importance = node.importance
+    if (parentKey != null) sn.parent = parentKey
+    const args: SnapshotArg[] = []
+    for (const a of node.arguments || []) {
+      const ref: SnapshotArg = { rkey: rkeyFromUri(a.argument_uri) }
+      if (a.confidence != null) ref.confidence = a.confidence
+      if (a.stance === 'pro' || a.stance === 'contra') ref.stance = a.stance
+      args.push(ref)
+    }
+    if (args.length) sn.arguments = args
+    out.push(sn)
+    for (const ch of node.children || []) walk(ch, sn.key)
+  }
+
+  // Die Wurzel selbst ist strukturell und wird nicht aufgenommen — ihre direkten
+  // Kinder sind die obersten Themen (parent = null).
+  for (const ch of root.children || []) walk(ch, null)
+  return out
+}
+
+/**
+ * Deterministischer sha256-Hex über die Knoten — unabhängig von der Reihenfolge.
+ * Knoten nach `key` sortiert, Argumente nach `rkey`; nur gesetzte Felder, feste
+ * Property-Reihenfolge. Basis für die Dedup beim Persistieren.
+ */
+function contentHash(nodes: SnapshotNode[]): string {
+  const canon = nodes
+    .map((n) => ({
+      key: n.key,
+      name: n.name,
+      description: n.description ?? null,
+      introduction: n.introduction ?? null,
+      importance: n.importance ?? null,
+      parent: n.parent ?? null,
+      arguments: (n.arguments ?? [])
+        .map((a) => ({
+          rkey: a.rkey,
+          confidence: a.confidence ?? null,
+          stance: a.stance ?? null,
+        }))
+        .sort((x, y) => (x.rkey < y.rkey ? -1 : x.rkey > y.rkey ? 1 : 0)),
+    }))
+    .sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0))
+  return crypto.createHash('sha256').update(JSON.stringify(canon)).digest('hex')
+}
+
+/** Letzter (höchste Version) indexierter Snapshot eines Ballots, falls vorhanden. */
+async function lastSnapshot(ballotRkey: string): Promise<{
+  version: number
+  at_uri: string
+  cid: string
+  content_hash: string
+} | null> {
+  const dbUrl = env('APPVIEW_POSTGRES_URL')
+  const client = new pg.Client({ connectionString: dbUrl })
+  try {
+    await client.connect()
+    const res = await client.query<{
+      version: number
+      at_uri: string
+      cid: string
+      content_hash: string
+    }>(
+      `SELECT version, at_uri, cid, content_hash
+       FROM app_taxonomy_snapshot
+       WHERE ballot_rkey = $1
+       ORDER BY version DESC
+       LIMIT 1`,
+      [ballotRkey],
+    )
+    return res.rows[0] ?? null
+  } finally {
+    await client.end()
+  }
+}
+
+async function recordSnapshot(
+  ballotRkey: string,
+  version: number,
+  atUri: string,
+  cid: string,
+  hash: string,
+): Promise<void> {
+  const dbUrl = env('APPVIEW_POSTGRES_URL')
+  const client = new pg.Client({ connectionString: dbUrl })
+  try {
+    await client.connect()
+    await client.query(
+      `INSERT INTO app_taxonomy_snapshot (ballot_rkey, version, at_uri, cid, content_hash)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [ballotRkey, version, atUri, cid, hash],
+    )
+  } finally {
+    await client.end()
+  }
+}
+
+export type SnapshotResult =
+  | { status: 'skipped'; version: number; reason: 'unchanged' }
+  | { status: 'empty'; reason: 'no_tree' }
+  | { status: 'published'; version: number; uri: string; cid: string; nodes: number; arguments: number }
+
+/**
+ * Den aktuell persistierten Taxonomie-Baum eines Ballots als unveränderlichen
+ * Snapshot-Record auf dessen Governance-Konto schreiben (append-only) und in
+ * app_taxonomy_snapshot indexieren.
+ *
+ * - Liest BEWUSST den persistierten Baum vom Calculator (DB-Sicht mit stabilen
+ *   key-Slugs), damit der Snapshot exakt dem gespeicherten Stand entspricht.
+ * - Dedup: ist der Baum identisch zum letzten Snapshot (Content-Hash), wird kein
+ *   neuer Record geschrieben.
+ * - Verkettet über `prev` (uri+cid) die Versionshistorie.
+ */
+export async function publishTaxonomySnapshot(ballotRkey: string): Promise<SnapshotResult> {
+  const root = await fetchPersistedTree(ballotRkey)
+  if (!root) return { status: 'empty', reason: 'no_tree' }
+
+  const nodes = flattenTree(root)
+  const hash = contentHash(nodes)
+
+  const prev = await lastSnapshot(ballotRkey)
+  if (prev && prev.content_hash === hash) {
+    return { status: 'skipped', version: prev.version, reason: 'unchanged' }
+  }
+
+  const version = (prev?.version ?? 0) + 1
+  const argCount = nodes.reduce((acc, n) => acc + (n.arguments?.length ?? 0), 0)
+
+  const record: Record<string, unknown> = {
+    $type: SNAPSHOT_NSID,
+    ballotRkey,
+    version,
+    contentHash: hash,
+    attribution: { generator: 'poltr-cms' },
+    nodes,
+    createdAt: new Date().toISOString(),
+  }
+  if (prev) record.prev = { uri: prev.at_uri, cid: prev.cid }
+
+  const { did, password } = await loadGovernanceCreds(ballotRkey)
+  const { accessJwt } = await pdsCreateSession(did, password)
+  const { uri, cid } = await pdsCreateRecord(did, accessJwt, SNAPSHOT_NSID, record)
+
+  await recordSnapshot(ballotRkey, version, uri, cid, hash)
+
+  return { status: 'published', version, uri, cid, nodes: nodes.length, arguments: argCount }
+}

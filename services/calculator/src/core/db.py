@@ -3,7 +3,7 @@ Postgres-Pool (AppView-Schema) für die Top-down Themen-Hierarchie.
 
 Nach dem Vorbild von services/appview/src/core/db.py. Der Calculator liest
 `app_arguments` und liest/schreibt die Top-down-Hierarchie
-(`app_topic_node` / `app_topic_membership`).
+(`app_taxonomy_node` / `app_taxonomy_membership`).
 """
 
 from __future__ import annotations
@@ -130,7 +130,7 @@ async def fetch_ballot_description(ballot_rkey: str) -> str | None:
 
 
 # =========================================================================
-#  Top-down Themen-Hierarchie (app_topic_node / app_topic_membership)
+#  Top-down Themen-Hierarchie (app_taxonomy_node / app_taxonomy_membership)
 # =========================================================================
 _UMLAUT = str.maketrans({
     "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss",
@@ -169,7 +169,7 @@ async def _insert_topic_tree(conn, ballot_rkey: str, tree: dict) -> dict:
         name = node.get("name") or "(Wurzel)"
         key = _unique_slug(_slugify(name), used_slugs)
         nid = await conn.fetchval(
-            """INSERT INTO app_topic_node
+            """INSERT INTO app_taxonomy_node
                    (ballot_rkey, parent_id, key, name, description, introduction,
                     depth, importance)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id""",
@@ -190,7 +190,7 @@ async def _insert_topic_tree(conn, ballot_rkey: str, tree: dict) -> dict:
                          a.get("confidence"), a.get("stance")))
         if rows:
             await conn.executemany(
-                """INSERT INTO app_topic_membership
+                """INSERT INTO app_taxonomy_membership
                        (ballot_rkey, node_id, argument_uri, confidence, stance)
                    VALUES ($1, $2, $3, $4, $5)
                    ON CONFLICT (ballot_rkey, argument_uri, node_id) DO UPDATE
@@ -216,7 +216,7 @@ async def persist_topic_tree(ballot_rkey: str, tree: dict) -> dict:
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(
-                "DELETE FROM app_topic_node WHERE ballot_rkey = $1", ballot_rkey)
+                "DELETE FROM app_taxonomy_node WHERE ballot_rkey = $1", ballot_rkey)
             stats = await _insert_topic_tree(conn, ballot_rkey, tree)
     return {"nodes": stats["nodes"], "memberships": stats["memberships"]}
 
@@ -235,13 +235,13 @@ async def fetch_topic_tree(ballot_rkey: str) -> dict | None:
     async with pool.acquire() as conn:
         nodes = await conn.fetch(
             """SELECT id, parent_id, key, name, description, introduction, depth, importance
-               FROM app_topic_node WHERE ballot_rkey = $1 ORDER BY depth, id""",
+               FROM app_taxonomy_node WHERE ballot_rkey = $1 ORDER BY depth, id""",
             ballot_rkey)
         if not nodes:
             return None
         mems = await conn.fetch(
             """SELECT node_id, argument_uri, confidence, stance
-               FROM app_topic_membership WHERE ballot_rkey = $1""", ballot_rkey)
+               FROM app_taxonomy_membership WHERE ballot_rkey = $1""", ballot_rkey)
 
     by_id: dict[int, dict] = {
         n["id"]: {"id": n["id"], "key": n["key"], "name": n["name"],
@@ -312,8 +312,8 @@ async def fetch_unplaced_arguments(ballot_rkey: str) -> list[dict]:
             """SELECT a.uri FROM app_arguments a
                WHERE a.ballot_rkey = $1 AND NOT a.deleted
                  AND NOT EXISTS (
-                     SELECT 1 FROM app_topic_membership m
-                     JOIN app_topic_node n ON n.id = m.node_id
+                     SELECT 1 FROM app_taxonomy_membership m
+                     JOIN app_taxonomy_node n ON n.id = m.node_id
                      WHERE m.ballot_rkey = $1 AND m.argument_uri = a.uri
                        AND n.parent_id IS NOT NULL)
             """, ballot_rkey)
@@ -335,9 +335,9 @@ async def fetch_unplaced_detailed(ballot_rkey: str) -> list[dict]:
             """SELECT a.uri, a.title, a.body, a.type, a.source_type, a.created_at,
                       m.node_id, n.parent_id
                FROM app_arguments a
-               LEFT JOIN app_topic_membership m
+               LEFT JOIN app_taxonomy_membership m
                       ON m.ballot_rkey = $1 AND m.argument_uri = a.uri
-               LEFT JOIN app_topic_node n ON n.id = m.node_id
+               LEFT JOIN app_taxonomy_node n ON n.id = m.node_id
                WHERE a.ballot_rkey = $1 AND NOT a.deleted
                ORDER BY (a.source_type = 'official') DESC, a.created_at ASC
             """, ballot_rkey)
@@ -386,8 +386,8 @@ async def fetch_overfull_nodes(ballot_rkey: str, threshold: int,
         rows = await conn.fetch(
             """SELECT n.id, n.name, n.depth,
                       array_agg(DISTINCT m.argument_uri) AS args
-               FROM app_topic_node n
-               JOIN app_topic_membership m ON m.node_id = n.id
+               FROM app_taxonomy_node n
+               JOIN app_taxonomy_membership m ON m.node_id = n.id
                WHERE n.ballot_rkey = $1 AND n.depth < $2
                GROUP BY n.id, n.name, n.depth
                HAVING count(DISTINCT m.argument_uri) >= $3
@@ -412,7 +412,7 @@ async def split_node(ballot_rkey: str, parent_id: int, parent_depth: int,
             # Bestehende Keys des Ballots laden → neue Slugs kollisionsfrei
             # (set-once: bestehende Knoten/Keys werden NIE angefasst).
             used_slugs = {r["key"] for r in await conn.fetch(
-                "SELECT key FROM app_topic_node WHERE ballot_rkey = $1 AND key IS NOT NULL",
+                "SELECT key FROM app_taxonomy_node WHERE ballot_rkey = $1 AND key IS NOT NULL",
                 ballot_rkey)}
             name_to_id: dict[str, int] = {}
             for s in subtopics:
@@ -420,7 +420,7 @@ async def split_node(ballot_rkey: str, parent_id: int, parent_depth: int,
                     continue  # leeres Unterthema nicht anlegen
                 key = _unique_slug(_slugify(s["name"]), used_slugs)
                 cid = await conn.fetchval(
-                    """INSERT INTO app_topic_node
+                    """INSERT INTO app_taxonomy_node
                            (ballot_rkey, parent_id, key, name, description, depth)
                        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id""",
                     ballot_rkey, parent_id, key, s["name"], s.get("description"),
@@ -432,12 +432,12 @@ async def split_node(ballot_rkey: str, parent_id: int, parent_depth: int,
                 if not child:
                     continue  # 'andere' oder leeres Unterthema → bleibt am Eltern
                 await conn.execute(
-                    """UPDATE app_topic_membership SET node_id = $1, updated_at = now()
+                    """UPDATE app_taxonomy_membership SET node_id = $1, updated_at = now()
                        WHERE ballot_rkey = $2 AND argument_uri = $3 AND node_id = $4""",
                     child, ballot_rkey, arg, parent_id)
                 moved += 1
             await conn.execute(
-                "UPDATE app_topic_node SET updated_at = now() WHERE id = $1", parent_id)
+                "UPDATE app_taxonomy_node SET updated_at = now() WHERE id = $1", parent_id)
     return {"children": created, "moved_arguments": moved}
 
 
@@ -459,7 +459,7 @@ async def add_topic_memberships(ballot_rkey: str, placements: dict[str, int],
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.executemany(
-            """INSERT INTO app_topic_membership
+            """INSERT INTO app_taxonomy_membership
                    (ballot_rkey, node_id, argument_uri, confidence, stance)
                VALUES ($1, $2, $3, $4, $5)
                ON CONFLICT (ballot_rkey, argument_uri, node_id) DO UPDATE

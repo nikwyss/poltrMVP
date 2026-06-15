@@ -6,8 +6,8 @@ Endpoint: **calculator.poltr.info** (intern: `calculator.poltr.svc.cluster.local
 Der Service baut und pflegt die **top-down Themen-Hierarchie** eines Ballots:
 einen Themen-BAUM, aus den offiziellen Argumenten geseedet, in den die Argumente
 top-down einsortiert werden (Einheit = Argument; genau EIN Thema pro Argument).
-Persistiert wird EIN stabiler Baum pro Ballot in `app_topic_node` /
-`app_topic_membership` (inkrementell mutierbar, nicht pro Lauf versioniert).
+Persistiert wird EIN stabiler Baum pro Ballot in `app_taxonomy_node` /
+`app_taxonomy_membership` (inkrementell mutierbar, nicht pro Lauf versioniert).
 
 ## LLM
 
@@ -89,10 +89,10 @@ src/
 ## DB-Anbindung (AppView-Postgres)
 
 Der Service liest `app_arguments` und liest/schreibt die Top-down-Hierarchie
-(`app_topic_node` / `app_topic_membership`) — siehe `src/core/db.py` (`asyncpg`,
+(`app_taxonomy_node` / `app_taxonomy_membership`) — siehe `src/core/db.py` (`asyncpg`,
 nach AppView-Vorbild). Verbindung über `CALCULATOR_POSTGRES_URL` (Fallback
 `APPVIEW_POSTGRES_URL`). DB-Rolle `calculator`: `SELECT` auf `app_arguments`, RW
-auf `app_topic_node` / `app_topic_membership` (siehe
+auf `app_taxonomy_node` / `app_taxonomy_membership` (siehe
 `infra/scripts/postgres/db-setup.sql` bzw. `migrate-topics.sql`). Optional liest
 der Service über `CALCULATOR_CMS_POSTGRES_URL` (read-only) die amtliche
 Vorlagen-Beschreibung als Themen-Kontext.

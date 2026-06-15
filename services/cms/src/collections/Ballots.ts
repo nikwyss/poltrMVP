@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
-import { APIError } from 'payload'
+import { APIError, addDataAndFileToRequest } from 'payload'
+import { publishTaxonomySnapshot } from '../lib/atproto-publish'
 
 export const Ballots: CollectionConfig = {
   slug: 'ballots',
@@ -20,6 +21,38 @@ export const Ballots: CollectionConfig = {
     update: ({ req: { user } }) => !!user,
     delete: ({ req: { user } }) => !!user,
   },
+  endpoints: [
+    {
+      // Versionierten Taxonomie-Snapshot veröffentlichen. Wird vom Ballot-Editor
+      // (components/TaxonomyPanel.tsx) NACH erfolgreichem „Persistieren" aufgerufen:
+      // POST /api/ballots/taxonomy-snapshot  Body: { ballotRkey }
+      //
+      // Schreibt den persistierten Baum als unveränderlichen
+      // app.ch.poltr.taxonomy.snapshot-Record auf das Governance-Konto des Ballots
+      // (append-only) und indexiert ihn in app_taxonomy_snapshot. Unveränderter Baum
+      // → kein neuer Record (Dedup über Content-Hash).
+      path: '/taxonomy-snapshot',
+      method: 'post',
+      handler: async (req) => {
+        if (!req.user) {
+          return Response.json({ error: 'Nicht angemeldet.' }, { status: 401 })
+        }
+        await addDataAndFileToRequest(req)
+        const ballotRkey = String((req.data as { ballotRkey?: unknown })?.ballotRkey ?? '').trim()
+        if (!ballotRkey) {
+          return Response.json({ error: 'ballotRkey ist erforderlich.' }, { status: 400 })
+        }
+        try {
+          const result = await publishTaxonomySnapshot(ballotRkey)
+          return Response.json(result)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          req.payload.logger.error(`taxonomy-snapshot fehlgeschlagen (${ballotRkey}): ${message}`)
+          return Response.json({ error: message }, { status: 500 })
+        }
+      },
+    },
+  ],
   fields: [
     // --- Sidebar fields (rendered in the sidebar across all tabs) ---
     {

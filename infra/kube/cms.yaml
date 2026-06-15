@@ -50,6 +50,10 @@ spec:
                 secretKeyRef:
                   name: pds-secrets
                   key: PDS_INTERNAL_URL
+            # Server-seitiger Zugriff aufs Calculator-Service (Taxonomie-Snapshots
+            # beim Persistieren). Interner K8s-Service, kein Ingress nötig.
+            - name: CALCULATOR_INTERNAL_URL
+              value: "http://calculator.poltr.svc.cluster.local"
 
           ports:
             - name: http

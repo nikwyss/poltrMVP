@@ -13,7 +13,7 @@ NACHTRÄGLICH in diese fixe Struktur ein.
 
 Die CLI (`python -m src.topdown.prototype <rkey>`) ist read-only und schreibt
 `topdown_args_<rkey>.json` zur Exploration; der produktive Pfad läuft über die
-Endpoints in router.py (persistiert in app_topic_node / app_topic_membership).
+Endpoints in router.py (persistiert in app_taxonomy_node / app_taxonomy_membership).
 """
 
 from __future__ import annotations

@@ -322,7 +322,7 @@ export async function markArgumentDeleted(uri) {
  *   - comments / likes — soft-delete columns + read-filters handle them.
  */
 export async function cascadeDeleteArgumentDerived(uri) {
-  await pool.query(`DELETE FROM app_topic_membership WHERE argument_uri = $1`, [uri]);
+  await pool.query(`DELETE FROM app_taxonomy_membership WHERE argument_uri = $1`, [uri]);
 }
 
 /**

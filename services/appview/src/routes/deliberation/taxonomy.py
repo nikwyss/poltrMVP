@@ -2,8 +2,8 @@
 XRPC route: taxonomy.get — der Themen-Baum eines Ballots MIT den darin
 eingeordneten Argumenten (für die Frontend-View „taxonomy", neben booklet/feed).
 
-Liest die vom Calculator gepflegte Top-down-Hierarchie (app_topic_node /
-app_topic_membership) und reichert jeden Knoten mit seinen Argumenten an: ein
+Liest die vom Calculator gepflegte Top-down-Hierarchie (app_taxonomy_node /
+app_taxonomy_membership) und reichert jeden Knoten mit seinen Argumenten an: ein
 Argument wird direkt einem Hauptthema zugeordnet und kann mit gekappter
 Multimembership zusätzlich an einem Nebenthema erscheinen (Multi-Thema).
 Read-only, ATProto-unabhängig (Analyse-Schicht; die Argumente selbst sind
@@ -191,7 +191,7 @@ async def get_taxonomy(
             nodes = await conn.fetch(
                 """SELECT id, parent_id, key, name, description, introduction,
                           depth, importance, langs, translations
-                   FROM app_topic_node WHERE ballot_rkey = $1
+                   FROM app_taxonomy_node WHERE ballot_rkey = $1
                    ORDER BY depth, id""",
                 ballot_rkey,
             )
@@ -210,7 +210,7 @@ async def get_taxonomy(
                               WHERE subject_uri = a.uri AND did = $2 AND NOT deleted
                               LIMIT 1
                           ) END AS viewer_pref
-                   FROM app_topic_membership m
+                   FROM app_taxonomy_membership m
                    JOIN app_arguments a ON a.uri = m.argument_uri
                    WHERE m.ballot_rkey = $1 AND NOT a.deleted""",
                 ballot_rkey, viewer_did,

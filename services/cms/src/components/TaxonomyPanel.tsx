@@ -539,7 +539,31 @@ export const TaxonomyPanelField: React.FC = () => {
         body: JSON.stringify({ ballot_rkey: rkey, tree: toServer(root) }),
       })
       setDirty(false)
-      setMsg(`Persistiert: ${r.saved?.nodes} Knoten, ${r.saved?.memberships} Zuordnungen.`)
+      let saved = `Persistiert: ${r.saved?.nodes} Knoten, ${r.saved?.memberships} Zuordnungen.`
+
+      // Versionierten, öffentlich nachvollziehbaren ATProto-Snapshot des persistierten
+      // Baums auf das Governance-Konto des Ballots schreiben (Dedup serverseitig).
+      // Ein Snapshot-Fehler darf die erfolgreiche Persistierung nicht verschlucken.
+      try {
+        const res = await fetch('/api/ballots/taxonomy-snapshot', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ballotRkey: rkey }),
+        })
+        const snap = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          saved += ` ⚠ Snapshot fehlgeschlagen: ${snap?.error || res.statusText}`
+        } else if (snap.status === 'published') {
+          saved += ` Snapshot v${snap.version} veröffentlicht.`
+        } else if (snap.status === 'skipped') {
+          saved += ` Snapshot unverändert (v${snap.version}).`
+        }
+      } catch (e) {
+        saved += ` ⚠ Snapshot fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
+      }
+
+      setMsg(saved)
       await load(rkey!)
     })
 

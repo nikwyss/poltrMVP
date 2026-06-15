@@ -9,7 +9,7 @@ REST-Endpoints für die Top-down Themen-Hierarchie.
 Einheit = ARGUMENT: jedes Argument hängt an GENAU EINEM Knoten (Thema).
 Klassifiziert wird direkt auf dem Argumenttext; je Zuordnung eine Konfidenz 1–5.
 
-Persistenz: EIN stabiler Baum pro Ballot (app_topic_node / app_topic_membership),
+Persistenz: EIN stabiler Baum pro Ballot (app_taxonomy_node / app_taxonomy_membership),
 inkrementell mutierbar — nicht pro Lauf versioniert. Signierte ATProto-Snapshots
 kommen später separat oben drauf.
 """

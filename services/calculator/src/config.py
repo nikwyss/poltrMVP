@@ -20,7 +20,7 @@ PORT = int(os.getenv("CALCULATOR_PORT", "3000"))
 LOG_LEVEL = os.getenv("CALCULATOR_LOG_LEVEL", "INFO").upper()
 
 # Postgres (AppView-Schema): liest app_arguments, liest/schreibt die Top-down-
-# Hierarchie (app_topic_node / app_topic_membership). Verbindung nach
+# Hierarchie (app_taxonomy_node / app_taxonomy_membership). Verbindung nach
 # AppView-Vorbild (asyncpg).
 POSTGRES_URL = os.getenv("CALCULATOR_POSTGRES_URL") or os.getenv("APPVIEW_POSTGRES_URL")
 

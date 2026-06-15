@@ -224,8 +224,8 @@ def reset_postgres(db_url: str, ballot_rkey: str, gov_did: str, execute: bool) -
                 ("app_comments", "DELETE FROM app_comments WHERE ballot_rkey = %(b)s"),
                 ("app_peerreview_responses", f"DELETE FROM app_peerreview_responses WHERE {pr_where}"),
                 ("app_peerreview_invitations", f"DELETE FROM app_peerreview_invitations WHERE {pr_where}"),
-                ("app_topic_membership", "DELETE FROM app_topic_membership WHERE ballot_rkey = %(b)s"),
-                ("app_topic_node", "DELETE FROM app_topic_node WHERE ballot_rkey = %(b)s"),
+                ("app_taxonomy_membership", "DELETE FROM app_taxonomy_membership WHERE ballot_rkey = %(b)s"),
+                ("app_taxonomy_node", "DELETE FROM app_taxonomy_node WHERE ballot_rkey = %(b)s"),
                 ("app_arguments (community; cascades peerreviews)",
                  "DELETE FROM app_arguments WHERE ballot_rkey = %(b)s "
                  "AND source_type IS DISTINCT FROM 'official'"),

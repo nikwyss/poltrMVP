@@ -114,10 +114,10 @@ CREATE INDEX app_arguments_translation_status_idx
 CREATE INDEX app_arguments_langs_idx ON app_arguments USING GIN (langs);
 
 -- Top-down Themen-Hierarchie (Arbeitsbaum, EIN stabiler Baum pro Ballot, inkrementell).
-CREATE TABLE app_topic_node (              -- Adjazenzliste: parent_id → Elternknoten (NULL = Wurzel)
+CREATE TABLE app_taxonomy_node (              -- Adjazenzliste: parent_id → Elternknoten (NULL = Wurzel)
   id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   ballot_rkey  text NOT NULL,
-  parent_id    bigint REFERENCES app_topic_node(id) ON DELETE CASCADE,
+  parent_id    bigint REFERENCES app_taxonomy_node(id) ON DELETE CASCADE,
   key          text,                  -- langlebiger Slug (mit '-'); set-once, für Permalinks
   name         text NOT NULL,
   description  text,                  -- 1 Satz, was darunterfällt — Kontext für den LLM-Klassifikator
@@ -135,16 +135,16 @@ CREATE TABLE app_topic_node (              -- Adjazenzliste: parent_id → Elter
   created_at   timestamptz NOT NULL DEFAULT now(),
   updated_at   timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX app_topic_node_ballot_idx ON app_topic_node (ballot_rkey);
-CREATE INDEX app_topic_node_parent_idx ON app_topic_node (parent_id);
-CREATE UNIQUE INDEX app_topic_node_key_uidx ON app_topic_node (ballot_rkey, key) WHERE key IS NOT NULL;
+CREATE INDEX app_taxonomy_node_ballot_idx ON app_taxonomy_node (ballot_rkey);
+CREATE INDEX app_taxonomy_node_parent_idx ON app_taxonomy_node (parent_id);
+CREATE UNIQUE INDEX app_taxonomy_node_key_uidx ON app_taxonomy_node (ballot_rkey, key) WHERE key IS NOT NULL;
 -- Worker-Queue: nur unübersetzte Knoten.
-CREATE INDEX app_topic_node_tx_status_idx ON app_topic_node (translation_status)
+CREATE INDEX app_taxonomy_node_tx_status_idx ON app_taxonomy_node (translation_status)
   WHERE translation_status IN ('pending', 'partial');
 
 -- Quelltext geändert (Rebuild/CMS-Edit) → Übersetzungen verwerfen, Status zurück
 -- auf 'pending', damit der Worker neu übersetzt.
-CREATE OR REPLACE FUNCTION app_topic_node_reset_translations() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION app_taxonomy_node_reset_translations() RETURNS trigger AS $$
 BEGIN
   IF NEW.name IS DISTINCT FROM OLD.name
      OR NEW.introduction IS DISTINCT FROM OLD.introduction THEN
@@ -155,14 +155,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS app_topic_node_reset_translations_trg ON app_topic_node;
-CREATE TRIGGER app_topic_node_reset_translations_trg
-  BEFORE UPDATE ON app_topic_node
-  FOR EACH ROW EXECUTE FUNCTION app_topic_node_reset_translations();
+DROP TRIGGER IF EXISTS app_taxonomy_node_reset_translations_trg ON app_taxonomy_node;
+CREATE TRIGGER app_taxonomy_node_reset_translations_trg
+  BEFORE UPDATE ON app_taxonomy_node
+  FOR EACH ROW EXECUTE FUNCTION app_taxonomy_node_reset_translations();
 
-CREATE TABLE app_topic_membership (       -- Argument → Knoten (Einheit = Argument; genau EIN Knoten pro Argument)
+CREATE TABLE app_taxonomy_membership (       -- Argument → Knoten (Einheit = Argument; genau EIN Knoten pro Argument)
   ballot_rkey  text NOT NULL,
-  node_id      bigint NOT NULL REFERENCES app_topic_node(id) ON DELETE CASCADE,
+  node_id      bigint NOT NULL REFERENCES app_taxonomy_node(id) ON DELETE CASCADE,
   argument_uri text NOT NULL,
   confidence   smallint CHECK (confidence IS NULL OR confidence BETWEEN 1 AND 5),  -- Klassifikator-Sicherheit 1–5
   stance       text CHECK (stance IN ('pro','contra')),  -- = app_arguments.type (PRO/CONTRA), keine Analyse
@@ -170,9 +170,26 @@ CREATE TABLE app_topic_membership (       -- Argument → Knoten (Einheit = Argu
   updated_at   timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (ballot_rkey, argument_uri, node_id)
 );
-CREATE INDEX app_topic_membership_node_idx ON app_topic_membership (node_id);
-CREATE UNIQUE INDEX app_topic_membership_arg_uidx          -- genau EIN Knoten pro Argument
-  ON app_topic_membership (ballot_rkey, argument_uri);
+CREATE INDEX app_taxonomy_membership_node_idx ON app_taxonomy_membership (node_id);
+CREATE UNIQUE INDEX app_taxonomy_membership_arg_uidx          -- genau EIN Knoten pro Argument
+  ON app_taxonomy_membership (ballot_rkey, argument_uri);
+
+-- Index der veröffentlichten Taxonomie-Snapshots. Beim „Persistieren" schreibt das
+-- CMS einen unveränderlichen app.ch.poltr.taxonomy.snapshot-Record auf das Governance-
+-- Konto des Ballots (append-only) und protokolliert ihn hier — damit die Versions-
+-- historie im CMS ohne PDS-Abfrage angezeigt werden kann. Quelle der Wahrheit für
+-- den AKTUELLEN Baum bleibt app_taxonomy_node/app_taxonomy_membership; diese Tabelle ist
+-- nur der Verlauf der publizierten Schnappschüsse.
+CREATE TABLE app_taxonomy_snapshot (
+  ballot_rkey  text NOT NULL,
+  version      integer NOT NULL,             -- fortlaufend je Ballot (1 = erster Snapshot)
+  at_uri       text NOT NULL,                -- AT-URI des Snapshot-Records
+  cid          text NOT NULL,
+  content_hash text NOT NULL,                -- sha256 über die kanonische Knoten-Serialisierung (Dedup)
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (ballot_rkey, version)
+);
+CREATE INDEX app_taxonomy_snapshot_ballot_idx ON app_taxonomy_snapshot (ballot_rkey);
 
 CREATE TABLE app_peerreview_invitations (
   uri              text PRIMARY KEY,
@@ -516,7 +533,7 @@ GRANT CONNECT ON DATABASE appview TO calculator;
 GRANT USAGE ON SCHEMA public TO calculator;
 GRANT SELECT ON app_arguments TO calculator;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
-  app_topic_node, app_topic_membership
+  app_taxonomy_node, app_taxonomy_membership
   TO calculator;
 REVOKE ALL ON SCHEMA auth FROM calculator;
 -- ALTER ROLE calculator WITH PASSWORD 'CHANGE_ME';

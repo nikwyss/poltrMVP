@@ -263,22 +263,22 @@ async def list_arguments(
 # app.ch.poltr.argument.get
 # -----------------------------------------------------------------------------
 
-# Topic-Breadcrumbs: für ein Argument alle Knoten (app_topic_membership), an
+# Topic-Breadcrumbs: für ein Argument alle Knoten (app_taxonomy_membership), an
 # denen es hängt, samt deren Pfad zur Wurzel (rekursiv über parent_id). Sortiert
 # je Blatt nach Tiefe → Wurzel zuerst. Die Wurzel (parent_id IS NULL) = Ballot
 # und wird beim Pfadbau weggelassen.
 _TOPIC_PATH_SQL = """
     WITH RECURSIVE memb AS (
         SELECT DISTINCT n.id, n.parent_id, n.key, n.name, n.description, n.depth
-        FROM app_topic_membership m
-        JOIN app_topic_node n ON n.id = m.node_id
+        FROM app_taxonomy_membership m
+        JOIN app_taxonomy_node n ON n.id = m.node_id
         WHERE m.argument_uri = $1
     ),
     anc AS (
         SELECT id AS leaf_id, id, parent_id, key, name, description, depth FROM memb
         UNION ALL
         SELECT a.leaf_id, p.id, p.parent_id, p.key, p.name, p.description, p.depth
-        FROM anc a JOIN app_topic_node p ON p.id = a.parent_id
+        FROM anc a JOIN app_taxonomy_node p ON p.id = a.parent_id
     )
     SELECT leaf_id, id, parent_id, key, name, description, depth
     FROM anc

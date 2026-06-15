@@ -723,7 +723,7 @@ async def _process_comment(client: httpx.AsyncClient, pool, row: dict) -> None:
 async def _process_topics_batch(client: httpx.AsyncClient) -> None:
     """Translate voter-facing topic-node fields (name + introduction).
 
-    The taxonomy lives only in app_topic_node (built by the calculator), so —
+    The taxonomy lives only in app_taxonomy_node (built by the calculator), so —
     unlike arguments/comments — there is no PDS round-trip: we UPDATE the row
     directly and recompute translation_status here. That means the status flips
     to 'complete' immediately (no indexer lag), so a node is never re-fetched
@@ -735,7 +735,7 @@ async def _process_topics_batch(client: httpx.AsyncClient) -> None:
         rows = await conn.fetch(
             """
             SELECT id, name, introduction, langs, translations
-            FROM app_topic_node
+            FROM app_taxonomy_node
             WHERE translation_status IN ('pending', 'partial')
             ORDER BY id ASC
             LIMIT $1
@@ -803,7 +803,7 @@ async def _process_topic(client: httpx.AsyncClient, pool, row: dict) -> None:
     async with pool.acquire() as conn:
         await conn.execute(
             """
-            UPDATE app_topic_node
+            UPDATE app_taxonomy_node
             SET langs = $1, translations = $2::jsonb, translation_status = $3
             WHERE id = $4
             """,
