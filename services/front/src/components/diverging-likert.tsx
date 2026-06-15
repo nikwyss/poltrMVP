@@ -1,26 +1,31 @@
 "use client";
 
 /**
- * Diverging-Likert — divergierende Likert-Verteilung je Thema. Jede Argument-
- * Bewertung fällt in eine von fünf Stufen (Nein · eher Nein · neutral · eher Ja ·
- * Ja). Die Stufen bilden einen durchgehenden Pill-Balken auf einer dezenten
- * Schiene, von der neutralen Mitte aus ausgewogen — die neutrale Stufe sitzt
- * mittig auf der Achse, Ablehnung wächst nach links, Zustimmung nach rechts.
+ * Soft-OR-Balken je Thema (zwei Arme). Jede Zeile ist ein Thema: links das Label,
+ * in der Mitte der Balken, rechts ein Badge.
  *
- * Die Zeilen sind nach aggregierter Haltung sortiert (Leaderboard); das Badge
- * rechts zeigt dieselbe Kennzahl in Prozentpunkten. Aggregierung zentral in
- * lib/aggregate.ts (siehe doc/AGGREGATION.md).
+ * Der Balken hat einen festen Nullpunkt in der Mitte (neutral); von dort wachsen
+ * zwei Arme in entgegengesetzte Richtungen:
+ *   • korallener Arm nach LINKS  = „spricht für ein Nein" (Kontra-Argumente)
+ *   • blauer Arm nach RECHTS     = „spricht für ein Ja"  (Pro-Argumente)
  *
- * Skala für ALLE Themen identisch (sonst nicht vergleichbar): gleiche
- * Stufengrenzen, gleiche Mitte, gemeinsame Schiene. Farbskala rot (Nein) ↔
- * neutral ↔ blau (Ja), konsistent mit dem Meinungsrad.
+ * Armlängen: Pro- und Kontra-Argumente liegen in zwei getrennten Töpfen (Bewertung
+ * 0–100 „wie stark spricht dieses Argument dafür"). Jeder Topf wird per Soft-OR
+ * (Noisy-OR mit γ, siehe lib/aggregate.ts) zu einer Zahl verdichtet: P (Ja) → blauer
+ * Arm, K (Nein) → korallener Arm, beide ∈ [0,1]. Die weissen Trennlinien zeigen die
+ * einzelnen Argumente — jedes Segment ist der „Happen", den dieses Argument zum
+ * Score beigetragen hat (breit = gewichtig). Eine Farbe je Seite, keine Stark/
+ * Schwach-Abstufung.
  *
- * Achs-Mapping (unipolar): c = (PRO ? +1 : −1) · preference / 100 ∈ [−1, 1].
+ * Badge rechts = Tendenz = P − K (z. B. „+45" = lehnt um 45 Punkte Richtung Ja).
+ *
+ * Lesart: längerer Arm = Richtung; beide lang = umkämpft; beide kurz = indifferent;
+ * lang + Stummel = klar einseitig.
  */
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { TaxonomyNode } from "@/types/ballots";
 import { Card, CardContent } from "@/components/ui/card";
-import { aggregateLeaning, collectLeaningContribs } from "@/lib/aggregate";
+import { collectLeaningContribs, noisyOrBites } from "@/lib/aggregate";
 
 type T = (key: string) => string;
 
@@ -28,21 +33,16 @@ const SERIF = {
   fontFamily: 'var(--font-serif), Georgia, "Times New Roman", serif',
 } as const;
 
-// Fünf Likert-Stufen, von Ablehnung (links, rot) zu Zustimmung (rechts, blau).
-const CATS = [
-  { key: "no", label: "panoramaNo", color: "rgb(176, 60, 42)" }, // Nein
-  { key: "ratherNo", label: "cloudRatherNo", color: "rgb(214, 142, 120)" }, // eher Nein
-  { key: "neutral", label: "neutral", color: "rgb(190, 181, 166)" }, // neutral
-  { key: "ratherYes", label: "cloudRatherYes", color: "rgb(157, 181, 216)" }, // eher Ja
-  { key: "yes", label: "panoramaYes", color: "rgb(60, 90, 143)" }, // Ja
-] as const;
+// Eine Farbe je Seite: korallen = Nein (links), blau = Ja (rechts).
+const ARM_NO = "rgb(202, 112, 88)"; // korallen / terrakotta
+const ARM_YES = "rgb(60, 90, 143)"; // navy
 
 // Schiene (Track) — warmes Hellgrau, passend zur cremefarbenen Karte.
 const TRACK = "rgb(238, 234, 226)";
 
-// Net-Badge: blau getönt bei Zustimmung, rot bei Ablehnung.
+// Tendenz-Badge: blau getönt Richtung Ja, korallen Richtung Nein.
 const POS = { bg: "rgba(60, 90, 143, 0.12)", fg: "rgb(56, 84, 134)" };
-const NEG = { bg: "rgba(176, 60, 42, 0.12)", fg: "rgb(166, 56, 38)" };
+const NEG = { bg: "rgba(202, 112, 88, 0.16)", fg: "rgb(166, 78, 54)" };
 const ZERO = { bg: "rgba(0,0,0,0.05)", fg: "var(--muted-foreground)" };
 
 /* ---------- Achsen-Geometrie (viewBox-Breite 600) ---------- */
@@ -50,22 +50,15 @@ const VW = 600;
 const PAD = 10;
 const X0 = PAD;
 const X1 = VW - PAD;
-const XC = (X0 + X1) / 2; // neutrale Mitte
-const HALF = (X1 - X0) / 2; // entspricht Anteil 1.0 je Seite
+const XC = (X0 + X1) / 2; // neutrale Mitte (fester Nullpunkt)
+const HALF = (X1 - X0) / 2;
 const BARH = 30;
 const TRACK_Y = 3;
 const TRACK_H = 24;
 const BAR_Y = 6;
 const BAR_H = 18;
-
-// c ∈ [−1,1] → Likert-Stufe 0…4 (gleich breite Fünftel).
-function categorize(c: number): number {
-  if (c < -0.6) return 0;
-  if (c < -0.2) return 1;
-  if (c <= 0.2) return 2;
-  if (c <= 0.6) return 3;
-  return 4;
-}
+const CGAP = 3; // Lücke je Seite an der Mitte (für die Mittellinie)
+const ARM_SPAN = HALF - CGAP; // px-Länge eines Arms bei Score = 1
 
 // −/+ mit echtem Minuszeichen, z. B. „+46", „−28". v ∈ [−1,1] → Prozentpunkte.
 function signed(v: number): string {
@@ -75,14 +68,73 @@ function signed(v: number): string {
   return "0";
 }
 
-type Seg = { i: number; x: number; w: number };
+type Bite = { mag: number; bite: number };
 type Row = {
   node: TaxonomyNode;
   n: number;
-  score: number;
-  barLeft: number;
-  segs: Seg[];
+  P: number; // Soft-OR Pro (Ja) ∈ [0,1]
+  K: number; // Soft-OR Kontra (Nein) ∈ [0,1]
+  tendency: number; // P − K ∈ [−1,1]
+  pro: Bite[];
+  kon: Bite[];
 };
+
+// Ein Arm: gerundeter Balken ab der Mitte nach `dir` (+1 rechts / −1 links),
+// in Argument-Segmente (weisse Trennlinien) unterteilt. Stärkstes Argument = Basis.
+function renderArm(bites: Bite[], dir: 1 | -1, color: string, clipId: string): ReactNode {
+  const span = bites.reduce((a, b) => a + b.bite, 0);
+  if (span < 0.002) return null;
+  const armLen = span * ARM_SPAN;
+  const innerX = XC + dir * CGAP;
+  const clipX = dir === 1 ? innerX : innerX - armLen;
+
+  const segs: ReactNode[] = [];
+  const seps: ReactNode[] = [];
+  let cum = 0;
+  bites.forEach((b, i) => {
+    const a = innerX + dir * cum * ARM_SPAN;
+    cum += b.bite;
+    const c = innerX + dir * cum * ARM_SPAN;
+    segs.push(
+      <rect
+        key={`g${i}`}
+        x={Math.min(a, c)}
+        y={BAR_Y}
+        width={Math.abs(c - a)}
+        height={BAR_H}
+        fill={color}
+      >
+        <title>{`${Math.round(b.mag * 100)}/100`}</title>
+      </rect>,
+    );
+    if (i > 0)
+      seps.push(
+        <line
+          key={`s${i}`}
+          x1={a}
+          y1={BAR_Y}
+          x2={a}
+          y2={BAR_Y + BAR_H}
+          stroke="var(--card)"
+          strokeWidth={1.5}
+        />,
+      );
+  });
+
+  return (
+    <g key={clipId}>
+      <defs>
+        <clipPath id={clipId}>
+          <rect x={clipX} y={BAR_Y} width={armLen} height={BAR_H} rx={BAR_H / 2} />
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${clipId})`}>
+        {segs}
+        {seps}
+      </g>
+    </g>
+  );
+}
 
 export function DivergingLikert({
   nodes,
@@ -97,35 +149,29 @@ export function DivergingLikert({
   const rows = useMemo<Row[]>(() => {
     const built = nodes.map((node) => {
       const cs = collectLeaningContribs(node);
-      const n = cs.length;
-      const counts = [0, 0, 0, 0, 0];
-      for (const c of cs) counts[categorize(c)]++;
-      const f = counts.map((k) => (n ? k / n : 0));
-      // Kennzahl: zentrale Aggregierung (Schalter in lib/aggregate.ts).
-      const score = aggregateLeaning(cs) ?? 0;
-      // Divergierend: neutrale Stufe mittig auf der Achse, Rest links/rechts.
-      // Durchgehender Balken (keine Lücken); Enden werden per Clip gerundet.
-      const barLeft = XC - (f[0] + f[1] + f[2] / 2) * HALF;
-      const segs: Seg[] = [];
-      let acc = barLeft;
-      for (let i = 0; i < 5; i++) {
-        const w = f[i] * HALF;
-        if (w > 0) segs.push({ i, x: acc, w });
-        acc += w;
-      }
-      return { node, n, score, barLeft, segs };
+      // Zwei Töpfe: Pro (c>0) und Kontra (c<0, Betrag), je per Soft-OR verdichtet.
+      const pro = noisyOrBites(cs.filter((c) => c > 0));
+      const kon = noisyOrBites(cs.filter((c) => c < 0).map((c) => -c));
+      const P = pro.reduce((a, b) => a + b.bite, 0);
+      const K = kon.reduce((a, b) => a + b.bite, 0);
+      return { node, n: cs.length, P, K, tendency: P - K, pro, kon };
     });
-    // Leaderboard: nach Mittelwert; unbewertete ans Ende.
+    // Leaderboard: nach Tendenz (P − K); unbewertete ans Ende.
     return built.sort((a, b) => {
       if (a.n === 0 || b.n === 0) return a.n === 0 ? (b.n === 0 ? 0 : 1) : -1;
-      return b.score - a.score;
+      return b.tendency - a.tendency;
     });
   }, [nodes]);
 
   if (!nodes.length) return null;
 
+  // Feste (inhaltsunabhängige) Label- und Badge-Spalten, damit die mittlere
+  // 1fr-Spalte in ALLEN Zeilen exakt gleich breit/positioniert ist — sonst läge
+  // die Balken-Mitte nicht unter der Mitte der Pol-Beschriftung (auto-Spalten
+  // kollabieren in der Achsen-Zeile auf 0). clamp() ist responsiv, aber je
+  // Zeile identisch (relativ zur Grid-Breite, nicht zum Inhalt).
   const rowGrid =
-    "grid grid-cols-[minmax(150px,240px)_1fr_auto] items-center gap-4";
+    "grid grid-cols-[clamp(140px,32%,230px)_1fr_3.75rem] items-center gap-4";
 
   return (
     <Card className="border-black/5 py-6">
@@ -145,51 +191,44 @@ export function DivergingLikert({
           {t("cloudSubtitle")}
         </p>
 
-        {/* Legende der fünf Stufen */}
-        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px] text-muted-foreground">
-          {CATS.map((cat) => (
-            <span key={cat.key} className="inline-flex items-center gap-1.5">
-              <span
-                className="h-3 w-3 rounded-[3px]"
-                style={{ background: cat.color }}
-              />
-              {t(cat.label)}
-            </span>
-          ))}
-        </div>
-
         <div className="flex flex-col gap-2">
-          {rows.map(({ node, n, score, barLeft, segs }) => {
-            const badge = n === 0 ? ZERO : score > 0 ? POS : score < 0 ? NEG : ZERO;
-            const clipId = `likert-clip-${node.id}`;
+          {rows.map(({ node, n, P, K, tendency, pro, kon }) => {
+            const badge =
+              n === 0 ? ZERO : tendency > 0 ? POS : tendency < 0 ? NEG : ZERO;
+            const base = `arm-${node.id}`;
             const clickable = !!node.key && !!onSelect;
             return (
-              <div key={node.id} className={rowGrid}>
-                {clickable ? (
-                  <button
-                    type="button"
-                    className="text-right text-[15px] leading-snug text-foreground/85 underline-offset-2 transition hover:text-foreground hover:underline focus-visible:underline focus-visible:outline-none"
-                    style={SERIF}
-                    title={node.name}
-                    onClick={() => onSelect!(node.key!)}
-                  >
-                    {node.name}
-                  </button>
-                ) : (
-                  <span
-                    className="text-right text-[15px] leading-snug text-foreground/85"
-                    style={SERIF}
-                    title={node.name}
-                  >
-                    {node.name}
-                  </span>
-                )}
+              <div
+                key={node.id}
+                className={`${rowGrid}${clickable ? " group -mx-2 cursor-pointer rounded-lg px-2 transition hover:bg-foreground/[0.035] focus-visible:bg-foreground/[0.035] focus-visible:outline-none" : ""}`}
+                role={clickable ? "button" : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                aria-label={clickable ? node.name : undefined}
+                onClick={clickable ? () => onSelect!(node.key!) : undefined}
+                onKeyDown={
+                  clickable
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onSelect!(node.key!);
+                        }
+                      }
+                    : undefined
+                }
+              >
+                <span
+                  className={`text-right text-[15px] leading-snug text-foreground/85${clickable ? " underline-offset-2 group-hover:text-foreground group-hover:underline" : ""}`}
+                  style={SERIF}
+                  title={node.name}
+                >
+                  {node.name}
+                </span>
 
                 <svg
                   viewBox={`0 0 ${VW} ${BARH}`}
                   className="block h-auto w-full"
                   role="img"
-                  aria-label={`${node.name} · n=${n} · ${signed(score)}`}
+                  aria-label={`${node.name} · für Ja ${Math.round(P * 100)} · für Nein ${Math.round(K * 100)} · ${signed(tendency)}`}
                 >
                   {/* Schiene */}
                   <rect
@@ -200,49 +239,23 @@ export function DivergingLikert({
                     rx={TRACK_H / 2}
                     fill={TRACK}
                   />
-                  {n > 0 ? (
-                    <>
-                      {/* Gerundete Bar-Enden via Clip; Segmente stossen lückenlos. */}
-                      <defs>
-                        <clipPath id={clipId}>
-                          <rect
-                            x={barLeft}
-                            y={BAR_Y}
-                            width={HALF}
-                            height={BAR_H}
-                            rx={BAR_H / 2}
-                          />
-                        </clipPath>
-                      </defs>
-                      <g clipPath={`url(#${clipId})`}>
-                        {segs.map((s) => (
-                          <rect
-                            key={s.i}
-                            x={s.x}
-                            y={BAR_Y}
-                            width={s.w + 0.5}
-                            height={BAR_H}
-                            fill={CATS[s.i].color}
-                          >
-                            <title>{t(CATS[s.i].label)}</title>
-                          </rect>
-                        ))}
-                      </g>
-                    </>
-                  ) : (
-                    <circle cx={XC} cy={BARH / 2} r={3.5} fill="var(--line-mid)" />
-                  )}
-                  {/* neutrale Mitte — dezent über allem */}
+                  {/* Arme: Kontra (links, korallen) + Pro (rechts, blau) */}
+                  {renderArm(kon, -1, ARM_NO, `${base}-no`)}
+                  {renderArm(pro, 1, ARM_YES, `${base}-yes`)}
+
+                  {/* feine Mittellinie — fester Nullpunkt (neutral) */}
                   <line
                     x1={XC}
-                    y1={1}
+                    y1={2}
                     x2={XC}
-                    y2={BARH - 1}
+                    y2={BARH - 2}
                     stroke="var(--line-mid)"
-                    strokeWidth={0.8}
-                    strokeOpacity={0.45}
-                    strokeDasharray="3 3"
+                    strokeWidth={1}
+                    strokeOpacity={0.7}
                   />
+                  {n === 0 && (
+                    <circle cx={XC} cy={BARH / 2} r={3} fill="var(--line-mid)" />
+                  )}
                 </svg>
 
                 <span
@@ -250,20 +263,23 @@ export function DivergingLikert({
                   style={{ background: badge.bg, color: badge.fg }}
                   title={n === 0 ? t("unrated") : undefined}
                 >
-                  {n === 0 ? "—" : signed(score)}
+                  {n === 0 ? "—" : signed(tendency)}
                 </span>
               </div>
             );
           })}
         </div>
 
-        {/* Pol-Beschriftung: mehr Nein ← neutral → mehr Ja */}
+        {/* Pol-Beschriftung am Nullpunkt: ← mehr Nein | mehr Ja → (mittig flankierend) */}
         <div className={`${rowGrid} mt-3`}>
           <span />
-          <div className="flex justify-between text-[11px] font-semibold uppercase tracking-[0.1em]">
-            <span style={{ color: NEG.fg }}>{t("cloudMoreNo")}</span>
-            <span className="text-muted-foreground">{t("neutral")}</span>
-            <span style={{ color: POS.fg }}>{t("cloudMoreYes")}</span>
+          <div className="flex text-[11px] font-semibold uppercase tracking-[0.1em]">
+            <span className="flex-1 pr-2 text-right" style={{ color: NEG.fg }}>
+              ← {t("cloudArmNo")}
+            </span>
+            <span className="flex-1 pl-2 text-left" style={{ color: POS.fg }}>
+              {t("cloudArmYes")} →
+            </span>
           </div>
           <span />
         </div>

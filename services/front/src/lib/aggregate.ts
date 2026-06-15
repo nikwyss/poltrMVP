@@ -59,8 +59,28 @@ export function collectLeaningContribs(node: TaxonomyNode): number[] {
 // „Lücke zu 100 schliessen". Eine 1.0 sättigt (bei γ=1) sofort, eine 0 ist
 // neutral (Faktor 1−0 = 1, ändert nichts → schwache Argumente ziehen nie runter),
 // mehrere mittelstarke bauen sich auf (sättigend). γ<1 dämpft Redundanz.
-const noisyOr = (ps: number[], g: number = AGG_NOISY_GAMMA) =>
+export const noisyOr = (ps: number[], g: number = AGG_NOISY_GAMMA) =>
   1 - ps.reduce((acc, p) => acc * (1 - g * p), 1);
+
+/**
+ * Zerlegt den Soft-OR-Score in die Beiträge („Happen") der einzelnen Argumente:
+ * jedes Argument schliesst einen schrumpfenden Bruchteil der Restlücke zu 1.
+ *   δᵢ = γ·pᵢ·(1 − S_{i−1})   mit  S_i = S_{i−1} + δᵢ
+ * Absteigend sortiert (stärkstes zuerst = Basis); Σδᵢ = noisyOr(ps). Für die
+ * Segmente im Soft-OR-Balken (DivergingLikert).
+ */
+export function noisyOrBites(
+  ps: number[],
+  g: number = AGG_NOISY_GAMMA,
+): { mag: number; bite: number }[] {
+  const sorted = [...ps].sort((a, b) => b - a);
+  let s = 0;
+  return sorted.map((mag) => {
+    const bite = g * mag * (1 - s);
+    s += bite;
+    return { mag, bite };
+  });
+}
 
 // Potenzmittel (Hölder): p=1 → Mittelwert, p→∞ → Max. Stufenloser Regler.
 const powerMean = (xs: number[], p: number) =>
