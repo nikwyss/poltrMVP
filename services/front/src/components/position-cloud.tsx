@@ -19,8 +19,9 @@
  * (−1 = Nein, 0 = neutral, +1 = Ja).
  */
 import { useMemo } from "react";
-import type { TaxonomyNode, TaxonomyArgument } from "@/types/ballots";
+import type { TaxonomyNode } from "@/types/ballots";
 import { Card, CardContent } from "@/components/ui/card";
+import { aggregateLeaning, collectLeaningContribs } from "@/lib/aggregate";
 
 type T = (key: string) => string;
 
@@ -75,40 +76,34 @@ function signed(v: number): string {
   return "0";
 }
 
-/* ---------- distinct Bewertungen eines Teilbaums ---------- */
-function collectContribs(node: TaxonomyNode): number[] {
-  const seen = new Map<string, number>();
-  const walk = (n: TaxonomyNode) => {
-    for (const a of (n.arguments ?? []) as TaxonomyArgument[]) {
-      if (a.viewerPreference == null || seen.has(a.uri)) continue;
-      const sign = a.type === "PRO" ? 1 : -1;
-      seen.set(a.uri, (sign * (a.viewerPreference - 50)) / 50);
-    }
-    for (const c of n.children ?? []) walk(c);
-  };
-  walk(node);
-  return [...seen.values()];
-}
-
 type Seg = { i: number; x: number; w: number };
 type Row = {
   node: TaxonomyNode;
   n: number;
-  mean: number;
+  score: number;
   barLeft: number;
   segs: Seg[];
 };
 
-export function PositionCloud({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
+export function PositionCloud({
+  nodes,
+  t,
+  onSelect,
+}: {
+  nodes: TaxonomyNode[];
+  t: T;
+  /** Klick auf die Themen-Beschriftung öffnet das Thema (Topic-Detail). */
+  onSelect?: (key: string) => void;
+}) {
   const rows = useMemo<Row[]>(() => {
     const built = nodes.map((node) => {
-      const cs = collectContribs(node);
+      const cs = collectLeaningContribs(node);
       const n = cs.length;
       const counts = [0, 0, 0, 0, 0];
       for (const c of cs) counts[categorize(c)]++;
       const f = counts.map((k) => (n ? k / n : 0));
-      // Kennzahl: Mittelwert aller Bewertungen (c ∈ [−1,1] → Prozentpunkte).
-      const mean = n ? cs.reduce((a, b) => a + b, 0) / n : 0;
+      // Kennzahl: zentrale Aggregierung (Schalter in lib/aggregate.ts).
+      const score = aggregateLeaning(cs) ?? 0;
       // Divergierend: neutrale Stufe mittig auf der Achse, Rest links/rechts.
       // Durchgehender Balken (keine Lücken); Enden werden per Clip gerundet.
       const barLeft = XC - (f[0] + f[1] + f[2] / 2) * HALF;
@@ -119,12 +114,12 @@ export function PositionCloud({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
         if (w > 0) segs.push({ i, x: acc, w });
         acc += w;
       }
-      return { node, n, mean, barLeft, segs };
+      return { node, n, score, barLeft, segs };
     });
     // Leaderboard: nach Mittelwert; unbewertete ans Ende.
     return built.sort((a, b) => {
       if (a.n === 0 || b.n === 0) return a.n === 0 ? (b.n === 0 ? 0 : 1) : -1;
-      return b.mean - a.mean;
+      return b.score - a.score;
     });
   }, [nodes]);
 
@@ -165,24 +160,37 @@ export function PositionCloud({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
         </div>
 
         <div className="flex flex-col gap-2">
-          {rows.map(({ node, n, mean, barLeft, segs }) => {
-            const badge = n === 0 ? ZERO : mean > 0 ? POS : mean < 0 ? NEG : ZERO;
+          {rows.map(({ node, n, score, barLeft, segs }) => {
+            const badge = n === 0 ? ZERO : score > 0 ? POS : score < 0 ? NEG : ZERO;
             const clipId = `cloud-clip-${node.id}`;
+            const clickable = !!node.key && !!onSelect;
             return (
               <div key={node.id} className={rowGrid}>
-                <span
-                  className="text-right text-[15px] leading-snug text-foreground/85"
-                  style={SERIF}
-                  title={node.name}
-                >
-                  {node.name}
-                </span>
+                {clickable ? (
+                  <button
+                    type="button"
+                    className="text-right text-[15px] leading-snug text-foreground/85 underline-offset-2 transition hover:text-foreground hover:underline focus-visible:underline focus-visible:outline-none"
+                    style={SERIF}
+                    title={node.name}
+                    onClick={() => onSelect!(node.key!)}
+                  >
+                    {node.name}
+                  </button>
+                ) : (
+                  <span
+                    className="text-right text-[15px] leading-snug text-foreground/85"
+                    style={SERIF}
+                    title={node.name}
+                  >
+                    {node.name}
+                  </span>
+                )}
 
                 <svg
                   viewBox={`0 0 ${VW} ${BARH}`}
                   className="block h-auto w-full"
                   role="img"
-                  aria-label={`${node.name} · n=${n} · ${signed(mean)}`}
+                  aria-label={`${node.name} · n=${n} · ${signed(score)}`}
                 >
                   {/* Schiene */}
                   <rect
@@ -243,7 +251,7 @@ export function PositionCloud({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
                   style={{ background: badge.bg, color: badge.fg }}
                   title={n === 0 ? t("unrated") : undefined}
                 >
-                  {n === 0 ? "—" : signed(mean)}
+                  {n === 0 ? "—" : signed(score)}
                 </span>
               </div>
             );

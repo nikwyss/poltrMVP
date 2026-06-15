@@ -142,14 +142,18 @@
     "yourRating": "Your rating"
   },
   "relevance": {
-    "low": "Low agreement",
-    "medium": "Partial agreement",
-    "high": "Strong agreement",
+    "s0": "Not at all",
+    "s1": "Barely",
+    "s2": "Somewhat",
+    "s3": "Strongly",
+    "s4": "Very strongly",
     "notRated": "Not yet rated",
-    "intro": "How much do you agree with this argument? Rate it by moving the slider.",
-    "increase": "Increase agreement",
-    "decrease": "Decrease agreement",
-    "ariaLabel": "Agreement rating"
+    "intro": "How strongly does this argument speak for a {direction} on the proposal? Rate it by moving the slider.",
+    "increase": "Increase strength",
+    "decrease": "Decrease strength",
+    "ariaLabel": "Strength rating",
+    "dirYes": "Yes",
+    "dirNo": "No"
   },
   "feed": {
     "addArgument": "Add argument",

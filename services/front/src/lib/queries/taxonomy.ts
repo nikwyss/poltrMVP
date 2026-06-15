@@ -115,9 +115,10 @@ export function patchTaxonomyPreference(
       for (const a of subtree.values()) {
         const pref = a.viewerPreference;
         if (pref == null) continue;
-        rated += 1; // neutral (50) zählt als bewertet, trägt aber 0 bei
+        rated += 1; // 0 („spricht gar nicht dafür") zählt als bewertet, trägt 0 bei
         const sign = a.type === "PRO" ? 1 : -1;
-        const contrib = (sign * (pref - 50)) / 50; // ∈ [-1,1]
+        // Unipolar: c = Vorzeichen·pref/100 (siehe lib/aggregate.ts + doc/AGGREGATION.md).
+        const contrib = (sign * pref) / 100; // ∈ [-1,1]
         if (contrib > 0) pos += contrib;
         else if (contrib < 0) neg += -contrib;
       }

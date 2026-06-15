@@ -142,14 +142,18 @@
     "yourRating": "Ihre Bewertung"
   },
   "relevance": {
-    "low": "Faible accord",
-    "medium": "Accord partiel",
-    "high": "Fort accord",
-    "notRated": "Noch nicht bewertet",
-    "intro": "Dans quelle mesure êtes-vous d'accord avec cet argument ? Évaluez-le en déplaçant le curseur.",
-    "increase": "Augmenter l'accord",
-    "decrease": "Diminuer l'accord",
-    "ariaLabel": "Évaluation de l'accord"
+    "s0": "Pas du tout",
+    "s1": "À peine",
+    "s2": "Un peu",
+    "s3": "Fortement",
+    "s4": "Très fortement",
+    "notRated": "Pas encore évalué",
+    "intro": "Dans quelle mesure cet argument plaide-t-il pour un {direction} à l'objet en votation ? Évaluez-le en déplaçant le curseur.",
+    "increase": "Augmenter l'intensité",
+    "decrease": "Diminuer l'intensité",
+    "ariaLabel": "Évaluation de l'intensité",
+    "dirYes": "Oui",
+    "dirNo": "Non"
   },
   "feed": {
     "addArgument": "Argument hinzufügen",

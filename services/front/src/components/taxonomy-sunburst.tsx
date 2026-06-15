@@ -5,8 +5,8 @@
  * Ballot, Ring 1 = Hauptthemen, weitere Ringe = Subthemen). Ergänzt das
  * Positionsband um die ganze Tiefe der Hierarchie auf einen Blick.
  *
- * Farbe = `proLeaning` ∈ [-1,1] des Viewers (relevanz-gewichtete Pro-Vorlage-
- * Neigung) als kontinuierliche diverging-Skala: rot (auf Gegner-Seite) → grau
+ * Farbe = aggregierte Haltung ∈ [-1,1] des Viewers (zentrale Aggregierung, siehe
+ * lib/aggregate.ts + doc/AGGREGATION.md) als kontinuierliche diverging-Skala: rot (auf Gegner-Seite) → grau
  * (neutral) → blau (auf Befürworter-Seite). Unbewertet/ohne Login = weiss
  * (mit feinem Umriss). Stark gespaltene Knoten (hoher `dissent`) bekommen einen
  * Amber-Rand — sie sind nicht indifferent, sondern hin- und hergerissen.
@@ -19,6 +19,7 @@
 import { useMemo, useState } from "react";
 import type { TaxonomyNode } from "@/types/ballots";
 import { Card, CardContent } from "@/components/ui/card";
+import { nodeLeaning, nodeDissent } from "@/lib/aggregate";
 
 type T = (key: string, values?: Record<string, string | number>) => string;
 
@@ -82,7 +83,7 @@ function rgb(c: [number, number, number]): string {
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 }
 
-// proLeaning -1..1 → Füllton auf der Skala rot ↔ warmes Grau ↔ blau. Schwache
+// Haltung -1..1 → Füllton auf der Skala rot ↔ warmes Grau ↔ blau. Schwache
 // Neigung bleibt hell (nahe Mitte), starke Neigung wird satt/dunkel; null = weiss.
 function fillRgb(lean: number | null | undefined): [number, number, number] | null {
   if (lean == null) return null;
@@ -328,6 +329,19 @@ export function TaxonomySunburst({
     return { segs, radii, maxLevel };
   }, [root, compact, showSub]);
 
+  // Aggregierte Haltung je Knoten — zentrale Funktion (Schalter in lib/aggregate.ts).
+  // Live-Update: `root` wechselt die Referenz bei jeder Bewertung ⇒ Neuberechnung.
+  const leanMap = useMemo(() => {
+    const m = new Map<number, number | null>();
+    const walk = (n: TaxonomyNode) => {
+      m.set(n.id, nodeLeaning(n));
+      for (const c of n.children ?? []) walk(c);
+    };
+    walk(root);
+    return m;
+  }, [root]);
+  const leanOf = (n: TaxonomyNode) => leanMap.get(n.id) ?? null;
+
   if (!segs.length) return null;
 
   // Einebenig (nur Top-Topics) ⇒ grössere Labels, da der eine Ring sehr dick ist;
@@ -338,8 +352,8 @@ export function TaxonomySunburst({
 
   // Standardmässig kein Panel; nur beim Hover erscheint Titel + Bewertung seitlich.
   const active = hover;
-  const lean = active?.proLeaning;
-  // Hover zeigt Thema + Mittelwert (proLeaning in Prozentpunkten); unbewertet:
+  const lean = active ? leanOf(active) : null;
+  // Hover zeigt Thema + aggregierte Haltung (in Prozentpunkten); unbewertet:
   // Hinweistext.
   const ratingLabel = active
     ? lean == null
@@ -350,7 +364,7 @@ export function TaxonomySunburst({
   const ratingColor =
     lean == null ? "rgba(0,0,0,0.5)" : rgb(mixT(lean >= 0 ? BLUE : RED, [30, 30, 30], 0.1));
   // Gespalten (hoher dissent) ⇒ Amber-Hinweis im Panel, passend zum Amber-Rand.
-  const activeSplit = !!active && (active.dissent ?? 0) > SPLIT_THRESHOLD;
+  const activeSplit = !!active && nodeDissent(active) > SPLIT_THRESHOLD;
   // Panel auf die dem Segment gegenüberliegende Seite legen (Winkel 0–180 = rechte
   // Hälfte → Panel links, sonst rechts), damit es das aktive Segment nicht verdeckt.
   const activeSeg = active ? segs.find((s) => s.node === active) : undefined;
@@ -410,9 +424,10 @@ export function TaxonomySunburst({
               // Tiefenstaffelung: innen voll deckend, aussen Richtung OUTER_OPACITY.
               const depthT = maxLevel > 1 ? (s.level - 1) / (maxLevel - 1) : 0;
               const baseOpacity = 1 - depthT * (1 - OUTER_OPACITY);
-              const unrated = s.node.proLeaning == null; // weiss ⇒ feiner Umriss nötig
+              const lean = leanOf(s.node);
+              const unrated = lean == null; // weiss ⇒ feiner Umriss nötig
               // Gespalten = hoher Dissens (Ja- UND Nein-Argumente stark bewertet) ⇒ Amber-Rand.
-              const split = (s.node.dissent ?? 0) > SPLIT_THRESHOLD;
+              const split = nodeDissent(s.node) > SPLIT_THRESHOLD;
               const clickable = !!s.node.key && !!onSelect;
               const mid = (s.a0 + s.a1) / 2;
               // Innerster Ring: Text gekrümmt entlang des Bogens; tiefere Ringe radial.
@@ -473,7 +488,7 @@ export function TaxonomySunburst({
                 <g key={`${s.node.id}-${s.level}`}>
                   <path
                     d={arcPath(rInner, rOuter, pa0, pa1)}
-                    fill={fillFor(s.node.proLeaning)}
+                    fill={fillFor(lean)}
                     stroke={unrated ? "rgba(0,0,0,0.2)" : "none"}
                     strokeWidth={unrated ? 1 : 0}
                     // Unbewertet ⇒ gestrichelter, „provisorischer" Rand.
@@ -513,7 +528,7 @@ export function TaxonomySunburst({
                         <g key={pid}>
                           <path id={pid} d={textArcPath(ri, s.a0, s.a1, flip)} fill="none" />
                           <text
-                            fill={textColor(s.node.proLeaning)}
+                            fill={textColor(lean)}
                             fontSize={segFont}
                             style={{ pointerEvents: "none", userSelect: "none" }}
                           >
@@ -528,7 +543,7 @@ export function TaxonomySunburst({
                     <text
                       x={lx}
                       y={ly}
-                      fill={textColor(s.node.proLeaning)}
+                      fill={textColor(lean)}
                       fontSize={segFont}
                       textAnchor="middle"
                       dominantBaseline="central"

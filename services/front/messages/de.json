@@ -142,14 +142,18 @@
     "yourRating": "Ihre Bewertung"
   },
   "relevance": {
-    "low": "Geringe Übereinstimmung",
-    "medium": "Teilweise Übereinstimmung",
-    "high": "Grosse Übereinstimmung",
+    "s0": "Gar nicht",
+    "s1": "Kaum",
+    "s2": "Etwas",
+    "s3": "Stark",
+    "s4": "Sehr stark",
     "notRated": "Noch nicht bewertet",
-    "intro": "Wie sehr stimmen Sie diesem Argument zu? Bewerten Sie es, indem Sie den Regler verschieben.",
-    "increase": "Zustimmung erhöhen",
-    "decrease": "Zustimmung verringern",
-    "ariaLabel": "Zustimmungs-Bewertung"
+    "intro": "Wie stark spricht dieses Argument für ein {direction} zur Vorlage? Bewerten Sie es, indem Sie den Regler verschieben.",
+    "increase": "Stärke erhöhen",
+    "decrease": "Stärke verringern",
+    "ariaLabel": "Stärke-Bewertung",
+    "dirYes": "Ja",
+    "dirNo": "Nein"
   },
   "feed": {
     "addArgument": "Argument hinzufügen",

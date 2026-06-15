@@ -142,14 +142,18 @@
     "yourRating": "Ihre Bewertung"
   },
   "relevance": {
-    "low": "Pauca concordanza",
-    "medium": "Concordanza parziala",
-    "high": "Gronda concordanza",
-    "notRated": "Noch nicht bewertet",
-    "intro": "Quant essas Vus d'accord cun quest argument? Valitar el cun spustar il register.",
-    "increase": "Augmentar la concordanza",
-    "decrease": "Diminuir la concordanza",
-    "ariaLabel": "Valitaziun da la concordanza"
+    "s0": "Insumma na",
+    "s1": "Strusch",
+    "s2": "In pau",
+    "s3": "Ferm",
+    "s4": "Fitg ferm",
+    "notRated": "Anc betg valità",
+    "intro": "Quant ferm plaida quest argument per in {direction} a la proposta? Valitar el cun spustar il register.",
+    "increase": "Augmentar la forza",
+    "decrease": "Diminuir la forza",
+    "ariaLabel": "Valitaziun da la forza",
+    "dirYes": "Gea",
+    "dirNo": "Na"
   },
   "feed": {
     "addArgument": "Argument hinzufügen",

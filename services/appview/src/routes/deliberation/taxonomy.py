@@ -128,12 +128,13 @@ def _aggregate(node: dict, acc: set, arg_meta: dict) -> set:
     Pro-Vorlage-Neigung `proLeaning` ∈ [-1, 1] (None, wenn keine aussagekräftig
     bewerteten Argumente).
 
-    Modell: die Bewertung eines Arguments ist ZUSTIMMUNG (1–100, 50 = neutral),
-    nicht reines Gewicht. Pro Argument ist `arg_meta[uri]` der Pro-Vorlage-Beitrag
-    ∈ [-1, 1] = Seite (PRO +1 / CONTRA −1) × zentrierter Zustimmung (pref−50)/50.
-    Ein *abgelehntes* Contra (niedrige Bewertung) zählt also Richtung Befürworter,
-    ein *bestätigtes* Contra Richtung Gegner — analog für Pro. Beiträge werden
-    nach positiver/negativer Seite gebündelt und über die Gesamtmasse normiert."""
+    Modell (UNIPOLAR): die Bewertung misst, wie stark ein Argument FÜR seine Seite
+    spricht (0–100). Pro Argument ist `arg_meta[uri]` der Pro-Vorlage-Beitrag
+    ∈ [-1, 1] = Seite (PRO +1 / CONTRA −1) × Stärke pref/100. Ein Pro-Argument
+    trägt also nur Richtung Befürworter (oder 0), ein Contra nur Richtung Gegner —
+    nie über die Mitte. `pref = 0` = „spricht gar nicht dafür" = kein Beitrag.
+    Beiträge werden nach positiver/negativer Seite gebündelt und normiert.
+    (Vgl. services/front/src/lib/aggregate.ts + doc/AGGREGATION.md.)"""
     local: set = set()
     for a in node["arguments"]:
         local.add(a["uri"])
@@ -244,11 +245,11 @@ async def get_taxonomy(
                 "availableLangs": loc.get("availableLangs"),
             }
             if pref is not None and r["uri"] not in arg_meta:
-                # Präferenz 1–100 = Zustimmung zum Argument (50 = neutral). Auf
-                # [-1,1] zentrieren und mit der Seite verrechnen → Pro-Vorlage-
-                # Beitrag: bestätigtes PRO/abgelehntes CONTRA → +, sonst −.
+                # Präferenz 0–100 = Stärke, mit der das Argument FÜR seine Seite
+                # spricht. Unipolar mit der Seite verrechnen → Pro-Vorlage-Beitrag
+                # c = Vorzeichen·pref/100 (Pro → +, Contra → −; 0 = kein Beitrag).
                 sign = 1.0 if r["type"] == "PRO" else -1.0
-                arg_meta[r["uri"]] = sign * (float(pref) - 50.0) / 50.0
+                arg_meta[r["uri"]] = sign * float(pref) / 100.0
 
         def _node_dict(n) -> dict:
             ntx = n["translations"]

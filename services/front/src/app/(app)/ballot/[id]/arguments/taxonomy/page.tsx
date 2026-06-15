@@ -207,7 +207,7 @@ export default function TaxonomyPage() {
             )}
 
             {/* Positionswolken — dieselben Daten als Raincloud (Verteilung) */}
-            <PositionCloud nodes={root.children} t={t} />
+            <PositionCloud nodes={root.children} t={t} onSelect={openTopicDetail} />
           </LockedSection>
         </div>
       )}

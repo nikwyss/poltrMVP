@@ -61,6 +61,8 @@ Siehe Plan-Datei mit Detail-Mitigations. Verwandt: [[project_architecture_layers
 
 
 ## Done
+- Auswertungsplots. (erste version.)
+- Argument-Aggregation (topic groupings etc.) => noisy-or
 - Taxonomy snapshot.
 - Layout Der Argument View (Taxonomy)
 - Email-Magic-Link: Text und Layout (Vorbild Tamedia: Verifzierungscode zum Beispiel) 

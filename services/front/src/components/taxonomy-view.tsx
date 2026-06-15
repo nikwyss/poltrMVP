@@ -25,6 +25,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { TaxonomyArgument, TaxonomyNode } from "@/types/ballots";
+import {
+  collectLeaningContribs,
+  aggregateLeaning,
+  aggregateDissent,
+} from "@/lib/aggregate";
 import { ProContraColumnHeaders } from "@/components/pro-contra-column-headers";
 import { Card } from "@/components/ui/card";
 import {
@@ -53,7 +58,8 @@ const ACTION_BTN =
   "flex max-w-full items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium text-foreground/70 transition hover:bg-foreground/[0.06] hover:text-foreground";
 
 // ---------------------------------------------------------------------------
-// „Für dich"-Insight: Zustand aus proLeaning / dissent / ratedCount ableiten.
+// „Für dich"-Insight: Zustand zentral aus den Bewertungs-Beiträgen ableiten
+// (Haltung + Kontroversität, Schalter in lib/aggregate.ts).
 // ---------------------------------------------------------------------------
 const THRESHOLD = 0.12;
 const SPLIT = 0.5;
@@ -69,9 +75,10 @@ type InsightState = "unrated" | "split" | "pro" | "contra" | "balanced";
 export function getInsight(node: TaxonomyNode, t: T): {
   state: InsightState; bar: string; bg: string; Icon: LucideIcon; title: string; sub: string;
 } {
-  const rated = node.ratedCount ?? 0;
-  const lean = node.proLeaning;
-  const dissent = node.dissent ?? 0;
+  const contribs = collectLeaningContribs(node);
+  const rated = contribs.length;
+  const lean = aggregateLeaning(contribs);
+  const dissent = aggregateDissent(contribs);
   let state: InsightState;
   if (lean == null || rated < MIN_RATED) state = "unrated";
   else if (dissent > SPLIT) state = "split";

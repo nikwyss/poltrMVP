@@ -5,18 +5,22 @@ import { useTranslations } from "next-intl";
 import { Minus, Plus } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 
-// Zustimmungs-Stufen auf der 1–100-Skala (50 = neutral): gering / mittel / gross.
-// (Schwellen so gewählt, dass z. B. 64 bereits als "gross" zählt.)
-export function relevanceLevel(value: number): "low" | "medium" | "high" {
-  if (value <= 30) return "low";
-  if (value <= 60) return "medium";
-  return "high";
+// Stärke-Stufen auf der unipolaren 0–100-Skala: 0..4 bei Schwellen 20/40/60/80.
+// (0 = „spricht gar nicht dafür", 100 = „spricht sehr stark dafür".)
+export function relevanceLevel(value: number): 0 | 1 | 2 | 3 | 4 {
+  if (value < 20) return 0;
+  if (value < 40) return 1;
+  if (value < 60) return 2;
+  if (value < 80) return 3;
+  return 4;
 }
 
-const clamp = (v: number) => Math.min(100, Math.max(1, Math.round(v)));
+const clamp = (v: number) => Math.min(100, Math.max(0, Math.round(v)));
 
 /**
- * Bewertungs-Regler: Zustimmung zum Argument auf einer Skala von 1–100 (50 = neutral).
+ * Bewertungs-Regler (unipolar): „Wie stark spricht dieses Argument für ein Ja
+ * [bzw. Nein] zur Vorlage?" auf einer Skala 0–100. Die Richtung (Ja/Nein) kommt
+ * aus dem Argument-Typ (`accent`); der Regler misst nur die Stärke.
  * Über dem Regler schwebt eine Pille mit der qualitativen Stufe und dem Wert.
  *
  * `onChange` aktualisiert laufend (smooth UI), `onCommit` feuert beim Loslassen
@@ -38,18 +42,18 @@ export function RelevanceRating({
 }) {
   const t = useTranslations("relevance");
   const rated = value !== null;
-  // Unbewertet: Regler steht neutral in der Mitte, ohne Wert anzuzeigen.
-  const display = value ?? 50;
+  // Unbewertet: Regler steht links (0), ohne Wert anzuzeigen.
+  const display = value ?? 0;
   const level = relevanceLevel(display);
-  const label = !rated
-    ? t("notRated")
-    : level === "low"
-      ? t("low")
-      : level === "medium"
-        ? t("medium")
-        : t("high");
-  // Horizontale Position der Pille = Position des Reglerknopfes (1 → 0 %, 100 → 100 %).
-  const pct = ((display - 1) / 99) * 100;
+  const LEVEL_KEYS = ["s0", "s1", "s2", "s3", "s4"] as const;
+  const label = !rated ? t("notRated") : t(LEVEL_KEYS[level]);
+  // Richtung aus dem Argument-Typ: Pro spricht „für ein Ja", Contra „für ein Nein".
+  const direction = accent === "contra" ? t("dirNo") : t("dirYes");
+  // Horizontale Position der Pille = Position des Reglerknopfes (0 → 0 %, 100 → 100 %).
+  const pct = display;
+  // Pille an den Rändern leicht einrücken, damit sie nicht über den Track
+  // hinausragt (Default unbewertet sitzt bei 0 = ganz links).
+  const pillPct = Math.min(92, Math.max(8, pct));
 
   // Farbkonzept = Argumentfarbe. Per Inline-Style gesetzt (statt gescopter Klasse),
   // damit die Custom Properties zuverlässig in den Radix-Slider hineinvererben.
@@ -60,7 +64,7 @@ export function RelevanceRating({
 
   return (
     <div className="na-rating" style={accentStyle}>
-      {showIntro && <p className="na-rating-intro">{t("intro")}</p>}
+      {showIntro && <p className="na-rating-intro">{t("intro", { direction })}</p>}
 
       <div className="na-rating-control">
         <button
@@ -79,7 +83,7 @@ export function RelevanceRating({
         <div className="na-rating-track-wrap">
           <div
             className={`na-rating-pill${rated ? "" : " na-rating-pill-unrated"}`}
-            style={{ left: `${pct}%` }}
+            style={{ left: `${pillPct}%` }}
             aria-hidden="true"
           >
             <span className="na-rating-label">{label}</span>
@@ -92,7 +96,7 @@ export function RelevanceRating({
           </div>
           <Slider
             className={`na-rating-slider${rated ? "" : " na-rating-slider-unrated"}`}
-            min={1}
+            min={0}
             max={100}
             step={1}
             value={[display]}

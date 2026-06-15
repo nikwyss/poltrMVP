@@ -142,14 +142,18 @@
     "yourRating": "Ihre Bewertung"
   },
   "relevance": {
-    "low": "Scarso accordo",
-    "medium": "Accordo parziale",
-    "high": "Forte accordo",
-    "notRated": "Noch nicht bewertet",
-    "intro": "Quanto sei d'accordo con questa argomentazione? Valutala spostando il cursore.",
-    "increase": "Aumenta l'accordo",
-    "decrease": "Diminuisci l'accordo",
-    "ariaLabel": "Valutazione dell'accordo"
+    "s0": "Per niente",
+    "s1": "Appena",
+    "s2": "Un po'",
+    "s3": "Fortemente",
+    "s4": "Molto fortemente",
+    "notRated": "Non ancora valutato",
+    "intro": "Quanto fortemente questo argomento depone per un {direction} sull'oggetto in votazione? Valutalo spostando il cursore.",
+    "increase": "Aumenta l'intensità",
+    "decrease": "Diminuisci l'intensità",
+    "ariaLabel": "Valutazione dell'intensità",
+    "dirYes": "Sì",
+    "dirNo": "No"
   },
   "feed": {
     "addArgument": "Argument hinzufügen",
