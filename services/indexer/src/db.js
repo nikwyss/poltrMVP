@@ -325,6 +325,169 @@ export async function cascadeDeleteArgumentDerived(uri) {
   await pool.query(`DELETE FROM app_taxonomy_membership WHERE argument_uri = $1`, [uri]);
 }
 
+// ---------------------------------------------------------------------------
+// Taxonomy snapshot projection (PDS = source of truth → DB read-model)
+//
+// The CMS writes one app.ch.poltr.taxonomy.snapshot record (the whole tree) to a
+// ballot's governance account. This projects it into app_taxonomy_node/_membership.
+// ---------------------------------------------------------------------------
+
+const TAXONOMY_ARGUMENT_NSID = "app.ch.poltr.ballot.argument";
+// Stable key of the synthetic structural root (parent_id NULL, depth 0). The
+// snapshot omits the root; its top-level nodes (no `parent`) hang under this.
+const TAXONOMY_ROOT_KEY = "__root__";
+
+/**
+ * Project a taxonomy snapshot record into the DB read-model. Idempotent: same
+ * record → same DB state. Key points:
+ *   - nodes are UPSERTed by (ballot_rkey, key); the translation columns
+ *     (langs/translations/translation_status) are NEVER touched here, so existing
+ *     translations survive a structural re-sync. The reset-trigger invalidates only
+ *     nodes whose name/introduction actually changed.
+ *   - sibling order comes from the snapshot's array order → node_order.
+ *   - nodes whose key is no longer in the snapshot are deleted (CASCADE removes
+ *     their memberships + sub-trees).
+ *   - memberships are replaced wholesale, reconciled against live (non-deleted)
+ *     arguments (a snapshot may reference an argument deleted since it was written).
+ *
+ * @param {object} params { did (governance repo DID), record }
+ */
+export async function projectTaxonomySnapshotDb(params) {
+  const { did, record } = params;
+  const ballotRkey = String(record?.ballotRkey ?? "").trim();
+  const snapNodes = Array.isArray(record?.nodes) ? record.nodes : [];
+  if (!ballotRkey) {
+    console.warn("taxonomy.snapshot without ballotRkey — skipping");
+    return;
+  }
+
+  // depth (root=0, top-level=1, …) from the parent-key chain. Pre-order array
+  // guarantees a parent appears before its children.
+  const depthByKey = new Map();
+  for (const n of snapNodes) {
+    const d = n.parent ? (depthByKey.get(n.parent) ?? 0) + 1 : 1;
+    depthByKey.set(n.key, d);
+  }
+  // node_order per sibling group, from array order.
+  const orderByKey = new Map();
+  const orderCounter = new Map();
+  for (const n of snapNodes) {
+    const pk = n.parent || TAXONOMY_ROOT_KEY;
+    const idx = orderCounter.get(pk) ?? 0;
+    orderByKey.set(n.key, idx);
+    orderCounter.set(pk, idx + 1);
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // 1. Synthetic structural root (stable key). ON CONFLICT must spell out the
+    //    partial-index predicate (app_taxonomy_node_key_uidx is WHERE key IS NOT NULL).
+    const rootRes = await client.query(
+      `INSERT INTO app_taxonomy_node (ballot_rkey, parent_id, key, name, depth, node_order)
+       VALUES ($1, NULL, $2, $3, 0, 0)
+       ON CONFLICT (ballot_rkey, key) WHERE key IS NOT NULL
+         DO UPDATE SET parent_id = NULL, depth = 0, node_order = 0, updated_at = now()
+       RETURNING id`,
+      [ballotRkey, TAXONOMY_ROOT_KEY, `Vorlage ${ballotRkey}`],
+    );
+    const rootId = rootRes.rows[0].id;
+
+    // 2. UPSERT nodes (parent_id provisionally = root; fixed in pass 3). Translation
+    //    columns deliberately untouched.
+    const keyToId = new Map([[TAXONOMY_ROOT_KEY, rootId]]);
+    for (const n of snapNodes) {
+      const r = await client.query(
+        `INSERT INTO app_taxonomy_node
+           (ballot_rkey, parent_id, key, name, description, introduction,
+            depth, node_order, importance)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (ballot_rkey, key) WHERE key IS NOT NULL DO UPDATE SET
+           name         = EXCLUDED.name,
+           description  = EXCLUDED.description,
+           introduction = EXCLUDED.introduction,
+           depth        = EXCLUDED.depth,
+           node_order   = EXCLUDED.node_order,
+           importance   = EXCLUDED.importance,
+           updated_at   = now()
+         RETURNING id`,
+        [
+          ballotRkey,
+          rootId,
+          n.key,
+          n.name,
+          n.description ?? null,
+          n.introduction ?? null,
+          depthByKey.get(n.key) ?? 1,
+          orderByKey.get(n.key) ?? 0,
+          n.importance ?? null,
+        ],
+      );
+      keyToId.set(n.key, r.rows[0].id);
+    }
+
+    // 3. Fix parent_id now that all ids are known. Dangling parents stay under root.
+    for (const n of snapNodes) {
+      const parentId = n.parent ? keyToId.get(n.parent) : rootId;
+      if (parentId == null) continue;
+      await client.query(`UPDATE app_taxonomy_node SET parent_id = $1 WHERE id = $2`, [
+        parentId,
+        keyToId.get(n.key),
+      ]);
+    }
+
+    // 4. Delete orphan nodes (keys no longer in the snapshot; keep root). CASCADE
+    //    removes their memberships and sub-trees.
+    const liveKeys = [TAXONOMY_ROOT_KEY, ...snapNodes.map((n) => n.key)];
+    await client.query(
+      `DELETE FROM app_taxonomy_node WHERE ballot_rkey = $1 AND key <> ALL($2::text[])`,
+      [ballotRkey, liveKeys],
+    );
+
+    // 5. Replace memberships, reconciled against live arguments. argument_uri is
+    //    reconstructed from the rkey + the snapshot's own repo DID (args live in the
+    //    same governance repo).
+    await client.query(`DELETE FROM app_taxonomy_membership WHERE ballot_rkey = $1`, [
+      ballotRkey,
+    ]);
+    for (const n of snapNodes) {
+      const nodeId = keyToId.get(n.key);
+      const args = Array.isArray(n.arguments) ? n.arguments : [];
+      for (const a of args) {
+        const rkey = a?.rkey;
+        if (!rkey) continue;
+        const uri = `at://${did}/${TAXONOMY_ARGUMENT_NSID}/${rkey}`;
+        await client.query(
+          `INSERT INTO app_taxonomy_membership
+             (ballot_rkey, node_id, argument_uri, confidence, stance)
+           SELECT $1, $2, $3, $4, $5
+           WHERE EXISTS (SELECT 1 FROM app_arguments WHERE uri = $3 AND NOT deleted)
+           ON CONFLICT (ballot_rkey, argument_uri, node_id) DO UPDATE
+             SET confidence = EXCLUDED.confidence,
+                 stance = EXCLUDED.stance,
+                 updated_at = now()`,
+          [ballotRkey, nodeId, uri, a.confidence ?? null, a.stance ?? null],
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+    console.log(
+      `Projected taxonomy snapshot for ballot ${ballotRkey}: ${snapNodes.length} node(s)`,
+    );
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(
+      `Failed to project taxonomy snapshot for ballot ${ballotRkey}:`,
+      err.message,
+    );
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 /**
  *
  * Upsert a Bluesky thread post into app_comments (origin = 'extern').

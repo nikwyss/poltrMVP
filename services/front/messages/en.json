@@ -275,7 +275,7 @@
     "bandTitle": "Your position per topic",
     "bandSubtitle": "Position and length result from your argument ratings.",
     "panoramaTitle": "Topic panorama",
-    "panoramaSubtitle": "Each topic is a mountain: the peak sits at the average of your ratings, the base width shows the spread, the height shows importance.",
+    "panoramaSubtitle": "Each topic is a mountain: the shape shows the distribution of your argument ratings, the peak ring marks the average, the height the number of rated arguments.",
     "panoramaHint": "Hover over a mountain for details.",
     "panoramaNo": "No",
     "panoramaYes": "Yes",

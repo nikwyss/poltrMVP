@@ -275,7 +275,7 @@
     "bandTitle": "Ta position par thème",
     "bandSubtitle": "La position et la longueur découlent de tes évaluations des arguments.",
     "panoramaTitle": "Panorama des thèmes",
-    "panoramaSubtitle": "Chaque thème est une montagne : le sommet se situe à la moyenne de vos évaluations, la largeur de la base montre la dispersion, la hauteur l’importance.",
+    "panoramaSubtitle": "Chaque thème est une montagne : la forme montre la distribution de vos évaluations, l’anneau au sommet la moyenne, la hauteur le nombre d’arguments évalués.",
     "panoramaHint": "Survolez une montagne pour les détails.",
     "panoramaNo": "Non",
     "panoramaYes": "Oui",

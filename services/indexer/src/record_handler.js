@@ -15,6 +15,7 @@ import {
   markPeerreviewInvitationDeleted,
   upsertPeerreviewResponseDb,
   markPeerreviewResponseDeleted,
+  projectTaxonomySnapshotDb,
 } from "./db.js";
 
 const COLLECTION_ARGUMENT = "app.ch.poltr.ballot.argument";
@@ -23,6 +24,9 @@ const COLLECTION_COMMENT = "app.ch.poltr.comment";
 const COLLECTION_COMMENT_TRANSLATION = "app.ch.poltr.comment.translation";
 const COLLECTION_PEERREVIEW_INVITATION = "app.ch.poltr.peerreview.invitation";
 const COLLECTION_PEERREVIEW_RESPONSE = "app.ch.poltr.peerreview.response";
+// Taxonomie-Snapshot: ganzer Themen-Baum eines Ballots als EIN Record (Quelle der
+// Wahrheit); wird in app_taxonomy_node/_membership projiziert.
+const COLLECTION_TAXONOMY_SNAPSHOT = "app.ch.poltr.taxonomy.snapshot";
 // Legacy NSIDs: existing records on PDS remain under these. Kept so the firehose
 // backfill path can re-index any records that landed before the rename.
 const COLLECTION_REVIEW_INVITATION_LEGACY = "app.ch.poltr.review.invitation";
@@ -61,7 +65,8 @@ export const handleEvent = async (evt) => {
     collection !== COLLECTION_PEERREVIEW_INVITATION &&
     collection !== COLLECTION_PEERREVIEW_RESPONSE &&
     collection !== COLLECTION_REVIEW_INVITATION_LEGACY &&
-    collection !== COLLECTION_REVIEW_RESPONSE_LEGACY
+    collection !== COLLECTION_REVIEW_RESPONSE_LEGACY &&
+    collection !== COLLECTION_TAXONOMY_SNAPSHOT
   )
     return;
 
@@ -173,6 +178,21 @@ export const handleEvent = async (evt) => {
         rkey,
         record,
       });
+    }
+  }
+
+  if (collection === COLLECTION_TAXONOMY_SNAPSHOT) {
+    // Quelle der Wahrheit für die Taxonomie. Nur aus Governance-Repos akzeptieren.
+    if (!isGovernanceDid(did)) {
+      console.log(`Ignoring taxonomy.snapshot from non-governance repo: ${did}`);
+      return;
+    }
+    // Append-only: ein Snapshot-Delete ist kein normaler Flow — die DB behält den
+    // zuletzt projizierten Stand. Nur create/update projizieren.
+    if (action === "create" || action === "update") {
+      const record = evt.record;
+      if (!record) return;
+      await projectTaxonomySnapshotDb({ did, record });
     }
   }
 };

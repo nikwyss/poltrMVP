@@ -275,7 +275,7 @@
     "bandTitle": "La tua posizione per tema",
     "bandSubtitle": "Posizione e lunghezza derivano dalle tue valutazioni degli argomenti.",
     "panoramaTitle": "Panorama dei temi",
-    "panoramaSubtitle": "Ogni tema è una montagna: la vetta si trova alla media delle tue valutazioni, la larghezza della base mostra la dispersione, l’altezza l’importanza.",
+    "panoramaSubtitle": "Ogni tema è una montagna: la forma mostra la distribuzione delle tue valutazioni, l’anello sulla vetta la media, l’altezza il numero di argomenti valutati.",
     "panoramaHint": "Passa il mouse su una montagna per i dettagli.",
     "panoramaNo": "No",
     "panoramaYes": "Sì",

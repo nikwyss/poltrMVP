@@ -275,7 +275,7 @@
     "bandTitle": "Deine Position je Thema",
     "bandSubtitle": "Position und Länge ergeben sich aus deinen Argument-Bewertungen.",
     "panoramaTitle": "Themen-Panorama",
-    "panoramaSubtitle": "Jedes Thema ein Berg: der Gipfel sitzt beim Mittelwert deiner Bewertungen, die Fundamentbreite zeigt die Streuung, die Höhe die Wichtigkeit.",
+    "panoramaSubtitle": "Jedes Thema ein Berg: die Form zeigt die Verteilung deiner Argument-Bewertungen, der Gipfel-Ring den Mittelwert, die Höhe die Anzahl bewerteter Argumente.",
     "panoramaHint": "Auf einen Berg zeigen für Details.",
     "panoramaNo": "Nein",
     "panoramaYes": "Ja",
