@@ -279,7 +279,7 @@
     "bandTitle": "Ta position par thème",
     "bandSubtitle": "La position et la longueur découlent de tes évaluations des arguments.",
     "cloudTitle": "Distribution par thème",
-    "cloudSubtitle": "Les évaluations de chaque thème sur cinq niveaux, équilibrées autour du neutre et triées par moyenne.",
+    "cloudSubtitle": "Les évaluations de chaque thème sur cinq niveaux, équilibrées autour du neutre et triées par position globale.",
     "cloudEyebrow": "Distribution Likert",
     "cloudThemes": "thèmes",
     "cloudRatherNo": "plutôt Non",

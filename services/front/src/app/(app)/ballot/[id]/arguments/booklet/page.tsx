@@ -261,19 +261,8 @@ function ArgumentSection({
       subtitle={subtitle}
       colHeaders={colHeaders}
     >
+      {/* Contra (Nein) links, Pro (Ja) rechts — einheitlich mit der Nein←→Ja-Achse. */}
       <div className="na-columns">
-        <div className="na-column">
-          {visiblePro.map((arg) => (
-            <ArgumentCardCompact
-              key={arg.uri}
-              arg={arg}
-              onClick={() => onOpen(arg.uri.split("/").pop()!)}
-            />
-          ))}
-          {proArgs.length === 0 && (
-            <p className="na-empty">{t("noProArguments")}</p>
-          )}
-        </div>
         <div className="na-column">
           {visibleContra.map((arg) => (
             <ArgumentCardCompact
@@ -284,6 +273,18 @@ function ArgumentSection({
           ))}
           {contraArgs.length === 0 && (
             <p className="na-empty">{t("noContraArguments")}</p>
+          )}
+        </div>
+        <div className="na-column">
+          {visiblePro.map((arg) => (
+            <ArgumentCardCompact
+              key={arg.uri}
+              arg={arg}
+              onClick={() => onOpen(arg.uri.split("/").pop()!)}
+            />
+          ))}
+          {proArgs.length === 0 && (
+            <p className="na-empty">{t("noProArguments")}</p>
           )}
         </div>
       </div>

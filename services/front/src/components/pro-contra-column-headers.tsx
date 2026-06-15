@@ -52,10 +52,12 @@ export function ProContraColumnHeaders({
 }) {
   const tc = useTranslations("common");
 
+  // Reihenfolge plattformweit einheitlich: Nein/Contra links, Ja/Pro rechts
+  // (wie in der Likert-Verteilung und auf der Nein←→Ja-Achse).
   return (
     <div className="na-section-col-headers grid grid-cols-2 gap-4 mt-2">
-      <ColumnHeader type="pro" label={tc("pro")} count={proCount} />
       <ColumnHeader type="contra" label={tc("contra")} count={contraCount} />
+      <ColumnHeader type="pro" label={tc("pro")} count={proCount} />
     </div>
   );
 }

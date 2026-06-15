@@ -279,7 +279,7 @@
     "bandTitle": "Deine Position je Thema",
     "bandSubtitle": "Position und Länge ergeben sich aus deinen Argument-Bewertungen.",
     "cloudTitle": "Verteilung je Thema",
-    "cloudSubtitle": "Bewertungen je Thema über fünf Stufen, neutral mittig ausbalanciert und nach Mittelwert sortiert.",
+    "cloudSubtitle": "Bewertungen je Thema über fünf Stufen, neutral mittig ausbalanciert und nach Gesamthaltung sortiert.",
     "cloudEyebrow": "Likert-Verteilung",
     "cloudThemes": "Themen",
     "cloudRatherNo": "eher Nein",

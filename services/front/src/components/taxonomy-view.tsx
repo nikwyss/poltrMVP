@@ -280,10 +280,11 @@ export function ProContraArguments({
       <div className="hidden md:block">
         <ProContraColumnHeaders proCount={pro.length} contraCount={contra.length} />
       </div>
-      {/* Desktop: zwei Spalten Pro / Contra. */}
+      {/* Desktop: zwei Spalten — Contra (Nein) links, Pro (Ja) rechts (einheitlich
+          mit der Nein←→Ja-Achse / Likert-Verteilung). */}
       <div className="mt-3 hidden gap-4 md:grid md:grid-cols-2">
-        {renderColumn(pro)}
         {renderColumn(contra)}
+        {renderColumn(pro)}
       </div>
       {/* Mobile: flache Liste in Backend-Reihenfolge (offiziell zuerst, dann
           Community geseedet gemischt), ein Peek am echten Box-Ende. */}

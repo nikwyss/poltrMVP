@@ -279,7 +279,7 @@
     "bandTitle": "Your position per topic",
     "bandSubtitle": "Position and length result from your argument ratings.",
     "cloudTitle": "Distribution per topic",
-    "cloudSubtitle": "Each topic's ratings across five levels, balanced around neutral and sorted by mean.",
+    "cloudSubtitle": "Each topic's ratings across five levels, balanced around neutral and sorted by overall stance.",
     "cloudEyebrow": "Likert distribution",
     "cloudThemes": "topics",
     "cloudRatherNo": "rather No",

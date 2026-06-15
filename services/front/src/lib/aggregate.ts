@@ -30,7 +30,8 @@ export const AGG_LEHMER_P = 2; // Lehmer-Mittel: 1 = Mittelwert, 2 = „kontraha
 // dämpft REDUNDANZ — da jedes Argument isoliert bewertet wird, zählt Noisy-OR
 // zwei quasi-gleiche Argumente sonst als zwei unabhängige Evidenzen. γ<1 ist die
 // logische Ergänzung zur Frage „wie stark spricht das Argument dafür?", kein Notbehelf.
-export const AGG_NOISY_GAMMA = 1;
+// export const AGG_NOISY_GAMMA = 1; // schwache argumente werden stark gezählt
+export const AGG_NOISY_GAMMA = 0.8; // schwache argumente werden etwas abgewschächt
 
 /**
  * distinct Bewertungs-Beiträge c ∈ [−1,1] über den ganzen Teilbaum eines Knotens.

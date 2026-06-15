@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
 // import { PageBackdrop } from "@/components/page-backdrop";
-import { PositionCloud } from "@/components/position-cloud";
+import { DivergingLikert } from "@/components/diverging-likert";
 import { TaxonomySunburst } from "@/components/taxonomy-sunburst";
 import { LockedSection, GatePlaceholder } from "@/components/locked-section";
 import { AddArgumentModal } from "@/components/add-argument-modal";
@@ -206,8 +206,8 @@ export default function TaxonomyPage() {
               </>
             )}
 
-            {/* Positionswolken — dieselben Daten als Raincloud (Verteilung) */}
-            <PositionCloud nodes={root.children} t={t} onSelect={openTopicDetail} />
+            {/* Diverging-Likert — Verteilung je Thema über fünf Stufen */}
+            <DivergingLikert nodes={root.children} t={t} onSelect={openTopicDetail} />
           </LockedSection>
         </div>
       )}

@@ -1,22 +1,21 @@
 "use client";
 
 /**
- * Positionswolken — divergierende Likert-Verteilung je Thema. Schwesteransicht
- * zum (archivierten) Positionsband: Jede Argument-Bewertung fällt in eine von
- * fünf Stufen (Nein · eher Nein · neutral · eher Ja · Ja). Die Stufen bilden
- * einen durchgehenden Pill-Balken auf einer dezenten Schiene, von der neutralen
- * Mitte aus ausgewogen — die neutrale Stufe sitzt mittig auf der Achse,
- * Ablehnung wächst nach links, Zustimmung nach rechts.
+ * Diverging-Likert — divergierende Likert-Verteilung je Thema. Jede Argument-
+ * Bewertung fällt in eine von fünf Stufen (Nein · eher Nein · neutral · eher Ja ·
+ * Ja). Die Stufen bilden einen durchgehenden Pill-Balken auf einer dezenten
+ * Schiene, von der neutralen Mitte aus ausgewogen — die neutrale Stufe sitzt
+ * mittig auf der Achse, Ablehnung wächst nach links, Zustimmung nach rechts.
  *
- * Die Zeilen sind nach Mittelwert sortiert (Leaderboard). Das Badge rechts
- * zeigt den Mittelwert aller Bewertungen des Themas in Prozentpunkten.
+ * Die Zeilen sind nach aggregierter Haltung sortiert (Leaderboard); das Badge
+ * rechts zeigt dieselbe Kennzahl in Prozentpunkten. Aggregierung zentral in
+ * lib/aggregate.ts (siehe doc/AGGREGATION.md).
  *
  * Skala für ALLE Themen identisch (sonst nicht vergleichbar): gleiche
  * Stufengrenzen, gleiche Mitte, gemeinsame Schiene. Farbskala rot (Nein) ↔
  * neutral ↔ blau (Ja), konsistent mit dem Meinungsrad.
  *
- * Achs-Mapping: c = (PRO ? +1 : −1) · (preference − 50) / 50 ∈ [−1, 1]
- * (−1 = Nein, 0 = neutral, +1 = Ja).
+ * Achs-Mapping (unipolar): c = (PRO ? +1 : −1) · preference / 100 ∈ [−1, 1].
  */
 import { useMemo } from "react";
 import type { TaxonomyNode } from "@/types/ballots";
@@ -85,7 +84,7 @@ type Row = {
   segs: Seg[];
 };
 
-export function PositionCloud({
+export function DivergingLikert({
   nodes,
   t,
   onSelect,
@@ -162,7 +161,7 @@ export function PositionCloud({
         <div className="flex flex-col gap-2">
           {rows.map(({ node, n, score, barLeft, segs }) => {
             const badge = n === 0 ? ZERO : score > 0 ? POS : score < 0 ? NEG : ZERO;
-            const clipId = `cloud-clip-${node.id}`;
+            const clipId = `likert-clip-${node.id}`;
             const clickable = !!node.key && !!onSelect;
             return (
               <div key={node.id} className={rowGrid}>
@@ -273,4 +272,4 @@ export function PositionCloud({
   );
 }
 
-export default PositionCloud;
+export default DivergingLikert;
