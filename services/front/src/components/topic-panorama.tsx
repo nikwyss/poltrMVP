@@ -6,10 +6,11 @@
  *
  * Die Silhouette ist eine ECHTE Dichteschätzung (KDE) der Argument-Positionen
  * des Viewers: pro bewertetem Argument ergibt sich aus `type` (PRO/CONTRA) und
- * `viewerPreference` (0–100) eine Position c ∈ [-1, 1]; ein Gauss-Kernel darüber
- * formt den Berg. Wo viele Argumente nah beieinander liegen, wird der Grat hoch
- * und schmal; breite Streuung ⇒ breiter, flacher Berg; Polarisierung ⇒ zwei
- * Gipfel mit Sattel. Density-Diagramm im Berg-Look.
+ * `viewerPreference` (0–100) eine Position c ∈ [-1, 1]; ein Epanechnikov-Kern
+ * (kompakter Träger ±h ⇒ begrenzter Fussabdruck, kein endloser Ausläufer) formt
+ * den Berg. Wo viele Argumente nah beieinander liegen, wird der Grat hoch und
+ * schmal; breite Streuung ⇒ breiter, flacher Berg; Polarisierung ⇒ zwei Gipfel
+ * mit Sattel. Density-Diagramm im Berg-Look.
  *
  * FIX aus den Daten:
  *  - Form = Verteilung der Argument-Positionen (KDE).
@@ -45,8 +46,7 @@ const BASE_Y = 310;
 const PX_MIN = 8;
 const PX_MAX = 672;
 // c ∈ [-1,1] → -100..100 → px (-100 → 60, 0 → 340, +100 → 620), geklemmt.
-const xPx = (c: number) =>
-  Math.max(PX_MIN, Math.min(PX_MAX, 340 + c * 280));
+const xPx = (c: number) => Math.max(PX_MIN, Math.min(PX_MAX, 340 + c * 280));
 
 const H_MIN = 70; // niedrigster Berg (wenigste Bewertungen)
 const H_MAX = 220; // höchster Berg (meiste Bewertungen)
@@ -70,31 +70,33 @@ function mulberry32(a: number): () => number {
   };
 }
 
-// fBm-artiges 1D-Noise per Midpoint-Displacement, Werte ~[-1,1]. Liefert eine
-// Funktion f(0..1) (linear interpoliert), damit der Grat craggy statt glockig
-// wird — aber deterministisch und stetig.
+// fBm Value-Noise (2–3 Oktaven) über u ∈ [0,1], Werte ~[-1,1]. Deterministisch
+// (Seed pro Thema), smoothstep-interpoliert → craggy, aber stetig.
 function noiseFn(seed: number): (u: number) => number {
+  const OCTAVES = 10;
+  const BASE_FREQ = 50;
   const rand = mulberry32(seed);
-  const SIZE = 129; // 2^7 + 1
-  const a = new Array<number>(SIZE).fill(0);
-  let step = SIZE - 1;
-  let rough = 1;
-  while (step > 1) {
-    const half = step / 2;
-    for (let i = half; i < SIZE - 1; i += step) {
-      a[i] = (a[i - half] + a[i + half]) / 2 + (rand() - 0.5) * rough;
-    }
-    step = half;
-    rough *= 0.5;
+  const layers: Array<{ freq: number; lattice: number[]; amp: number }> = [];
+  let totalAmp = 0;
+  for (let o = 0; o < OCTAVES; o++) {
+    const freq = BASE_FREQ * 2 ** o;
+    const lattice = new Array<number>(freq + 2);
+    for (let i = 0; i < lattice.length; i++) lattice[i] = rand() * 2 - 1;
+    const amp = 0.5 ** o;
+    layers.push({ freq, lattice, amp });
+    totalAmp += amp;
   }
-  let max = 0;
-  for (const v of a) max = Math.max(max, Math.abs(v));
-  if (max > 0) for (let i = 0; i < SIZE; i++) a[i] /= max;
+  const smooth = (t: number) => t * t * (3 - 2 * t);
   return (u: number) => {
-    const t = Math.max(0, Math.min(1, u)) * (SIZE - 1);
-    const i = Math.floor(t);
-    const f = t - i;
-    return i + 1 < SIZE ? a[i] + f * (a[i + 1] - a[i]) : a[i];
+    const uu = Math.max(0, Math.min(1, u));
+    let s = 0;
+    for (const { freq, lattice, amp } of layers) {
+      const x = uu * freq;
+      const i = Math.floor(x);
+      const f = smooth(x - i);
+      s += amp * (lattice[i] + f * (lattice[i + 1] - lattice[i]));
+    }
+    return s / totalAmp;
   };
 }
 
@@ -106,10 +108,10 @@ function signed(lean: number): string {
   return "0";
 }
 
-// Themenname in max. 3 Zeilen umbrechen, Rest mit Ellipse.
+// Themenname in max. 2 Zeilen umbrechen, Rest mit Ellipse.
 function wrapLabel(name: string): string[] {
-  const MAX = 16;
-  const MAX_LINES = 3;
+  const MAX = 15;
+  const MAX_LINES = 2;
   const words = name.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let cur = "";
@@ -126,7 +128,10 @@ function wrapLabel(name: string): string[] {
   if (cur && lines.length < MAX_LINES) lines.push(cur);
   // Überlauf? letzte Zeile kürzen und Ellipse.
   const consumed = lines.join(" ").length;
-  if (consumed < name.replace(/\s+/g, " ").length && lines.length === MAX_LINES) {
+  if (
+    consumed < name.replace(/\s+/g, " ").length &&
+    lines.length === MAX_LINES
+  ) {
     let last = lines[MAX_LINES - 1];
     if (last.length > MAX - 1) last = last.slice(0, MAX - 1);
     lines[MAX_LINES - 1] = last.replace(/\s+$/, "") + "…";
@@ -156,7 +161,7 @@ function collectContribs(node: TaxonomyNode): number[] {
 type Mountain = {
   node: TaxonomyNode;
   idx: number;
-  lean: number; // proLeaning (-1..1)
+  lean: number; // mean(c) ∈ [-1,1] — Zentroid der Argument-Positionen
   rated: number;
   height: number; // px
   ringX: number;
@@ -165,11 +170,9 @@ type Mountain = {
   fill: string;
   edge: string;
   alpha: number;
-  // Label-Layout
+  // Label im oberen Band (Slot-x, gegen Überlappung auseinandergeschoben)
   lines: string[];
-  labelX: number;
-  labelBottomY: number; // y der untersten Label-Zeile (Baseline)
-  connectorY: number; // y, bis wohin die Leitlinie geht
+  slotX: number;
 };
 
 const GRID = 96;
@@ -180,44 +183,56 @@ function buildMountains(nodes: TaxonomyNode[]): Mountain[] {
     .filter((p) => p.contribs.length > 0);
   if (!prepared.length) return [];
 
-  const counts = prepared.map((p) => p.contribs.length);
-  const minC = Math.min(...counts);
-  const maxC = Math.max(...counts);
-  const heightOf = (n: number) => {
-    if (maxC === minC) return (H_MIN + H_MAX) / 2;
-    const t = (Math.sqrt(n) - Math.sqrt(minC)) / (Math.sqrt(maxC) - Math.sqrt(minC));
-    return H_MIN + (H_MAX - H_MIN) * t;
-  };
+  // Höhe ∝ √(Anteil bewerteter Argumente am Spitzenreiter).
+  const maxRated = Math.max(...prepared.map((p) => p.contribs.length));
+  const heightOf = (n: number) =>
+    H_MIN + (H_MAX - H_MIN) * Math.sqrt(n / maxRated);
 
   const built: Mountain[] = prepared.map(({ node, idx, contribs }) => {
     const rated = contribs.length;
     const height = heightOf(rated);
 
-    // KDE-Bandbreite (Silverman, gedeckelt). std über die Beiträge.
+    // Mittelwert der Beiträge = Ring-Position (Zentroid der Verteilung). Sitzt
+    // bei Polarisierung korrekt unten im Sattel („Durchschnitt im Niemandsland").
     const mean = contribs.reduce((s, v) => s + v, 0) / rated;
-    // Mittelwert für den Ring: bevorzugt das Backend-Aggregat, sonst der
-    // Beitrags-Mittelwert (z. B. wenn nur neutral bewertet ⇒ proLeaning null).
-    const lean = node.proLeaning ?? mean; // -1..1
-    const variance =
-      contribs.reduce((s, v) => s + (v - mean) ** 2, 0) / rated;
+    const lean = mean; // -1..1
+
+    // KDE-Bandbreite: an die Streuung gekoppelt, gedeckelt — sonst schmiert der
+    // Kern bei wenigen Argumenten über die ganze Achse. robuste Streuung via IQR.
+    const sorted = contribs.slice().sort((a, b) => a - b);
+    const quant = (p: number) => {
+      const i = (sorted.length - 1) * p;
+      const lo = Math.floor(i);
+      const r = i - lo;
+      return sorted[lo + 1] !== undefined
+        ? sorted[lo] + r * (sorted[lo + 1] - sorted[lo])
+        : sorted[lo];
+    };
+    const iqr = quant(0.75) - quant(0.25);
+    const variance = contribs.reduce((s, v) => s + (v - mean) ** 2, 0) / rated;
     const std = Math.sqrt(variance);
+    const spread = Math.max(iqr / 1.34, std);
+    const BW_MIN = 0.1;
+    const BW_MAX = 0.42;
     const h = Math.max(
-      0.14,
-      Math.min(0.5, 1.06 * std * Math.pow(rated, -0.2) || 0.18),
+      BW_MIN,
+      Math.min(BW_MAX, 0.9 * spread * Math.pow(rated, -0.2) || BW_MIN),
     );
 
+    // Epanechnikov-Kern: K(u) = max(0, 1 - u²) — Träger exakt ±h ⇒ begrenzter
+    // Fussabdruck, kein endloser Ausläufer.
     const dens = (x: number) => {
       let s = 0;
       for (const c of contribs) {
-        const z = (x - c) / h;
-        s += Math.exp(-0.5 * z * z);
+        const u = (x - c) / h;
+        if (u > -1 && u < 1) s += 1 - u * u;
       }
       return s;
     };
 
-    // Domäne = Datenbereich ± 3 Bandbreiten, geklemmt.
-    const lo = Math.max(-1.18, Math.min(...contribs) - 3 * h);
-    const hi = Math.min(1.18, Math.max(...contribs) + 3 * h);
+    // Domäne = Datenbereich ± 1 Bandbreite (Epanechnikov-Träger), geklemmt.
+    const lo = Math.max(-1.18, Math.min(...contribs) - h);
+    const hi = Math.min(1.18, Math.max(...contribs) + h);
     const span = hi - lo || 0.001;
 
     // Dichte über das Gitter + Normierung auf Maximum.
@@ -267,19 +282,18 @@ function buildMountains(nodes: TaxonomyNode[]): Mountain[] {
       edge: "",
       alpha: 1,
       lines: wrapLabel(node.name),
-      labelX: ringX,
-      labelBottomY: 0,
-      connectorY: 0,
+      slotX: ringX,
     };
   });
 
-  // Zeichenreihenfolge & Farbe/Transparenz: nach Höhe (niedrig = hinten = hell
-  // = transparenter, hoch = vorne = satt = deckender).
+  // Zeichenreihenfolge & Farbe/Transparenz: dominantes (höchstes/grösstes) Thema
+  // nach HINTEN und am transparentesten, damit es die anderen nicht zudeckt;
+  // kleinere Themen kommen satt und deckend nach vorne. r=0 = hinten.
   const order = built
     .slice()
-    .sort((a, b) => a.height - b.height || a.idx - b.idx);
+    .sort((a, b) => b.height - a.height || a.idx - b.idx);
   order.forEach((o, r) => {
-    const frac = r / Math.max(1, order.length - 1);
+    const frac = r / Math.max(1, order.length - 1); // 0 hinten → 1 vorne
     const [cr, cg, cb] =
       MOUNTAIN_COLORS[
         Math.min(
@@ -287,38 +301,53 @@ function buildMountains(nodes: TaxonomyNode[]): Mountain[] {
           Math.round(frac * (MOUNTAIN_COLORS.length - 1)),
         )
       ];
-    o.alpha = 0.72 + 0.23 * frac; // hinten leicht transparent
+    o.alpha = 0.5 + 0.42 * frac; // hinten deutlich transparent (0.5) → vorne 0.92
     o.fill = `rgba(${cr}, ${cg}, ${cb}, ${o.alpha.toFixed(2)})`;
     // Deutliche Bergkante: dunklere Variante des Körpers.
     o.edge = `rgb(${Math.round(cr * 0.52)}, ${Math.round(cg * 0.52)}, ${Math.round(cb * 0.52)})`;
   });
 
-  // ── Label-Layout: direkt über dem Gipfel, zweistufig versetzt gegen Kollisionen.
-  const LINE_H = 13;
-  const GAP = 9; // Abstand Ring → unterste Zeile
-  const TIER_RAISE = 30;
-  const CHAR_W = 6.7;
-  const byX = built.slice().sort((a, b) => a.labelX - b.labelX);
-  const lastRight = [-Infinity, -Infinity];
-  for (const m of byX) {
-    const w =
-      Math.max(...m.lines.map((l) => l.length)) * CHAR_W + 8;
-    const left = m.labelX - w / 2;
-    const right = m.labelX + w / 2;
-    let tier = 0;
-    if (left <= lastRight[0] + 4) tier = left > lastRight[1] + 4 ? 1 : 0;
-    lastRight[tier] = right;
-    const raise = tier * TIER_RAISE;
-    // unterste Zeile knapp über dem Ring (+ Tier-Versatz), nach oben gestapelt.
-    let bottom = m.ringY - GAP - raise;
-    const topLine = bottom - (m.lines.length - 1) * LINE_H;
-    if (topLine < 12) bottom += 12 - topLine; // nicht oben rausragen
-    m.labelBottomY = bottom;
-    m.connectorY = bottom + 3;
+  // ── Label-Band oben: jedes Label nahe seinem Gipfel-x, aber minimal
+  // auseinandergeschoben (1D-Non-Overlap), Leitlinie vom Ring nach oben. Keine
+  // Labels mehr im Berg-Gewühl → übersichtlich, Linien kurz & kreuzungsfrei.
+  const CHAR_W = 6.3;
+  const SLOT_PAD = 10;
+  const SLOT_MIN = 36;
+  const SLOT_MAX = 644;
+  const byX = built.slice().sort((a, b) => a.ringX - b.ringX);
+  const widths = byX.map(
+    (m) => Math.max(...m.lines.map((l) => l.length)) * CHAR_W + SLOT_PAD,
+  );
+  const slots = byX.map((m) => m.ringX);
+  // links → rechts auseinanderdrücken
+  for (let i = 1; i < slots.length; i++) {
+    const minX = slots[i - 1] + (widths[i - 1] + widths[i]) / 2;
+    if (slots[i] < minX) slots[i] = minX;
   }
+  // rechten Rand einhalten, dann rechts → links zurückdrücken
+  if (slots.length) {
+    const last = slots.length - 1;
+    if (slots[last] + widths[last] / 2 > SLOT_MAX)
+      slots[last] = SLOT_MAX - widths[last] / 2;
+    for (let i = last - 1; i >= 0; i--) {
+      const maxX = slots[i + 1] - (widths[i + 1] + widths[i]) / 2;
+      if (slots[i] > maxX) slots[i] = maxX;
+    }
+    // linken Rand einhalten
+    if (slots[0] - widths[0] / 2 < SLOT_MIN)
+      slots[0] = SLOT_MIN + widths[0] / 2;
+  }
+  byX.forEach((m, i) => {
+    m.slotX = slots[i];
+  });
 
   return built;
 }
+
+// Label-Band-Geometrie (oben im viewBox).
+const LABEL_TOP = 26; // Baseline erste Zeile
+const LABEL_LINE_H = 13;
+const labelBaseY = (lines: number) => LABEL_TOP + (lines - 1) * LABEL_LINE_H;
 
 export function TopicPanorama({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
   const mountains = useMemo(() => buildMountains(nodes), [nodes]);
@@ -328,9 +357,10 @@ export function TopicPanorama({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
 
   const drawOrder = mountains
     .slice()
-    .sort((a, b) => a.height - b.height || a.idx - b.idx); // niedrig zuerst (hinten)
+    .sort((a, b) => b.height - a.height || a.idx - b.idx); // höchstes zuerst (hinten)
 
-  const activeM = active != null ? mountains.find((m) => m.idx === active) : null;
+  const activeM =
+    active != null ? mountains.find((m) => m.idx === active) : null;
   const info = activeM
     ? `${activeM.node.name} · ${
         activeM.lean >= 0 ? t("poleSupporters") : t("poleOpponents")
@@ -377,19 +407,21 @@ export function TopicPanorama({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
                 />
               ))}
 
-              {/* kurze Leitlinie Gipfel → Label */}
-              {mountains.map((m) => (
-                <line
-                  key={`l-${m.idx}`}
-                  x1={m.ringX}
-                  y1={m.ringY - 4}
-                  x2={m.labelX}
-                  y2={m.connectorY}
-                  stroke="var(--muted-foreground)"
-                  strokeOpacity={0.4}
-                  strokeWidth={0.5}
-                />
-              ))}
+              {/* Leitlinie Gipfel-Ring → Label-Slot oben (geknickt: senkrecht
+                  hoch, dann zum Slot) — kurz & kreuzungsfrei */}
+              {mountains.map((m) => {
+                const yTop = labelBaseY(m.lines.length) + 4;
+                return (
+                  <polyline
+                    key={`l-${m.idx}`}
+                    points={`${m.ringX},${(m.ringY - 4).toFixed(1)} ${m.ringX},${(yTop + 6).toFixed(1)} ${m.slotX.toFixed(1)},${yTop.toFixed(1)}`}
+                    fill="none"
+                    stroke="var(--muted-foreground)"
+                    strokeOpacity={active === m.idx ? 0.8 : 0.35}
+                    strokeWidth={0.5}
+                  />
+                );
+              })}
 
               {/* Gipfel-Ringe = Mittelwert (eingefärbt nach Lager) */}
               {mountains.map((m) => (
@@ -404,24 +436,25 @@ export function TopicPanorama({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
                 />
               ))}
 
-              {/* Themen-Labels direkt über dem Berg (max. 3 Zeilen, versetzt) */}
+              {/* Themen-Labels im Band oben (max. 2 Zeilen, auseinandergeschoben) */}
               {mountains.map((m) => (
                 <text
                   key={`t-${m.idx}`}
-                  x={m.labelX}
+                  x={m.slotX}
                   textAnchor="middle"
-                  fontSize={12.5}
-                  fill={active === m.idx ? "var(--foreground)" : "var(--muted-foreground)"}
+                  fontSize={12}
+                  fontWeight={active === m.idx ? 600 : 400}
+                  fill={
+                    active === m.idx
+                      ? "var(--foreground)"
+                      : "var(--muted-foreground)"
+                  }
                   style={{ cursor: "pointer" }}
                   onMouseEnter={() => setActive(m.idx)}
                   onMouseLeave={() => setActive(null)}
                 >
                   {m.lines.map((ln, i) => (
-                    <tspan
-                      key={i}
-                      x={m.labelX}
-                      y={m.labelBottomY - (m.lines.length - 1 - i) * 13}
-                    >
+                    <tspan key={i} x={m.slotX} y={LABEL_TOP + i * LABEL_LINE_H}>
                       {ln}
                     </tspan>
                   ))}
@@ -446,7 +479,13 @@ export function TopicPanorama({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
                 strokeWidth={0.5}
                 strokeDasharray="3 3"
               />
-              <text x={24} y={332} textAnchor="start" fontSize={12} fill={TERRA_TEXT}>
+              <text
+                x={24}
+                y={332}
+                textAnchor="start"
+                fontSize={12}
+                fill={TERRA_TEXT}
+              >
                 ← {t("panoramaNo")}
               </text>
               <text
@@ -458,7 +497,13 @@ export function TopicPanorama({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
               >
                 {t("neutral")}
               </text>
-              <text x={636} y={332} textAnchor="end" fontSize={12} fill={BLUE_TEXT}>
+              <text
+                x={636}
+                y={332}
+                textAnchor="end"
+                fontSize={12}
+                fill={BLUE_TEXT}
+              >
                 {t("panoramaYes")} →
               </text>
             </svg>
