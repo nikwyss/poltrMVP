@@ -123,6 +123,7 @@ CREATE TABLE app_taxonomy_node (              -- Adjazenzliste: parent_id → El
   description  text,                  -- 1 Satz, was darunterfällt — Kontext für den LLM-Klassifikator
   introduction text,                  -- voter-facing: warum das Thema zählt & für wen (Stimmbürgerschaft) — im Frontend gezeigt
   depth        integer NOT NULL DEFAULT 0,
+  node_order   integer NOT NULL DEFAULT 0,  -- Geschwister-Reihenfolge (vom Snapshot, da DB-id-Order nach Rebuild nicht stabil)
   importance   smallint CHECK (importance IS NULL OR importance BETWEEN 1 AND 5),  -- LLM-Prior 1–5 (nur CMS)
   -- Übersetzung der voter-facing Felder name + introduction (description bleibt
   -- intern/deutsch). Vom appview-Translation-Worker direkt hier befüllt (kein
@@ -519,6 +520,10 @@ GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO indexer;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO indexer;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO indexer;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO indexer;
+-- Taxonomie-Projektion: der Indexer schreibt den PDS-Snapshot in den Baum — inkl.
+-- Löschen von Waisen-Knoten und Ersetzen der Memberships → DELETE nötig (auch für
+-- das bestehende cascadeDeleteArgumentDerived auf app_taxonomy_membership).
+GRANT DELETE ON app_taxonomy_node, app_taxonomy_membership TO indexer;
 REVOKE ALL ON SCHEMA auth FROM indexer;
 -- Indexer needs to read governance DIDs (but not credentials)
 GRANT USAGE ON SCHEMA auth TO indexer;

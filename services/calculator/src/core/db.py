@@ -155,79 +155,6 @@ def _unique_slug(base: str, used: set[str]) -> str:
     return slug
 
 
-async def _insert_topic_tree(conn, ballot_rkey: str, tree: dict) -> dict:
-    """Knoten + Argument-Memberships eines Baums schreiben (in offener Transaktion).
-
-    Einheit = Argument: jeder Knoten trägt `arguments`:
-        [{argument_uri, confidence, stance}]
-    Jedes Argument hängt an GENAU EINEM Knoten. `confidence` = Klassifikator-
-    Sicherheit 1–5 (oder None). Rückgabe: {nodes, memberships}."""
-    used_slugs: set[str] = set()
-    stats = {"nodes": 0, "memberships": 0}
-
-    async def insert(node: dict, parent_id, depth: int):
-        name = node.get("name") or "(Wurzel)"
-        key = _unique_slug(_slugify(name), used_slugs)
-        nid = await conn.fetchval(
-            """INSERT INTO app_taxonomy_node
-                   (ballot_rkey, parent_id, key, name, description, introduction,
-                    depth, importance)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id""",
-            ballot_rkey, parent_id, key, name, node.get("description"),
-            node.get("introduction"), depth, node.get("importance"))
-        stats["nodes"] += 1
-
-        rows = []
-        seen: set[str] = set()
-        for a in node.get("arguments", []) or []:
-            if not isinstance(a, dict):
-                continue
-            uri = (a.get("argument_uri") or "").strip()
-            if not uri or uri in seen:
-                continue
-            seen.add(uri)
-            rows.append((ballot_rkey, nid, uri,
-                         a.get("confidence"), a.get("stance")))
-        if rows:
-            await conn.executemany(
-                """INSERT INTO app_taxonomy_membership
-                       (ballot_rkey, node_id, argument_uri, confidence, stance)
-                   VALUES ($1, $2, $3, $4, $5)
-                   ON CONFLICT (ballot_rkey, argument_uri, node_id) DO UPDATE
-                     SET confidence = EXCLUDED.confidence,
-                         stance = EXCLUDED.stance,
-                         updated_at = now()""",
-                rows)
-            stats["memberships"] += len(rows)
-
-        for child in node.get("children", []) or []:
-            await insert(child, nid, depth + 1)
-
-    await insert(tree, None, 0)
-    return stats
-
-
-async def persist_topic_tree(ballot_rkey: str, tree: dict) -> dict:
-    """Vollständiges Ersetzen: löscht den bestehenden Baum des Ballots (CASCADE
-    räumt die Memberships) und schreibt den neuen. `tree` = Nested-Dict, jeder
-    Knoten mit `arguments` (Einheit = Argument; genau ein Knoten pro Argument).
-    Rückgabe: {nodes, memberships}."""
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await conn.execute(
-                "DELETE FROM app_taxonomy_node WHERE ballot_rkey = $1", ballot_rkey)
-            stats = await _insert_topic_tree(conn, ballot_rkey, tree)
-    return {"nodes": stats["nodes"], "memberships": stats["memberships"]}
-
-
-async def save_topic_tree_full(ballot_rkey: str, tree: dict) -> dict:
-    """Vollständiges Ersetzen aus dem editierten State-Baum — gleiche Mechanik wie
-    persist_topic_tree (Knoten tragen `arguments`). Neue Knoten haben keine
-    id/key; keys werden frisch vergeben. Rückgabe: {nodes, memberships}."""
-    return await persist_topic_tree(ballot_rkey, tree)
-
-
 async def fetch_topic_tree(ballot_rkey: str) -> dict | None:
     """Liest den Baum eines Ballots (Knoten flach + Memberships) und baut die
     Nested-Struktur zusammen. Rückgabe: root-Knoten oder None."""
@@ -235,7 +162,8 @@ async def fetch_topic_tree(ballot_rkey: str) -> dict | None:
     async with pool.acquire() as conn:
         nodes = await conn.fetch(
             """SELECT id, parent_id, key, name, description, introduction, depth, importance
-               FROM app_taxonomy_node WHERE ballot_rkey = $1 ORDER BY depth, id""",
+               FROM app_taxonomy_node WHERE ballot_rkey = $1
+               ORDER BY depth, node_order, id""",
             ballot_rkey)
         if not nodes:
             return None

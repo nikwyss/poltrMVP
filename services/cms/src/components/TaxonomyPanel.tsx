@@ -12,12 +12,15 @@ import { useDocumentInfo } from '@payloadcms/ui'
  *
  * ALLE Mutationen passieren lokal im State — manuell (umbenennen, verschieben,
  * löschen, ein-/ausrücken) und LLM-gestützt (Themen bauen, Argumente einsortieren,
- * wachsen lassen mergen jeweils nur einen *Vorschlag* in den State). Persistiert
- * wird erst am Ende mit einem einzigen „Persistieren" (POST /api/topdown/save,
- * ersetzt Knoten + Zuordnungen komplett). Zusätzlich Import/Export als JSON.
+ * wachsen lassen mergen jeweils nur einen *Vorschlag* in den State). „Persistieren"
+ * schreibt den Baum als app.ch.poltr.taxonomy.snapshot-Record in die PDS (QUELLE DER
+ * WAHRHEIT, POST /api/ballots/taxonomy-snapshot); der Indexer projiziert ihn dann via
+ * Firehose in die DB — der Editor wartet kurz auf die Übernahme und resynct.
+ * Zusätzlich Import/Export als JSON.
  *
- * Die LLM-Endpoints sind zustandslos: sie rechnen gegen den geschickten State-Baum
- * und schreiben nichts. Beim Löschen wandern die Zuordnungen an den Elternknoten.
+ * Die Calculator-Endpoints sind zustandslos/lesend: /tree liest die DB, die LLM-
+ * Endpoints rechnen gegen den geschickten State-Baum und schreiben nichts. Beim
+ * Löschen wandern die Zuordnungen an den Elternknoten.
  */
 
 const CALC =
@@ -33,6 +36,7 @@ type ArgMembership = {
 type ENode = {
   uid: string
   id?: number | null
+  key?: string | null // stabiler Slug; im Snapshot eingefroren (neue Knoten bekommen ihn beim Persistieren)
   name: string
   description?: string | null // 1 Satz: was darunterfällt — interner Kontext für den LLM-Klassifikator
   introduction?: string | null // voter-facing: warum das Thema zählt & für wen — im Frontend gezeigt
@@ -74,6 +78,7 @@ const makeUid = () => `u${++_uidSeq}`
 const newNode = (name = 'Neues Thema'): ENode => ({
   uid: makeUid(),
   id: null,
+  key: null,
   name,
   description: null,
   introduction: null,
@@ -99,6 +104,7 @@ function withUids(n: unknown): ENode {
   return {
     uid: makeUid(),
     id: (o.id as number | null) ?? null,
+    key: (o.key as string | null) ?? null,
     name: (o.name as string) || '(Wurzel)',
     description: (o.description as string | null) ?? null,
     introduction: (o.introduction as string | null) ?? null,
@@ -155,10 +161,37 @@ function counts(n: ENode): { args: number } {
   return { args: new Set(ms.map((m) => m.argument_uri)).size }
 }
 
-/** Editor-Baum → Server-Form (uid + Argumente) für /classify, /grow, /save. */
+/** Anzahl echter Knoten (ohne Wurzel) im Editor-Baum. */
+function countNodes(n: ENode): number {
+  return n.children.reduce((a, c) => a + 1 + countNodes(c), 0)
+}
+
+/** Anzahl echter Knoten (ohne Wurzel) in einem Server-Baum (Calculator /tree). */
+function countServerNodes(n: unknown): number {
+  const o = (n || {}) as { children?: unknown[] }
+  const ch = Array.isArray(o.children) ? o.children : []
+  return ch.reduce((a: number, c) => a + 1 + countServerNodes(c), 0)
+}
+
+/** Best-effort: wartet, bis der Indexer den Snapshot in die DB projiziert hat —
+ *  pollt /tree, bis die Knotenzahl der erwarteten entspricht (oder Timeout ~12s). */
+async function waitForIndexed(rk: string, expectedNodes: number): Promise<void> {
+  for (let i = 0; i < 8; i++) {
+    await new Promise((r) => setTimeout(r, 1500))
+    const t = await calc(`/api/topdown/tree?ballot_rkey=${encodeURIComponent(rk)}`).catch(
+      () => null,
+    )
+    if (t?.tree && countServerNodes(t.tree) === expectedNodes) return
+  }
+}
+
+/** Editor-Baum → Server-Form (uid + key + Argumente) für /classify, /grow, Snapshot.
+ *  `key` wird mitgeführt, damit der Snapshot stabile Identitäten behält (neue Knoten
+ *  haben key=null und bekommen serverseitig beim Persistieren einen eingefrorenen Slug). */
 function toServer(n: ENode): Record<string, unknown> {
   return {
     uid: n.uid,
+    key: n.key ?? null,
     name: n.name,
     description: n.description ?? null,
     introduction: n.introduction ?? null,
@@ -531,40 +564,37 @@ export const TaxonomyPanelField: React.FC = () => {
     URL.revokeObjectURL(url)
   }
 
+  // Persistieren = Snapshot in die PDS schreiben (Quelle der Wahrheit). Der Indexer
+  // projiziert ihn danach via Firehose in die DB → der Editor wartet kurz auf die
+  // Übernahme (Eventual Consistency) und resynct dann vom Server (kanonische keys
+  // + Reihenfolge). Calculator /save existiert nicht mehr.
   const persist = () =>
     run('save', async () => {
       if (!root) return
-      const r = await calc('/api/topdown/save', {
+      const expected = countNodes(root) // echte Knoten (ohne Wurzel)
+      const res = await fetch('/api/ballots/taxonomy-snapshot', {
         method: 'POST',
-        body: JSON.stringify({ ballot_rkey: rkey, tree: toServer(root) }),
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ballotRkey: rkey, tree: toServer(root) }),
       })
+      const snap = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(snap?.error || `${res.status} ${res.statusText}`)
       setDirty(false)
-      let saved = `Persistiert: ${r.saved?.nodes} Knoten, ${r.saved?.memberships} Zuordnungen.`
 
-      // Versionierten, öffentlich nachvollziehbaren ATProto-Snapshot des persistierten
-      // Baums auf das Governance-Konto des Ballots schreiben (Dedup serverseitig).
-      // Ein Snapshot-Fehler darf die erfolgreiche Persistierung nicht verschlucken.
-      try {
-        const res = await fetch('/api/ballots/taxonomy-snapshot', {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ballotRkey: rkey }),
-        })
-        const snap = await res.json().catch(() => ({}))
-        if (!res.ok) {
-          saved += ` ⚠ Snapshot fehlgeschlagen: ${snap?.error || res.statusText}`
-        } else if (snap.status === 'published') {
-          saved += ` Snapshot v${snap.version} veröffentlicht.`
-        } else if (snap.status === 'skipped') {
-          saved += ` Snapshot unverändert (v${snap.version}).`
-        }
-      } catch (e) {
-        saved += ` ⚠ Snapshot fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
+      if (snap.status === 'skipped') {
+        setMsg(`Unverändert — Snapshot v${snap.version} bleibt aktuell.`)
+        return
       }
-
-      setMsg(saved)
+      if (snap.status === 'empty') {
+        setMsg('Kein Baum zum Speichern.')
+        return
+      }
+      // status === 'published'
+      setMsg(`Snapshot v${snap.version} veröffentlicht (${snap.nodes} Knoten) — wird übernommen …`)
+      await waitForIndexed(rkey!, expected)
       await load(rkey!)
+      setMsg(`Snapshot v${snap.version} übernommen (${snap.nodes} Knoten).`)
     })
 
   const reset = () =>

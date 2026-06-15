@@ -23,14 +23,15 @@ export const Ballots: CollectionConfig = {
   },
   endpoints: [
     {
-      // Versionierten Taxonomie-Snapshot veröffentlichen. Wird vom Ballot-Editor
-      // (components/TaxonomyPanel.tsx) NACH erfolgreichem „Persistieren" aufgerufen:
-      // POST /api/ballots/taxonomy-snapshot  Body: { ballotRkey }
-      //
-      // Schreibt den persistierten Baum als unveränderlichen
+      // Taxonomie persistieren = den Editor-Baum als unveränderlichen
       // app.ch.poltr.taxonomy.snapshot-Record auf das Governance-Konto des Ballots
-      // (append-only) und indexiert ihn in app_taxonomy_snapshot. Unveränderter Baum
+      // schreiben (append-only). Dieser Record ist die QUELLE DER WAHRHEIT; der
+      // Indexer projiziert ihn in app_taxonomy_node/_membership. Unveränderter Baum
       // → kein neuer Record (Dedup über Content-Hash).
+      //
+      // Wird vom Ballot-Editor (components/TaxonomyPanel.tsx) beim „Persistieren"
+      // aufgerufen: POST /api/ballots/taxonomy-snapshot  Body: { ballotRkey, tree }
+      // (tree = strukturelle Wurzel mit children, wie toServer(root) sie liefert).
       path: '/taxonomy-snapshot',
       method: 'post',
       handler: async (req) => {
@@ -38,12 +39,17 @@ export const Ballots: CollectionConfig = {
           return Response.json({ error: 'Nicht angemeldet.' }, { status: 401 })
         }
         await addDataAndFileToRequest(req)
-        const ballotRkey = String((req.data as { ballotRkey?: unknown })?.ballotRkey ?? '').trim()
+        const data = (req.data || {}) as { ballotRkey?: unknown; tree?: unknown }
+        const ballotRkey = String(data.ballotRkey ?? '').trim()
         if (!ballotRkey) {
           return Response.json({ error: 'ballotRkey ist erforderlich.' }, { status: 400 })
         }
+        if (!data.tree || typeof data.tree !== 'object') {
+          return Response.json({ error: 'tree (Wurzelknoten) ist erforderlich.' }, { status: 400 })
+        }
         try {
-          const result = await publishTaxonomySnapshot(ballotRkey)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const result = await publishTaxonomySnapshot(ballotRkey, data.tree as any)
           return Response.json(result)
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)

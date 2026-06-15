@@ -192,7 +192,7 @@ async def get_taxonomy(
                 """SELECT id, parent_id, key, name, description, introduction,
                           depth, importance, langs, translations
                    FROM app_taxonomy_node WHERE ballot_rkey = $1
-                   ORDER BY depth, id""",
+                   ORDER BY depth, node_order, id""",
                 ballot_rkey,
             )
             if not nodes:

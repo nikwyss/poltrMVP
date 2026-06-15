@@ -1,7 +1,7 @@
 {
   "lexicon": 1,
   "id": "app.ch.poltr.taxonomy.snapshot",
-  "description": "Ein unveränderlicher, öffentlich nachvollziehbarer Schnappschuss der gesamten Top-down-Themen-Hierarchie (Taxonomie) eines Ballots. Wird beim „Persistieren\" der Taxonomie im CMS auf das Governance-Konto des Ballots geschrieben (append-only, ein Record je Änderung). Argumente werden per rkey referenziert — sie liegen im selben Governance-Repo wie dieser Snapshot. Nur Originalsprache (de-CH); Übersetzungen sind regenerierbare Ableitungen und nicht Teil des Snapshots.",
+  "description": "Ein unveränderlicher, öffentlich nachvollziehbarer Schnappschuss der gesamten Top-down-Themen-Hierarchie (Taxonomie) eines Ballots — die QUELLE DER WAHRHEIT. Wird beim „Persistieren\" der Taxonomie im CMS auf das Governance-Konto des Ballots geschrieben (append-only, ein Record je Änderung); der Indexer projiziert den letzten Record in die AppView-Tabellen (app_taxonomy_node/_membership). Argumente werden per rkey referenziert — sie liegen im selben Governance-Repo wie dieser Snapshot. Nur Originalsprache (de-CH); Übersetzungen sind regenerierbare Ableitungen und nicht Teil des Snapshots.",
   "defs": {
     "main": {
       "type": "record",
@@ -35,7 +35,7 @@
           },
           "nodes": {
             "type": "array",
-            "description": "Alle Themen-Knoten ausser der strukturellen Wurzel. Elternbezug über das stabile `parent`-key.",
+            "description": "Alle Themen-Knoten ausser der strukturellen Wurzel, in DFS-Pre-Order (Eltern vor Kindern). Die ARRAY-Reihenfolge IST die Geschwister-Reihenfolge (der Indexer leitet daraus node_order ab). Elternbezug über das stabile `parent`-key.",
             "items": { "type": "ref", "ref": "#node" }
           },
           "createdAt": { "type": "string", "format": "datetime" }

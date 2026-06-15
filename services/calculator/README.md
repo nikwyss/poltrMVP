@@ -6,8 +6,11 @@ Endpoint: **calculator.poltr.info** (intern: `calculator.poltr.svc.cluster.local
 Der Service baut und pflegt die **top-down Themen-Hierarchie** eines Ballots:
 einen Themen-BAUM, aus den offiziellen Argumenten geseedet, in den die Argumente
 top-down einsortiert werden (Einheit = Argument; genau EIN Thema pro Argument).
-Persistiert wird EIN stabiler Baum pro Ballot in `app_taxonomy_node` /
-`app_taxonomy_membership` (inkrementell mutierbar, nicht pro Lauf versioniert).
+
+Der Calculator ist **reines Compute** (baut/schlägt vor, liest die DB) — er schreibt
+die Taxonomie NICHT. Persistiert wird über den CMS-Taxonomie-Snapshot
+(`app.ch.poltr.taxonomy.snapshot` = Quelle der Wahrheit) → Indexer → `app_taxonomy_node`
+/ `app_taxonomy_membership`. Der Calculator liest diese Tabellen nur (`/tree`).
 
 ## LLM
 
@@ -18,19 +21,19 @@ erforderlich** — fehlt er, antworten die LLM-Endpoints mit
 
 ## Endpoints (`/api/topdown/*`)
 
-Alle Mutationen sind **vorschlagsbasiert**: die LLM-Endpoints rechnen gegen den
-übergebenen State-Baum und schreiben nichts; persistiert wird ausschliesslich
-über `POST /api/topdown/save`. Editiert wird im CMS-Panel (`TaxonomyPanel.tsx`).
+Alle Endpoints sind **lesend oder vorschlagsbasiert** — keiner schreibt die DB. Die
+LLM-Endpoints rechnen gegen den übergebenen State-Baum; persistiert wird ausschliesslich
+über den CMS-Taxonomie-Snapshot (PDS → Indexer). Editiert wird im CMS-Panel
+(`TaxonomyPanel.tsx`).
 
 | Endpoint | Zweck |
 |----------|-------|
 | `GET  /healthz` | Liveness/Readiness → `{"status":"ok"}` |
-| `POST /api/topdown/induce` | Baum NEU bauen (LLM): Wurzelthemen aus den offiziellen Argumenten ableiten + einsortieren. Mit `persist:true` direkt schreiben (ersetzt den Baum). |
+| `POST /api/topdown/induce` | Baum NEU bauen (LLM, **nur Vorschau**): Wurzelthemen aus den offiziellen Argumenten ableiten + einsortieren. Schreibt nichts. |
 | `POST /api/topdown/classify` | Neue, noch nicht verortete Argumente inkrementell in den BESTEHENDEN State-Baum einsortieren (pro Ebene 1 LLM-Call). |
 | `POST /api/topdown/grow` | Überladene Knoten in Unterthemen aufteilen (vertikal) bzw. am Wurzelknoten neue Hauptäste bilden (horizontal). |
 | `POST /api/topdown/branch_unplaced` | Aus „ganz fehlenden" (nicht zugeordneten) Argumenten neue Hauptäste vorschlagen. |
-| `POST /api/topdown/save` | Den State-Baum persistieren (ersetzt Knoten + Zuordnungen komplett). |
-| `GET  /api/topdown/tree` | Den persistierten Baum eines Ballots lesen. |
+| `GET  /api/topdown/tree` | Den (vom Indexer projizierten) Baum eines Ballots lesen. |
 | `GET  /api/topdown/unplaced` | Argumente ohne Hauptthema in einem echten Ast (für den „Nicht zugeordnet"-Bereich im CMS). |
 | `GET  /api/topdown/status` | Baum-Stand: ob ein Baum existiert + Anzahl nicht eingehängter Argumente. |
 
@@ -42,7 +45,7 @@ gesetzt) read-only als Zusatzkontext für die Wurzelthemen gelesen.
 ```bash
 curl -s -X POST http://localhost:3000/api/topdown/induce \
   -H 'Content-Type: application/json' \
-  -d '{"ballot_rkey": "663.1", "options": {"n_topics": 6, "persist": false}}'
+  -d '{"ballot_rkey": "663.1", "options": {"n_topics": 6}}'
 ```
 
 ## Lokal entwickeln

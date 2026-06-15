@@ -40,8 +40,6 @@ class TopdownOptions(BaseModel):
     n_topics: int | None = Field(
         None, ge=1, le=20,
         description="Gewünschte Anzahl Wurzelthemen (None → Default-Spanne 4–7).")
-    persist: bool = Field(
-        True, description="Baum in die DB schreiben (ersetzt den bestehenden Baum des Ballots).")
     official_only: bool = Field(
         True,
         description="Nur die OFFIZIELLEN Argumente in den Initialbaum klassifizieren "
@@ -60,9 +58,9 @@ class TopdownRequest(BaseModel):
 
 @router.post("/induce")
 async def induce_topdown(req: TopdownRequest):
-    """Top-down Themen-Baum NEU bauen und (optional) persistieren — ersetzt den
-    bestehenden Baum des Ballots. Wurzelthemen aus den offiziellen Argumenten;
-    jedes Argument bekommt ein Hauptthema (+ optional ein Nebenthema)."""
+    """Top-down Themen-Baum NEU bauen (Vorschau, KEIN Schreiben). Wurzelthemen aus
+    den offiziellen Argumenten; jedes Argument bekommt ein Hauptthema. Persistiert
+    wird ausschliesslich über den CMS-Snapshot (PDS → Indexer → DB)."""
     args_all = await db.fetch_arguments(req.ballot_rkey, limit=req.options.limit)
     if not args_all:
         raise HTTPException(
@@ -99,13 +97,6 @@ async def induce_topdown(req: TopdownRequest):
 
     root["name"] = f"Vorlage {req.ballot_rkey}"
 
-    persisted = None
-    if req.options.persist:
-        try:
-            persisted = await db.persist_topic_tree(req.ballot_rkey, root)
-        except Exception as err:
-            logger.warning("Persistenz fehlgeschlagen (%s) — migrate-topics.sql gelaufen?", err)
-
     return {
         "ballot_rkey": req.ballot_rkey,
         "llm": getattr(llm, "name", "?"),
@@ -115,40 +106,18 @@ async def induce_topdown(req: TopdownRequest):
             "official_seed": len(official),
             "andere": len(root.get("arguments", [])),
         },
-        "persisted": persisted,
         "tree": proto.serialize_node_args(root),
     }
 
 
 # =========================================================================
 #  State-Editor: zustandslose „propose"-Endpoints (rechnen gegen den vom Client
-#  geschickten Baum, schreiben NICHTS) + ein einziges /save (voller Ersatz).
-#  Der CMS-Editor hält den ganzen Baum im State, merged Vorschläge lokal und
-#  persistiert am Ende einmal. uid = Client-Knoten-Identität (auch neue Knoten).
+#  geschickten Baum, schreiben NICHTS). Der CMS-Editor hält den ganzen Baum im
+#  State, merged Vorschläge lokal und persistiert am Ende EINMAL — aber NICHT hier:
+#  Persistenz läuft über den CMS-Taxonomie-Snapshot (PDS = Quelle der Wahrheit) →
+#  Indexer → app_taxonomy_node/_membership. Der Calculator ist reines Compute.
+#  uid = Client-Knoten-Identität (auch neue Knoten).
 # =========================================================================
-class SaveRequest(BaseModel):
-    ballot_rkey: str = Field(..., description="Ballot, dessen Baum geschrieben wird.")
-    tree: dict = Field(
-        ..., description="Vollständiger Baum aus dem State-Editor: je Knoten "
-        "{name, description, children, arguments:[{argument_uri, stance, confidence}]}. "
-        "Ersetzt Knoten UND Memberships komplett.")
-
-    model_config = {"json_schema_extra": {"examples": [{"ballot_rkey": "663.1", "tree": {}}]}}
-
-
-@router.post("/save")
-async def save_topdown(req: SaveRequest):
-    """Persistiert den kompletten editierten Baum (Struktur + Argument-Zuordnungen)
-    in einer Transaktion — ersetzt den bestehenden Baum des Ballots vollständig.
-    Deterministisch, kein LLM."""
-    try:
-        saved = await db.save_topic_tree_full(req.ballot_rkey, req.tree)
-    except Exception as err:
-        logger.error("Speichern des Baums fehlgeschlagen (%s)", err)
-        raise HTTPException(status_code=502, detail=f"Speichern fehlgeschlagen: {err}") from err
-    return {"ballot_rkey": req.ballot_rkey, "saved": saved}
-
-
 def _placed_argument_uris(node: dict) -> set:
     """Alle bereits im (State-)Baum verorteten argument_uris sammeln."""
     uris: set = set()

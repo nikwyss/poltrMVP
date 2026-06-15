@@ -289,10 +289,9 @@ def propose_roots(
 
 
 def _arg_membership(arg: dict) -> dict:
-    """Eine Argument-Membership in kanonischer Persistenz-Form (wie
-    db.fetch_topic_tree / db._insert_topic_tree erwarten). Jedes Argument hängt an
-    GENAU EINEM Knoten (kein is_primary mehr). `confidence` = Klassifikator-
-    Sicherheit 1–5 (falls vorhanden)."""
+    """Eine Argument-Membership in kanonischer Form (wie db.fetch_topic_tree und der
+    CMS-Snapshot-Builder erwarten). Jedes Argument hängt an GENAU EINEM Knoten (kein
+    is_primary mehr). `confidence` = Klassifikator-Sicherheit 1–5 (falls vorhanden)."""
     return {
         "argument_uri": arg.get("uri") or arg.get("argument_uri"),
         "stance": arg.get("stance"),

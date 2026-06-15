@@ -2,7 +2,6 @@
 
 ## Next
 
-- [ ] Ballot creation endpoint: wire up `create_ballot_account()` in AppView (currently only DB + governance_pds.py ready)
 - [ ] Missing: per-email rate limit on code requests
 
 - [ ] Comment-Tree: immer nur auswahl der comments zeigen, und dann mit "Zeige mehr" links expandierbar machen. 
@@ -11,9 +10,6 @@
 - [ ] Posting_limit:  Das Frontend-Display (Restkontingent im Composer, Deaktivieren bei Cap, 429-Handling/i18n) war laut doc/SECURITY_AUTH.md als „pending" markiert — die Durchsetzung im Backend steht, die UI-Anzeige evtl. noch nicht vollständig.
   
 - [ ] email änderungs mechanismus im profil 
-- [ ] besser: email nur gehashed speichern?
-- [ ] taxonomy snapshot.
-
 
 
 **Peerreviews**
@@ -26,12 +22,15 @@
 - [ ] Formulierungstipps.
 
 
+- Moderation
+
 ## Security-Review des Auth-Umbaus (2026-06-11)
 
 1. **Email-as-HMAC (billiger First-Order-Fix, eigener Plan):** `auth_creds.email` →
    gepfefferter `HMAC(pepper, email)` statt Klartext, Login-Lookup per `HMAC(eingabe)`.
    Plaintext nur transient in den Pending-Tabellen (Versand). Keine Funktion geht verl>
    Hängt davon ab, wie bestehende VAA Konten verknüpft werden.
+   [ ] besser: email nur gehashed speichern?
 
 2. **DID-Genesis von Verify-Zeit entkoppeln (Nutzer will später weiterverfolgen, aktue>
    nicht prioritär):** atproto-DID-Genesis ist öffentlich sekundengenau zeitgestempelt;
@@ -62,11 +61,13 @@ Siehe Plan-Datei mit Detail-Mitigations. Verwandt: [[project_architecture_layers
 
 
 ## Done
+- Taxonomy snapshot.
 - Layout Der Argument View (Taxonomy)
 - Email-Magic-Link: Text und Layout (Vorbild Tamedia: Verifzierungscode zum Beispiel) 
 - Randomisierung von argumenten und kommentaren auf gleicher stufe: user-konstante randomisierung. 
 - Scroll-positioning . springt immer noch zur top position, wenn man auf feed zurückkehrt.
 - Anzahl Kommentare bei Argumenten einblenden. 
+- Ballot creation endpoint: wire up `create_ballot_account()` in AppView (currently only DB + governance_pds.py ready)
 - Per-ballot governance accounts: each ballot gets its own PDS account (`ballot-{rkey}.id.poltr.ch`), credentials in `governance_accounts` table, removed `PDS_GOVERNANCE_ACCOUNT_DID`/`PDS_GOVERNANCE_PASSWORD` env vars
 - Consolidate cross-posting from indexer to appview (revoke indexer auth.auth_creds access)
 - Design and implement user profile pages on bluesky

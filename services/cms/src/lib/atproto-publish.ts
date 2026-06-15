@@ -583,7 +583,7 @@ type SnapshotNode = {
   arguments?: SnapshotArg[]
 }
 
-/** Persistierten Baum vom Calculator holen. `null`, wenn (noch) kein Baum existiert. */
+/** Persistierten Baum vom Calculator holen (nur für Backfill). `null`, wenn keiner existiert. */
 async function fetchPersistedTree(ballotRkey: string): Promise<CalcTreeNode | null> {
   const url = `${CALCULATOR_URL}/api/topdown/tree?ballot_rkey=${encodeURIComponent(ballotRkey)}`
   const resp = await fetch(url, { headers: { 'Content-Type': 'application/json' } })
@@ -595,16 +595,47 @@ async function fetchPersistedTree(ballotRkey: string): Promise<CalcTreeNode | nu
   return data.tree ?? null
 }
 
+// Slug-Generierung — Port von services/calculator/src/core/db.py (_slugify/_unique_slug).
+// Im Pivot vergibt das CMS die stabilen keys zur Autorenzeit (eingefroren im Record),
+// statt sie beim DB-Insert zu generieren. Bestehende keys bleiben unverändert.
+const _UMLAUT: Record<string, string> = {
+  ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss', Ä: 'ae', Ö: 'oe', Ü: 'ue',
+}
+function slugify(name: string): string {
+  const s = (name || '').replace(/[äöüßÄÖÜ]/g, (c) => _UMLAUT[c] ?? c).toLowerCase()
+  return s.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'thema'
+}
+function uniqueSlug(base: string, used: Set<string>): string {
+  let slug = base
+  let i = 2
+  while (used.has(slug)) {
+    slug = `${base}-${i}`
+    i++
+  }
+  used.add(slug)
+  return slug
+}
+
 /**
- * Wurzel-Baum → flache Knotenliste (ohne die strukturelle Wurzel) in DFS-Reihenfolge.
- * Elternbezug über den stabilen `key`-Slug; Argumente per rkey (gleiches Repo).
+ * Wurzel-Baum → flache Knotenliste (ohne die strukturelle Wurzel) in DFS-Pre-Order.
+ * Die Array-Reihenfolge IST die Geschwister-Reihenfolge (der Indexer leitet daraus
+ * `node_order` ab). Elternbezug über den stabilen `key`-Slug; Argumente per rkey
+ * (gleiches Governance-Repo). Knoten ohne `key` (im Editor neu angelegt) bekommen
+ * hier einen eingefrorenen, kollisionsfreien Slug; bestehende keys bleiben.
  */
 function flattenTree(root: CalcTreeNode): SnapshotNode[] {
   const out: SnapshotNode[] = []
-  const keyOf = (n: CalcTreeNode): string => n.key || `node-${n.id ?? out.length}`
+  const used = new Set<string>()
+  // Bestehende keys vorab reservieren, damit neu generierte Slugs nicht kollidieren.
+  const seed = (n: CalcTreeNode) => {
+    if (n.key) used.add(n.key)
+    for (const c of n.children || []) seed(c)
+  }
+  for (const ch of root.children || []) seed(ch)
 
   const walk = (node: CalcTreeNode, parentKey: string | null) => {
-    const sn: SnapshotNode = { key: keyOf(node), name: node.name }
+    const key = node.key || uniqueSlug(slugify(node.name), used)
+    const sn: SnapshotNode = { key, name: node.name }
     if (node.description) sn.description = node.description
     if (node.introduction) sn.introduction = node.introduction
     if (node.importance != null) sn.importance = node.importance
@@ -618,38 +649,40 @@ function flattenTree(root: CalcTreeNode): SnapshotNode[] {
     }
     if (args.length) sn.arguments = args
     out.push(sn)
-    for (const ch of node.children || []) walk(ch, sn.key)
+    for (const ch of node.children || []) walk(ch, key)
   }
 
-  // Die Wurzel selbst ist strukturell und wird nicht aufgenommen — ihre direkten
-  // Kinder sind die obersten Themen (parent = null).
+  // Die strukturelle Wurzel wird nicht aufgenommen — ihre direkten Kinder sind die
+  // obersten Themen (parent = undefined). Der Indexer rekonstruiert die Wurzel.
+  // Argumente, die direkt an der Wurzel hängen (vormals „Andere-Topf"), werden NICHT
+  // persistiert: eine Membership bedeutet „einem Thema zugeordnet". Solche Argumente
+  // erscheinen nach der Projektion als „nicht zugeordnet".
   for (const ch of root.children || []) walk(ch, null)
   return out
 }
 
 /**
- * Deterministischer sha256-Hex über die Knoten — unabhängig von der Reihenfolge.
- * Knoten nach `key` sortiert, Argumente nach `rkey`; nur gesetzte Felder, feste
- * Property-Reihenfolge. Basis für die Dedup beim Persistieren.
+ * Deterministischer sha256-Hex über die Knoten — die ARRAY-Reihenfolge zählt mit
+ * (Geschwister-Reihenfolge ist Inhalt → ein reines Umsortieren ergibt einen neuen
+ * Snapshot). Argumente je Knoten nach `rkey` sortiert (Menge, Reihenfolge egal).
+ * Basis für die Dedup beim Persistieren.
  */
 function contentHash(nodes: SnapshotNode[]): string {
-  const canon = nodes
-    .map((n) => ({
-      key: n.key,
-      name: n.name,
-      description: n.description ?? null,
-      introduction: n.introduction ?? null,
-      importance: n.importance ?? null,
-      parent: n.parent ?? null,
-      arguments: (n.arguments ?? [])
-        .map((a) => ({
-          rkey: a.rkey,
-          confidence: a.confidence ?? null,
-          stance: a.stance ?? null,
-        }))
-        .sort((x, y) => (x.rkey < y.rkey ? -1 : x.rkey > y.rkey ? 1 : 0)),
-    }))
-    .sort((x, y) => (x.key < y.key ? -1 : x.key > y.key ? 1 : 0))
+  const canon = nodes.map((n) => ({
+    key: n.key,
+    name: n.name,
+    description: n.description ?? null,
+    introduction: n.introduction ?? null,
+    importance: n.importance ?? null,
+    parent: n.parent ?? null,
+    arguments: (n.arguments ?? [])
+      .map((a) => ({
+        rkey: a.rkey,
+        confidence: a.confidence ?? null,
+        stance: a.stance ?? null,
+      }))
+      .sort((x, y) => (x.rkey < y.rkey ? -1 : x.rkey > y.rkey ? 1 : 0)),
+  }))
   return crypto.createHash('sha256').update(JSON.stringify(canon)).digest('hex')
 }
 
@@ -710,19 +743,26 @@ export type SnapshotResult =
   | { status: 'published'; version: number; uri: string; cid: string; nodes: number; arguments: number }
 
 /**
- * Den aktuell persistierten Taxonomie-Baum eines Ballots als unveränderlichen
- * Snapshot-Record auf dessen Governance-Konto schreiben (append-only) und in
- * app_taxonomy_snapshot indexieren.
+ * Den Taxonomie-Baum eines Ballots als unveränderlichen Snapshot-Record auf dessen
+ * Governance-Konto schreiben (append-only) und in app_taxonomy_snapshot indexieren.
+ * Dieser Record ist die **Quelle der Wahrheit** — der Indexer projiziert ihn in
+ * app_taxonomy_node/_membership.
  *
- * - Liest BEWUSST den persistierten Baum vom Calculator (DB-Sicht mit stabilen
- *   key-Slugs), damit der Snapshot exakt dem gespeicherten Stand entspricht.
- * - Dedup: ist der Baum identisch zum letzten Snapshot (Content-Hash), wird kein
- *   neuer Record geschrieben.
+ * `root` = die strukturelle Wurzel (mit `children`), wie sie der CMS-Editor schickt
+ * (toServer) bzw. der Calculator-Backfill liefert. Neue Knoten erhalten hier einen
+ * eingefrorenen key.
+ *
+ * - Dedup: ist der Baum identisch zum letzten Snapshot (Content-Hash inkl.
+ *   Geschwister-Reihenfolge), wird kein neuer Record geschrieben.
  * - Verkettet über `prev` (uri+cid) die Versionshistorie.
  */
-export async function publishTaxonomySnapshot(ballotRkey: string): Promise<SnapshotResult> {
-  const root = await fetchPersistedTree(ballotRkey)
-  if (!root) return { status: 'empty', reason: 'no_tree' }
+export async function publishTaxonomySnapshot(
+  ballotRkey: string,
+  root: CalcTreeNode | null | undefined,
+): Promise<SnapshotResult> {
+  if (!root || !(root.children && root.children.length)) {
+    return { status: 'empty', reason: 'no_tree' }
+  }
 
   const nodes = flattenTree(root)
   const hash = contentHash(nodes)
@@ -753,4 +793,14 @@ export async function publishTaxonomySnapshot(ballotRkey: string): Promise<Snaps
   await recordSnapshot(ballotRkey, version, uri, cid, hash)
 
   return { status: 'published', version, uri, cid, nodes: nodes.length, arguments: argCount }
+}
+
+/**
+ * Backfill / Seed: einen Snapshot aus dem aktuell in der DB persistierten Baum
+ * erzeugen (liest ihn über den Calculator). Einmalig pro bestehendem Ballot, um die
+ * PDS-Quelle-der-Wahrheit zu setzen, bevor der Indexer-Projektionspfad übernimmt.
+ */
+export async function backfillTaxonomySnapshot(ballotRkey: string): Promise<SnapshotResult> {
+  const root = await fetchPersistedTree(ballotRkey)
+  return publishTaxonomySnapshot(ballotRkey, root)
 }
