@@ -22,21 +22,28 @@ import { Card, CardContent } from "@/components/ui/card";
 
 type T = (key: string, values?: Record<string, string | number>) => string;
 
+const SERIF = {
+  fontFamily: 'var(--font-serif), Georgia, "Times New Roman", serif',
+} as const;
+
+// −/+ mit echtem Minuszeichen, z. B. „+46", „−28". v ∈ [−1,1] → Prozentpunkte.
+function signed(v: number): string {
+  const n = Math.round(v * 100);
+  if (n > 0) return `+${n}`;
+  if (n < 0) return `−${Math.abs(n)}`;
+  return "0";
+}
 
 // dissent darüber ⇒ Knoten gilt als „gespalten" (hoher Dissens) ⇒ Amber-Rand.
 const SPLIT_THRESHOLD = 0.5;
 
-// Pole — konsistent mit Positionsband / Insight.
-const RED: [number, number, number] = [178, 58, 33]; // Gegner-Seite
-const BLUE: [number, number, number] = [37, 99, 235]; // Befürworter-Seite
+// Pole — durchgehende Skala rot (Nein) ↔ warmes Grau ↔ blau (Ja), konsistent
+// mit der Likert-Verteilung („Verteilung je Thema").
+const RED: [number, number, number] = [176, 60, 42]; // Gegner-Seite (Brick)
+const BLUE: [number, number, number] = [60, 90, 143]; // Befürworter-Seite (Navy)
 const MID: [number, number, number] = [233, 230, 224]; // neutrale Mitte (warmes Grau)
-const AMBER = "rgb(217, 159, 40)"; // Rand + Hinweis für stark gespaltene Knoten
+const AMBER = "rgb(217, 159, 40)"; // Blitz + Hinweis für stark gespaltene Knoten
 
-// Entsättigung: jeder bewertete Ton wird Richtung Hellgrau gemischt, damit die
-// kräftigen Pole weicher wirken. Unbewertete Segmente gehen auf sehr helles Grau
-// und treten so klar hinter die bewerteten zurück.
-const DESAT: [number, number, number] = [244, 244, 245]; // #f4f4f5 (zinc-100)
-const DESAT_T = 0.28; // ~28 % Richtung Hellgrau
 const UNRATED: [number, number, number] = [255, 255, 255]; // unbewertet = weiss (mit feinem Umriss)
 
 // Geometrie
@@ -75,24 +82,35 @@ function rgb(c: [number, number, number]): string {
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 }
 
-// proLeaning -1..1 → diverging rot↔neutral↔blau, entsättigt; null = helles Grau.
+// proLeaning -1..1 → Füllton auf der Skala rot ↔ warmes Grau ↔ blau. Schwache
+// Neigung bleibt hell (nahe Mitte), starke Neigung wird satt/dunkel; null = weiss.
+function fillRgb(lean: number | null | undefined): [number, number, number] | null {
+  if (lean == null) return null;
+  return lean >= 0
+    ? mixT(MID, BLUE, Math.min(1, lean))
+    : mixT(MID, RED, Math.min(1, -lean));
+}
 function fillFor(lean: number | null | undefined): string {
-  if (lean == null) return rgb(UNRATED);
-  const base =
-    lean >= 0 ? mixT(MID, BLUE, Math.min(1, lean)) : mixT(MID, RED, Math.min(1, -lean));
-  return rgb(mixT(base, DESAT, DESAT_T));
+  return rgb(fillRgb(lean) ?? UNRATED);
 }
 
-// proLeaning -1..1 → i18n-Key der 5-stufigen Ja↔Nein-Position (Zentrums-Label).
-// Symmetrisch um 0; spiegelt die Legende „Näher bei den Ja/Nein-Argumenten".
-function leaningKey(lean: number | null | undefined): string {
-  if (lean == null) return "sunburstLeanUnrated";
-  if (lean <= -0.5) return "sunburstLeanStrongNo";
-  if (lean <= -0.15) return "sunburstLeanNo";
-  if (lean < 0.15) return "sunburstLeanBalanced";
-  if (lean < 0.5) return "sunburstLeanYes";
-  return "sunburstLeanStrongYes";
+// Wahrnehmungs-Helligkeit (Rec. 601) — für Kontrast-Entscheid Label hell/dunkel.
+function luminance([r, g, b]: [number, number, number]): number {
+  return 0.299 * r + 0.587 * g + 0.114 * b;
 }
+
+// Gestufte Legenden-Skala (diskrete Blöcke statt weichem Verlauf) — spiegelt die
+// fünf Stufen der Likert-Verteilung.
+const LEGEND_GRADIENT = (() => {
+  const cols = [-1, -0.7, -0.4, -0.15, 0.15, 0.4, 0.7, 1].map(
+    (l) => rgb(fillRgb(l)!),
+  );
+  const n = cols.length;
+  const parts: string[] = [];
+  for (let i = 0; i < n; i++)
+    parts.push(`${cols[i]} ${(i / n) * 100}%`, `${cols[i]} ${((i + 1) / n) * 100}%`);
+  return `linear-gradient(90deg, ${parts.join(", ")})`;
+})();
 
 // Dunkle Töne aus derselben Farbfamilie wie die Füllung — für Label-Text ohne
 // harten Weiss-Kontrast / Halo.
@@ -100,12 +118,15 @@ const DARK_BLUE: [number, number, number] = [28, 52, 120]; // dunkles Blau
 const DARK_RED: [number, number, number] = [112, 34, 20]; // dunkles Rot
 const DARK_NEUTRAL: [number, number, number] = [88, 86, 92]; // mittleres Grau
 
-// Label-Farbe = dunkle Variante der Segment-Hue: blau→dunkelblau, rot→dunkelrot,
-// neutral→mittelgrau. Schwache Neigung mischt Richtung Grau (folgt der Füllung).
+// Label-Farbe kontrastabhängig: auf dunkler (satter) Füllung heller Text, auf
+// heller Füllung die dunkle Variante der Segment-Hue (blau→dunkelblau, rot→
+// dunkelrot, neutral→mittelgrau). Schwache Neigung mischt Richtung Grau.
 function textColor(lean: number | null | undefined): string {
-  if (lean == null) return rgb(DARK_NEUTRAL);
-  const strength = Math.min(1, Math.abs(lean));
-  const dark = lean >= 0 ? DARK_BLUE : DARK_RED;
+  const c = fillRgb(lean);
+  if (!c) return rgb(DARK_NEUTRAL); // unbewertet (helle Füllung)
+  if (luminance(c) < 128) return "rgb(249, 249, 247)"; // dunkle Füllung → heller Text
+  const strength = Math.min(1, Math.abs(lean!));
+  const dark = lean! >= 0 ? DARK_BLUE : DARK_RED;
   return rgb(mixT(DARK_NEUTRAL, dark, strength));
 }
 
@@ -232,8 +253,13 @@ interface Seg {
 }
 
 // Equal-share-Layout: jedes Geschwister bekommt denselben Winkelanteil.
-// Nur bis MAX_LEVELS Ebenen — tiefere Ebenen werden gar nicht erfasst/gezeichnet.
-function layout(root: TaxonomyNode): { segs: Seg[]; maxLevel: number } {
+// Bis `maxLevels` Ebenen — tiefere Ebenen werden gar nicht erfasst/gezeichnet
+// (max. MAX_LEVELS; mit `maxLevels = 1` nur die Hauptthemen, ohne Unterthemen).
+function layout(
+  root: TaxonomyNode,
+  maxLevels: number = MAX_LEVELS,
+): { segs: Seg[]; maxLevel: number } {
+  const cap = Math.min(maxLevels, MAX_LEVELS);
   const segs: Seg[] = [];
   let maxLevel = 0;
   const walk = (node: TaxonomyNode, level: number, a0: number, a1: number) => {
@@ -241,7 +267,7 @@ function layout(root: TaxonomyNode): { segs: Seg[]; maxLevel: number } {
       segs.push({ node, level, a0, a1 });
       if (level > maxLevel) maxLevel = level;
     }
-    if (level >= MAX_LEVELS) return; // 4. Ebene nie zeichnen
+    if (level >= cap) return; // tiefere Ebenen nicht zeichnen
     const kids = node.children ?? [];
     if (!kids.length) return;
     const step = (a1 - a0) / kids.length;
@@ -287,12 +313,20 @@ export function TaxonomySunburst({
   compact?: boolean;
 }) {
   const [hover, setHover] = useState<TaxonomyNode | null>(null);
+  // Unterthemen (Ebene 2+) standardmässig ausgeblendet; per Checkbox einblendbar.
+  const [showSub, setShowSub] = useState(false);
+
+  // Gibt es überhaupt Unterthemen? Sonst ist die Checkbox sinnlos.
+  const hasSub = useMemo(
+    () => (root.children ?? []).some((c) => (c.children?.length ?? 0) > 0),
+    [root],
+  );
 
   const { segs, radii, maxLevel } = useMemo(() => {
-    const { segs, maxLevel } = layout(root);
+    const { segs, maxLevel } = layout(root, showSub ? MAX_LEVELS : 1);
     const radii = ringRadii(maxLevel, compact);
     return { segs, radii, maxLevel };
-  }, [root, compact]);
+  }, [root, compact, showSub]);
 
   if (!segs.length) return null;
 
@@ -305,10 +339,16 @@ export function TaxonomySunburst({
   // Standardmässig kein Panel; nur beim Hover erscheint Titel + Bewertung seitlich.
   const active = hover;
   const lean = active?.proLeaning;
-  const ratingLabel = active ? t(leaningKey(lean)) : "";
-  // Farbe = Seite (blau/rot), abgedunkelt für Lesbarkeit; Stufe sagt der Text.
+  // Hover zeigt Thema + Mittelwert (proLeaning in Prozentpunkten); unbewertet:
+  // Hinweistext.
+  const ratingLabel = active
+    ? lean == null
+      ? t("sunburstLeanUnrated")
+      : `⌀ ${signed(lean)}`
+    : "";
+  // Farbe = Seite (blau/rot), abgedunkelt für Lesbarkeit.
   const ratingColor =
-    lean == null ? "rgba(0,0,0,0.5)" : rgb(mixT(lean >= 0 ? BLUE : RED, [30, 30, 30], 0.15));
+    lean == null ? "rgba(0,0,0,0.5)" : rgb(mixT(lean >= 0 ? BLUE : RED, [30, 30, 30], 0.1));
   // Gespalten (hoher dissent) ⇒ Amber-Hinweis im Panel, passend zum Amber-Rand.
   const activeSplit = !!active && (active.dissent ?? 0) > SPLIT_THRESHOLD;
   // Panel auf die dem Segment gegenüberliegende Seite legen (Winkel 0–180 = rechte
@@ -318,10 +358,31 @@ export function TaxonomySunburst({
   const panelSide = activeMid > 0 && activeMid < 180 ? "left" : "right";
 
   return (
-    <Card className="border-black/5 py-5">
-      <CardContent className="px-4">
-        <p className="mb-0.5 text-sm font-medium text-foreground/90">{t("sunburstTitle")}</p>
-        <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
+    <Card className="border-black/5 py-6">
+      <CardContent className="px-6">
+        <p className="mb-1 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          {t("sunburstEyebrow")}
+        </p>
+        <div className="mb-1.5 flex items-start justify-between gap-3">
+          <p
+            className="text-[1.5rem] leading-tight tracking-tight text-foreground"
+            style={SERIF}
+          >
+            {t("sunburstTitle")}
+          </p>
+          {hasSub && (
+            <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[12.5px] text-muted-foreground select-none">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5 cursor-pointer accent-current"
+                checked={showSub}
+                onChange={(e) => setShowSub(e.target.checked)}
+              />
+              {t("sunburstSubtopics")}
+            </label>
+          )}
+        </div>
+        <p className="mb-3 max-w-[62ch] text-[13.5px] leading-relaxed text-muted-foreground">
           {t("sunburstSubtitle")}
         </p>
 
@@ -534,23 +595,19 @@ export function TaxonomySunburst({
           )}
         </div>
 
-        {/* Legende: Pole wie im Positionsband — unterhalb des Charts */}
-        <div className="mt-3 flex items-center justify-center gap-3 text-[13px] font-medium">
+        {/* Legende: Pole auf der durchgehenden Skala — abgesetzt durch eine Linie */}
+        <div className="mt-5 border-t border-black/5 pt-4 flex items-center justify-center gap-3 text-[13px] font-medium">
           <span style={{ color: `rgb(${RED.join(",")})` }}>{t("poleOpponents")}</span>
           <span
-            className="h-2 w-28 rounded-full"
-            style={{
-              background: `linear-gradient(90deg, rgb(${RED.join(",")}), rgb(${MID.join(
-                ",",
-              )}), rgb(${BLUE.join(",")}))`,
-            }}
+            className="h-2.5 w-44 rounded-full"
+            style={{ background: LEGEND_GRADIENT }}
           />
           <span style={{ color: `rgb(${BLUE.join(",")})` }}>{t("poleSupporters")}</span>
         </div>
 
         {/* Zweite Zeile: Sonder-Marker — gestricheltes Sektörchen = unbewertet,
             Blitz = gespalten (hoher Dissens). */}
-        <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <svg viewBox="2 2.7 16 8" className="h-3.5 w-7 shrink-0" aria-hidden="true">
               <path

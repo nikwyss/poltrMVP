@@ -14,10 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
 // import { PageBackdrop } from "@/components/page-backdrop";
-import { PositionBand } from "@/components/position-band";
-import { TopicPanorama } from "@/components/topic-panorama";
+import { PositionCloud } from "@/components/position-cloud";
 import { TaxonomySunburst } from "@/components/taxonomy-sunburst";
-import { TaxonomyIcicle } from "@/components/taxonomy-icicle";
 import { LockedSection, GatePlaceholder } from "@/components/locked-section";
 import { AddArgumentModal } from "@/components/add-argument-modal";
 import { ArgumentariumHeader } from "@/components/argumentarium-header";
@@ -208,16 +206,8 @@ export default function TaxonomyPage() {
               </>
             )}
 
-            {/* Positionsband — Themen-Übersicht zwischen den Polen */}
-            <PositionBand nodes={root.children} t={t} />
-
-            {/* Themen-Panorama — dieselben Daten als Bergpanorama */}
-            <TopicPanorama nodes={root.children} t={t} />
-
-            {/* Eiszapfen — ausgerollte Hierarchie (Breite ∝ Grösse), nach Haltung */}
-            {fullTree?.tree && (
-              <TaxonomyIcicle root={fullTree.tree} t={t} onSelect={openTopicDetail} />
-            )}
+            {/* Positionswolken — dieselben Daten als Raincloud (Verteilung) */}
+            <PositionCloud nodes={root.children} t={t} />
           </LockedSection>
         </div>
       )}

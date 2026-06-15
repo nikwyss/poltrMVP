@@ -64,7 +64,9 @@ function rgb(c: [number, number, number]): string {
 function fillFor(lean: number | null | undefined): string {
   if (lean == null) return rgb(UNRATED);
   const base =
-    lean >= 0 ? mixT(MID, BLUE, Math.min(1, lean)) : mixT(MID, RED, Math.min(1, -lean));
+    lean >= 0
+      ? mixT(MID, BLUE, Math.min(1, lean))
+      : mixT(MID, RED, Math.min(1, -lean));
   return rgb(mixT(base, DESAT, DESAT_T));
 }
 
@@ -127,7 +129,9 @@ export function TaxonomyIcicle({
   return (
     <Card className="border-black/5 py-5">
       <CardContent className="px-4">
-        <p className="mb-0.5 text-sm font-medium text-foreground/90">{t("sunburstTitle")}</p>
+        <p className="mb-0.5 text-sm font-medium text-foreground/90">
+          {t("icircleTitle")}
+        </p>
         <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
           {t("sunburstSubtitle")}
         </p>
@@ -165,7 +169,9 @@ export function TaxonomyIcicle({
                   opacity,
                 }}
                 className={`rounded-[3px] transition-opacity ${
-                  clickable ? "cursor-pointer hover:opacity-80" : "cursor-default"
+                  clickable
+                    ? "cursor-pointer hover:opacity-80"
+                    : "cursor-default"
                 }`}
               />
             );
@@ -174,7 +180,9 @@ export function TaxonomyIcicle({
 
         {/* Legende — identisch zur Sunburst (nur Marker als Rechteck-Swatches). */}
         <div className="mt-3 flex items-center justify-center gap-3 text-[13px] font-medium">
-          <span style={{ color: `rgb(${RED.join(",")})` }}>{t("poleOpponents")}</span>
+          <span style={{ color: `rgb(${RED.join(",")})` }}>
+            {t("poleOpponents")}
+          </span>
           <span
             className="h-2 w-28 rounded-full"
             style={{
@@ -183,14 +191,19 @@ export function TaxonomyIcicle({
               )}), rgb(${BLUE.join(",")}))`,
             }}
           />
-          <span style={{ color: `rgb(${BLUE.join(",")})` }}>{t("poleSupporters")}</span>
+          <span style={{ color: `rgb(${BLUE.join(",")})` }}>
+            {t("poleSupporters")}
+          </span>
         </div>
 
         <div className="mt-1.5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span
               className="h-3.5 w-3.5 shrink-0 rounded-[3px]"
-              style={{ background: fillFor(null), border: "1px dashed rgba(0,0,0,0.3)" }}
+              style={{
+                background: fillFor(null),
+                border: "1px dashed rgba(0,0,0,0.3)",
+              }}
             />
             {t("sunburstLeanUnrated")}
           </span>

@@ -55,6 +55,14 @@ export function PositionBand({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
 
   const rowGrid = "grid grid-cols-[minmax(140px,230px)_1fr] items-center gap-3";
 
+  // Leaderboard: nach aggregiertem Mittelwert (proLeaning); unbewertete ans Ende.
+  const sorted = [...nodes].sort((a, b) => {
+    const av = a.proLeaning;
+    const bv = b.proLeaning;
+    if (av == null || bv == null) return av == null ? (bv == null ? 0 : 1) : -1;
+    return bv - av;
+  });
+
   return (
     <Card className="border-black/5 py-5">
       <CardContent className="px-4">
@@ -76,7 +84,7 @@ export function PositionBand({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
 
         {/* Eine Zeile pro Top-Thema */}
         <div className="relative mt-2 flex flex-col gap-1.5">
-          {nodes.map((n) => {
+          {sorted.map((n) => {
             const lean = n.proLeaning;
             const split = (n.dissent ?? 0) > SPLIT_THRESHOLD;
             const frac = lean == null ? 0 : Math.abs(lean) * HALF;

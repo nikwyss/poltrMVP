@@ -1,20 +1,22 @@
 "use client";
 
 /**
- * Positionswolken — Streifen-/Barcode-Plot je Thema. Schwesteransicht zum
- * Positionsband: Statt eines einzelnen Balkens (Aggregat) ist jedes bewertete
- * Argument ein kurzer Strich an seiner Position auf der Achse Nein ← neutral → Ja.
+ * Positionswolken — divergierende Likert-Verteilung je Thema. Schwesteransicht
+ * zum (archivierten) Positionsband: Jede Argument-Bewertung fällt in eine von
+ * fünf Stufen (Nein · eher Nein · neutral · eher Ja · Ja). Die Stufen bilden
+ * einen durchgehenden Pill-Balken auf einer dezenten Schiene, von der neutralen
+ * Mitte aus ausgewogen — die neutrale Stufe sitzt mittig auf der Achse,
+ * Ablehnung wächst nach links, Zustimmung nach rechts.
  *
- * Die Striche sind halbtransparent: wo sich Bewertungen häufen, überlagern sie
- * sich zu dichten, satten Bändern — so liest man Lage, Streuung und
- * Polarisierung direkt aus der Dichte, ganz ohne Aggregat.
+ * Die Zeilen sind nach Mittelwert sortiert (Leaderboard). Das Badge rechts
+ * zeigt den Mittelwert aller Bewertungen des Themas in Prozentpunkten.
  *
- * Farbe folgt der Position: terrakotta Richtung Nein, neutralgrau in der Mitte,
- * blau Richtung Ja (kontinuierlicher Verlauf, identische Farbsprache wie das
- * Positionsband).
+ * Skala für ALLE Themen identisch (sonst nicht vergleichbar): gleiche
+ * Stufengrenzen, gleiche Mitte, gemeinsame Schiene. Farbskala rot (Nein) ↔
+ * neutral ↔ blau (Ja), konsistent mit dem Meinungsrad.
  *
  * Achs-Mapping: c = (PRO ? +1 : −1) · (preference − 50) / 50 ∈ [−1, 1]
- * (−1 = Nein, 0 = neutral, +1 = Ja) — identisch zu Positionsband/Panorama.
+ * (−1 = Nein, 0 = neutral, +1 = Ja).
  */
 import { useMemo } from "react";
 import type { TaxonomyNode, TaxonomyArgument } from "@/types/ballots";
@@ -22,42 +24,50 @@ import { Card, CardContent } from "@/components/ui/card";
 
 type T = (key: string) => string;
 
-const BLUE = { r: 74, g: 119, b: 190 }; // Richtung Befürworter (Ja)
-const TERRA = { r: 178, g: 116, b: 92 }; // Richtung Gegner (Nein)
-const NEUTRAL = { r: 172, g: 172, b: 172 }; // Mitte
+const SERIF = {
+  fontFamily: 'var(--font-serif), Georgia, "Times New Roman", serif',
+} as const;
 
-/* ---------- Zeilen-Geometrie (viewBox 0 0 600 44 je Zeile) ---------- */
+// Fünf Likert-Stufen, von Ablehnung (links, rot) zu Zustimmung (rechts, blau).
+const CATS = [
+  { key: "no", label: "panoramaNo", color: "rgb(176, 60, 42)" }, // Nein
+  { key: "ratherNo", label: "cloudRatherNo", color: "rgb(214, 142, 120)" }, // eher Nein
+  { key: "neutral", label: "neutral", color: "rgb(190, 181, 166)" }, // neutral
+  { key: "ratherYes", label: "cloudRatherYes", color: "rgb(157, 181, 216)" }, // eher Ja
+  { key: "yes", label: "panoramaYes", color: "rgb(60, 90, 143)" }, // Ja
+] as const;
+
+// Schiene (Track) — warmes Hellgrau, passend zur cremefarbenen Karte.
+const TRACK = "rgb(238, 234, 226)";
+
+// Net-Badge: blau getönt bei Zustimmung, rot bei Ablehnung.
+const POS = { bg: "rgba(60, 90, 143, 0.12)", fg: "rgb(56, 84, 134)" };
+const NEG = { bg: "rgba(176, 60, 42, 0.12)", fg: "rgb(166, 56, 38)" };
+const ZERO = { bg: "rgba(0,0,0,0.05)", fg: "var(--muted-foreground)" };
+
+/* ---------- Achsen-Geometrie (viewBox-Breite 600) ---------- */
 const VW = 600;
 const PAD = 10;
-const X0 = PAD; // c = -1
-const X1 = VW - PAD; // c = +1
-const xPx = (c: number) => X0 + ((c + 1) / 2) * (X1 - X0);
+const X0 = PAD;
+const X1 = VW - PAD;
+const XC = (X0 + X1) / 2; // neutrale Mitte
+const HALF = (X1 - X0) / 2; // entspricht Anteil 1.0 je Seite
+const BARH = 30;
+const TRACK_Y = 3;
+const TRACK_H = 24;
+const BAR_Y = 6;
+const BAR_H = 18;
 
-const ROWH = 44;
-const TICK_TOP = 7;
-const TICK_BOT = ROWH - 7;
-const TICK_OPACITY = 0.28; // halbtransparent ⇒ Häufung verdichtet sich
-
-// Alle Bewertungen werden auf eine gemeinsame 10er-Skala gerastet (Schrittweite
-// 0.2 auf c ∈ [−1,1]) — statt der feinen 100er-Skala der Rohbewertung. Das gilt
-// für ALLE Themen (sonst wären sie nicht vergleichbar): nahe Werte fallen auf
-// dieselbe Stufe und bilden breite, lesbare Bänder. −1/0/+1 bleiben exakt.
-const STEP = 0.2;
-const snap = (c: number) => Math.round(c / STEP) * STEP;
-// Strichbreite ≈ Stufenabstand, damit jede Stufe als sattes Band liest.
-const TICK_W = ((X1 - X0) / 2) * STEP * 0.8;
-
-// Position → Farbe: neutralgrau in der Mitte, zum jeweiligen Pol hin gesättigt.
-function tickColor(c: number): string {
-  const pole = c >= 0 ? BLUE : TERRA;
-  const tt = Math.min(1, Math.abs(c));
-  const r = Math.round(NEUTRAL.r + (pole.r - NEUTRAL.r) * tt);
-  const g = Math.round(NEUTRAL.g + (pole.g - NEUTRAL.g) * tt);
-  const b = Math.round(NEUTRAL.b + (pole.b - NEUTRAL.b) * tt);
-  return `rgb(${r}, ${g}, ${b})`;
+// c ∈ [−1,1] → Likert-Stufe 0…4 (gleich breite Fünftel).
+function categorize(c: number): number {
+  if (c < -0.6) return 0;
+  if (c < -0.2) return 1;
+  if (c <= 0.2) return 2;
+  if (c <= 0.6) return 3;
+  return 4;
 }
 
-// −/+ mit echtem Minuszeichen, z. B. „+46", „−28".
+// −/+ mit echtem Minuszeichen, z. B. „+46", „−28". v ∈ [−1,1] → Prozentpunkte.
 function signed(v: number): string {
   const n = Math.round(v * 100);
   if (n > 0) return `+${n}`;
@@ -66,8 +76,7 @@ function signed(v: number): string {
 }
 
 /* ---------- distinct Bewertungen eines Teilbaums ---------- */
-type Contrib = { c: number; uri: string };
-function collectContribs(node: TaxonomyNode): Contrib[] {
+function collectContribs(node: TaxonomyNode): number[] {
   const seen = new Map<string, number>();
   const walk = (n: TaxonomyNode) => {
     for (const a of (n.arguments ?? []) as TaxonomyArgument[]) {
@@ -78,111 +87,178 @@ function collectContribs(node: TaxonomyNode): Contrib[] {
     for (const c of n.children ?? []) walk(c);
   };
   walk(node);
-  return [...seen.entries()].map(([uri, c]) => ({ uri, c }));
+  return [...seen.values()];
 }
 
+type Seg = { i: number; x: number; w: number };
+type Row = {
+  node: TaxonomyNode;
+  n: number;
+  mean: number;
+  barLeft: number;
+  segs: Seg[];
+};
+
 export function PositionCloud({ nodes, t }: { nodes: TaxonomyNode[]; t: T }) {
-  const rows = useMemo(
-    () => nodes.map((n) => ({ node: n, contribs: collectContribs(n) })),
-    [nodes],
-  );
+  const rows = useMemo<Row[]>(() => {
+    const built = nodes.map((node) => {
+      const cs = collectContribs(node);
+      const n = cs.length;
+      const counts = [0, 0, 0, 0, 0];
+      for (const c of cs) counts[categorize(c)]++;
+      const f = counts.map((k) => (n ? k / n : 0));
+      // Kennzahl: Mittelwert aller Bewertungen (c ∈ [−1,1] → Prozentpunkte).
+      const mean = n ? cs.reduce((a, b) => a + b, 0) / n : 0;
+      // Divergierend: neutrale Stufe mittig auf der Achse, Rest links/rechts.
+      // Durchgehender Balken (keine Lücken); Enden werden per Clip gerundet.
+      const barLeft = XC - (f[0] + f[1] + f[2] / 2) * HALF;
+      const segs: Seg[] = [];
+      let acc = barLeft;
+      for (let i = 0; i < 5; i++) {
+        const w = f[i] * HALF;
+        if (w > 0) segs.push({ i, x: acc, w });
+        acc += w;
+      }
+      return { node, n, mean, barLeft, segs };
+    });
+    // Leaderboard: nach Mittelwert; unbewertete ans Ende.
+    return built.sort((a, b) => {
+      if (a.n === 0 || b.n === 0) return a.n === 0 ? (b.n === 0 ? 0 : 1) : -1;
+      return b.mean - a.mean;
+    });
+  }, [nodes]);
 
   if (!nodes.length) return null;
 
-  const rowGrid = "grid grid-cols-[minmax(140px,230px)_1fr] items-center gap-3";
+  const rowGrid =
+    "grid grid-cols-[minmax(150px,240px)_1fr_auto] items-center gap-4";
 
   return (
-    <Card className="border-black/5 py-5">
-      <CardContent className="px-4">
-        <p className="mb-0.5 text-sm font-medium text-foreground/90">
+    <Card className="border-black/5 py-6">
+      <CardContent className="px-6">
+        {/* Eyebrow */}
+        <p className="mb-1 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          {t("cloudEyebrow")} · {rows.length} {t("cloudThemes")}
+        </p>
+        {/* Serifen-Titel */}
+        <p
+          className="mb-1.5 text-[1.5rem] leading-tight tracking-tight text-foreground"
+          style={SERIF}
+        >
           {t("cloudTitle")}
         </p>
-        <p className="mb-4 text-[13px] leading-snug text-muted-foreground">
+        <p className="mb-4 max-w-[62ch] text-[13.5px] leading-relaxed text-muted-foreground">
           {t("cloudSubtitle")}
         </p>
 
-        {/* Pol-Beschriftung: Nein ← neutral → Ja */}
-        <div className={rowGrid}>
-          <span />
-          <div className="flex justify-between text-xs font-medium text-muted-foreground">
-            <span>← {t("panoramaNo")}</span>
-            <span>{t("neutral")}</span>
-            <span>{t("panoramaYes")} →</span>
-          </div>
+        {/* Legende der fünf Stufen */}
+        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px] text-muted-foreground">
+          {CATS.map((cat) => (
+            <span key={cat.key} className="inline-flex items-center gap-1.5">
+              <span
+                className="h-3 w-3 rounded-[3px]"
+                style={{ background: cat.color }}
+              />
+              {t(cat.label)}
+            </span>
+          ))}
         </div>
 
-        <div className="mt-2 flex flex-col gap-1">
-          {rows.map(({ node, contribs }) => (
-            <div key={node.id} className={rowGrid}>
-              <span
-                className="truncate text-left text-sm text-foreground/80"
-                title={node.name}
-              >
-                {node.name}
-              </span>
+        <div className="flex flex-col gap-2">
+          {rows.map(({ node, n, mean, barLeft, segs }) => {
+            const badge = n === 0 ? ZERO : mean > 0 ? POS : mean < 0 ? NEG : ZERO;
+            const clipId = `cloud-clip-${node.id}`;
+            return (
+              <div key={node.id} className={rowGrid}>
+                <span
+                  className="text-right text-[15px] leading-snug text-foreground/85"
+                  style={SERIF}
+                  title={node.name}
+                >
+                  {node.name}
+                </span>
 
-              {contribs.length === 0 ? (
-                <div className="relative h-7">
-                  <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 border-l border-dashed border-black/20" />
-                  <span
-                    className="absolute top-1/2 left-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--line-mid)]"
-                    title={t("unrated")}
-                  />
-                </div>
-              ) : (
                 <svg
-                  viewBox={`0 0 ${VW} ${ROWH}`}
+                  viewBox={`0 0 ${VW} ${BARH}`}
                   className="block h-auto w-full"
                   role="img"
-                  aria-label={`${node.name} · n=${contribs.length}`}
+                  aria-label={`${node.name} · n=${n} · ${signed(mean)}`}
                 >
-                  {/* Leitlinien: ±0.5 fein, neutrale Mitte stärker */}
-                  {[-0.5, 0.5].map((g) => (
-                    <line
-                      key={g}
-                      x1={xPx(g)}
-                      y1={3}
-                      x2={xPx(g)}
-                      y2={ROWH - 3}
-                      stroke="var(--border)"
-                      strokeWidth={0.5}
-                      strokeDasharray="2 4"
-                    />
-                  ))}
+                  {/* Schiene */}
+                  <rect
+                    x={X0}
+                    y={TRACK_Y}
+                    width={X1 - X0}
+                    height={TRACK_H}
+                    rx={TRACK_H / 2}
+                    fill={TRACK}
+                  />
+                  {n > 0 ? (
+                    <>
+                      {/* Gerundete Bar-Enden via Clip; Segmente stossen lückenlos. */}
+                      <defs>
+                        <clipPath id={clipId}>
+                          <rect
+                            x={barLeft}
+                            y={BAR_Y}
+                            width={HALF}
+                            height={BAR_H}
+                            rx={BAR_H / 2}
+                          />
+                        </clipPath>
+                      </defs>
+                      <g clipPath={`url(#${clipId})`}>
+                        {segs.map((s) => (
+                          <rect
+                            key={s.i}
+                            x={s.x}
+                            y={BAR_Y}
+                            width={s.w + 0.5}
+                            height={BAR_H}
+                            fill={CATS[s.i].color}
+                          >
+                            <title>{t(CATS[s.i].label)}</title>
+                          </rect>
+                        ))}
+                      </g>
+                    </>
+                  ) : (
+                    <circle cx={XC} cy={BARH / 2} r={3.5} fill="var(--line-mid)" />
+                  )}
+                  {/* neutrale Mitte — dezent über allem */}
                   <line
-                    x1={xPx(0)}
-                    y1={2}
-                    x2={xPx(0)}
-                    y2={ROWH - 2}
+                    x1={XC}
+                    y1={1}
+                    x2={XC}
+                    y2={BARH - 1}
                     stroke="var(--line-mid)"
-                    strokeWidth={0.6}
+                    strokeWidth={0.8}
+                    strokeOpacity={0.45}
                     strokeDasharray="3 3"
                   />
-
-                  {/* ein Strich je bewertetem Argument, auf die 10er-Skala
-                      gerastet; Überlagerung = Dichte. */}
-                  {contribs.map((c) => {
-                    const cx = xPx(snap(c.c));
-                    return (
-                      <line
-                        key={c.uri}
-                        x1={cx}
-                        y1={TICK_TOP}
-                        x2={cx}
-                        y2={TICK_BOT}
-                        stroke={tickColor(c.c)}
-                        strokeWidth={TICK_W}
-                        strokeOpacity={TICK_OPACITY}
-                        strokeLinecap="butt"
-                      >
-                        <title>{signed(c.c)}</title>
-                      </line>
-                    );
-                  })}
                 </svg>
-              )}
-            </div>
-          ))}
+
+                <span
+                  className="justify-self-end rounded-full px-2.5 py-1 text-sm font-semibold tabular-nums"
+                  style={{ background: badge.bg, color: badge.fg }}
+                  title={n === 0 ? t("unrated") : undefined}
+                >
+                  {n === 0 ? "—" : signed(mean)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Pol-Beschriftung: mehr Nein ← neutral → mehr Ja */}
+        <div className={`${rowGrid} mt-3`}>
+          <span />
+          <div className="flex justify-between text-[11px] font-semibold uppercase tracking-[0.1em]">
+            <span style={{ color: NEG.fg }}>{t("cloudMoreNo")}</span>
+            <span className="text-muted-foreground">{t("neutral")}</span>
+            <span style={{ color: POS.fg }}>{t("cloudMoreYes")}</span>
+          </div>
+          <span />
         </div>
       </CardContent>
     </Card>

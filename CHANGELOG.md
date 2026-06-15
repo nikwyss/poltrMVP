@@ -2,6 +2,23 @@
 
 ## 2026-06-15
 
+### Neue Analyse-Sicht „Positionswolken" (Raincloud) je Thema (`services/front`)
+
+Schwesteransicht zum Positionsband: Statt eines einzelnen Balkens (Aggregat) zeigt jede Themen-Zeile die **Verteilung** der einzelnen Argument-Bewertungen entlang derselben Achse Nein ← neutral → Ja — Wolke (KDE-Dichte) + Box (Quartile/Median/Whisker) + ein gejitterter Punkt pro Argument. Farbe folgt dem Median (blau Richtung Ja, terrakotta Richtung Nein) wie im Positionsband.
+
+- Neue Komponente `services/front/src/components/position-cloud.tsx`, eingehängt direkt unter `PositionBand` in der Taxonomie-Analyse-Sektion.
+- i18n-Keys `taxonomy.cloudTitle` / `taxonomy.cloudSubtitle` in allen fünf Sprachen (de/en/fr/it/rm).
+
+### Next.js auf gepatchte Versionen angehoben — SSRF via WebSocket-Upgrade (CVE-2026-44578) (`services/front`, `services/eidproto`, `services/cms`)
+
+Behebt die High-Severity-SSRF-Lücke ([GHSA-c4j6-fc7j-m34r](https://github.com/advisories/GHSA-c4j6-fc7j-m34r), CVE-2026-44578), bei der ein unauthentifizierter Angreifer über manipulierte WebSocket-Upgrade-Requests interne Dienste/Cloud-Metadaten erreichen kann (betrifft nur self-hosted Deployments).
+
+- **`services/front`** (npm): `next` 16.1.6 → 16.2.9
+- **`services/eidproto`** (pnpm): `next` + `eslint-config-next` 16.1.6 → 16.2.9
+- **`services/cms`** (pnpm): `next` + `eslint-config-next` 15.4.11 → 15.5.19 (im 15.5.x-Zweig bleibend wegen Payload-3.74-Peer-Range `^15.4.10`)
+
+Patch-Versionen sind 15.5.16 / 16.2.5; angehoben auf die jeweils aktuellsten Patches der Minor-Linie. Lockfiles aktualisiert.
+
 ### Taxonomie auf ATProto-Quelle-der-Wahrheit umgestellt: PDS → Indexer → AppView (`services/cms`, `services/indexer`, `services/calculator`, `services/appview`, `lexicons`, `infra`)
 
 Vorher liefen Argumente und Taxonomie **entgegengesetzt**: Argumente PDS→Indexer→DB (PDS = Wahrheit), Taxonomie direkt vom Calculator in die DB. Jetzt folgt die Taxonomie demselben Muster — der `app.ch.poltr.taxonomy.snapshot`-Record ist die **Quelle der Wahrheit**, die DB ein abgeleitetes, rebuildbares Read-Model.
