@@ -15,6 +15,7 @@ import { Spinner } from "@/components/spinner";
 import { ViewToggle } from "@/components/view-toggle";
 // import { PageBackdrop } from "@/components/page-backdrop";
 import { PositionBand } from "@/components/position-band";
+import { TopicPanorama } from "@/components/topic-panorama";
 import { TaxonomySunburst } from "@/components/taxonomy-sunburst";
 import { TaxonomyIcicle } from "@/components/taxonomy-icicle";
 import { LockedSection, GatePlaceholder } from "@/components/locked-section";
@@ -209,6 +210,9 @@ export default function TaxonomyPage() {
 
             {/* Positionsband — Themen-Übersicht zwischen den Polen */}
             <PositionBand nodes={root.children} t={t} />
+
+            {/* Themen-Panorama — dieselben Daten als Bergpanorama */}
+            <TopicPanorama nodes={root.children} t={t} />
 
             {/* Eiszapfen — ausgerollte Hierarchie (Breite ∝ Grösse), nach Haltung */}
             {fullTree?.tree && (

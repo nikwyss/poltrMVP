@@ -95,7 +95,7 @@ export interface ArgumentWithMetadata {
   /** Same as record.translationSource — hoisted to make the UI lookup trivial. */
   translationSource?: 'manual' | 'ai';
   /**
-   * Topic-Taxonomie-Breadcrumbs (app_topic_membership → app_topic_node): die
+   * Topic-Taxonomie-Breadcrumbs (app_taxonomy_membership → app_taxonomy_node): die
    * Pfade Wurzel→Knoten, an denen das Argument hängt (Wurzel ausgelassen). Ein
    * Argument kann zu mehreren Knoten gehören → mehrere Pfade. Pro Segment
    * `name` (+ `description` als Tooltip, `key` = Slug).
