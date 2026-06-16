@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-06-16
+
+### Postgres-Härtung: ozone & cms aus der geteilten `allforone`-Superuser-Rolle herausgelöst (`infra`)
+
+Bisher verbanden sich appview, cms und ozone alle mit derselben Bootstrap-Superuser-Rolle `allforone`. Ein kompromittierter Ozone- oder CMS-Pod konnte damit das komplette `auth`-Schema der appview-DB lesen/schreiben (inkl. `auth_creds`, `auth_sessions`, Governance-Credentials). Jetzt haben ozone und cms eigene, eng gescopte Login-Rollen.
+
+- **`ozone`**: eigene Rolle, **kein** Zugriff auf die appview-DB (Owner ihrer eigenen `ozone`-DB).
+- **`cms`**: eigene Rolle; auf der appview-DB nur `SELECT, INSERT` auf `auth.governance_accounts` + `public.app_taxonomy_snapshot` (entspricht der tatsächlichen Code-Nutzung in `atproto-publish.ts`), Owner ihrer eigenen `cms`-DB.
+- **appview-DB CONNECT** wird von `PUBLIC` entzogen und nur noch explizit an `indexer`/`calculator`/`cms` vergeben → ozone (und jede andere Rolle) kann sich gar nicht erst verbinden.
+- **calculator-Cleanup**: ungenutzte `INSERT/UPDATE/DELETE`-Rechte auf `app_taxonomy_node`/`_membership` entzogen (Endpoints sind reines Compute; Persistenz läuft über CMS-Snapshot → Indexer), `SELECT` bleibt.
+- **Labeler** bewusst ausgelassen (kein Deployment vorhanden).
+- Geändert: `infra/scripts/postgres/db-setup.sql` (End-State), neu `infra/scripts/postgres/harden-service-roles.sql` (Live-Migration für laufenden Cluster, inkl. Ownership-Transfer der ozone-/cms-DBs ohne den `REASSIGN OWNED`-Footgun), `infra/kube/secrets.yaml.dist` (ozone-/cms-Connection-Strings auf neue User) und `infra/kube/cms.yaml` (`APPVIEW_POSTGRES_URL` aus `cms-secrets` statt `appview-secrets`).
+- **Manueller Schritt**: echte `secrets.yaml` auf die neuen User/Passwörter umstellen, K8s-Secrets neu anwenden und cms-/ozone-Deployments neu ausrollen.
+
 ## 2026-06-15
 
 ### Neue Analyse-Sicht „Positionswolken" (Raincloud) je Thema (`services/front`)

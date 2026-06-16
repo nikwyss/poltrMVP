@@ -30,10 +30,13 @@ spec:
                 secretKeyRef:
                   name: appview-secrets
                   key: APPVIEW_PDS_CREDS_MASTER_KEY_B64
+            # Eng gescopte cms-Rolle (nur auth.governance_accounts +
+            # app_taxonomy_snapshot) — bewusst aus cms-secrets, NICHT aus
+            # appview-secrets (das auf die allforone-Superuser-Rolle zeigt).
             - name: APPVIEW_POSTGRES_URL
               valueFrom:
                 secretKeyRef:
-                  name: appview-secrets
+                  name: cms-secrets
                   key: APPVIEW_POSTGRES_URL
             - name: PDS_ADMIN_PASSWORD
               valueFrom:

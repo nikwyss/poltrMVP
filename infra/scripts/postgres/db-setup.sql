@@ -531,14 +531,44 @@ GRANT SELECT (did, handle, ballot_rkey) ON auth.governance_accounts TO indexer;
 
 -- ALTER ROLE indexer WITH PASSWORD 'CHANGE_ME';
 
--- calculator: liest app_arguments, baut/pflegt die Top-down Themen-Hierarchie.
--- Kein auth-Zugriff, keine Schreibrechte auf den übrigen Content.
+-- calculator: liest app_arguments und den Top-down Themen-Baum. Reines Compute —
+-- die /induce|/classify|/grow-Endpoints schreiben NICHTS in die DB; persistiert wird
+-- ausschliesslich über den CMS-Taxonomie-Snapshot (PDS → Indexer → node/membership).
+-- Daher nur SELECT auf die Taxonomie-Tabellen, kein I/U/D. Kein auth-Zugriff.
 CREATE ROLE calculator WITH LOGIN PASSWORD 'CHANGE_ME';
 GRANT CONNECT ON DATABASE appview TO calculator;
 GRANT USAGE ON SCHEMA public TO calculator;
 GRANT SELECT ON app_arguments TO calculator;
-GRANT SELECT, INSERT, UPDATE, DELETE ON
-  app_taxonomy_node, app_taxonomy_membership
-  TO calculator;
+GRANT SELECT ON app_taxonomy_node, app_taxonomy_membership TO calculator;
 REVOKE ALL ON SCHEMA auth FROM calculator;
 -- ALTER ROLE calculator WITH PASSWORD 'CHANGE_ME';
+
+-- =============================================================================
+-- Service-Isolation: ozone und cms bekommen EIGENE Login-Rollen statt der
+-- geteilten Superuser-Rolle 'allforone'. Damit kann ein kompromittierter
+-- Ozone-/CMS-Pod NICHT mehr das komplette auth-Schema der appview-DB lesen.
+-- =============================================================================
+
+-- Standardmässig erteilt Postgres CONNECT an PUBLIC — d.h. jede Cluster-Rolle
+-- (auch 'ozone') könnte sich mit der appview-DB verbinden. Zudrehen und nur an
+-- die berechtigten Rollen explizit vergeben. allforone ist Superuser und umgeht
+-- den CONNECT-Check ohnehin; indexer/calculator haben oben bereits GRANT CONNECT.
+REVOKE CONNECT ON DATABASE appview FROM PUBLIC;
+
+-- cms: braucht die appview-DB NUR für Governance-Account-Creds und den
+-- Taxonomie-Snapshot-Dedup-Ledger. Sonst KEIN auth-/public-Zugriff.
+-- (Keine Sequence-Grants nötig: governance_accounts PK=did text,
+--  app_taxonomy_snapshot PK=(ballot_rkey,version) — keine serial-Spalte.)
+CREATE ROLE cms WITH LOGIN PASSWORD 'CHANGE_ME';
+GRANT CONNECT ON DATABASE appview TO cms;
+GRANT USAGE ON SCHEMA auth TO cms;
+GRANT SELECT, INSERT ON auth.governance_accounts TO cms;
+GRANT USAGE ON SCHEMA public TO cms;
+GRANT SELECT, INSERT ON app_taxonomy_snapshot TO cms;
+-- ALTER ROLE cms WITH PASSWORD 'CHANGE_ME';
+
+-- ozone: spricht NUR mit der 'ozone'-Datenbank. Bewusst KEIN CONNECT auf appview
+-- (zusammen mit dem REVOKE ... FROM PUBLIC oben ist die appview-DB unerreichbar).
+-- Grants auf die ozone-DB selbst → infra/scripts/postgres/harden-service-roles.sql.
+CREATE ROLE ozone WITH LOGIN PASSWORD 'CHANGE_ME';
+-- ALTER ROLE ozone WITH PASSWORD 'CHANGE_ME';
