@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-06-17
+
+### ATProto-native Deliberation — Phase 7: Governance-Schreibpfad aus der appview-API entfernt (`services/appview`, `infra`, `doc`)
+
+Nach erfolgreichem End-to-End-Test auf dem Dev-Cluster (User-Repo → Stage → Writer-Community-Record → Projektion + Crosspost; Pfad 3: 1 Request → 12 Invitations) wird der Legacy-Pfad aus der internet-zugewandten appview-API **endgültig entfernt**. User-authored Writes gehen jetzt **unbedingt** ins eigene User-Repo.
+
+- **appview-API schreibt keine Governance-Records mehr:**
+  - [arguments.py](services/appview/src/routes/deliberation/arguments.py): Flag `_args_user_repo_enabled` + Legacy-`create_governance_record`-Branch entfernt → immer `pds_create_record` ins User-Repo. `import httpx`/`create_governance_record` raus (`get_did_for_ballot` bleibt für den 404-Vorabcheck).
+  - [reviews.py](services/appview/src/routes/deliberation/reviews.py): analog — `_responses_user_repo_enabled` + `put_governance_record`-Branch raus.
+  - [peer_review_assign.py](services/appview/src/arguments/peer_review_assign.py): `_requests_user_repo_enabled` raus; `_review_hook` schreibt immer den `peerreview.request` (Assignment läuft im Writer).
+- **Bleibt (Writer-Prozess, gleiches Image):** `governance.py`, `pds_creds.py` GOV-Funktionen, deren Nutzung in `acceptance.py`/`crosspost.py`/`translator.py` + die Writer-seitige `maybe_assign_reviews_for_user`. appview-API liest aus `governance_accounts` nur noch `did`/`ballot_rkey` (Ballot-Enrichment + `get_did_for_ballot`).
+- **Kein Kill-Switch mehr:** Rollback ist jetzt `git revert` + Redeploy (nicht Flag→false). Der Pipeline-Pfad ist verifiziert.
+- **Tests:** `test_user_repo_flag.py` (testete das entfernte Flag-Dispatch) → ersetzt durch [test_user_repo_write.py](services/appview/tests/test_user_repo_write.py) (appview schreibt **immer** ins User-Repo, `#sourceUser`). Volle Suite grün (48).
+- **Docs:** [LEXICONS.md](doc/LEXICONS.md) auf das ATProto-native Modell aktualisiert (User-Repo-Original + Community-Copy mit `originUri/originCid`; Indexer staged statt „nur aus Gov-Repo") + neue Peer-Review-Sektion (`peerreview.request`/`invitation`/`response`).
+- **Migration (deferred, post-deploy):** [phase7-restrict-appview-governance.sql](infra/scripts/postgres/phase7-restrict-appview-governance.sql) — entzieht der `appview`-Rolle Schreib-/`pw`-Zugriff auf `governance_accounts`, lässt nur spaltenweises `SELECT (did, handle, ballot_rkey, ballot_uri)`. Greift erst nach dem `appview@`-Rollen-Switch (appview läuft noch als `allforone`).
+
 ## 2026-06-16
 
 ### ATProto-native Deliberation — Phase 6: Peerreview-Assignment in den Writer (Pull/Request-Modell) (`services/appview`, `services/indexer`, `infra`)

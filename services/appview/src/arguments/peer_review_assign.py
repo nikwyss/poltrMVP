@@ -196,13 +196,6 @@ REQUEST_NSID = "app.ch.poltr.peerreview.request"
 _last_request_day: dict[str, date] = {}
 
 
-def _requests_user_repo_enabled() -> bool:
-    """ATProto-native (Phase 6): appview writes a peerreview.request into the
-    user's OWN repo instead of assigning here; the internal write-side (writer)
-    runs the actual assignment. Off by default (legacy: assign in appview)."""
-    return os.getenv("APPVIEW_REVIEW_REQUESTS_USER_REPO_ENABLED", "false").lower() == "true"
-
-
 async def request_peer_review(session) -> None:
     """Write a peerreview.request into the user's OWN repo, at most once per active
     UTC day. The writer picks it up off the firehose and runs _assign there."""
@@ -229,10 +222,9 @@ async def request_peer_review(session) -> None:
 
 
 async def _review_hook(session) -> None:
-    if _requests_user_repo_enabled():
-        await request_peer_review(session)
-    else:
-        await maybe_assign_reviews_for_user(getattr(session, "did", None))
+    # ATProto-native: appview writes a peerreview.request into the user's OWN repo;
+    # the writer runs the actual assignment off the firehose (no gov-write here).
+    await request_peer_review(session)
 
 
 def fire_and_forget(session) -> None:

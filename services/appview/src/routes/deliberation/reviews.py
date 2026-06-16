@@ -29,24 +29,13 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Query, Request, Depends
 from fastapi.responses import JSONResponse
 
-import httpx
-
 from src.auth.middleware import TSession, verify_session_token
 from src.core.db import get_pool
-from src.atproto.governance import put_governance_record, compose_review_rkey
 from src.atproto.atproto_api import pds_create_record
 
 logger = logging.getLogger("review")
 
 router = APIRouter(prefix="/xrpc", tags=["review"])
-
-
-def _responses_user_repo_enabled() -> bool:
-    """ATProto-native path (Phase 4): peer-review responses are written to the
-    reviewer's OWN repo (self-signed); the internal write-side gates them and
-    writes the canonical community response into the argument's governance repo.
-    Off by default until the acceptance pipeline is enabled."""
-    return os.getenv("APPVIEW_RESPONSES_USER_REPO_ENABLED", "false").lower() == "true"
 
 
 def _grace_seconds() -> int:
@@ -504,21 +493,13 @@ async def submit_review(
     }
     review_record = {k: v for k, v in review_record.items() if v is not None}
 
-    if _responses_user_repo_enabled():
-        # ATProto-native: write the self-signed response into the reviewer's OWN
-        # repo. The internal write-side picks it up off the firehose, gates it,
-        # and writes the canonical community response (deterministic rkey via
-        # compose_review_rkey) into the argument's governance repo.
-        result = await pds_create_record(
-            session, "app.ch.poltr.peerreview.response", review_record
-        )
-    else:
-        # Legacy path: appview writes directly into the governance repo.
-        rkey = compose_review_rkey(argument_uri, session.did)
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            result = await put_governance_record(
-                client, gov_did, "app.ch.poltr.peerreview.response", rkey, review_record
-            )
+    # ATProto-native: write the self-signed response into the reviewer's OWN repo.
+    # The internal write-side (writer) picks it up off the firehose, gates it, and
+    # writes the canonical community response (deterministic rkey via
+    # compose_review_rkey) into the argument's governance repo.
+    result = await pds_create_record(
+        session, "app.ch.poltr.peerreview.response", review_record
+    )
 
     return JSONResponse(
         status_code=200,

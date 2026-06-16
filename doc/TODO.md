@@ -26,6 +26,28 @@
 
 - Moderation
 
+## Phase 7 — verbleibende Cluster-Schritte (nach Redeploy, deploy-abhängig)
+
+Der Code-Cleanup ist erledigt (appview-API ohne Gov-Write); diese Schritte greifen
+erst mit dem **neuen appview-Image** und sind teils irreversibel — der Reihe nach:
+
+1. **Push → CI** baut das neue appview-Image (ohne Gov-Write-Pfad), deployt appview + writer.
+2. **Verify** (deployte Seite): neues Argument/Response → User-Repo + Pipeline wie im
+   E2E-Test; appview-API öffnet keine Governance-Session mehr.
+3. **Tote Producer-Flags** aus `appview-secrets` entfernen (`APPVIEW_*_USER_REPO_ENABLED`)
+   — Code liest sie nicht mehr. **Erst NACH** dem neuen Image (sonst revertiert das alte
+   Image bei fehlendem Flag auf Legacy).
+4. **appview → `appview@`-Rolle**: `APPVIEW_POSTGRES_URL` in `appview-secrets` auf
+   `appview@` (Passwort = `-v appview_pw` aus `add-pod-roles.sql`), apply, `rollout
+   restart deploy/appview`. (Rolle existiert seit Step A.)
+5. **Grant-Restriktion**: `infra/scripts/postgres/phase7-restrict-appview-governance.sql`
+   ausführen (greift erst nach Schritt 4 — Superuser umgeht Grants).
+6. **GOV-Key aus dem appview-Pod-Env nehmen** (defense-in-depth): `APPVIEW_GOV_CREDS_MASTER_KEY_B64`
+   in `cms-secrets` ergänzen; `cms.yaml` + `writer.yaml` so umstellen, dass sie den GOV-Key
+   **nicht** mehr per `secretKeyRef` aus `appview-secrets` erben (writer-secrets hat ihn
+   schon); dann GOV-Key aus `appview-secrets` entfernen. Danach hält die internet-zugewandte
+   appview den Governance-Master-Key nicht mehr im Env.
+
 ## CI / Build-Pipeline beschleunigen (build-and-push-services.yml)
 
 Problem heute: jeder `services/**`-Push baut **alle fünf** Services, jeweils mit
