@@ -16,8 +16,8 @@ existing titles).
 
 Required env:
   PDS_HOST           default http://localhost:2583
-  CMS_DB_URL         e.g. postgresql://allforone:<pw>@localhost:5432/cms
-  APPVIEW_DB_URL     e.g. postgresql://allforone:<pw>@localhost:5432/appview
+  CMS_DB_URL         e.g. postgresql://cms:<pw>@localhost:5432/cms
+  APPVIEW_DB_URL     e.g. postgresql://appview:<pw>@localhost:5432/appview
   MASTER_KEY_B64     APPVIEW_PDS_CREDS_MASTER_KEY_B64
 
 Optional:
@@ -39,7 +39,6 @@ import psycopg2
 import requests
 from nacl import secret as nacl_secret
 
-
 ARGUMENT_NSID = "app.ch.poltr.ballot.argument"
 OFFICIAL_REF = f"{ARGUMENT_NSID}#sourceOfficial"
 
@@ -52,6 +51,7 @@ DUMP_PATH = Path(__file__).resolve().parents[2] / "dump" / "BK_ARGUMENTS.md"
 # ---------------------------------------------------------------------------
 # Markdown parser
 # ---------------------------------------------------------------------------
+
 
 def _clean(text: str) -> str:
     text = text.replace("￾", "")
@@ -84,17 +84,20 @@ def parse_dump(path: Path) -> list[dict]:
             continue
 
         if hashes == "##" and current_type:
-            results.append({
-                "type": current_type,
-                "title": _clean(heading),
-                "body": _clean(body),
-            })
+            results.append(
+                {
+                    "type": current_type,
+                    "title": _clean(heading),
+                    "body": _clean(body),
+                }
+            )
     return results
 
 
 # ---------------------------------------------------------------------------
 # PDS / DB helpers
 # ---------------------------------------------------------------------------
+
 
 def env(name: str, default: str | None = None) -> str:
     val = os.getenv(name, default)
@@ -111,7 +114,9 @@ def decrypt(ciphertext: bytes, nonce: bytes, master_key_b64: str) -> str:
     return nacl_secret.SecretBox(key).decrypt(ciphertext, nonce).decode("utf-8")
 
 
-def load_governance(appview_db_url: str, ballot_rkey: str, master_key_b64: str) -> tuple[str, str]:
+def load_governance(
+    appview_db_url: str, ballot_rkey: str, master_key_b64: str
+) -> tuple[str, str]:
     conn = psycopg2.connect(appview_db_url)
     try:
         with conn.cursor() as cur:
@@ -121,7 +126,9 @@ def load_governance(appview_db_url: str, ballot_rkey: str, master_key_b64: str) 
             )
             row = cur.fetchone()
             if not row:
-                raise RuntimeError(f"No governance account for ballot rkey {ballot_rkey}")
+                raise RuntimeError(
+                    f"No governance account for ballot rkey {ballot_rkey}"
+                )
             did, pw_ct, pw_nonce = row
             return did, decrypt(bytes(pw_ct), bytes(pw_nonce), master_key_b64)
     finally:
@@ -138,9 +145,7 @@ def create_session(pds_host: str, did: str, password: str) -> str:
     return resp.json()["accessJwt"]
 
 
-def create_record(
-    pds_host: str, did: str, jwt: str, record: dict
-) -> dict:
+def create_record(pds_host: str, did: str, jwt: str, record: dict) -> dict:
     resp = requests.post(
         f"{pds_host}/xrpc/com.atproto.repo.createRecord",
         headers={"Authorization": f"Bearer {jwt}", "Content-Type": "application/json"},
@@ -154,6 +159,7 @@ def create_record(
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> int:
     pds_host = os.getenv("PDS_HOST", "http://localhost:2583")
@@ -228,7 +234,9 @@ def main() -> int:
                 # Origin language of title/body (BCP-47) — official Bundeskanzlei
                 # content is Swiss German by default. Keeps the record self-describing.
                 "langs": [os.getenv("POLTR_DEFAULT_LANGUAGE", "de-CH")],
-                "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "createdAt": datetime.now(timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
                 "source": {
                     "$type": OFFICIAL_REF,
                     "documentRef": doc_ref,

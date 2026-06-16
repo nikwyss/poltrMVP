@@ -63,6 +63,33 @@ function isGovernanceDid(did) {
   return governanceDids.has(did);
 }
 
+/**
+ * Eligibility gate (L3) for user-authored content projected straight from user
+ * repos (comments, likes). Mirrors the acceptance pipeline's check for
+ * arguments/responses (see appview src/atproto/acceptance.py): only project a
+ * record if its author DID is an eligible participant.
+ *
+ * Why this matters: comments/likes are written self-signed into the user's OWN
+ * repo, so a malicious account can bypass the appview API (and its per-user
+ * quotas/rate limits) by writing records directly to the PDS. This projection
+ * step is the single chokepoint every such record must pass. Today eligibility =
+ * "registered POLTR account" (auth.v_eligible_participants = auth_creds); the
+ * ban-/eID-overlay docks onto that view later and then automatically covers
+ * comments/likes too — without touching this code.
+ *
+ * Reads the narrow view only (the indexer has no auth_creds/credential access;
+ * the view runs with its owner's rights). A DB error propagates (not caught) so
+ * it is handled identically to any other projection failure, rather than being
+ * silently treated as "ineligible".
+ */
+async function isEligibleDid(did) {
+  const res = await pool.query(
+    "SELECT 1 FROM auth.v_eligible_participants WHERE did = $1 AND eligible",
+    [did],
+  );
+  return res.rowCount > 0;
+}
+
 export const handleEvent = async (evt) => {
   const collection = evt.collection;
 
@@ -129,12 +156,22 @@ export const handleEvent = async (evt) => {
 
   if (collection === COLLECTION_COMMENT) {
     if (action === "delete") {
+      // Deletes stay ungated: a row only exists if it was projected (i.e. the
+      // author was eligible at create time), and a user retracting their own
+      // content must always succeed — even if since made ineligible.
       await markCommentDeleted(uri);
       return;
     }
     if (action === "create" || action === "update") {
       const record = evt.record;
       if (!record) return;
+      // Eligibility gate (L3). Governance repos never author comments (they live
+      // in user repos — see appview comments.py), but allow them defensively so a
+      // future curated/official comment isn't silently dropped.
+      if (!isGovernanceDid(did) && !(await isEligibleDid(did))) {
+        console.log(`Ignoring comment from ineligible repo: ${did}`);
+        return;
+      }
       await upsertCommentDb(pool, { uri, cid: cidString, did, rkey, record });
     }
   }
@@ -168,6 +205,13 @@ export const handleEvent = async (evt) => {
     if (action === "create" || action === "update") {
       const record = evt.record;
       if (!record) return;
+      // Eligibility gate (L3): same chokepoint as comments. Likes are written
+      // self-signed into user repos, so this is the only place a direct-to-PDS
+      // like from an ineligible/banned account can be stopped.
+      if (!isGovernanceDid(did) && !(await isEligibleDid(did))) {
+        console.log(`Ignoring rating from ineligible repo: ${did}`);
+        return;
+      }
       await upsertLikeDb(pool, { uri, cid: cidString, did, rkey, record });
     }
   }

@@ -47,6 +47,29 @@ export async function upsertLikeDb(clientOrPool, params) {
   const preference = record?.preference ?? null;
   const createdAt = record?.createdAt ? new Date(record.createdAt) : new Date();
 
+  // Dedup at the projection point: one active rating per (did, subject). A user
+  // can legitimately re-rate (same deterministic rkey → same uri → ON CONFLICT
+  // update below), but a *different* uri for an already-rated subject can only
+  // come from a direct-to-PDS write with a varying rkey — i.e. an attempt to
+  // stuff the like count. Skip projecting it (the record still lives on the PDS;
+  // we just don't double-count it). COUNT(DISTINCT did) is the backstop if a
+  // duplicate ever slips through a race.
+  if (subjectUri) {
+    const dup = await dbQuery(
+      clientOrPool,
+      `SELECT 1 FROM app_likes
+       WHERE did = $1 AND subject_uri = $2 AND uri <> $3 AND NOT deleted
+       LIMIT 1`,
+      [did, subjectUri, uri],
+    );
+    if (dup.rowCount > 0) {
+      console.log(
+        `Skipping duplicate rating from ${did} on ${subjectUri} (already rated)`,
+      );
+      return;
+    }
+  }
+
   await dbQuery(
     clientOrPool,
     `
@@ -811,7 +834,12 @@ async function refreshCommentCount(clientOrPool, argumentUri) {
 }
 
 export async function refreshLikeCount(clientOrPool, subjectUri) {
-  const countSql = `(SELECT count(*) FROM app_likes WHERE subject_uri = $1 AND NOT deleted)`;
+  // COUNT(DISTINCT did), NOT count(*): one rating per user, even if a user wrote
+  // several rating records for the same subject under different rkeys (only
+  // possible via direct-to-PDS writes that bypass the appview's deterministic
+  // rkey). Defeats like-count inflation/vote-stuffing from a single account. The
+  // upsert below additionally drops such duplicates at projection time.
+  const countSql = `(SELECT count(DISTINCT did) FROM app_likes WHERE subject_uri = $1 AND NOT deleted)`;
   await dbQuery(
     clientOrPool,
     `UPDATE app_arguments SET like_count = ${countSql} WHERE uri = $1`,

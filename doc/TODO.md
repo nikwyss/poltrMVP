@@ -26,27 +26,36 @@
 
 - Moderation
 
-## Phase 7 — verbleibende Cluster-Schritte (nach Redeploy, deploy-abhängig)
+## Phase 7 — ERLEDIGT (2026-06-17)
 
-Der Code-Cleanup ist erledigt (appview-API ohne Gov-Write); diese Schritte greifen
-erst mit dem **neuen appview-Image** und sind teils irreversibel — der Reihe nach:
+Code-Cleanup + Cluster-Rollout durch:
+- [x] appview-Code ohne Gov-Write (arguments/reviews/peer_review_assign), Tests grün (48)
+- [x] LEXICONS.md aktualisiert (ATProto-native Modell + peerreview-Lexika)
+- [x] Neues Image deployt; tote Producer-Flags aus `appview-secrets` raus
+- [x] **appview → `appview@`** (kein Pod nutzt mehr `allforone`)
+- [x] **DB-Grant verengt**: `governance_accounts` für appview nur noch spaltenweises
+      SELECT (kein pw, kein Write) — live verifiziert, End-Zustand in `db-setup.sql`
 
-1. **Push → CI** baut das neue appview-Image (ohne Gov-Write-Pfad), deployt appview + writer.
-2. **Verify** (deployte Seite): neues Argument/Response → User-Repo + Pipeline wie im
-   E2E-Test; appview-API öffnet keine Governance-Session mehr.
-3. **Tote Producer-Flags** aus `appview-secrets` entfernen (`APPVIEW_*_USER_REPO_ENABLED`)
-   — Code liest sie nicht mehr. **Erst NACH** dem neuen Image (sonst revertiert das alte
-   Image bei fehlendem Flag auf Legacy).
-4. **appview → `appview@`-Rolle**: `APPVIEW_POSTGRES_URL` in `appview-secrets` auf
-   `appview@` (Passwort = `-v appview_pw` aus `add-pod-roles.sql`), apply, `rollout
-   restart deploy/appview`. (Rolle existiert seit Step A.)
-5. **Grant-Restriktion**: `infra/scripts/postgres/phase7-restrict-appview-governance.sql`
-   ausführen (greift erst nach Schritt 4 — Superuser umgeht Grants).
-6. **GOV-Key aus dem appview-Pod-Env nehmen** (defense-in-depth): `APPVIEW_GOV_CREDS_MASTER_KEY_B64`
-   in `cms-secrets` ergänzen; `cms.yaml` + `writer.yaml` so umstellen, dass sie den GOV-Key
-   **nicht** mehr per `secretKeyRef` aus `appview-secrets` erben (writer-secrets hat ihn
-   schon); dann GOV-Key aus `appview-secrets` entfernen. Danach hält die internet-zugewandte
-   appview den Governance-Master-Key nicht mehr im Env.
+Nicht gemacht (bewusst → Key-Split-Workstream, s.u.): GOV-Key aus dem appview-Pod-Env nehmen.
+
+## Master-Key-Split fertigstellen (echte Krypto-Trennung) — verschoben aus Phase 7
+
+Heute haben USER-/GOV-/Legacy-Master-Key auf Dev **denselben Wert**; die Env-Namen sind
+schon getrennt (`pds_creds.py`), aber der Wert nicht. Solange identisch, bringt das
+Entfernen des GOV-Keys aus dem appview-Env **nichts** (der gleiche Wert bleibt als
+USER-Key). Durch den Phase-7-DB-Grant ist der Key für Gov-Creds ohnehin funktionslos
+(appview kann das Chiffrat nicht lesen) — also kein akutes Risiko, aber unsauber.
+
+Echte Trennung:
+1. Neuen, **distinkten** Gov-Key erzeugen.
+2. **Re-Encryption**-Migration: alle `governance_accounts.pw_*` mit dem alten Key
+   entschlüsseln, mit dem neuen Gov-Key neu verschlüsseln.
+3. Neuen Gov-Key NUR in `writer-secrets` + `cms-secrets`; `cms.yaml`/`writer.yaml` so,
+   dass sie ihn **nicht** mehr aus `appview-secrets` erben.
+4. `APPVIEW_GOV_CREDS_MASTER_KEY_B64` (+ Legacy) aus `appview-secrets` entfernen — appview
+   behält nur `APPVIEW_USER_CREDS_MASTER_KEY_B64` (auth_creds).
+
+Gehört zum [[project_auth_privacy_workstream]] (Email-as-HMAC, DID-Pool, eID-Gating).
 
 ## CI / Build-Pipeline beschleunigen (build-and-push-services.yml)
 

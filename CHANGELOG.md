@@ -2,6 +2,15 @@
 
 ## 2026-06-17
 
+### Anti-Spam: Eligibility-Gate für Comments/Likes + PDS-Rate-Limits (`services/indexer`, `infra`)
+
+Schliesst die Lücke, dass self-signed Comments/Likes direkt in User-Repos geschrieben werden können (an der appview-API + ihren Per-User-Quotas vorbei) und der Projektor sie **ungefiltert** indexierte — anders als Argumente/Reviews, die bereits durchs Eligibility-Gate laufen.
+
+- **Indexer** ([record_handler.js](services/indexer/src/record_handler.js)): neue `isEligibleDid()` (liest nur die schmale `auth.v_eligible_participants`-View, kein Credential-Zugriff). `COLLECTION_COMMENT`- und `COLLECTION_RATING`-Creates/Updates werden jetzt gegated (`isGovernanceDid || isEligibleDid`), bevor sie in `app_comments`/`app_likes` projiziert werden. Deletes bleiben ungated (Retraktion muss immer gehen). Greift auch im Backfill-Pfad ([backfill_handler.js](services/indexer/src/backfill_handler.js) nutzt denselben `handleEvent`). Heute = registrierter Account; das künftige Ban-/eID-Overlay dockt an der View an und deckt Comments/Likes dann automatisch mit.
+- **PDS-Rate-Limits** ([secrets.yaml.dist](infra/kube/secrets.yaml.dist)): `PDS_RATE_LIMITS_ENABLED="true"` + `PDS_RATE_LIMIT_BYPASS_KEY` (Header `x-ratelimit-bypass` für interne Bulk-Writer; Wiring in writer/import noch offen). Punkte-basiert pro Account (CREATE=3/UPDATE=2/DELETE=1, ~5000/h & 35000/Tag) + Per-IP-Cap. Single PDS-Replica → In-Memory-Limiter genügt (kein Redis).
+- **Fix unsicherer Template-Default**: `PDS_INVITE_REQUIRED` im Template `"false"` → `"true"` (Produktion war bereits `"true"`); verhindert direkte PDS-Signups am appview-Email-Gate vorbei.
+- **Like-Inflation / Vote-Stuffing geschlossen** ([db.js](services/indexer/src/db.js)): Likes haben keine appview-Quota und „1 pro Subject" wird nur über den deterministischen rkey der appview-API erzwungen — Direkt-PDS-Writes mit variierenden rkeys konnten den `like_count` (row-basiert, keine `(did,subject)`-UNIQUE) eines beliebigen Arguments/Kommentars aus **einem** Account hochtreiben (`like_count DESC` = Sortierung → Sichtbarkeit). Fix: `refreshLikeCount` zählt jetzt `COUNT(DISTINCT did)` statt `count(*)` (gilt für `app_arguments` + `app_comments`); `upsertLikeDb` überspringt zusätzlich am Projektionspunkt Duplikate (aktive Zeile für `(did, subject_uri)` unter anderem `uri` existiert bereits). Viewer-/`preference`-Subqueries nutzen bereits `LIMIT 1` → robust gegen Alt-Duplikate.
+
 ### ATProto-native Deliberation — Phase 7: Governance-Schreibpfad aus der appview-API entfernt (`services/appview`, `infra`, `doc`)
 
 Nach erfolgreichem End-to-End-Test auf dem Dev-Cluster (User-Repo → Stage → Writer-Community-Record → Projektion + Crosspost; Pfad 3: 1 Request → 12 Invitations) wird der Legacy-Pfad aus der internet-zugewandten appview-API **endgültig entfernt**. User-authored Writes gehen jetzt **unbedingt** ins eigene User-Repo.
@@ -14,7 +23,9 @@ Nach erfolgreichem End-to-End-Test auf dem Dev-Cluster (User-Repo → Stage → 
 - **Kein Kill-Switch mehr:** Rollback ist jetzt `git revert` + Redeploy (nicht Flag→false). Der Pipeline-Pfad ist verifiziert.
 - **Tests:** `test_user_repo_flag.py` (testete das entfernte Flag-Dispatch) → ersetzt durch [test_user_repo_write.py](services/appview/tests/test_user_repo_write.py) (appview schreibt **immer** ins User-Repo, `#sourceUser`). Volle Suite grün (48).
 - **Docs:** [LEXICONS.md](doc/LEXICONS.md) auf das ATProto-native Modell aktualisiert (User-Repo-Original + Community-Copy mit `originUri/originCid`; Indexer staged statt „nur aus Gov-Repo") + neue Peer-Review-Sektion (`peerreview.request`/`invitation`/`response`).
-- **Migration (deferred, post-deploy):** [phase7-restrict-appview-governance.sql](infra/scripts/postgres/phase7-restrict-appview-governance.sql) — entzieht der `appview`-Rolle Schreib-/`pw`-Zugriff auf `governance_accounts`, lässt nur spaltenweises `SELECT (did, handle, ballot_rkey, ballot_uri)`. Greift erst nach dem `appview@`-Rollen-Switch (appview läuft noch als `allforone`).
+- **Cluster-Rollout (Dev, erledigt):** appview läuft jetzt als eigene Rolle **`appview@`** — **kein Pod nutzt mehr `allforone`**; die tote Producer-Flag-Config ist aus `appview-secrets` raus.
+- **DB-Grant verengt (erledigt, in [db-setup.sql](infra/scripts/postgres/db-setup.sql) gefaltet):** `REVOKE ALL ON auth.governance_accounts FROM appview; GRANT SELECT (did, handle, ballot_rkey, ballot_uri)` — appview kann `pw_ciphertext/pw_nonce` **nicht** lesen und nicht schreiben (DB-erzwungen, live verifiziert). Kein one-off-Skript (Workflow: End-Zustand in `db-setup.sql`).
+- **Offen → Key-Split-Workstream:** der Gov-Master-Key bleibt vorerst im appview-Pod-Env (auf Dev haben USER-/GOV-/Legacy-Key denselben Wert → Entfernen wäre kosmetisch; durch den DB-Grant ist der Key für Gov-Creds ohnehin funktionslos, weil das Chiffrat unlesbar ist). Echte Trennung = distinkter Gov-Key + Re-Encryption der `governance_accounts`-Creds. Siehe doc/TODO + [[project_auth_privacy_workstream]].
 
 ## 2026-06-16
 

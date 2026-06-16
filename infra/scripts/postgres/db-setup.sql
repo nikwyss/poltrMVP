@@ -647,8 +647,13 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE O
 ALTER DEFAULT PRIVILEGES IN SCHEMA auth   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO appview;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO appview;
 ALTER DEFAULT PRIVILEGES IN SCHEMA auth   GRANT USAGE, SELECT ON SEQUENCES TO appview;
--- (Spätere Verschärfung am Ende der ATProto-Umstellung: governance_accounts aus
---  appview entziehen, sobald keine Gov-Writes/Translator mehr in appview laufen.)
+-- Phase 7 (ATProto-native abgeschlossen): die appview-API schreibt keine
+-- Governance-Records mehr (kein create_/put_governance_record, kein Translator) —
+-- das tut der writer. Daher governance_accounts auf spaltenweises SELECT verengen:
+-- kein pw_ciphertext/pw_nonce, kein Write (wie der indexer oben). appview liest
+-- daraus nur did/ballot_rkey (ballots.py-JOIN + get_did_for_ballot).
+REVOKE ALL ON auth.governance_accounts FROM appview;
+GRANT SELECT (did, handle, ballot_rkey, ballot_uri) ON auth.governance_accounts TO appview;
 -- ALTER ROLE appview WITH PASSWORD 'CHANGE_ME';
 
 -- writer: die interne Schreib-Seite (governance-writer). Wie der Indexer auf das
