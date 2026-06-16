@@ -62,9 +62,15 @@ const AMBER = "rgb(217, 159, 40)"; // Blitz + Hinweis für stark gespaltene Knot
 const SIZE = 420;
 const CX = SIZE / 2;
 const CY = SIZE / 2;
-const CENTER_R = 30; // Radius der Zentrumsscheibe (kleines Loch → mehr Ringfläche)
-const CENTER_R_COMPACT = 20; // Mobile: kleineres Loch ⇒ Ring 1 bekommt mehr Platz
-const OUTER_R = 206; // äusserster Radius (fast bis an den Rand → mehr Textplatz)
+// Mittelloch wächst stetig mit der Ringzahl (kein Sonderfall): bei einer Ebene
+// klein, damit die eine dicke Farbfläche massiv wirkt; bei drei Ebenen grösser,
+// damit innen genug Bogenlänge bleibt. centerRadius() interpoliert dazwischen.
+const CENTER_R_MIN = 30; // 1 Ring: kleines Loch ⇒ massivere Fläche
+const CENTER_R_MAX = 30; // 3 Ringe: grösseres Loch ⇒ mehr Platz für innere Labels
+const CENTER_R_COMPACT = 20; // Mobile: eigene, kleine Basis (Ring 1 bekommt mehr Platz)
+const OUTER_R = 206; // äusserster Radius (Aussenkante des Track-Rings)
+const TRACK_BAND = 8; // px breiter, heller Track-Streifen aussen, der die Segmente einfasst
+const DATA_OUTER_R = OUTER_R - TRACK_BAND; // Aussenkante der Datenringe (Band liegt ausserhalb)
 const LABEL_MIN_ANGLE = 9; // ° — schmaler ⇒ kein Label (nur Tooltip)
 const LABEL_R_FRAC = 0.62; // Label-Position im Ring: >0.5 ⇒ nach aussen (mehr Bogenlänge)
 const LABEL_OUTER_PAD = 11; // Compact: Abstand der äussersten Label-Zeile vom Ringrand
@@ -93,13 +99,16 @@ function luminance([r, g, b]: [number, number, number]): number {
 // Gestufte Legenden-Skala (diskrete Blöcke statt weichem Verlauf) — spiegelt die
 // fünf Stufen der Likert-Verteilung.
 const LEGEND_GRADIENT = (() => {
-  const cols = [-1, -0.7, -0.4, -0.15, 0.15, 0.4, 0.7, 1].map(
-    (l) => rgbStr(leanRgb(l)!),
+  const cols = [-1, -0.7, -0.4, -0.15, 0.15, 0.4, 0.7, 1].map((l) =>
+    rgbStr(leanRgb(l)!),
   );
   const n = cols.length;
   const parts: string[] = [];
   for (let i = 0; i < n; i++)
-    parts.push(`${cols[i]} ${(i / n) * 100}%`, `${cols[i]} ${((i + 1) / n) * 100}%`);
+    parts.push(
+      `${cols[i]} ${(i / n) * 100}%`,
+      `${cols[i]} ${((i + 1) / n) * 100}%`,
+    );
   return `linear-gradient(90deg, ${parts.join(", ")})`;
 })();
 
@@ -157,9 +166,11 @@ function wrapLabel(
     }
   }
   if (cur && lines.length < maxLines) lines.push(cur);
-  return lines.slice(0, maxLines).map((l) =>
-    l.length > maxChars ? `${l.slice(0, Math.max(1, maxChars - 1))}…` : l,
-  );
+  return lines
+    .slice(0, maxLines)
+    .map((l) =>
+      l.length > maxChars ? `${l.slice(0, Math.max(1, maxChars - 1))}…` : l,
+    );
 }
 
 function polar(r: number, angleDeg: number): [number, number] {
@@ -195,7 +206,12 @@ function arcPath(
   };
   // Eckradius auf radiale Dicke und (halbe) Bogenlänge je Radius begrenzen.
   const halfSpanRad = ((spanDeg / 2) * Math.PI) / 180;
-  const r = Math.min(cr, (rOuter - rInner) / 2, halfSpanRad * rInner, halfSpanRad * rOuter);
+  const r = Math.min(
+    cr,
+    (rOuter - rInner) / 2,
+    halfSpanRad * rInner,
+    halfSpanRad * rOuter,
+  );
   if (r < 0.75) return sharp();
 
   const degO = ((r / rOuter) * 180) / Math.PI; // Winkel-Inset auf Aussenbogen
@@ -262,32 +278,47 @@ function layout(
     const kids = node.children ?? [];
     if (!kids.length) return;
     const step = (a1 - a0) / kids.length;
-    kids.forEach((c, i) => walk(c, level + 1, a0 + i * step, a0 + (i + 1) * step));
+    kids.forEach((c, i) =>
+      walk(c, level + 1, a0 + i * step, a0 + (i + 1) * step),
+    );
   };
   walk(root, 0, 0, 360);
   return { segs, maxLevel };
 }
 
+// Radius der Zentrumsscheibe, stetig an die Ringzahl gekoppelt (kein if/else je
+// Fall): 1 Ring ⇒ CENTER_R_MIN (kleines Loch, massive Fläche), MAX_LEVELS Ringe
+// ⇒ CENTER_R_MAX. Compact hat seine eigene, feste Basis.
+function centerRadius(levels: number, compact = false): number {
+  if (compact) return CENTER_R_COMPACT;
+  const tt =
+    MAX_LEVELS > 1 ? (Math.min(levels, MAX_LEVELS) - 1) / (MAX_LEVELS - 1) : 0;
+  return Math.round(CENTER_R_MIN + (CENTER_R_MAX - CENTER_R_MIN) * tt);
+}
+
 // Ring-Grenzradien je Ebenenzahl. Bei 3 Ebenen bekommt der äusserste Ring nur
 // THIRD_RING_WIDTH (dünnes Band); Ebene 1 & 2 teilen den verbleibenden Platz.
+// `centerR` = Innenradius des innersten Rings (aus centerRadius()). Die Datenringe
+// reichen bis DATA_OUTER_R; der Track-Streifen (TRACK_BAND) liegt ausserhalb davon.
 // Rückgabe: radii[level-1]..radii[level] = [Innen, Aussen] des Rings `level`.
-function ringRadii(levels: number, compact = false): number[] {
-  if (levels <= 1) return [CENTER_R, OUTER_R];
+function ringRadii(levels: number, centerR: number, compact = false): number[] {
+  if (levels <= 1) return [centerR, DATA_OUTER_R];
   if (compact) {
     // Mobile: nur Ring 1 beschriftet ⇒ ihm den Grossteil des Platzes geben
     // (kleineres Mittelloch); Ring 2 & 3 sind reine Bänder (Ring 2 etwas länger).
-    if (levels === 2) return [CENTER_R_COMPACT, OUTER_R - SECOND_RING_COMPACT_W, OUTER_R];
-    const inner3 = OUTER_R - THIRD_RING_WIDTH;
+    if (levels === 2)
+      return [centerR, DATA_OUTER_R - SECOND_RING_COMPACT_W, DATA_OUTER_R];
+    const inner3 = DATA_OUTER_R - THIRD_RING_WIDTH;
     const inner2 = inner3 - SECOND_RING_COMPACT_W;
-    return [CENTER_R_COMPACT, inner2, inner3, OUTER_R];
+    return [centerR, inner2, inner3, DATA_OUTER_R];
   }
   if (levels === 2) {
-    const step = (OUTER_R - CENTER_R) / 2;
-    return [CENTER_R, CENTER_R + step, OUTER_R];
+    const step = (DATA_OUTER_R - centerR) / 2;
+    return [centerR, centerR + step, DATA_OUTER_R];
   }
-  const inner = OUTER_R - THIRD_RING_WIDTH; // Beginn des dünnen 3. Rings
-  const step = (inner - CENTER_R) / 2;
-  return [CENTER_R, CENTER_R + step, inner, OUTER_R];
+  const inner = DATA_OUTER_R - THIRD_RING_WIDTH; // Beginn des dünnen 3. Rings
+  const step = (inner - centerR) / 2;
+  return [centerR, centerR + step, inner, DATA_OUTER_R];
 }
 
 export function TaxonomySunburst({
@@ -313,10 +344,11 @@ export function TaxonomySunburst({
     [root],
   );
 
-  const { segs, radii, maxLevel } = useMemo(() => {
+  const { segs, radii, maxLevel, centerR } = useMemo(() => {
     const { segs, maxLevel } = layout(root, showSub ? MAX_LEVELS : 1);
-    const radii = ringRadii(maxLevel, compact);
-    return { segs, radii, maxLevel };
+    const centerR = centerRadius(maxLevel, compact);
+    const radii = ringRadii(maxLevel, centerR, compact);
+    return { segs, radii, maxLevel, centerR };
   }, [root, compact, showSub]);
 
   // Aggregierte Haltung je Knoten — zentrale Funktion (Schalter in lib/aggregate.ts).
@@ -334,11 +366,16 @@ export function TaxonomySunburst({
 
   if (!segs.length) return null;
 
-  // Einebenig (nur Top-Topics) ⇒ grössere Labels, da der eine Ring sehr dick ist;
-  // ab zwei Ebenen kompakt. Compact: nur Ring 1 trägt Labels und ist dick ⇒ gross.
-  const labelFont = compact ? 13 : maxLevel <= 1 ? 13 : 10;
   // Chart-Breite: einebenig/compact kompakt, mehrebenig grösser.
   const chartMaxW = maxLevel <= 1 ? 440 : 680;
+  // Labels sollen physisch (in CSS-Pixeln) gleich gross sein, egal ob ein- oder
+  // mehrebenig. Da die viewBox fix SIZE breit ist, der Chart aber je nach Modus
+  // unterschiedlich breit dargestellt wird (chartMaxW), skaliert jede SVG-Einheit
+  // mit chartMaxW/SIZE. Wir halten Schriftgrösse × Breite konstant (REF_FONT bei
+  // REF_WIDTH = Ring-1-Labels im mehrebenigen Chart) ⇒ gleiche gerenderte Grösse.
+  const REF_FONT = 10;
+  const REF_WIDTH = 680;
+  const labelFont = compact ? 13 : (REF_FONT * REF_WIDTH) / chartMaxW;
 
   // Standardmässig kein Panel; nur beim Hover erscheint Titel + Bewertung seitlich.
   const active = hover;
@@ -405,10 +442,15 @@ export function TaxonomySunburst({
             {/* Track-Ringe als Unterlage: jeder Ring liegt als durchgehendes,
                 schienenfarbenes Band hinter den Segmenten. Leere Bereiche (Lücken
                 zwischen Segmenten, unbewertete Knoten) zeigen so dieselbe Schiene
-                wie die Balken unten — die gefärbten Segmente sind die „Füllung". */}
+                wie die Balken unten — die gefärbten Segmente sind die „Füllung".
+                Der äusserste Track-Ring reicht bis OUTER_R (TRACK_BAND ausserhalb
+                der Datenringe) ⇒ ein sichtbarer, heller Track-Streifen fasst das
+                ganze Rad ein (erdet besonders die Single-Level-Variante). */}
             {Array.from({ length: maxLevel }, (_, i) => i + 1).map((level) => {
               const rInner = radii[level - 1] + RING_GAP / 2;
-              const rOuter = radii[level] - RING_GAP / 2;
+              // Äusserste Ebene: Track bis ganz an OUTER_R (Einfassungs-Streifen).
+              const rOuter =
+                level === maxLevel ? OUTER_R : radii[level] - RING_GAP / 2;
               return (
                 <circle
                   key={`track-${level}`}
@@ -423,6 +465,7 @@ export function TaxonomySunburst({
             })}
             {segs.map((s) => {
               // Radiale Lücke zwischen den Ebenen: jedes Band beidseitig einrücken.
+              // Datenringe enden bei DATA_OUTER_R; der Track-Streifen liegt ausserhalb.
               const rInner = radii[s.level - 1] + RING_GAP / 2;
               const rOuter = radii[s.level] - RING_GAP / 2;
               const thickness = rOuter - rInner; // Ringdicke (3. Ring ist dünn)
@@ -433,7 +476,7 @@ export function TaxonomySunburst({
               const pa0 = s.a0 + pad;
               const pa1 = s.a1 - pad;
               const lean = leanOf(s.node);
-              const unrated = lean == null; // weiss ⇒ feiner Umriss nötig
+              const unrated = lean == null; // Schienenfarbe ⇒ gestrichelter Umriss
               // Gespalten = hoher Dissens (Ja- UND Nein-Argumente stark bewertet) ⇒ Amber-Rand.
               const split = nodeDissent(s.node) > SPLIT_THRESHOLD;
               const clickable = !!s.node.key && !!onSelect;
@@ -466,13 +509,28 @@ export function TaxonomySunburst({
               const charR = curved
                 ? compact
                   ? rOuter - LABEL_OUTER_PAD - (maxLines - 1) * lineGap
-                  : rInner + (rOuter - rInner) * LABEL_R_FRAC - ((maxLines - 1) / 2) * lineGap
+                  : rInner +
+                    (rOuter - rInner) * LABEL_R_FRAC -
+                    ((maxLines - 1) / 2) * lineGap
                 : 0;
               const maxChars = curved
-                ? Math.max(3, Math.floor((span / 360) * 2 * Math.PI * charR / (6.5 * segScale)))
-                : Math.max(4, Math.floor((rOuter - labelInnerR - 6) / (5.8 * segScale)));
+                ? Math.max(
+                    3,
+                    Math.floor(
+                      ((span / 360) * 2 * Math.PI * charR) / (6.5 * segScale),
+                    ),
+                  )
+                : Math.max(
+                    4,
+                    Math.floor((rOuter - labelInnerR - 6) / (5.8 * segScale)),
+                  );
               // Compact: lange Einzelwörter mit Bindestrich umbrechen statt mit „…".
-              const lines = wrapLabel(s.node.name, maxChars, maxLines, curved && compact);
+              const lines = wrapLabel(
+                s.node.name,
+                maxChars,
+                maxLines,
+                curved && compact,
+              );
               // Label-Radius aus der TATSÄCHLICHEN Zeilenzahl. Compact: oberste Zeile
               // ans Aussenrand-Limit (rOuter − Pad) verankern, Block füllt nach innen
               // ⇒ auch kurze Labels sitzen aussen statt mittig zu schweben. Desktop:
@@ -480,13 +538,17 @@ export function TaxonomySunburst({
               const labelR = !curved
                 ? (labelInnerR + rOuter) / 2
                 : compact
-                  ? rOuter - LABEL_OUTER_PAD - ((lines.length - 1) / 2) * lineGap
+                  ? rOuter -
+                    LABEL_OUTER_PAD -
+                    ((lines.length - 1) / 2) * lineGap
                   : rInner + (rOuter - rInner) * LABEL_R_FRAC;
               const [lx, ly] = polar(labelR, mid);
               // Dünne Ringe (z. B. der 3.) bekommen kein Label — nur Farbe.
               // Compact (mobil): ausschliesslich Ring 1 beschriften.
               const showLabel =
-                span >= LABEL_MIN_ANGLE && thickness > 22 && (!compact || s.level === 1);
+                span >= LABEL_MIN_ANGLE &&
+                thickness > 22 &&
+                (!compact || s.level === 1);
               // Radiale Ausrichtung (tiefere Ringe): tangential gedreht, links gespiegelt.
               let rot = mid - 90;
               if (mid > 180) rot += 180;
@@ -497,9 +559,12 @@ export function TaxonomySunburst({
                   <path
                     d={arcPath(rInner, rOuter, pa0, pa1)}
                     fill={fillFor(lean)}
-                    stroke={unrated ? "rgba(0,0,0,0.2)" : "none"}
-                    strokeWidth={unrated ? 1 : 0}
-                    // Unbewertet ⇒ gestrichelter, „provisorischer" Rand.
+                    // Bewertet ⇒ heller Kartenrand (wie die Balken-Separatoren,
+                    // strokeWidth 1.5) für eine saubere Kante gegen Nachbar & Schiene
+                    // — radial vom Innenloch bis zum Track-Ring; unbewertet ⇒
+                    // gestrichelter, „provisorischer" Rand.
+                    stroke={unrated ? "rgba(0,0,0,0.2)" : "var(--card)"}
+                    strokeWidth={unrated ? 1 : 1.5}
                     strokeDasharray={unrated ? "3 2.5" : undefined}
                     style={{
                       cursor: clickable ? "pointer" : "default",
@@ -509,7 +574,9 @@ export function TaxonomySunburst({
                       transition: "opacity 120ms",
                     }}
                     onMouseEnter={() => setHover(s.node)}
-                    onMouseLeave={() => setHover((h) => (h === s.node ? null : h))}
+                    onMouseLeave={() =>
+                      setHover((h) => (h === s.node ? null : h))
+                    }
                     onClick={() => clickable && onSelect!(s.node.key!)}
                   />
                   {/* Gespalten (hoher Dissens): Blitz-Icon nahe dem Innenradius. */}
@@ -532,17 +599,30 @@ export function TaxonomySunburst({
                     lines.map((line, i) => {
                       const n = lines.length;
                       // Mehrzeilig: Zeilen radial um die Ring-Mittellinie verteilen.
-                      const ri = labelR + (flip ? -1 : 1) * ((n - 1) / 2 - i) * (11 * segScale);
+                      const ri =
+                        labelR +
+                        (flip ? -1 : 1) * ((n - 1) / 2 - i) * (11 * segScale);
                       const pid = `lp-${s.node.id}-${s.level}-${i}`;
                       return (
                         <g key={pid}>
-                          <path id={pid} d={textArcPath(ri, s.a0, s.a1, flip)} fill="none" />
+                          <path
+                            id={pid}
+                            d={textArcPath(ri, s.a0, s.a1, flip)}
+                            fill="none"
+                          />
                           <text
                             fill={textColor(lean)}
                             fontSize={segFont}
-                            style={{ pointerEvents: "none", userSelect: "none" }}
+                            style={{
+                              pointerEvents: "none",
+                              userSelect: "none",
+                            }}
                           >
-                            <textPath href={`#${pid}`} startOffset="50%" textAnchor="middle">
+                            <textPath
+                              href={`#${pid}`}
+                              startOffset="50%"
+                              textAnchor="middle"
+                            >
                               {line}
                             </textPath>
                           </text>
@@ -564,7 +644,11 @@ export function TaxonomySunburst({
                         <tspan
                           key={`${i}-${line}`}
                           x={lx}
-                          dy={i === 0 ? `${-(lines.length - 1) * 0.55}em` : "1.1em"}
+                          dy={
+                            i === 0
+                              ? `${-(lines.length - 1) * 0.55}em`
+                              : "1.1em"
+                          }
                         >
                           {line}
                         </tspan>
@@ -580,7 +664,7 @@ export function TaxonomySunburst({
             <circle
               cx={CX}
               cy={CY}
-              r={compact ? CENTER_R_COMPACT : CENTER_R}
+              r={centerR}
               fill="var(--card)"
               stroke="rgba(0,0,0,0.05)"
             />
@@ -609,8 +693,15 @@ export function TaxonomySunburst({
                     className="mt-1 flex items-center gap-1.5 text-xs font-medium leading-snug"
                     style={{ color: AMBER }}
                   >
-                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" aria-hidden="true">
-                      <path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z" fill={AMBER} />
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-3.5 w-3.5 shrink-0"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z"
+                        fill={AMBER}
+                      />
                     </svg>
                     {t("sunburstDissentNote")}
                   </p>
@@ -634,7 +725,11 @@ export function TaxonomySunburst({
             Blitz = gespalten (hoher Dissens). */}
         <div className="mt-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <svg viewBox="2 2.7 16 8" className="h-3.5 w-7 shrink-0" aria-hidden="true">
+            <svg
+              viewBox="2 2.7 16 8"
+              className="h-3.5 w-7 shrink-0"
+              aria-hidden="true"
+            >
               <path
                 d="M 4.84 4.63 A 9 9 0 0 1 15.16 4.63 L 12.29 8.72 A 4 4 0 0 0 7.71 8.72 Z"
                 fill={fillFor(null)}
@@ -647,8 +742,15 @@ export function TaxonomySunburst({
             {t("sunburstLeanUnrated")}
           </span>
           <span className="flex items-center gap-1.5">
-            <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" aria-hidden="true">
-              <path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z" fill={AMBER} />
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4 shrink-0"
+              aria-hidden="true"
+            >
+              <path
+                d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z"
+                fill={AMBER}
+              />
             </svg>
             {t("sunburstDissentNote")}
           </span>

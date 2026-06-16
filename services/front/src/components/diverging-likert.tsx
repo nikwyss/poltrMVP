@@ -12,10 +12,9 @@
  * Armlängen: Pro- und Kontra-Argumente liegen in zwei getrennten Töpfen (Bewertung
  * 0–100 „wie stark spricht dieses Argument dafür"). Jeder Topf wird per Soft-OR
  * (Noisy-OR mit γ, siehe lib/aggregate.ts) zu einer Zahl verdichtet: P (Ja) → blauer
- * Arm, K (Nein) → korallener Arm, beide ∈ [0,1]. Die weissen Trennlinien zeigen die
- * einzelnen Argumente — jedes Segment ist der „Happen", den dieses Argument zum
- * Score beigetragen hat (breit = gewichtig). Eine Farbe je Seite, keine Stark/
- * Schwach-Abstufung.
+ * Arm, K (Nein) → korallener Arm, beide ∈ [0,1]. Jeder Arm ist ein durchgehender
+ * Balken (keine sichtbare Unterteilung); die einzelnen Argumente leben nur noch als
+ * Tooltip-Segmente weiter. Eine Farbe je Seite, keine Stark/Schwach-Abstufung.
  *
  * Badge rechts = Tendenz = P − K (z. B. „+45" = lehnt um 45 Punkte Richtung Ja).
  *
@@ -26,6 +25,11 @@ import { useMemo, type ReactNode } from "react";
 import type { TaxonomyNode } from "@/types/ballots";
 import { Card, CardContent } from "@/components/ui/card";
 import { collectLeaningContribs, noisyOrBites } from "@/lib/aggregate";
+import {
+  ARM_NO_CSS as ARM_NO,
+  ARM_YES_CSS as ARM_YES,
+  TRACK_CSS as TRACK,
+} from "@/lib/chart-palette";
 
 type T = (key: string) => string;
 
@@ -33,12 +37,9 @@ const SERIF = {
   fontFamily: 'var(--font-serif), Georgia, "Times New Roman", serif',
 } as const;
 
-// Eine Farbe je Seite: korallen = Nein (links), blau = Ja (rechts).
-const ARM_NO = "rgb(202, 112, 88)"; // korallen / terrakotta
-const ARM_YES = "rgb(60, 90, 143)"; // navy
-
-// Schiene (Track) — warmes Hellgrau, passend zur cremefarbenen Karte.
-const TRACK = "rgb(238, 234, 226)";
+// Pole + Schiene (Track) kommen aus der geteilten Palette (chart-palette.ts):
+// korallen = Nein (links), navy = Ja (rechts), warmes Hellgrau = Schiene. So
+// teilen Balken und Sunburst exakt dieselben Endpunkte/Nullpunkt.
 
 // Tendenz-Badge: blau getönt Richtung Ja, korallen Richtung Nein.
 const POS = { bg: "rgba(60, 90, 143, 0.12)", fg: "rgb(56, 84, 134)" };
@@ -79,8 +80,10 @@ type Row = {
   kon: Bite[];
 };
 
-// Ein Arm: gerundeter Balken ab der Mitte nach `dir` (+1 rechts / −1 links),
-// in Argument-Segmente (weisse Trennlinien) unterteilt. Stärkstes Argument = Basis.
+// Ein Arm: gerundeter, durchgehender Balken ab der Mitte nach `dir` (+1 rechts /
+// −1 links). EINE volle Fläche (kein Aneinanderreihen gleichfarbiger Rechtecke —
+// das erzeugte feine Anti-Aliasing-Nähte an den Stossstellen). Die einzelnen
+// Argumente leben nur noch als unsichtbare Hover-Flächen für die Tooltips weiter.
 function renderArm(bites: Bite[], dir: 1 | -1, color: string, clipId: string): ReactNode {
   const span = bites.reduce((a, b) => a + b.bite, 0);
   if (span < 0.002) return null;
@@ -88,37 +91,25 @@ function renderArm(bites: Bite[], dir: 1 | -1, color: string, clipId: string): R
   const innerX = XC + dir * CGAP;
   const clipX = dir === 1 ? innerX : innerX - armLen;
 
-  const segs: ReactNode[] = [];
-  const seps: ReactNode[] = [];
+  // Durchsichtige Hover-Flächen je Argument (nur für die <title>-Tooltips).
+  const hits: ReactNode[] = [];
   let cum = 0;
   bites.forEach((b, i) => {
     const a = innerX + dir * cum * ARM_SPAN;
     cum += b.bite;
     const c = innerX + dir * cum * ARM_SPAN;
-    segs.push(
+    hits.push(
       <rect
-        key={`g${i}`}
+        key={`h${i}`}
         x={Math.min(a, c)}
         y={BAR_Y}
         width={Math.abs(c - a)}
         height={BAR_H}
-        fill={color}
+        fill="transparent"
       >
         <title>{`${Math.round(b.mag * 100)}/100`}</title>
       </rect>,
     );
-    if (i > 0)
-      seps.push(
-        <line
-          key={`s${i}`}
-          x1={a}
-          y1={BAR_Y}
-          x2={a}
-          y2={BAR_Y + BAR_H}
-          stroke="var(--card)"
-          strokeWidth={1.5}
-        />,
-      );
   });
 
   return (
@@ -129,8 +120,9 @@ function renderArm(bites: Bite[], dir: 1 | -1, color: string, clipId: string): R
         </clipPath>
       </defs>
       <g clipPath={`url(#${clipId})`}>
-        {segs}
-        {seps}
+        {/* Eine durchgehende Füllung — keine sichtbaren Stossstellen. */}
+        <rect x={clipX} y={BAR_Y} width={armLen} height={BAR_H} fill={color} />
+        {hits}
       </g>
     </g>
   );
@@ -230,7 +222,9 @@ export function DivergingLikert({
                   role="img"
                   aria-label={`${node.name} · für Ja ${Math.round(P * 100)} · für Nein ${Math.round(K * 100)} · ${signed(tendency)}`}
                 >
-                  {/* Schiene */}
+                  {/* Schiene. Unbewertet (n === 0) ⇒ gestrichelter, „provisorischer"
+                      Rand auf der leeren Schiene — identisch zu den unbewerteten
+                      Segmenten im Sunburst. */}
                   <rect
                     x={X0}
                     y={TRACK_Y}
@@ -238,6 +232,9 @@ export function DivergingLikert({
                     height={TRACK_H}
                     rx={TRACK_H / 2}
                     fill={TRACK}
+                    stroke={n === 0 ? "rgba(0,0,0,0.2)" : "none"}
+                    strokeWidth={n === 0 ? 1 : 0}
+                    strokeDasharray={n === 0 ? "3 2.5" : undefined}
                   />
                   {/* Arme: Kontra (links, korallen) + Pro (rechts, blau) */}
                   {renderArm(kon, -1, ARM_NO, `${base}-no`)}
@@ -253,9 +250,6 @@ export function DivergingLikert({
                     strokeWidth={1}
                     strokeOpacity={0.7}
                   />
-                  {n === 0 && (
-                    <circle cx={XC} cy={BARH / 2} r={3} fill="var(--line-mid)" />
-                  )}
                 </svg>
 
                 <span

@@ -39,14 +39,19 @@ export const ARM_NO_CSS = rgbStr(ARM_NO);
 export const ARM_YES_CSS = rgbStr(ARM_YES);
 export const TRACK_CSS = rgbStr(TRACK);
 
+// Kontrast-Kurve: Beträge < 1 mit Gamma < 1 anheben, damit auch moderate
+// Neigungen sichtbar Farbe zeigen (sonst landen viele Themen nahe der Schiene
+// und wirken ausgewaschen). 1 = linear; kleiner = mehr Farbe pro lean-Schritt.
+const LEAN_GAMMA = 0.7;
+
 /**
  * Haltung lean ∈ [−1,1] → Füllton auf der Skala Koralle ↔ TRACK ↔ Navy.
- * Schwache Neigung bleibt nahe der Schiene (hell), starke Neigung wird satt.
+ * Schwache Neigung bleibt nahe der Schiene (hell), starke Neigung wird satt;
+ * die Gamma-Kurve (LEAN_GAMMA) zieht moderate Werte schon spürbar in die Farbe.
  * `null`/`undefined` = unbewertet → kein Farbwert (Aufrufer zeigt die Schiene).
  */
 export function leanRgb(lean: number | null | undefined): RGB | null {
   if (lean == null) return null;
-  return lean >= 0
-    ? mixRgb(TRACK, ARM_YES, Math.min(1, lean))
-    : mixRgb(TRACK, ARM_NO, Math.min(1, -lean));
+  const m = Math.pow(Math.min(1, Math.abs(lean)), LEAN_GAMMA);
+  return lean >= 0 ? mixRgb(TRACK, ARM_YES, m) : mixRgb(TRACK, ARM_NO, m);
 }
