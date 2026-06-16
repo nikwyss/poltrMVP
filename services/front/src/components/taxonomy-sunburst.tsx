@@ -84,6 +84,12 @@ const THIRD_RING_WIDTH = 16; // 3. Ring nur als dünnes Band; Ebene 1 & 2 teilen
 // (und damit die Labels) bei grossem Radius mit langem Bogen ⇒ mehr Textplatz.
 const SECOND_RING_COMPACT_W = 20;
 const THIRD_RING_COMPACT_W = 12;
+// Compact: Labels werden IMMER auf Höhe der Aussenkante des (mehrebenig) inneren
+// Rings verankert — auch wenn nur eine (dicke) Ebene gezeigt wird. So sehen die
+// Ring-1-Labels einebenig gleich aus wie mehrebenig (schmaler Bogen ⇒ schmaler,
+// dreizeilig) statt am weiten Aussenrand breit/wenigzeilig zu werden.
+const COMPACT_LABEL_OUTER_R =
+  DATA_OUTER_R - SECOND_RING_COMPACT_W - THIRD_RING_COMPACT_W - RING_GAP / 2;
 
 // Füllfarbe für ein Segment. Bewertet ⇒ Ton auf der geteilten Skala (leanRgb);
 // unbewertet ⇒ Schienenfarbe (TRACK), sodass leere Segmente nahtlos in den
@@ -505,12 +511,19 @@ export function TaxonomySunburst({
                 : thickness >= 28
                   ? 2
                   : 1;
+              // Compact: Labels auf Höhe des (mehrebenig) inneren Rings verankern,
+              // damit sie einebenig gleich aussehen (schmal, dreizeilig) statt am
+              // weiten Aussenrand des dicken Rings zu kleben. Mehrebenig ist rOuter
+              // ohnehin ≈ COMPACT_LABEL_OUTER_R ⇒ unverändert.
+              const labelOuterR = compact
+                ? Math.min(rOuter, COMPACT_LABEL_OUTER_R)
+                : rOuter;
               // Zeichenkapazität an der INNERSTEN möglichen Zeile bemessen (kleinster
               // Radius = kürzester Bogen). Compact: worst case = maxLines, am
               // Aussenrand verankert — so überläuft auch ein voller Block nie.
               const charR = curved
                 ? compact
-                  ? rOuter - LABEL_OUTER_PAD - (maxLines - 1) * lineGap
+                  ? labelOuterR - LABEL_OUTER_PAD - (maxLines - 1) * lineGap
                   : rInner +
                     (rOuter - rInner) * LABEL_R_FRAC -
                     ((maxLines - 1) / 2) * lineGap
@@ -540,7 +553,7 @@ export function TaxonomySunburst({
               const labelR = !curved
                 ? (labelInnerR + rOuter) / 2
                 : compact
-                  ? rOuter -
+                  ? labelOuterR -
                     LABEL_OUTER_PAD -
                     ((lines.length - 1) / 2) * lineGap
                   : rInner + (rOuter - rInner) * LABEL_R_FRAC;
