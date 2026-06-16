@@ -12,8 +12,9 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import src.core.db as db
 from src.atproto.errors import PDSError
-from src.atproto.crosspost import start_crosspost_loop, stop_crosspost_loop
-from src.translation.translator import start_translation_loop, stop_translation_loop
+# Background governance loops moved to the dedicated writer process
+# (src.writer_main): cross-posting (Phase 1) and translation (Phase 5). The
+# appview API runs NO background governance loops anymore.
 # Peer-review assignment used to run as a background loop. It is now triggered
 # on authenticated requests via src.auth.middleware → peer_review_assign.
 
@@ -50,15 +51,6 @@ def _client_ip_key(request: Request) -> str:
 limiter = Limiter(key_func=_client_ip_key)
 
 
-def start_participation_loops():
-    start_crosspost_loop()
-    start_translation_loop()
-
-
-def stop_participation_loops():
-    stop_translation_loop()
-    stop_crosspost_loop()
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -67,10 +59,8 @@ async def lifespan(app: FastAPI):
     if not success:
         logger.warning("Database connection failed, but continuing...")
     logger.info("API listening on :3000")
-    start_participation_loops()
     yield
     # Shutdown
-    stop_participation_loops()
     await db.close_pool()
     logger.info("=== Application Shutdown ===")
 

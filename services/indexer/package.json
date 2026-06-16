@@ -20,6 +20,7 @@
   },
   "scripts": {
     "start": "node src/main.js",
-    "dev": "npx tsx src/main.js"
+    "dev": "npx tsx src/main.js",
+    "test": "node --test"
   }
 }

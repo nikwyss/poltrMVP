@@ -16,6 +16,7 @@ import {
   upsertPeerreviewResponseDb,
   markPeerreviewResponseDeleted,
   projectTaxonomySnapshotDb,
+  stageForAcceptance,
 } from "./db.js";
 
 const COLLECTION_ARGUMENT = "app.ch.poltr.ballot.argument";
@@ -24,6 +25,9 @@ const COLLECTION_COMMENT = "app.ch.poltr.comment";
 const COLLECTION_COMMENT_TRANSLATION = "app.ch.poltr.comment.translation";
 const COLLECTION_PEERREVIEW_INVITATION = "app.ch.poltr.peerreview.invitation";
 const COLLECTION_PEERREVIEW_RESPONSE = "app.ch.poltr.peerreview.response";
+// Pull-Trigger (Phase 6): user-authored „bitte mir Reviews zuteilen". Wird in die
+// Akzeptanz-Queue (kind=request) gestaged; der Writer führt die Zuteilung aus.
+const COLLECTION_PEERREVIEW_REQUEST = "app.ch.poltr.peerreview.request";
 // Taxonomie-Snapshot: ganzer Themen-Baum eines Ballots als EIN Record (Quelle der
 // Wahrheit); wird in app_taxonomy_node/_membership projiziert.
 const COLLECTION_TAXONOMY_SNAPSHOT = "app.ch.poltr.taxonomy.snapshot";
@@ -31,6 +35,14 @@ const COLLECTION_TAXONOMY_SNAPSHOT = "app.ch.poltr.taxonomy.snapshot";
 // backfill path can re-index any records that landed before the rename.
 const COLLECTION_REVIEW_INVITATION_LEGACY = "app.ch.poltr.review.invitation";
 const COLLECTION_REVIEW_RESPONSE_LEGACY = "app.ch.poltr.review.response";
+
+// ATProto-native acceptance pipeline (Phase 3): when enabled, user-authored
+// `ballot.argument` creates from USER repos are staged into app_acceptance_queue
+// for the writer (gate → community record) instead of being ignored. Off by
+// default — the pipeline is dormant until appview writes args to user repos
+// (APPVIEW_ARGS_USER_REPO_ENABLED) and the writer consumes the queue.
+const ACCEPTANCE_PIPELINE_ENABLED =
+  (process.env.ACCEPTANCE_PIPELINE_ENABLED ?? "false") === "true";
 
 // Per-ballot governance accounts: loaded from DB
 let governanceDids = new Set();
@@ -64,6 +76,7 @@ export const handleEvent = async (evt) => {
     collection !== COLLECTION_COMMENT_TRANSLATION &&
     collection !== COLLECTION_PEERREVIEW_INVITATION &&
     collection !== COLLECTION_PEERREVIEW_RESPONSE &&
+    collection !== COLLECTION_PEERREVIEW_REQUEST &&
     collection !== COLLECTION_REVIEW_INVITATION_LEGACY &&
     collection !== COLLECTION_REVIEW_RESPONSE_LEGACY &&
     collection !== COLLECTION_TAXONOMY_SNAPSHOT
@@ -78,6 +91,22 @@ export const handleEvent = async (evt) => {
 
   if (collection === COLLECTION_ARGUMENT) {
     if (!isGovernanceDid(did)) {
+      if (ACCEPTANCE_PIPELINE_ENABLED && action === "create" && evt.record) {
+        // ATProto-native: a user wrote a self-signed argument into their OWN
+        // repo. Stage it for the writer (gate → community record). The writer's
+        // governance-authored community record returns here as an
+        // isGovernanceDid(did) event and is projected the normal way (below).
+        // Update/Delete of the user original are ignored (drift solved).
+        await stageForAcceptance(pool, {
+          userUri: uri,
+          userCid: cidString,
+          did,
+          kind: "argument",
+          ballot: evt.record.ballot != null ? String(evt.record.ballot) : null,
+          record: evt.record,
+        });
+        return;
+      }
       console.log(`Ignoring argument from non-governance repo: ${did}`);
       return;
     }
@@ -165,6 +194,25 @@ export const handleEvent = async (evt) => {
     collection === COLLECTION_REVIEW_RESPONSE_LEGACY
   ) {
     if (!isGovernanceDid(did)) {
+      if (
+        ACCEPTANCE_PIPELINE_ENABLED &&
+        action === "create" &&
+        evt.record &&
+        collection === COLLECTION_PEERREVIEW_RESPONSE
+      ) {
+        // ATProto-native: a reviewer wrote a self-signed response into their OWN
+        // repo. Stage it for the writer (gate → community response). No ballot
+        // ref — the writer resolves the governance repo from record.argument.
+        await stageForAcceptance(pool, {
+          userUri: uri,
+          userCid: cidString,
+          did,
+          kind: "response",
+          ballot: null,
+          record: evt.record,
+        });
+        return;
+      }
       console.log(`Ignoring peerreview response from non-governance repo: ${did}`);
       return;
     }
@@ -179,6 +227,28 @@ export const handleEvent = async (evt) => {
         record,
       });
     }
+  }
+
+  if (collection === COLLECTION_PEERREVIEW_REQUEST) {
+    // Pull-Trigger (Phase 6): user-authored Bitte um Review-Zuteilung → stagen
+    // (kind=request); der Writer führt _assign aus und schreibt die Invitations
+    // ins Governance-Repo. Nicht projizieren (kein Lese-Modell für Requests).
+    if (
+      ACCEPTANCE_PIPELINE_ENABLED &&
+      action === "create" &&
+      evt.record &&
+      !isGovernanceDid(did)
+    ) {
+      await stageForAcceptance(pool, {
+        userUri: uri,
+        userCid: cidString,
+        did,
+        kind: "request",
+        ballot: null,
+        record: evt.record,
+      });
+    }
+    return;
   }
 
   if (collection === COLLECTION_TAXONOMY_SNAPSHOT) {

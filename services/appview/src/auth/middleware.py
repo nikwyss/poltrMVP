@@ -84,12 +84,7 @@ async def verify_session_token(
             else row["user_data"]
         )
 
-        # Activity-triggered peer-review assignment (throttled internally to
-        # ~30s per user; replaces the legacy background-worker polling model).
-        # Fire-and-forget so the request response isn't blocked.
-        _peer_review_check(row["did"])
-
-        return TSession(
+        session = TSession(
             **{
                 "token": token,
                 "token_hash": token_hashed,
@@ -97,3 +92,12 @@ async def verify_session_token(
                 "user": user_data,
             }
         )
+
+        # Activity-triggered peer-review. With the pull flag on, this writes a
+        # peerreview.request into the user's own repo (the writer assigns);
+        # otherwise it assigns here (legacy). Throttled internally; fire-and-forget
+        # so the request response isn't blocked. Needs the session (to write to the
+        # user's repo), hence built above first.
+        _peer_review_check(session)
+
+        return session

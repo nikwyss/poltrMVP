@@ -17,6 +17,7 @@ import httpx
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse
 
+from src.atproto.atproto_api import pds_create_record
 from src.atproto.governance import create_governance_record, get_did_for_ballot
 from src.auth.middleware import TSession, verify_session_token
 from src.core.db import get_pool
@@ -27,6 +28,14 @@ from src.routes.deliberation._lang import pick_translation, resolve_requested_la
 from src.routes.deliberation.quota import QuotaExceeded, release, reserve, set_uri
 
 router = APIRouter(prefix="/xrpc", tags=["poltr-arguments"])
+
+
+def _args_user_repo_enabled() -> bool:
+    """ATProto-native path (Phase 3): #sourceUser arguments are written to the
+    user's OWN repo (self-signed); the internal write-side gates them and writes
+    the canonical community record. Off by default until the acceptance pipeline
+    (app_acceptance_queue + writer) is complete."""
+    return os.getenv("APPVIEW_ARGS_USER_REPO_ENABLED", "false").lower() == "true"
 
 
 # -----------------------------------------------------------------------------
@@ -476,10 +485,20 @@ async def create_argument(
     # PDS failures raise PDSError → handled centrally (see core/fastapi.py).
     # Release the reserved quota slot if the write fails, then re-raise.
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            result = await create_governance_record(
-                client, gov_did, "app.ch.poltr.ballot.argument", record
+        if _args_user_repo_enabled():
+            # ATProto-native: write the self-signed argument into the USER's own
+            # repo. The internal write-side picks it up off the firehose, gates
+            # it, and writes the canonical community record into the governance
+            # repo. The quota slot tracks the user-repo record URI.
+            result = await pds_create_record(
+                session, "app.ch.poltr.ballot.argument", record
             )
+        else:
+            # Legacy path: appview writes directly into the governance repo.
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                result = await create_governance_record(
+                    client, gov_did, "app.ch.poltr.ballot.argument", record
+                )
     except Exception:
         await release(reservation_id)
         raise

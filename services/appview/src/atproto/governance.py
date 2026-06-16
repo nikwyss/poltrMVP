@@ -15,7 +15,7 @@ import string
 import httpx
 
 from src.core import db
-from src.atproto.pds_creds import decrypt_app_password, encrypt_app_password
+from src.atproto.pds_creds import decrypt_gov_password, encrypt_gov_password
 from src.atproto.errors import from_network_error, from_response
 
 logger = logging.getLogger("governance_pds")
@@ -38,7 +38,7 @@ async def _get_governance_password(did: str) -> str:
         )
     if not row:
         raise RuntimeError(f"No governance account found for DID {did}")
-    return decrypt_app_password(row["pw_ciphertext"], row["pw_nonce"])
+    return decrypt_gov_password(row["pw_ciphertext"], row["pw_nonce"])
 
 
 async def _create_session(client: httpx.AsyncClient, did: str) -> str:
@@ -233,7 +233,7 @@ async def create_ballot_account(ballot_rkey: str) -> str:
     logger.info(f"Created ballot governance account: {handle} ({did})")
 
     # Encrypt and store credentials
-    pw_ct, pw_nonce = encrypt_app_password(password)
+    pw_ct, pw_nonce = encrypt_gov_password(password)
 
     pool = await db.get_pool()
     async with pool.acquire() as conn:

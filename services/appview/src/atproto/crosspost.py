@@ -20,8 +20,6 @@ from src.atproto.governance import get_governance_token, _pds_internal_url
 
 logger = logging.getLogger("crosspost")
 
-_task: asyncio.Task | None = None
-
 
 def _frontend_url() -> str:
     return os.getenv("APPVIEW_FRONTEND_URL", "https://poltr.ch")
@@ -130,19 +128,7 @@ async def _poll_loop():
         await asyncio.sleep(interval)
 
 
-def start_crosspost_loop():
-    """Start the crosspost background task."""
-    global _task
-    if _task is not None:
-        return
-    _task = asyncio.get_event_loop().create_task(_poll_loop())
-    logger.info("Crosspost background task scheduled")
-
-
-def stop_crosspost_loop():
-    """Cancel the crosspost background task."""
-    global _task
-    if _task is not None:
-        _task.cancel()
-        _task = None
-        logger.info("Crosspost background task cancelled")
+async def run_crosspost_forever():
+    """Run the cross-post poll loop in the FOREGROUND, for the standalone writer
+    process (src.writer_main). The internal write-side owns governance writes now."""
+    await _poll_loop()

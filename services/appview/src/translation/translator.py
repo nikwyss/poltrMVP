@@ -43,8 +43,6 @@ from src.core.languages import (
 
 logger = logging.getLogger("translator")
 
-_task: Optional[asyncio.Task] = None
-
 ARGUMENT_NSID = "app.ch.poltr.ballot.argument"
 COMMENT_TRANSLATION_NSID = "app.ch.poltr.comment.translation"
 
@@ -854,21 +852,11 @@ async def _poll_loop() -> None:
         await asyncio.sleep(interval)
 
 
-def start_translation_loop() -> None:
-    """Start the translation background task (idempotent). Resets the circuit
-    breaker so a fresh start (e.g. after restart) resumes processing."""
-    global _task, _halted, _halt_reason
-    if _task is not None:
-        return
+async def run_translation_forever() -> None:
+    """Foreground translation loop for the standalone writer process
+    (src.writer_main). Resets the circuit breaker so a fresh start resumes
+    processing. The internal write-side owns governance writes now."""
+    global _halted, _halt_reason
     _halted = False
     _halt_reason = ""
-    _task = asyncio.get_event_loop().create_task(_poll_loop())
-    logger.info("Translation background task scheduled")
-
-
-def stop_translation_loop() -> None:
-    global _task
-    if _task is not None:
-        _task.cancel()
-        _task = None
-        logger.info("Translation background task cancelled")
+    await _poll_loop()

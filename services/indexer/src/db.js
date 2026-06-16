@@ -20,6 +20,23 @@ export async function dbQuery(clientOrPool, text, params = []) {
 }
 
 /**
+ * Acceptance pipeline (ATProto-native path): stage a user-authored original
+ * record (from a user repo) into app_acceptance_queue for the writer to gate and
+ * promote into a canonical community record. Idempotent on user_uri; fires a
+ * NOTIFY so a LISTENing writer wakes immediately. See plan typed-kindling-flask.
+ */
+export async function stageForAcceptance(clientOrPool, params) {
+  const { userUri, userCid, did, kind, ballot, record } = params;
+  await clientOrPool.query(
+    `INSERT INTO app_acceptance_queue (user_uri, user_cid, did, kind, ballot, record)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (user_uri) DO NOTHING`,
+    [userUri, userCid, did, kind, ballot, record ? JSON.stringify(record) : null],
+  );
+  await clientOrPool.query("NOTIFY acceptance_queue");
+}
+
+/**
  * Upsert a like record into app_likes.
  */
 export async function upsertLikeDb(clientOrPool, params) {
@@ -211,6 +228,11 @@ export async function upsertArgumentDb(clientOrPool, params) {
   const ballotUri = record.ballot ?? null;
   const ballotRkey = ballotUri ? ballotUri.split("/").pop() : null;
   const createdAt = record.createdAt ? new Date(record.createdAt) : new Date();
+  // Provenance (ATProto-native #sourceUser): set by the writer on the community
+  // record, points at the user-signed original. Null for legacy governance-
+  // authored args and official/org content.
+  const originUri = record.source?.originUri ?? null;
+  const originCid = record.source?.originCid ?? null;
 
   const src = parseArgumentSource(record);
 
@@ -229,11 +251,13 @@ export async function upsertArgumentDb(clientOrPool, params) {
     INSERT INTO app_arguments
       (uri, cid, did, rkey, author_did, title, body, type, ballot_uri, ballot_rkey,
        source_type, source_org_key, source_doc_ref, source_section, source_verified_did,
-       peerreview_status, langs, translations, translation_status, created_at, deleted)
+       peerreview_status, langs, translations, translation_status, created_at,
+       origin_uri, origin_cid, deleted)
     VALUES
       ($1,  $2,  $3,  $4,  $5,  $6,    $7,   $8,   $9,         $10,
        $11, $12, $13, $14, $15,
-       $16, $17, $18::jsonb, $19, $20, false)
+       $16, $17, $18::jsonb, $19, $20,
+       $21, $22, false)
     ON CONFLICT (uri) DO UPDATE SET
       cid                  = EXCLUDED.cid,
       author_did           = EXCLUDED.author_did,
@@ -251,6 +275,8 @@ export async function upsertArgumentDb(clientOrPool, params) {
       translations         = EXCLUDED.translations,
       translation_status   = EXCLUDED.translation_status,
       created_at           = EXCLUDED.created_at,
+      origin_uri           = EXCLUDED.origin_uri,
+      origin_cid           = EXCLUDED.origin_cid,
       deleted              = false,
       indexed_at           = now()
     `,
@@ -275,6 +301,8 @@ export async function upsertArgumentDb(clientOrPool, params) {
       JSON.stringify(translations),
       translationStatus,
       createdAt,
+      originUri,
+      originCid,
     ],
   );
 
@@ -842,14 +870,20 @@ export async function upsertPeerreviewResponseDb(clientOrPool, params) {
   const vote = record.vote ?? null;
   const justification = record.justification ?? null;
   const createdAt = record.createdAt ? new Date(record.createdAt) : new Date();
+  // Provenance (ATProto-native): set by the writer on the community response,
+  // points at the reviewer's user-signed original. Null for legacy responses.
+  const originUri = record.originUri ?? null;
+  const originCid = record.originCid ?? null;
 
   const result = await dbQuery(
     clientOrPool,
     `
     INSERT INTO app_peerreview_responses
-      (uri, cid, argument_uri, reviewer_did, criteria, vote, justification, created_at)
+      (uri, cid, argument_uri, reviewer_did, criteria, vote, justification, created_at,
+       origin_uri, origin_cid)
     VALUES
-      ($1,  $2,  $3,           $4,           $5,       $6,   $7,            $8)
+      ($1,  $2,  $3,           $4,           $5,       $6,   $7,            $8,
+       $9, $10)
     ON CONFLICT DO NOTHING
     RETURNING argument_uri
     `,
@@ -862,6 +896,8 @@ export async function upsertPeerreviewResponseDb(clientOrPool, params) {
       vote,
       justification,
       createdAt,
+      originUri,
+      originCid,
     ],
   );
 

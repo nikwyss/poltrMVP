@@ -94,6 +94,9 @@ jobs:
           IMAGE_CALCULATOR=ghcr.io/${{ github.repository_owner }}/poltr-calculator:${{ github.sha }}
           # run kubectl operations (guarded to avoid failing whole workflow for missing resources)
           kubectl -n poltr set image deployment/appview appview="$IMAGE_APP" || true
+          # Writer nutzt dasselbe appview-Image (Command python -m src.writer_main).
+          echo "Updating writer deployment to $IMAGE_APP"
+          kubectl -n poltr set image deployment/writer writer="$IMAGE_APP" || true
           echo "Updating frontend deployment to $IMAGE_FRONT"
           kubectl -n poltr set image deployment/frontend frontend="$IMAGE_FRONT" || true
           kubectl -n poltr set image deployment/indexer indexer="$IMAGE_INDEXER" || true
@@ -103,6 +106,8 @@ jobs:
           kubectl -n poltr set image deployment/calculator calculator="$IMAGE_CALCULATOR" || true
           echo "Waiting for appview rollout..."
           kubectl -n poltr rollout status deployment/appview --timeout=180s || true
+          echo "Waiting for writer rollout..."
+          kubectl -n poltr rollout status deployment/writer --timeout=180s || true
           echo "Waiting for indexer rollout..."
           kubectl -n poltr rollout status deployment/indexer --timeout=180s || true
           echo "Waiting for frontend rollout..."

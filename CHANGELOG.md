@@ -2,6 +2,91 @@
 
 ## 2026-06-16
 
+### ATProto-native Deliberation — Phase 6: Peerreview-Assignment in den Writer (Pull/Request-Modell) (`services/appview`, `services/indexer`, `infra`)
+
+Die Review-Zuteilung (heute in appview, schreibt Invitations mit Gov-Creds) wandert in den Writer — via user-authored `peerreview.request`-Record (L12-Pull-Modell). Hinter Flag, Default aus.
+
+- **appview** ([peer_review_assign.py](services/appview/src/arguments/peer_review_assign.py)): bei `APPVIEW_REVIEW_REQUESTS_USER_REPO_ENABLED=true` schreibt der Aktivitäts-Hook statt zuzuteilen einen `app.ch.poltr.peerreview.request` ins **User-Repo** — **max. 1×/aktiver UTC-Tag** (Tages-Throttle → „Müll in Grenzen"). `fire_and_forget` nimmt jetzt die Session; [middleware.py](services/appview/src/auth/middleware.py) baut die Session vor dem Hook und übergibt sie.
+- **Projektor** ([record_handler.js](services/indexer/src/record_handler.js)): non-governance `peerreview.request`-Creates → `app_acceptance_queue` (`kind=request`), nicht projiziert.
+- **Writer** ([acceptance.py](services/appview/src/atproto/acceptance.py)): `_accept_request` gated Eligibility und ruft die **wiederverwendete** `maybe_assign_reviews_for_user` (Lotterie/Tageslimit/Slots) → Invitations ins Governance-Repo. Der Writer füllt in einem Lauf die Tages-Slots.
+- **Secrets**: Flag in `appview-secrets`; `writer.yaml` erbt `APPVIEW_PEER_REVIEW_DAILY_LIMIT/INVITE_PROBABILITY` aus appview-secrets.
+- Zirkular-Import (`peer_review_assign → atproto_api → middleware → peer_review_assign`) durch Lazy-Import von `pds_create_record` vermieden.
+- Tests: 2 neue für `_accept_request` (eligible → assign; ineligible → reject).
+
+### ATProto-native Deliberation — Phase 5: Translator in den Writer-Prozess gezogen (`services/appview`, `infra`)
+
+Der Übersetzungs-Worker wandert aus der internet-zugewandten appview-API in den Writer (wie der Crosspost in Phase 1) — er bleibt governance-record-basiert (fetch → inline übersetzen → putRecord), nur der Ausführungsort ändert sich.
+
+- **Neu** `run_translation_forever()` in [translator.py](services/appview/src/translation/translator.py) (Vordergrund-Runner, setzt den Circuit-Breaker zurück); tote `start/stop_translation_loop` + `_task`-Global entfernt.
+- **appview-API führt jetzt GAR KEINE** Hintergrund-Governance-Loops mehr ([fastapi.py](services/appview/src/core/fastapi.py): Lifespan startet nichts mehr — Crosspost (Phase 1) **und** Translation (Phase 5) sind weg; `start/stop_participation_loops` entfallen).
+- **Writer** ([writer_main.py](services/appview/src/writer_main.py)) fährt jetzt Crosspost **+ Translation** (beide self-gated via `*_ENABLED`) + die Akzeptanz-Pipeline.
+- **Secrets**: `APPVIEW_TRANSLATE_*` (inkl. Infomaniak-API-Key) von `appview-secrets` → `writer-secrets` (least privilege: appview-API hat den LLM-Token nicht mehr). `POLTR_LANGUAGES/DEFAULT` bleiben in `appview-secrets` (appview + indexer brauchen sie); `writer.yaml` erbt sie via `secretKeyRef`.
+- **Folge für den GOV-Key**: einer der drei appview-Gründe für `APPVIEW_GOV_CREDS_MASTER_KEY_B64` (der Translator) fällt weg — verbleibend nur Legacy-Gov-Writes (Flags aus) + `create_ballot_account`. Entfernung in Phase 7.
+
+### Master-Key-Split vorbereitet: getrennte Env-Namen für User- vs Governance-Creds (`services/appview`, `services/cms`, `infra`)
+
+Vorarbeit für die Krypto-Key-Trennung: User-App-Passwörter (`auth_creds`) und Governance-Creds (`governance_accounts`) lesen jetzt **getrennte** Master-Key-Env-Vars — Code-Pfade und Env-Namen sind gespalten, der **Wert** darf auf Dev (vorerst) gleich sein.
+
+- **Python** ([pds_creds.py](services/appview/src/atproto/pds_creds.py)): `encrypt/decrypt_app_password` lesen `APPVIEW_USER_CREDS_MASTER_KEY_B64`; neue `encrypt/decrypt_gov_password` lesen `APPVIEW_GOV_CREDS_MASTER_KEY_B64`. [governance.py](services/appview/src/atproto/governance.py) nutzt jetzt die GOV-Funktionen. Legacy-Fallback auf `APPVIEW_PDS_CREDS_MASTER_KEY_B64`, damit nichts bricht.
+- **CMS** ([atproto-publish.ts](services/cms/src/lib/atproto-publish.ts)): `govMasterKeyB64()` liest den GOV-Key (Fallback auf Legacy).
+- **Secrets/Manifeste**: `appview-secrets` hält beide Keys (`APPVIEW_USER_CREDS_MASTER_KEY_B64` + `APPVIEW_GOV_CREDS_MASTER_KEY_B64`); `writer.yaml` + `cms.yaml` erben nur den **GOV**-Key via `secretKeyRef`. appview-API bekommt beide via `envFrom`.
+- **Verteilung der Keys:** appview = USER (+ GOV bis Phase 7), writer = GOV, cms = GOV.
+- **Offen** (doc/TODO): tatsächlich **unterschiedliche** Werte setzen → `governance_accounts.pw_*` mit dem neuen Gov-Key re-encrypten, dann Legacy-Fallback entfernen.
+
+### ATProto-native Deliberation — Pro-Pod-DB-User + Full-Split des Writers (`infra`)
+
+Die letzten zwei Pods auf der geteilten `allforone`-Superuser-Rolle bekommen eigene, nicht-superuser DB-User. Danach nutzt **kein Pod** mehr `allforone` (= reiner Break-Glass-/DBA-Account). Zugleich ist der Writer jetzt vollständig abgetrennt (eigener Pod + eigene Rolle + eigene Secrets).
+
+- **Neue Rollen** ([db-setup.sql](infra/scripts/postgres/db-setup.sql) + Live-Migration [add-pod-roles.sql](infra/scripts/postgres/add-pod-roles.sql)):
+  - **`appview`** — volle DML auf `public` + `auth`, aber **KEIN Superuser** (kein `pg_authid`, kein `COPY PROGRAM`, kein Role-Mgmt, kein RLS-Bypass). Das ist der Hauptgewinn vs. `allforone`.
+  - **`writer`** — wie der Indexer auf `public` (S/I/U), **plus** `SELECT` auf `auth.governance_accounts` inkl. `pw_ciphertext/pw_nonce` (Gov-Sessions) + `v_eligible_participants`. **Kein** `auth_creds`/Sessions-Zugriff (braucht keine User-Identität). Der Projektor/Indexer sieht die `pw`-Spalten weiterhin **nicht** — das ist die zentrale Trennung.
+- **Full-Split Writer**: [writer.yaml](infra/kube/writer.yaml) zieht jetzt aus **`writer-secrets`** (eigener DB-User `writer` + Gov-Master-Key + Flags), voll entkoppelt von `appview-secrets`. Damit ist die frühere „vorläufig ein Pod"-Idee verworfen — Writer-Crash entkoppelt von der Projektion.
+- **Secrets** ([secrets.yaml.dist](infra/kube/secrets.yaml.dist)): neuer `writer-secrets`-Block; `appview-secrets.APPVIEW_POSTGRES_URL` → `appview@appview` (statt `allforone`).
+- **Manuell (Dev):** `add-pod-roles.sql` ausführen (Passwörter setzen), echte `secrets.yaml` auf `appview@`/`writer@` umstellen, appview- + writer-Pods neu ausrollen.
+- Offen (bewusst, Phase 7): `appview` verliert `governance_accounts` erst, wenn keine Gov-Writes/Translator mehr in appview laufen; Master-Key-Split (User-Key vs Gov-Key) als TODO.
+
+### ATProto-native Deliberation — Phase 4: PR-Responses durch dieselbe Pipeline; Crosspost-Altlast entfernt (`services/appview`, `services/indexer`)
+
+Peer-Review-Responses laufen jetzt durch dieselbe Akzeptanz-Pipeline wie Argumente (`kind=response`) — dieselben fünf Sub-Schritte, hinter Flag, dormant by default.
+
+- **appview** ([reviews.py](services/appview/src/routes/deliberation/reviews.py)): bei `APPVIEW_RESPONSES_USER_REPO_ENABLED=true` schreibt die Response ins **Reviewer-Repo** (`pds_create_record`) statt via `put_governance_record`. Default = Legacy.
+- **Projektor** ([record_handler.js](services/indexer/src/record_handler.js)): non-governance `peerreview.response`-Creates → `app_acceptance_queue` (`kind=response`, kein Ballot — Writer löst die Governance-DID aus `record.argument` auf).
+- **Writer** ([acceptance.py](services/appview/src/atproto/acceptance.py)): neuer `_accept_response`-Pfad; der Drain dispatcht jetzt nach `kind` (argument/response). Community-Response via `compose_review_rkey` (identisch zum Legacy-rkey → Dedup/Quorum unverändert) + `originUri/originCid`.
+- **Echo** ([db.js](services/indexer/src/db.js) `upsertPeerreviewResponseDb`): projiziert `origin_uri/origin_cid`.
+- **official/org**: bestätigt **No-op** — appview hat keinen Gov-Write für official/org-Argumente (CMS-authored via `OfficialArguments.ts`); nichts zu entfernen.
+- **Cleanup**: tote `start_crosspost_loop`/`stop_crosspost_loop` (+ ungenutzter `_task`) aus `crosspost.py` entfernt — nur `run_crosspost_forever` (Writer) wird noch genutzt. Härtungs-Limits der Pipeline als TODO (`doc/TODO.md`) notiert.
+
+### ATProto-native Deliberation — Phase 3: #sourceUser-Argumente → User-Repo + Akzeptanz-Pipeline (`services/appview`, `services/indexer`, `infra`)
+
+Der eigentliche Umbau: user-authored Argumente werden self-signed ins **eigene User-Repo** geschrieben; die interne Schreib-Seite akzeptiert sie und schreibt den kanonischen **Community-Record** (Copy + Herkunfts-Referenz) ins Governance-Repo. Hinter **zwei Feature-Flags** (Default aus) — der gesamte neue Pfad ist **dormant**, das heutige Verhalten unverändert.
+
+- **Schema** (`db-setup.sql`): neue Tabelle **`app_acceptance_queue`** (Projektor→Writer-Handoff + Reconcile-Queue, `kind` ∈ argument/response/request, `UNIQUE(user_uri)`); Spalten **`origin_uri`/`origin_cid`** auf `app_arguments` + `app_peerreview_responses` (Provenienz auf das User-Original).
+- **appview** ([arguments.py](services/appview/src/routes/deliberation/arguments.py)): bei `APPVIEW_ARGS_USER_REPO_ENABLED=true` schreibt der `#sourceUser`-Create ins **User-Repo** (`pds_create_record`) statt ins Governance-Repo; Quota-Reservierung bleibt synchron davor (L11). Default = Legacy-Pfad.
+- **Projektor** ([record_handler.js](services/indexer/src/record_handler.js)): bei `ACCEPTANCE_PIPELINE_ENABLED=true` werden non-governance `ballot.argument`-**Creates** in `app_acceptance_queue` gestaged (`stageForAcceptance` + `NOTIFY`) statt ignoriert; Update/Delete des Originals ignoriert (Drift). Governance-DID-Pfad projiziert wie heute.
+- **Writer** ([acceptance.py](services/appview/src/atproto/acceptance.py), in `writer_main`): `LISTEN/NOTIFY`-getriebener Drain (`FOR UPDATE SKIP LOCKED`) → Gate (Eligibility-View) → Community-Record (Copy + `source:{originUri,originCid}`) via **deterministischem create-only rkey** (idempotent, crash-recovery via Existenz-Check) → Queue `done`/`rejected`; transiente Fehler bleiben `pending` (Retry).
+- **Echo** ([db.js](services/indexer/src/db.js) `upsertArgumentDb`): projiziert `origin_uri`/`origin_cid` aus dem Community-Record (null für Legacy/official/org).
+- **Live-Apply (Dev):** idempotentes Skript `infra/scripts/postgres/add-acceptance-pipeline.sql` (Tabelle + `origin_*`-Spalten + Grants) gegen die `appview`-DB anwenden. Flags **erst gemeinsam** einschalten (appview + indexer + writer), sonst verschwinden Argumente (kein Consumer/Producer).
+- Bekannte Grenzen (Dev-tauglich, später härten): Drain hält eine DB-Transaktion über den PDS-Write (Long-Tx bei hohem Volumen); ein dauerhaft fehlschlagender Row blockiert die Queue (kein Dead-Letter/Backoff). Quota im Writer noch nicht (vertraut appview-Reservierung; Föderations-Quota = später).
+
+### ATProto-native Deliberation — Phase 2: Eligibility-View für das Gate der internen Schreib-Seite (`infra`)
+
+L3-Datenfundament für das künftige Akzeptanz-Gate (Phase 3): die interne Seite muss „ist dieser DID ein eingeschriebener POLTR-Teilnehmer?" prüfen können — **ohne** `auth_creds`-Zugriff (Email/Creds bleiben unsichtbar, wahrt das Auth-Hardening).
+
+- **Neu** `auth.v_eligible_participants(did, eligible)` in `infra/scripts/postgres/db-setup.sql` — heute `eligible = jeder registrierte Account`; Ban-/eID-Overlay dockt später an, ohne Konsumenten-Änderung. Postgres-View läuft mit Owner-Rechten (allforone) → die abfragende Rolle sieht nur `(did, eligible)`.
+- **Grant** `SELECT ON auth.v_eligible_participants TO indexer` (die interne Seite checkt Eligibility darüber; der Indexer behält **keinen** direkten `auth_creds`-Zugriff).
+- Reine Schema-Erweiterung (View + Grant), kein Code-Pfad nutzt sie noch — die **Gate-Durchsetzung** wird in Phase 3 verdrahtet (wo der Writer die `app_acceptance_queue` verarbeitet); jetzt schon zu verdrahten wäre Dead Code.
+- **Live-Apply (Dev, manuell):** die zwei Statements aus db-setup.sql (CREATE VIEW + GRANT) gegen die `appview`-DB ausführen.
+
+### ATProto-native Deliberation — Phase 1: Crosspost in eigenen Writer-Prozess ausgelagert (`services/appview`, `infra`)
+
+Erster Schritt der Umstellung (Plan `typed-kindling-flask`): Governance-Schreibarbeit wandert aus der internet-zugewandten appview-API in eine interne Schreib-Seite. Phase 1 betrifft nur das Bluesky-Crossposting — isoliert, ohne Änderung an User-Flows.
+
+- **Neu** `services/appview/src/writer_main.py`: Standalone-Worker-Entrypoint (`python -m src.writer_main`), der den Crosspost-Loop im Vordergrund laufen lässt — **reuse** von `src/atproto/crosspost.py` (neue öffentliche `run_crosspost_forever()`); Session/`createRecord`/Idempotenz (`bsky_post_uri`-Guard) sind dort schon vorhanden.
+- **appview-API führt das Crossposting nicht mehr aus**: `start/stop_crosspost_loop` aus `src/core/fastapi.py` (Lifespan) entfernt. Übersetzungs-Loop läuft vorerst weiter in der API (wandert in einer späteren Phase).
+- **Neu** `infra/kube/writer.yaml`: Deployment mit demselben appview-Image, Command `python -m src.writer_main`, `envFrom: appview-secrets` (DB + Master-Key) + `PDS_INTERNAL_URL`. Kein Service (reiner Hintergrund-Worker).
+- Keine DB-/Grant-Änderungen in dieser Phase (Writer nutzt vorerst die bestehende DB-Rolle + Master-Key via appview-secrets; die gescopte `writer`-Rolle + Grant-Umbau kommen in einer späteren Phase).
+- **Deploy-Schritt (manuell):** `kubectl apply -f infra/kube/writer.yaml`; sicherstellen, dass `APPVIEW_CROSSPOST_ENABLED="true"` in `appview-secrets` steht (der Writer erbt es). Alternativ als zweiter Container in `indexer.yaml` (L9 „ein Pod").
+
 ### Postgres-Härtung: ozone & cms aus der geteilten `allforone`-Superuser-Rolle herausgelöst (`infra`)
 
 Bisher verbanden sich appview, cms und ozone alle mit derselben Bootstrap-Superuser-Rolle `allforone`. Ein kompromittierter Ozone- oder CMS-Pod konnte damit das komplette `auth`-Schema der appview-DB lesen/schreiben (inkl. `auth_creds`, `auth_sessions`, Governance-Credentials). Jetzt haben ozone und cms eigene, eng gescopte Login-Rollen.

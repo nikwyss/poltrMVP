@@ -94,6 +94,26 @@ Change, kein Grant-Change → Punkt 1 im „Security-Review des Auth-Umbaus" obe
 (Email-as-HMAC). [[project_auth_privacy_workstream]] · [[project_architecture_layers]].
 
 
+## ATProto-native Deliberation — Härtung der Akzeptanz-Pipeline vor Prod (2026-06-16)
+
+Die Phase-3-Akzeptanz-Pipeline (`services/appview/src/atproto/acceptance.py`) ist Dev-tauglich,
+aber vor dem Einsatz über Dev hinaus zu härten:
+- [ ] **Long-Transaction:** der Drain hält eine DB-Transaktion über den PDS-Write (`FOR UPDATE SKIP LOCKED`
+  + createRecord in derselben Tx) → bei höherem Volumen problematisch. Claim/Process entkoppeln
+  (z.B. Status `processing` + Lock früh freigeben, oder kurze Claim-Tx + separate Done-Tx).
+- [ ] **Head-of-line-Blocking / kein Dead-Letter:** ein dauerhaft fehlschlagender Row bleibt `pending`
+  und blockiert die Queue. Attempt-Counter + Backoff + Dead-Letter (`status='failed'` nach N Versuchen).
+- [ ] **Writer-Quota:** der Writer vertraut aktuell der synchronen appview-Reservierung und prüft Quota
+  selbst nicht. Für den Bypass-/Föderationspfad muss das Gate die Quota autoritativ gegen
+  `app_content_creations` durchsetzen (L11).
+- [ ] **Master-Key-Split fertigstellen:** Env-Namen + Code-Pfade sind getrennt (`APPVIEW_USER_CREDS_MASTER_KEY_B64`
+  für `auth_creds`, `APPVIEW_GOV_CREDS_MASTER_KEY_B64` für `governance_accounts`; Python `pds_creds.py`
+  USER/GOV-Funktionen, CMS `govMasterKeyB64()`, Legacy-Fallback). **Offen:** auf Dev/Prod tatsächlich
+  **unterschiedliche** Werte setzen — dazu `governance_accounts.pw_*` mit dem neuen Gov-Key **re-encrypten**
+  (kurzes Migrations-Skript: alt entschlüsseln → neu verschlüsseln) und den Legacy-Fallback entfernen. Erst dann
+  öffnet ein appview-Leak nicht mehr die Gov-Creds.
+Plan: `typed-kindling-flask`. [[project_architecture_layers]].
+
 ## VISION
 - [ ] Translations: translations only in the appviev. a) Originalsprache im PDS speichern. b). Auch in "einfache Sprache" übersetzbar? (Inclusion)
 

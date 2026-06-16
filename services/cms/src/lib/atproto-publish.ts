@@ -110,8 +110,14 @@ async function waitForPlcResolution(did: string, timeout = 10000, interval = 200
 // Password encryption (NaCl SecretBox, same as Python pds_creds.py)
 // ---------------------------------------------------------------------------
 
+// Governance-Master-Key (Key-Split vorbereitet): eigener Env-Name, Fallback auf
+// den Legacy-Einzel-Key. CMS verschlüsselt nur GOVERNANCE-Creds → Gov-Key.
+function govMasterKeyB64(): string {
+  return env('APPVIEW_GOV_CREDS_MASTER_KEY_B64', process.env.APPVIEW_PDS_CREDS_MASTER_KEY_B64)
+}
+
 function encryptPassword(password: string): { ciphertext: Buffer; nonce: Buffer } {
-  const keyB64 = env('APPVIEW_PDS_CREDS_MASTER_KEY_B64')
+  const keyB64 = govMasterKeyB64()
   const key = Buffer.from(keyB64, 'base64')
 
   if (key.length !== 32) {
@@ -204,7 +210,7 @@ const SUPPORTED_LANGUAGES = (process.env.POLTR_LANGUAGES || 'de,fr,it,rm,en')
   .filter(Boolean)
 
 function decryptGovernancePassword(ciphertext: Buffer, nonce: Buffer): string {
-  const keyB64 = env('APPVIEW_PDS_CREDS_MASTER_KEY_B64')
+  const keyB64 = govMasterKeyB64()
   const key = Buffer.from(keyB64, 'base64')
   if (key.length !== 32) throw new Error('Master key must be 32 bytes')
 

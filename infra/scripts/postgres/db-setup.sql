@@ -81,6 +81,11 @@ CREATE TABLE app_arguments (
   source_doc_ref     text,              -- URL to leaflet / org publication
   source_section     text,              -- Page/section within the source document
   source_verified_did text,             -- Optional DID that vouches for the record
+  -- Herkunft (#sourceUser, ATProto-native Pfad): Referenz auf den user-signierten
+  -- Original-Record im User-Repo, aus dem die interne Schreib-Seite diesen
+  -- Community-Record kopiert hat. NULL für official/org (community-authored).
+  origin_uri         text,
+  origin_cid         text,
   -- Multilingual content: original languages (BCP-47, Bluesky-compatible `langs` array)
   -- plus inline translations. translation_status drives the background worker queue.
   langs              text[] NOT NULL DEFAULT ARRAY['de-CH'],
@@ -96,6 +101,30 @@ CREATE TABLE app_arguments (
     (source_type = 'organization' AND source_org_key IS NOT NULL)
   )
 );
+
+-- Akzeptanz-Queue (ATProto-native Pfad): Handoff Projektor → Writer UND
+-- Reconcile-Log in einem. Der Projektor stellt user-authored Original-Records
+-- (aus User-Repos) hier ein; der Writer pollt (LISTEN/NOTIFY + FOR UPDATE SKIP
+-- LOCKED), gated sie und schreibt den kanonischen Community-Record ins
+-- Governance-Repo. `kind` unterscheidet alle drei Pfade (argument/response/request).
+-- UNIQUE(user_uri) = Idempotenz (ein Original → eine Zeile). `record` cached den
+-- gesehenen Record (CID-gepinnt) → spart dem Writer ein getRecord.
+CREATE TABLE app_acceptance_queue (
+  id          bigserial PRIMARY KEY,
+  user_uri    text NOT NULL UNIQUE,
+  user_cid    text NOT NULL,
+  did         text NOT NULL,
+  kind        text NOT NULL CHECK (kind IN ('argument', 'response', 'request')),
+  ballot      text,
+  status      text NOT NULL DEFAULT 'pending'
+    CHECK (status IN ('pending', 'done', 'rejected')),
+  reason      text,
+  record      jsonb,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX app_acceptance_queue_pending_idx
+  ON app_acceptance_queue (created_at) WHERE status = 'pending';
 
 CREATE INDEX app_arguments_ballot_uri_idx    ON app_arguments (ballot_uri);
 CREATE INDEX app_arguments_ballot_rkey_idx   ON app_arguments (ballot_rkey);
@@ -225,6 +254,10 @@ CREATE TABLE app_peerreview_responses (
   criteria      jsonb,
   vote          text NOT NULL CHECK (vote IN ('APPROVE', 'REJECT')),
   justification text,
+  -- Herkunft (ATProto-native Pfad): Referenz auf den user-signierten Original-
+  -- Response-Record im Reviewer-Repo (analog app_arguments). NULL für Bestand.
+  origin_uri    text,
+  origin_cid    text,
   created_at    timestamptz NOT NULL,
   indexed_at    timestamptz NOT NULL DEFAULT now()
 );
@@ -502,6 +535,22 @@ CREATE TABLE auth.mountain_templates (
 );
 
 -- =============================================================================
+-- Views
+-- =============================================================================
+
+-- Eligibility-Whitelist für das Gate der internen Schreib-Seite (L3): wer darf in
+-- die Community beitragen. Heute = jeder registrierte POLTR-Account. Die interne
+-- Seite (Indexer/Writer) prüft Eligibility über diese View, OHNE Email/Credential-
+-- Zugriff zu brauchen — Postgres-Views laufen mit den Rechten des View-Owners
+-- (allforone), die abfragende Rolle sieht nur (did, eligible). Wahrt das
+-- auth-Hardening (Indexer hat KEINEN auth_creds-Zugriff). Ban-/eID-Overlay dockt
+-- hier später an (z.B. LEFT JOIN auf eine künftige Sperr-/Verifikationsquelle
+-- → eligible=false), ohne dass sich der Konsument ändert.
+CREATE OR REPLACE VIEW auth.v_eligible_participants AS
+  SELECT did, TRUE AS eligible
+  FROM auth.auth_creds;
+
+-- =============================================================================
 -- Roles & Grants
 -- =============================================================================
 
@@ -528,6 +577,9 @@ REVOKE ALL ON SCHEMA auth FROM indexer;
 -- Indexer needs to read governance DIDs (but not credentials)
 GRANT USAGE ON SCHEMA auth TO indexer;
 GRANT SELECT (did, handle, ballot_rkey) ON auth.governance_accounts TO indexer;
+-- Eligibility-Gate (L3): nur die schmale View, kein auth_creds-Zugriff (Email/Creds
+-- bleiben unsichtbar; die View liest auth_creds mit den Rechten ihres Owners).
+GRANT SELECT ON auth.v_eligible_participants TO indexer;
 
 -- ALTER ROLE indexer WITH PASSWORD 'CHANGE_ME';
 
@@ -572,3 +624,45 @@ GRANT SELECT, INSERT ON app_taxonomy_snapshot TO cms;
 -- Grants auf die ozone-DB selbst → infra/scripts/postgres/harden-service-roles.sql.
 CREATE ROLE ozone WITH LOGIN PASSWORD 'CHANGE_ME';
 -- ALTER ROLE ozone WITH PASSWORD 'CHANGE_ME';
+
+-- =============================================================================
+-- Pro-Pod-Rollen: appview + writer (ersetzen die geteilte allforone-Rolle für
+-- diese Pods). Ziel: KEIN Pod nutzt mehr allforone → allforone wird zum reinen
+-- Break-Glass-/DBA-Account. Pro Pod ein eigener User = Blast-Radius-Trennung.
+-- =============================================================================
+
+-- appview: der Auth-/API-Dienst. Volle DML auf beide Schemas (Auth + Content),
+-- aber KEIN Superuser — kein pg_authid (Passwort-Hashes), kein COPY FROM/TO
+-- PROGRAM, kein ALTER ROLE anderer Rollen, kein RLS-Bypass. Das ist der Haupt-
+-- gewinn gegenüber allforone.
+CREATE ROLE appview WITH LOGIN PASSWORD 'CHANGE_ME';
+GRANT CONNECT ON DATABASE appview TO appview;
+GRANT USAGE ON SCHEMA public TO appview;
+GRANT USAGE ON SCHEMA auth   TO appview;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO appview;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA auth   TO appview;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO appview;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA auth   TO appview;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO appview;
+ALTER DEFAULT PRIVILEGES IN SCHEMA auth   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO appview;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO appview;
+ALTER DEFAULT PRIVILEGES IN SCHEMA auth   GRANT USAGE, SELECT ON SEQUENCES TO appview;
+-- (Spätere Verschärfung am Ende der ATProto-Umstellung: governance_accounts aus
+--  appview entziehen, sobald keine Gov-Writes/Translator mehr in appview laufen.)
+-- ALTER ROLE appview WITH PASSWORD 'CHANGE_ME';
+
+-- writer: die interne Schreib-Seite (governance-writer). Wie der Indexer auf das
+-- public-Schema, PLUS Lesezugriff auf die GOVERNANCE-CREDENTIALS (pw_ciphertext/
+-- pw_nonce) — die entscheidende Differenz zum Projektor/Indexer, der die pw-
+-- Spalten NICHT sieht. KEIN Zugriff auf User-Identität (auth_creds/Sessions).
+CREATE ROLE writer WITH LOGIN PASSWORD 'CHANGE_ME';
+GRANT CONNECT ON DATABASE appview TO writer;
+GRANT USAGE ON SCHEMA public TO writer;
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA public TO writer;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO writer;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO writer;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO writer;
+GRANT USAGE ON SCHEMA auth TO writer;
+GRANT SELECT ON auth.governance_accounts TO writer;        -- inkl. pw_* → Gov-Sessions
+GRANT SELECT ON auth.v_eligible_participants TO writer;     -- Eligibility-Gate
+-- ALTER ROLE writer WITH PASSWORD 'CHANGE_ME';
