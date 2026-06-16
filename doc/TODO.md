@@ -10,7 +10,7 @@
 - [ ] Posting_limit:  Das Frontend-Display (Restkontingent im Composer, Deaktivieren bei Cap, 429-Handling/i18n) war laut doc/SECURITY_AUTH.md als „pending" markiert — die Durchsetzung im Backend steht, die UI-Anzeige evtl. noch nicht vollständig.
   
 - [ ] email änderungs mechanismus im profil 
-
+- [ ] Neue Analyse: Gegenüberstellungen umd Ambivalenz auzuzeigen. => Ja, aber. => "Es ist ihre Entscheidung, ob sie diesen Nachteil in Kauf nehmen würden" 
 
 **Peerreviews**
 - [ ] Layout für offnee Peerreview Notifcation: schön nervig muss es sein.. 

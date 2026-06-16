@@ -72,16 +72,18 @@ const OUTER_R = 206; // äusserster Radius (Aussenkante des Track-Rings)
 const TRACK_BAND = 8; // px breiter, heller Track-Streifen aussen, der die Segmente einfasst
 const DATA_OUTER_R = OUTER_R - TRACK_BAND; // Aussenkante der Datenringe (Band liegt ausserhalb)
 const LABEL_MIN_ANGLE = 9; // ° — schmaler ⇒ kein Label (nur Tooltip)
-const LABEL_R_FRAC = 0.62; // Label-Position im Ring: >0.5 ⇒ nach aussen (mehr Bogenlänge)
-const LABEL_OUTER_PAD = 11; // Compact: Abstand der äussersten Label-Zeile vom Ringrand
+const LABEL_R_FRAC = 0.57; // Label-Position im Ring: >0.5 ⇒ nach aussen (mehr Bogenlänge)
+const LABEL_OUTER_PAD = 12; // Compact: Abstand der äussersten Label-Zeile vom Ringrand
 const CORNER_R = 4; // abgerundete Segment-Ecken
 const PAD_DEG = 1.4; // ° Luft zwischen Segmenten (statt Trennlinien)
 const RING_GAP = 3; // radiale Lücke zwischen den Ring-Ebenen
 const MAX_LEVELS = 3; // nie mehr als 3 Ringe zeichnen (4. Ebene wird weggelassen)
 const THIRD_RING_WIDTH = 16; // 3. Ring nur als dünnes Band; Ebene 1 & 2 teilen den Rest
-// Mobile-Variante (`compact`): 2. Ring als Band, etwas länger als der 3. Ring;
-// Ring 1 bekommt den ganzen Rest (einziger beschrifteter Ring).
-const SECOND_RING_COMPACT_W = 34;
+// Mobile-Variante (`compact`): nur Ring 1 trägt Labels, also bekommt er den
+// Löwenanteil des Radius — Ring 2 & 3 sind schmale Farbbänder. So sitzt Ring 1
+// (und damit die Labels) bei grossem Radius mit langem Bogen ⇒ mehr Textplatz.
+const SECOND_RING_COMPACT_W = 20;
+const THIRD_RING_COMPACT_W = 12;
 
 // Füllfarbe für ein Segment. Bewertet ⇒ Ton auf der geteilten Skala (leanRgb);
 // unbewertet ⇒ Schienenfarbe (TRACK), sodass leere Segmente nahtlos in den
@@ -308,7 +310,7 @@ function ringRadii(levels: number, centerR: number, compact = false): number[] {
     // (kleineres Mittelloch); Ring 2 & 3 sind reine Bänder (Ring 2 etwas länger).
     if (levels === 2)
       return [centerR, DATA_OUTER_R - SECOND_RING_COMPACT_W, DATA_OUTER_R];
-    const inner3 = DATA_OUTER_R - THIRD_RING_WIDTH;
+    const inner3 = DATA_OUTER_R - THIRD_RING_COMPACT_W;
     const inner2 = inner3 - SECOND_RING_COMPACT_W;
     return [centerR, inner2, inner3, DATA_OUTER_R];
   }
@@ -491,12 +493,12 @@ export function TaxonomySunburst({
               // halten ⇒ Label zentriert nur im äusseren Rest (kein Overlap).
               const boltGap = split && !curved ? 16 : 0;
               const labelInnerR = rInner + boltGap;
-              // Compact-Ring 1 ist dick und der EINZIGE beschriftete Ring ⇒ bis zu
-              // 4 Zeilen, damit lange Namen (ggf. mit Bindestrich umgebrochen) den
-              // Platz füllen statt abgeschnitten zu werden.
+              // Compact-Ring 1 trägt das einzige Label. Block am Aussenrand verankert;
+              // höchstens 3 Zeilen, damit er nicht zu weit Richtung Mitte (kurze
+              // Bögen) reicht — der lange Bogen weit aussen gibt genug Breite.
               const maxLines = curved
                 ? compact
-                  ? 4
+                  ? 3
                   : thickness >= 30
                     ? 3
                     : 2
