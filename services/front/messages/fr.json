@@ -153,7 +153,11 @@
     "decrease": "Diminuer l'intensité",
     "ariaLabel": "Évaluation de l'intensité",
     "dirYes": "Oui",
-    "dirNo": "Non"
+    "dirNo": "Non",
+    "question": "Dans quelle mesure cela plaide-t-il pour un {direction} ?",
+    "dragHint": "Déplacez le curseur pour évaluer.",
+    "weak": "Faible",
+    "strong": "Fort"
   },
   "feed": {
     "addArgument": "Argument hinzufügen",

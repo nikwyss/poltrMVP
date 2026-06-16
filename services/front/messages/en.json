@@ -153,7 +153,11 @@
     "decrease": "Decrease strength",
     "ariaLabel": "Strength rating",
     "dirYes": "Yes",
-    "dirNo": "No"
+    "dirNo": "No",
+    "question": "How strongly does this argue for a {direction}?",
+    "dragHint": "Drag the slider to rate.",
+    "weak": "Weak",
+    "strong": "Strong"
   },
   "feed": {
     "addArgument": "Add argument",

@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
 import { buildCommentMap, rootComments } from "@/lib/commentThread";
 import { useCommentThread } from "@/hooks/useCommentThread";
-import { Separator } from "@/components/ui/separator";
 import type { CommentWithMetadata } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -198,15 +197,14 @@ export function ArgumentDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [argument?.uri]);
 
-  // Leerer Thread → Top-Level-Composer direkt öffnen. Einmal je Argument, sobald
-  // die Kommentarliste geladen ist (sonst würde ein Refetch die Auswahl stören).
-  const composerInitFor = useRef<string | null>(null);
+  // Composer NICHT automatisch öffnen — der Kommentarbereich startet stets
+  // eingeklappt (Button „Kommentar verfassen"). Beim Argumentwechsel eine
+  // ggf. offene Eingabe zurücksetzen, damit das Overlay nicht mit aktivem
+  // (fokussiertem) Feld in das nächste Argument übergeht.
   useEffect(() => {
-    if (!argument?.uri || commentsLoading) return;
-    if (composerInitFor.current === argument.uri) return;
-    composerInitFor.current = argument.uri;
-    setReplyTarget(comments.length === 0 ? ROOT_TARGET : null);
-  }, [argument?.uri, commentsLoading, comments.length, setReplyTarget]);
+    setReplyTarget(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [argument?.uri]);
 
   // Bewertung in den zentralen Query-Cache spiegeln (Booklet-Liste + ggf.
   // Detail). Das ersetzt den früheren `onRated`-Callback an die Host-Seite.
@@ -309,10 +307,30 @@ export function ArgumentDetail({
           overflow-y: auto;
           box-shadow: 0 30px 70px -20px rgba(45, 35, 22, 0.45);
         }
+        /* Weisse Hero-Card (volle Breite): trägt Argument + Bewertung, vom
+           cremefarbenen Overlay-Grund klar abgehoben. */
+        .ov-arg-card {
+          background: #fff;
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          padding: 24px;
+          box-shadow: 0 1px 3px rgba(45, 35, 22, 0.05);
+        }
+        @media (min-width: 768px) {
+          .ov-arg-card {
+            padding: 28px 32px;
+          }
+        }
         .ov-arg {
           display: flex;
           flex-direction: column;
-          gap: 11px;
+          gap: 14px;
+        }
+        /* Trennlinie zwischen Argument und Bewertung innerhalb der Card. */
+        .ov-arg-divider {
+          height: 1px;
+          background: var(--border);
+          margin: 22px 0;
         }
         .ov-arg-top {
           display: flex;
@@ -338,17 +356,23 @@ export function ArgumentDetail({
         .ov-arg-title {
           margin: 0;
           font-family: var(--font-serif), Georgia, "Times New Roman", serif;
-          font-size: 1.25rem;
+          font-size: 1.5rem;
           font-weight: 600;
-          line-height: 1.25;
-          letter-spacing: -0.01em;
+          line-height: 1.2;
+          letter-spacing: -0.015em;
           color: var(--text);
         }
         .ov-arg-body {
           margin: 0;
-          font-size: 0.9375rem;
-          line-height: 1.55;
+          font-size: 1.0625rem;
+          line-height: 1.65;
           color: var(--text-mid);
+        }
+        /* Ab Tablet darf der Titel als Hero noch grösser werden. */
+        @media (min-width: 768px) {
+          .ov-arg-title {
+            font-size: 1.75rem;
+          }
         }
         .ov-arg-meta {
           display: flex;
@@ -391,8 +415,11 @@ export function ArgumentDetail({
 
         {!loading && argument && (
           <>
-            {/* Argument — gleiche Optik wie die Booklet-Karten (Badge + Serif-Titel) */}
-            <div className="ov-arg">
+            {/* Weisse Hero-Card (volle Breite): Argument (Badge + Serif-Titel +
+                Text) und darunter — durch eine Trennlinie abgesetzt — die
+                Bewertung. */}
+            <div className="ov-arg-card">
+              <div className="ov-arg">
               {/* Topic-Taxonomie als Breadcrumbs (Beschreibung je Segment als
                   Tooltip). Multi-Membership → je Pfad eine Zeile. */}
               {argument.topicPaths && argument.topicPaths.length > 0 && (
@@ -461,12 +488,9 @@ export function ArgumentDetail({
               </div>
             </div>
 
-            {/* Relevanz-Bewertung — eigene, abgesetzte Section (Panel),
-                getrennt vom oberen Argument-Teil. */}
-            <div className="rounded-xl border border-border/60 bg-card px-5 py-4 shadow-sm">
-              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">
-                {t("yourRating")}
-              </div>
+              {/* Trennlinie + Bewertung — innerhalb derselben weissen Card.
+                  Header/Status/Endlabels bringt die RelevanceRating selbst mit. */}
+              <div className="ov-arg-divider" />
               <RelevanceRating
                 value={relevance}
                 onChange={setRelevance}
@@ -474,8 +498,6 @@ export function ArgumentDetail({
                 accent={isPro ? "pro" : "contra"}
               />
             </div>
-
-            <Separator />
 
             {/* Comments */}
             <div>

@@ -153,7 +153,11 @@
     "decrease": "Stärke verringern",
     "ariaLabel": "Stärke-Bewertung",
     "dirYes": "Ja",
-    "dirNo": "Nein"
+    "dirNo": "Nein",
+    "question": "Wie stark spricht dies für ein {direction}?",
+    "dragHint": "Ziehe den Regler, um zu bewerten.",
+    "weak": "Schwach",
+    "strong": "Stark"
   },
   "feed": {
     "addArgument": "Argument hinzufügen",
