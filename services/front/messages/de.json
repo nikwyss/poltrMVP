@@ -320,6 +320,7 @@
     "disagree": "Sehe ich nicht so",
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Neues Argument vorschlagen",
+    "newArgumentHint": "Fehlt ein Gesichtspunkt? Bring deine eigene Pro- oder Kontra-Position zu diesem Thema ein.",
     "themeTitle": "Thema «{name}»",
     "themeEyebrow": "Thema {index} von {total}",
     "subthemeTitle": "Unterthema «{name}»",

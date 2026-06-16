@@ -9,9 +9,12 @@
  * + dessen direkte Argumente + jedes Subtopic aufgeklappt.
  * Argumente sind je Sektion auf 4/Spalte begrenzt; „Mehr anzeigen" zeigt alle.
  */
+import { useState } from "react";
 import { useTranslations, useLocale } from "next-intl";
+import { Plus } from "lucide-react";
 import { useTaxonomyTopic } from "@/lib/queries/taxonomy";
 import { Spinner } from "@/components/spinner";
+import { AddArgumentModal } from "@/components/add-argument-modal";
 import {
   ProContraArguments,
   ThemeCard,
@@ -42,11 +45,12 @@ export function TaxonomyDetail({
 
   // Topic-Variante aus dem zentralen Query-Cache. Bewertungen im Argument-Overlay
   // patchen denselben `["taxonomy", id, …]`-Eintrag → Karten aktualisieren live.
-  const { data, isPending, error: queryError } = useTaxonomyTopic(
+  const { data, isPending, error: queryError, refetch } = useTaxonomyTopic(
     ballotRkey,
     locale,
     topic,
   );
+  const [addOpen, setAddOpen] = useState(false);
   const node = data?.tree ?? null;
   const crumbs = data?.breadcrumb ?? [];
   const loading = isPending;
@@ -181,9 +185,42 @@ export function TaxonomyDetail({
                 })}
               </div>
             )}
+
+            {/* Abschluss-CTA: ein neues Argument zu diesem Thema vorschlagen.
+                Volle Breite und bewusst grosszügig — die primäre Beitrags-
+                Aktion am Ende der Liste. Gestrichelter Rand + Brand-Dim =
+                „Hinzufügen"-Affordance (statt einer randvollen Inhalts-Card). */}
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="group flex w-full flex-col items-center gap-2.5 rounded-2xl border-2 border-dashed border-[var(--brand)]/35 bg-[var(--brand-dim)] px-6 py-9 text-center transition-all duration-150 hover:-translate-y-px hover:border-[var(--brand)]/70 hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)]"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand)]/10 text-[var(--brand)] transition group-hover:bg-[var(--brand)]/15">
+                <Plus className="h-6 w-6" />
+              </span>
+              <span
+                className="text-lg font-semibold text-foreground"
+                style={{
+                  fontFamily:
+                    'var(--font-serif), Georgia, "Times New Roman", serif',
+                }}
+              >
+                {t("newArgument")}
+              </span>
+              <span className="max-w-sm text-sm text-muted-foreground">
+                {t("newArgumentHint")}
+              </span>
+            </button>
           </>
         )}
       </div>
+
+      <AddArgumentModal
+        ballotRkey={ballotRkey}
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onCreated={() => refetch()}
+      />
     </div>
   );
 }

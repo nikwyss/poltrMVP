@@ -11,6 +11,8 @@
   
 - [ ] email änderungs mechanismus im profil 
 - [ ] Neue Analyse: Gegenüberstellungen umd Ambivalenz auzuzeigen. => Ja, aber. => "Es ist ihre Entscheidung, ob sie diesen Nachteil in Kauf nehmen würden" 
+- [ ] Wohin kommen neue argumente. Bleiben die vorerst unzugeordnet? Oder einfach dem hauptthema angehängt.??
+
 
 **Peerreviews**
 - [ ] Layout für offnee Peerreview Notifcation: schön nervig muss es sein.. 

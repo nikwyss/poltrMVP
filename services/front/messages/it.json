@@ -320,6 +320,7 @@
     "disagree": "Non la penso così",
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Proponi un nuovo argomento",
+    "newArgumentHint": "Manca un punto di vista? Proponi il tuo argomento a favore o contro su questo tema.",
     "themeTitle": "Tema «{name}»",
     "themeEyebrow": "Tema {index} di {total}",
     "subthemeTitle": "Sottotema «{name}»",

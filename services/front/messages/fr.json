@@ -320,6 +320,7 @@
     "disagree": "Je ne le vois pas ainsi",
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Proposer un nouvel argument",
+    "newArgumentHint": "Un point de vue manque ? Proposez votre propre argument pour ou contre sur ce thème.",
     "themeTitle": "Thème «{name}»",
     "themeEyebrow": "Thème {index} sur {total}",
     "subthemeTitle": "Sous-thème «{name}»",

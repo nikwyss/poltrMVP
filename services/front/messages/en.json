@@ -320,6 +320,7 @@
     "disagree": "I don't see it that way",
     "showMore": "Show more (+{count})",
     "newArgument": "Suggest a new argument",
+    "newArgumentHint": "Missing a perspective? Add your own argument for or against on this topic.",
     "themeTitle": "Topic «{name}»",
     "themeEyebrow": "Topic {index} of {total}",
     "subthemeTitle": "Subtopic «{name}»",

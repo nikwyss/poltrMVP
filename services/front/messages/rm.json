@@ -320,6 +320,7 @@
     "disagree": "Jau na ves quai betg uschia",
     "showMore": "Mehr anzeigen (+{count})",
     "newArgument": "Propa in nov argument",
+    "newArgumentHint": "Manca ina perspectiva? Agiunscha tes agen argument pro u cunter a quest tema.",
     "themeTitle": "Tema «{name}»",
     "themeEyebrow": "Tema {index} da {total}",
     "subthemeTitle": "Suttatema «{name}»",
