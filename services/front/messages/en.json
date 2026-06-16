@@ -352,9 +352,9 @@
     "sunburstLeanStrongYes": "Clearly with the Yes arguments",
     "sunburstLeanUnrated": "Not yet rated",
     "sunburstDissentNote": "Ambivalent: strong arguments on both sides",
-    "sunburstBlockYes": "My Yes topics",
-    "sunburstBlockNeutral": "My neutral topics",
-    "sunburstBlockNo": "My No topics"
+    "sunburstBlockYes": "Your Yes topics",
+    "sunburstBlockNeutral": "Your neutral topics",
+    "sunburstBlockNo": "Your No topics"
   },
   "argumentarium": {
     "title": "Topics & arguments on «{name}»",

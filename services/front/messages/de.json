@@ -352,9 +352,9 @@
     "sunburstLeanStrongYes": "Klar bei den Ja-Argumenten",
     "sunburstLeanUnrated": "Noch nicht bewertet",
     "sunburstDissentNote": "Ambivalent: starke Argumente auf beiden Seiten",
-    "sunburstBlockYes": "Meine Ja-Themen",
-    "sunburstBlockNeutral": "Meine neutralen Themen",
-    "sunburstBlockNo": "Meine Nein-Themen"
+    "sunburstBlockYes": "Deine Ja-Themen",
+    "sunburstBlockNeutral": "Deine neutralen Themen",
+    "sunburstBlockNo": "Deine Nein-Themen"
   },
   "argumentarium": {
     "title": "Themen & Argumente zur Vorlage «{name}»",

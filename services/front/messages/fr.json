@@ -352,9 +352,9 @@
     "sunburstLeanStrongYes": "Nettement pour les arguments du oui",
     "sunburstLeanUnrated": "Pas encore évalué",
     "sunburstDissentNote": "Ambivalent : arguments forts des deux côtés",
-    "sunburstBlockYes": "Mes thèmes Oui",
-    "sunburstBlockNeutral": "Mes thèmes neutres",
-    "sunburstBlockNo": "Mes thèmes Non"
+    "sunburstBlockYes": "Tes thèmes Oui",
+    "sunburstBlockNeutral": "Tes thèmes neutres",
+    "sunburstBlockNo": "Tes thèmes Non"
   },
   "argumentarium": {
     "title": "Thèmes & arguments sur l'objet «{name}»",

@@ -352,9 +352,9 @@
     "sunburstLeanStrongYes": "Nettamente con gli argomenti del Sì",
     "sunburstLeanUnrated": "Non ancora valutato",
     "sunburstDissentNote": "Ambivalente: argomenti forti da entrambe le parti",
-    "sunburstBlockYes": "I miei temi Sì",
-    "sunburstBlockNeutral": "I miei temi neutri",
-    "sunburstBlockNo": "I miei temi No"
+    "sunburstBlockYes": "I tuoi temi Sì",
+    "sunburstBlockNeutral": "I tuoi temi neutri",
+    "sunburstBlockNo": "I tuoi temi No"
   },
   "argumentarium": {
     "title": "Temi e argomenti sull'oggetto «{name}»",

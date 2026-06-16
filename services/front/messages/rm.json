@@ -352,9 +352,9 @@
     "sunburstLeanStrongYes": "Cleramain datiers dals arguments per in gea",
     "sunburstLeanUnrated": "Anc betg valità",
     "sunburstDissentNote": "Ambivalent: arguments ferms da omaduas varts",
-    "sunburstBlockYes": "Mes temas Gea",
-    "sunburstBlockNeutral": "Mes temas neutrals",
-    "sunburstBlockNo": "Mes temas Na"
+    "sunburstBlockYes": "Tes temas Gea",
+    "sunburstBlockNeutral": "Tes temas neutrals",
+    "sunburstBlockNo": "Tes temas Na"
   },
   "argumentarium": {
     "title": "Temas & arguments davart l'object «{name}»",
