@@ -8,24 +8,16 @@
  * Farbe = aggregierte Haltung ∈ [-1,1] des Viewers (zentrale Aggregierung, siehe
  * lib/aggregate.ts + doc/AGGREGATION.md) auf der GETEILTEN diverging-Skala aus
  * lib/chart-palette.ts — Koralle (Gegner-Seite) ↔ TRACK (neutral) ↔ Navy
- * (Befürworter-Seite), volltonig (keine Tiefen-Transparenz; Unterthemen sind so
- * kräftig wie die Oberthemen). Endpunkte und Nullpunkt sind identisch mit den
- * Likert-Balken-Armen. Kein Track-Ring: die Hierarchie tragen die hellen
- * var(--card)-Separatoren zwischen den Segmenten plus die radialen RING_GAP-Lücken
- * zwischen den Ebenen. Unbewertet/ohne Login = transparentes Segment mit feinem
- * gestricheltem Umriss (wie ein leerer Track-Abschnitt der Balken). Stark
+ * (Befürworter-Seite), volltonig (keine Tiefen-Transparenz). Endpunkte und
+ * Nullpunkt sind identisch mit den Likert-Balken-Armen. Hinter jedem Ring liegt
+ * ein durchgehender Track-Ring in TRACK-Farbe (die „Schiene"); die gefärbten
+ * Segmente sind die Füllung darauf. Unbewertet/ohne Login = Schienenfarbe mit
+ * feinem gestricheltem Umriss (wie ein leerer Track-Abschnitt der Balken). Stark
  * gespaltene Knoten (hoher `dissent`) bekommen einen Amber-Rand — sie sind nicht
  * indifferent, sondern hin- und hergerissen.
  *
- * Layout (Drei-Block): Die Oberthemen (Ring 1) werden nach aggregierter Haltung in
- * drei Blöcke gruppiert — Nein (links), Neutral (oben), Ja (rechts) — getrennt
- * durch breite Inter-Block-Lücken (BLOCK_GAP_DEG). Das spiegelt die Nein←→Ja-Achse
- * der Likert-Balken. Alle Themen sind gleich breit (Argument-Volumen spielt keine
- * Rolle); ein Block ist so breit wie seine Anzahl Themen. Unterthemen erben den
- * Winkelbereich (und damit den Block) ihres Elternteils, behalten aber ihre eigene
- * Haltungsfarbe (interner Dissens bleibt sichtbar). Nach der Verteilung wird das
- * Rad rotiert, damit die Achse stabil bleibt (Naht Nein↔Ja unten, Neutral oben) —
- * unabhängig von den Blockgrössen.
+ * Segmentgröße: alle Geschwister gleich breit (Winkel des Elternsegments / Anzahl
+ * Geschwister) — die Visualisierung zeigt Struktur & Haltung, nicht Volumen.
  *
  * Reines SVG, keine Chart-Library.
  */
@@ -37,6 +29,7 @@ import {
   ARM_NO,
   ARM_YES,
   TRACK,
+  TRACK_CSS,
   mixRgb,
   rgbStr,
   leanRgb,
@@ -72,33 +65,18 @@ const CY = SIZE / 2;
 // Mittelloch wächst stetig mit der Ringzahl (kein Sonderfall): bei einer Ebene
 // klein, damit die eine dicke Farbfläche massiv wirkt; bei drei Ebenen grösser,
 // damit innen genug Bogenlänge bleibt. centerRadius() interpoliert dazwischen.
-const CENTER_R_MIN = 18; // 1 Ring: kleines Loch ⇒ massivere Fläche
-const CENTER_R_MAX = 38; // 3 Ringe: grösseres Loch ⇒ mehr Platz für innere Labels
+const CENTER_R_MIN = 30; // 1 Ring: kleines Loch ⇒ massivere Fläche
+const CENTER_R_MAX = 30; // 3 Ringe: grösseres Loch ⇒ mehr Platz für innere Labels
 const CENTER_R_COMPACT = 20; // Mobile: eigene, kleine Basis (Ring 1 bekommt mehr Platz)
 const OUTER_R = 206; // äusserster Radius (Aussenkante des Track-Rings)
-// Aussen-Rand der viewBox für die Block-Labels. Seitlich mehr (breite Labels wie
-// „Nein-Themen"), oben/unten weniger (nur „Ausgewogen") ⇒ wenig vertikaler Leerraum.
-const VIEW_PAD_X = 96;
-const VIEW_PAD_Y = 28;
-const BLOCK_LABEL_R = OUTER_R + 8; // Radius der Block-Labels (knapp ausserhalb des Rings)
-const BLOCK_LABEL_FONT = 9; // SVG-Einheiten (skaliert mit dem Rad)
-const DATA_OUTER_R = OUTER_R; // Aussenkante der Datenringe (kein Track-Band mehr)
+const TRACK_BAND = 8; // px breiter, heller Track-Streifen aussen, der die Segmente einfasst
+const DATA_OUTER_R = OUTER_R - TRACK_BAND; // Aussenkante der Datenringe (Band liegt ausserhalb)
 const LABEL_MIN_ANGLE = 9; // ° — schmaler ⇒ kein Label (nur Tooltip)
 const LABEL_R_FRAC = 0.57; // Label-Position im Ring: >0.5 ⇒ nach aussen (mehr Bogenlänge)
 const LABEL_OUTER_PAD = 12; // Compact: Abstand der äussersten Label-Zeile vom Ringrand
 const CORNER_R = 4; // abgerundete Segment-Ecken
-const PAD_DEG = 1.4; // ° Intra-Block-Luft zwischen Segmenten desselben Blocks
-// Breite Inter-Block-Lücke zwischen befüllten Blöcken (≫ PAD_DEG). Leere Blöcke
-// kollabieren auf 0° ⇒ ihre angrenzenden Lücken verschmelzen automatisch.
-const BLOCK_GAP_DEG = 10;
-// Multi-Level: die Spannungslücke unten (Naht Ja↔Nein) ein Tick breiter als die
-// übrigen Block-Lücken, damit die Pol-Trennung über alle Ringe klar bleibt. Im
-// Single-Level bleibt die Naht bei BLOCK_GAP_DEG ⇒ aufgeräumt & konsistent.
-const SEAM_GAP_EXTRA = 4;
-// Neutral-Band in Prozentpunkten (identisch zur Skala der Balken-Badges, lean×100):
-// |lean·100| ≤ NEUTRAL_BAND ⇒ Neutral-Block; darunter Nein, darüber Ja.
-const NEUTRAL_BAND = 20;
-const RING_GAP = 4; // radiale Lücke zwischen den Ring-Ebenen (trägt mit den Separatoren die Hierarchie statt eines Track-Rings)
+const PAD_DEG = 1.4; // ° Luft zwischen Segmenten (statt Trennlinien)
+const RING_GAP = 3; // radiale Lücke zwischen den Ring-Ebenen
 const MAX_LEVELS = 3; // nie mehr als 3 Ringe zeichnen (4. Ebene wird weggelassen)
 const THIRD_RING_WIDTH = 16; // 3. Ring nur als dünnes Band; Ebene 1 & 2 teilen den Rest
 // Mobile-Variante (`compact`): nur Ring 1 trägt Labels, also bekommt er den
@@ -113,9 +91,10 @@ const THIRD_RING_COMPACT_W = 12;
 const COMPACT_LABEL_OUTER_R =
   DATA_OUTER_R - SECOND_RING_COMPACT_W - THIRD_RING_COMPACT_W - RING_GAP / 2;
 
-// Füllfarbe für ein bewertetes Segment: Ton auf der geteilten Skala (leanRgb).
-// Unbewertete Segmente füllt der Aufrufer transparent (kein Track mehr); TRACK
-// bleibt nur Fallback, falls leanRgb ausnahmsweise null liefert.
+// Füllfarbe für ein Segment. Bewertet ⇒ Ton auf der geteilten Skala (leanRgb);
+// unbewertet ⇒ Schienenfarbe (TRACK), sodass leere Segmente nahtlos in den
+// Track-Ring darunter übergehen (markiert wird „unbewertet" allein durch den
+// gestrichelten Rand, analog zu den leeren Track-Abschnitten der Balken).
 function fillFor(lean: number | null | undefined): string {
   return rgbStr(leanRgb(lean) ?? TRACK);
 }
@@ -158,17 +137,6 @@ function textColor(lean: number | null | undefined): string {
   const dark = lean! >= 0 ? DARK_BLUE : DARK_RED;
   return rgbStr(mixRgb(DARK_NEUTRAL, dark, strength));
 }
-
-// Block-Beschriftung aussen am Rad: Pol-Farben für Ja/Nein, neutrales Grau für
-// „Ausgewogen". Translation-Keys aus den Messages.
-const BLOCK_LABEL: Record<
-  "no" | "neutral" | "yes",
-  { key: string; color: string }
-> = {
-  no: { key: "sunburstBlockNo", color: rgbStr(ARM_NO) },
-  neutral: { key: "sunburstBlockNeutral", color: rgbStr(DARK_NEUTRAL) },
-  yes: { key: "sunburstBlockYes", color: rgbStr(ARM_YES) },
-};
 
 // Label an Wortgrenzen auf bis zu maxLines Zeilen umbrechen; Überlauf mit „…".
 // Mit `hyphenate` werden zu lange Einzelwörter über mehrere Zeilen mit Bindestrich
@@ -299,150 +267,31 @@ interface Seg {
   a1: number;
 }
 
-type Block = "no" | "neutral" | "yes" | "unrated";
-
-// Block-Zuordnung aus dem aggregierten lean (∈[−1,1]); unbewertet ⇒ eigener Status.
-function blockOf(lean: number | null | undefined): Block {
-  if (lean == null) return "unrated";
-  const pct = lean * 100;
-  if (pct < -NEUTRAL_BAND) return "no";
-  if (pct > NEUTRAL_BAND) return "yes";
-  return "neutral";
-}
-
-// Alle Themen sind gleich breit — das Argument-Volumen spielt bewusst KEINE Rolle.
-// Jeder Knoten zählt gleich (Gewicht 1): Geschwister teilen ihren Bereich zu
-// gleichen Teilen, ein Block ist so breit wie seine Anzahl Themen. Einzige Stelle,
-// um wieder auf eine volumen-/bewertungsabhängige Gewichtung umzustellen.
-function nodeWeight(_node: TaxonomyNode): number {
-  return 1;
-}
-
-// Drei-Block-Layout: Ring-1-Knoten nach Block (Nein/Neutral/Ja/Unbewertet)
-// gruppieren und zu gleichen Teilen (gleich breit) auf den Kreis verteilen;
-// Unterthemen rekursiv gleich breit INNERHALB der Eltern-Grenzen (sie erben so den
-// Block). Anschliessend wird das Rad rotiert, damit die Achse stabil bleibt: die
-// Naht zwischen Ja- und Nein-Block (durch die Unbewertet-Zone) liegt immer unten
-// (180°), Neutral oben — unabhängig von den Blockgrössen.
-// Bis `maxLevels` Ebenen (max. MAX_LEVELS; `maxLevels = 1` ⇒ nur Hauptthemen).
+// Equal-share-Layout: jedes Geschwister bekommt denselben Winkelanteil.
+// Bis `maxLevels` Ebenen — tiefere Ebenen werden gar nicht erfasst/gezeichnet
+// (max. MAX_LEVELS; mit `maxLevels = 1` nur die Hauptthemen, ohne Unterthemen).
 function layout(
   root: TaxonomyNode,
-  maxLevels: number,
-  leanOf: (n: TaxonomyNode) => number | null,
-): {
-  segs: Seg[];
-  maxLevel: number;
-  blocks: { block: "no" | "neutral" | "yes"; mid: number }[];
-} {
+  maxLevels: number = MAX_LEVELS,
+): { segs: Seg[]; maxLevel: number } {
   const cap = Math.min(maxLevels, MAX_LEVELS);
   const segs: Seg[] = [];
   let maxLevel = 0;
-
-  // Einen Knoten samt Teilbaum zu gleichen Teilen (Gewicht je Knoten = 1) in [a0,a1].
-  const place = (node: TaxonomyNode, level: number, a0: number, a1: number) => {
-    segs.push({ node, level, a0, a1 });
-    if (level > maxLevel) maxLevel = level;
+  const walk = (node: TaxonomyNode, level: number, a0: number, a1: number) => {
+    if (level >= 1) {
+      segs.push({ node, level, a0, a1 });
+      if (level > maxLevel) maxLevel = level;
+    }
     if (level >= cap) return; // tiefere Ebenen nicht zeichnen
     const kids = node.children ?? [];
     if (!kids.length) return;
-    const tw = kids.reduce((s, k) => s + nodeWeight(k), 0) || 1;
-    let cur = a0;
-    for (const k of kids) {
-      const w = ((a1 - a0) * nodeWeight(k)) / tw;
-      place(k, level + 1, cur, cur + w);
-      cur += w;
-    }
+    const step = (a1 - a0) / kids.length;
+    kids.forEach((c, i) =>
+      walk(c, level + 1, a0 + i * step, a0 + (i + 1) * step),
+    );
   };
-
-  // Ring-1-Knoten in Blöcke einsortieren, je Block AUFSTEIGEND nach signiertem lean.
-  // In Uhrzeiger-Reihenfolge (Neutral → Ja → Unbewertet → Nein) ergibt das einen
-  // durchgehenden Verlauf: das stärkste Nein und das stärkste Ja stossen unten an
-  // der Naht zwischen den Polen aneinander (jeweils stärkste Tendenz an der Naht),
-  // schwächere wandern Richtung Neutral oben.
-  const groups: Record<Block, TaxonomyNode[]> = {
-    no: [],
-    neutral: [],
-    yes: [],
-    unrated: [],
-  };
-  for (const n of root.children ?? []) groups[blockOf(leanOf(n))].push(n);
-  for (const b of Object.keys(groups) as Block[])
-    groups[b].sort((a, c) => (leanOf(a) ?? 0) - (leanOf(c) ?? 0));
-
-  // Reihenfolge im Uhrzeigersinn (0°=oben, 90°=rechts, 180°=unten, 270°=links):
-  // Neutral (oben) → Ja (rechts) → Unbewertet (unten) → Nein (links).
-  const order: Block[] = ["neutral", "yes", "unrated", "no"];
-  const present = order.filter((b) => groups[b].length);
-  const G = present.length;
-  // Multi-Level nur, wenn Sublevel erlaubt UND vorhanden — steuert die etwas
-  // breitere Spannungslücke unten (SEAM_GAP_EXTRA).
-  const multiLevel =
-    cap > 1 && (root.children ?? []).some((c) => (c.children?.length ?? 0) > 0);
-  // Lücke NACH jedem präsenten Block (zyklisch). Basis = BLOCK_GAP_DEG; die Naht
-  // unten zwischen Ja- und Nein-Seite (Spannungslücke) bekommt im Multi-Level einen
-  // Tick extra. Höchstens ein Block ⇒ gar keine Lücken (durchgehender Bogen).
-  const gapAfter = (i: number): number => {
-    if (G < 2) return 0;
-    const b = present[i];
-    const n = present[(i + 1) % G];
-    const seam =
-      (b === "yes" && (n === "unrated" || n === "no")) ||
-      (b === "unrated" && n === "no");
-    return BLOCK_GAP_DEG + (seam && multiLevel ? SEAM_GAP_EXTRA : 0);
-  };
-  const gaps = present.map((_, i) => gapAfter(i));
-  const available = 360 - gaps.reduce((a, g) => a + g, 0);
-  const totalW =
-    present.reduce(
-      (s, b) => s + groups[b].reduce((x, n) => x + nodeWeight(n), 0),
-      0,
-    ) || 1;
-
-  const bounds = {} as Partial<Record<Block, [number, number]>>;
-  let cur = 0;
-  present.forEach((b, i) => {
-    const start = cur;
-    for (const n of groups[b]) {
-      const w = (available * nodeWeight(n)) / totalW;
-      place(n, 1, cur, cur + w);
-      cur += w;
-    }
-    bounds[b] = [start, cur];
-    cur += gaps[i]; // Lücke nach jedem Block (Ring ⇒ auch nach dem letzten)
-  });
-
-  // Rotation: anchorRaw (Roh-Winkel) soll nach unten (180°). Mit beiden Polen ist
-  // das die Naht zwischen Ja-Ende und Nein-Start (durch die Unbewertet-Zone);
-  // sonst Neutral- bzw. den einzigen Block oben. anchorRaw − 180 ⇒ Block oben.
-  let anchorRaw: number;
-  if (bounds.yes && bounds.no) {
-    anchorRaw = (bounds.yes[1] + bounds.no[0]) / 2;
-  } else if (bounds.neutral) {
-    anchorRaw = (bounds.neutral[0] + bounds.neutral[1]) / 2 - 180;
-  } else if (present.length) {
-    const o = bounds[present[0]]!;
-    anchorRaw = (o[0] + o[1]) / 2 - 180;
-  } else {
-    anchorRaw = 180;
-  }
-  const rot = 180 - anchorRaw;
-  for (const s of segs) {
-    const span = s.a1 - s.a0;
-    const a0 = (((s.a0 + rot) % 360) + 360) % 360; // a0 ∈ [0,360); a1 = a0+span (ggf. >360)
-    s.a0 = a0;
-    s.a1 = a0 + span;
-  }
-
-  // Mittel-Winkel je befülltem Pol/Neutral-Block (post-Rotation, normalisiert) für
-  // die äusseren Block-Labels. Unbewertet bekommt kein Label.
-  const blocks = (["no", "neutral", "yes"] as const)
-    .filter((b) => bounds[b])
-    .map((b) => {
-      const [s0, s1] = bounds[b]!;
-      return { block: b, mid: ((((s0 + s1) / 2 + rot) % 360) + 360) % 360 };
-    });
-
-  return { segs, maxLevel, blocks };
+  walk(root, 0, 0, 360);
+  return { segs, maxLevel };
 }
 
 // Radius der Zentrumsscheibe, stetig an die Ringzahl gekoppelt (kein if/else je
@@ -494,12 +343,8 @@ export function TaxonomySunburst({
   compact?: boolean;
 }) {
   const [hover, setHover] = useState<TaxonomyNode | null>(null);
-  // Unterthemen (Ebene 2+) standardmässig EINGEBLENDET; per Checkbox abschaltbar.
-  const [showSub, setShowSub] = useState(true);
-  // Unterebenen standardmässig KOMPAKT (wie mobil: Ebene 2/3 als dünne Bänder, keine
-  // Labels) — auch auf dem Desktop. Die Checkbox klappt sie zur vollen Darstellung
-  // auf (proportionale Ringe + Labels ab Ebene 2).
-  const [expandSub, setExpandSub] = useState(false);
+  // Unterthemen (Ebene 2+) standardmässig ausgeblendet; per Checkbox einblendbar.
+  const [showSub, setShowSub] = useState(false);
 
   // Gibt es überhaupt Unterthemen? Sonst ist die Checkbox sinnlos.
   const hasSub = useMemo(
@@ -507,9 +352,15 @@ export function TaxonomySunburst({
     [root],
   );
 
+  const { segs, radii, maxLevel, centerR } = useMemo(() => {
+    const { segs, maxLevel } = layout(root, showSub ? MAX_LEVELS : 1);
+    const centerR = centerRadius(maxLevel, compact);
+    const radii = ringRadii(maxLevel, centerR, compact);
+    return { segs, radii, maxLevel, centerR };
+  }, [root, compact, showSub]);
+
   // Aggregierte Haltung je Knoten — zentrale Funktion (Schalter in lib/aggregate.ts).
   // Live-Update: `root` wechselt die Referenz bei jeder Bewertung ⇒ Neuberechnung.
-  // Vor dem Layout berechnet, weil die Block-Gruppierung den lean braucht.
   const leanMap = useMemo(() => {
     const m = new Map<number, number | null>();
     const walk = (n: TaxonomyNode) => {
@@ -521,31 +372,18 @@ export function TaxonomySunburst({
   }, [root]);
   const leanOf = (n: TaxonomyNode) => leanMap.get(n.id) ?? null;
 
-  // Mobil ODER „nicht aufgeklappt" ⇒ kompakte Ring-Geometrie: Ring 1 gross, Ebene
-  // 2/3 als dünne Bänder. Aufgeklappt (Desktop) ⇒ proportionale Ringe.
-  const subCompact = compact || !expandSub;
-
-  const { segs, radii, maxLevel, centerR, blocks } = useMemo(() => {
-    const { segs, maxLevel, blocks } = layout(root, showSub ? MAX_LEVELS : 1, leanOf);
-    const centerR = centerRadius(maxLevel, subCompact);
-    const radii = ringRadii(maxLevel, centerR, subCompact);
-    return { segs, radii, maxLevel, centerR, blocks };
-    // leanOf schliesst über leanMap (in den Deps); root-Wechsel ⇒ neuer leanMap.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [root, compact, showSub, subCompact, leanMap]);
-
   if (!segs.length) return null;
 
-  // Chart-Breite (max-width des Containers, per w-full responsiv): grosszügig, damit
-  // das Rad die Card-Breite nutzt. Einebenig etwas schmaler als mehrebenig.
-  const chartMaxW = maxLevel <= 1 ? 700 : 1000;
-  // Ring-1-Labels auf eine feste gerenderte Grösse (CSS-px) bringen, unabhängig von
-  // viewBox-Breite (VIEW_PAD_X) und chartMaxW: rendered_px = labelFont·chartMaxW/VBW
-  // ⇒ labelFont = RING1_LABEL_PX·VBW/chartMaxW.
-  const RING1_LABEL_PX = 16;
-  const labelFont = compact
-    ? 13
-    : (RING1_LABEL_PX * (SIZE + 2 * VIEW_PAD_X)) / chartMaxW;
+  // Chart-Breite: einebenig/compact kompakt, mehrebenig grösser.
+  const chartMaxW = maxLevel <= 1 ? 440 : 680;
+  // Labels sollen physisch (in CSS-Pixeln) gleich gross sein, egal ob ein- oder
+  // mehrebenig. Da die viewBox fix SIZE breit ist, der Chart aber je nach Modus
+  // unterschiedlich breit dargestellt wird (chartMaxW), skaliert jede SVG-Einheit
+  // mit chartMaxW/SIZE. Wir halten Schriftgrösse × Breite konstant (REF_FONT bei
+  // REF_WIDTH = Ring-1-Labels im mehrebenigen Chart) ⇒ gleiche gerenderte Grösse.
+  const REF_FONT = 10;
+  const REF_WIDTH = 680;
+  const labelFont = compact ? 13 : (REF_FONT * REF_WIDTH) / chartMaxW;
 
   // Standardmässig kein Panel; nur beim Hover erscheint Titel + Bewertung seitlich.
   const active = hover;
@@ -567,10 +405,7 @@ export function TaxonomySunburst({
   // Panel auf die dem Segment gegenüberliegende Seite legen (Winkel 0–180 = rechte
   // Hälfte → Panel links, sonst rechts), damit es das aktive Segment nicht verdeckt.
   const activeSeg = active ? segs.find((s) => s.node === active) : undefined;
-  // a1 kann nach der Layout-Rotation > 360 sein ⇒ Mittelwinkel normalisieren.
-  const activeMid = activeSeg
-    ? (((activeSeg.a0 + activeSeg.a1) / 2) % 360 + 360) % 360
-    : 0;
+  const activeMid = activeSeg ? (activeSeg.a0 + activeSeg.a1) / 2 : 0;
   const panelSide = activeMid > 0 && activeMid < 180 ? "left" : "right";
 
   return (
@@ -587,30 +422,15 @@ export function TaxonomySunburst({
             {t("sunburstTitle")}
           </p>
           {hasSub && (
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-muted-foreground select-none">
-                <input
-                  type="checkbox"
-                  className="h-3.5 w-3.5 cursor-pointer accent-current"
-                  checked={showSub}
-                  onChange={(e) => setShowSub(e.target.checked)}
-                />
-                {t("sunburstSubtopics")}
-              </label>
-              {/* Labels ab Ebene 2 nur im Desktop steuerbar (compact zeigt nie
-                  tiefer als Ring 1). Erscheint, sobald Unterthemen sichtbar sind. */}
-              {!compact && showSub && (
-                <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-muted-foreground select-none">
-                  <input
-                    type="checkbox"
-                    className="h-3.5 w-3.5 cursor-pointer accent-current"
-                    checked={expandSub}
-                    onChange={(e) => setExpandSub(e.target.checked)}
-                  />
-                  {t("sunburstSubLabels")}
-                </label>
-              )}
-            </div>
+            <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[12.5px] text-muted-foreground select-none">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5 cursor-pointer accent-current"
+                checked={showSub}
+                onChange={(e) => setShowSub(e.target.checked)}
+              />
+              {t("sunburstSubtopics")}
+            </label>
           )}
         </div>
         <p className="mb-3 max-w-[62ch] text-[13.5px] leading-relaxed text-muted-foreground">
@@ -622,14 +442,35 @@ export function TaxonomySunburst({
           style={compact ? undefined : { maxWidth: chartMaxW }}
         >
           <svg
-            viewBox={`${-VIEW_PAD_X} ${-VIEW_PAD_Y} ${SIZE + 2 * VIEW_PAD_X} ${SIZE + 2 * VIEW_PAD_Y}`}
+            viewBox={`0 0 ${SIZE} ${SIZE}`}
             className="h-auto w-full"
             role="img"
             aria-label={t("sunburstTitle")}
           >
-            {/* Kein Track-Ring mehr: Struktur tragen die var(--card)-Separatoren
-                (Segment-Stroke) und die radialen RING_GAP-Lücken zwischen den
-                Ebenen. Unbewertete Segmente bleiben transparent + gestrichelt. */}
+            {/* Track-Ringe als Unterlage: jeder Ring liegt als durchgehendes,
+                schienenfarbenes Band hinter den Segmenten. Leere Bereiche (Lücken
+                zwischen Segmenten, unbewertete Knoten) zeigen so dieselbe Schiene
+                wie die Balken unten — die gefärbten Segmente sind die „Füllung".
+                Der äusserste Track-Ring reicht bis OUTER_R (TRACK_BAND ausserhalb
+                der Datenringe) ⇒ ein sichtbarer, heller Track-Streifen fasst das
+                ganze Rad ein (erdet besonders die Single-Level-Variante). */}
+            {Array.from({ length: maxLevel }, (_, i) => i + 1).map((level) => {
+              const rInner = radii[level - 1] + RING_GAP / 2;
+              // Äusserste Ebene: Track bis ganz an OUTER_R (Einfassungs-Streifen).
+              const rOuter =
+                level === maxLevel ? OUTER_R : radii[level] - RING_GAP / 2;
+              return (
+                <circle
+                  key={`track-${level}`}
+                  cx={CX}
+                  cy={CY}
+                  r={(rInner + rOuter) / 2}
+                  fill="none"
+                  stroke={TRACK_CSS}
+                  strokeWidth={rOuter - rInner}
+                />
+              );
+            })}
             {segs.map((s) => {
               // Radiale Lücke zwischen den Ebenen: jedes Band beidseitig einrücken.
               // Datenringe enden bei DATA_OUTER_R; der Track-Streifen liegt ausserhalb.
@@ -648,9 +489,6 @@ export function TaxonomySunburst({
               const split = nodeDissent(s.node) > SPLIT_THRESHOLD;
               const clickable = !!s.node.key && !!onSelect;
               const mid = (s.a0 + s.a1) / 2;
-              // a1 kann nach der Rotation > 360 sein; polar() ist periodisch (mid roh
-              // ok), aber Halbkreis-/Flip-Entscheidungen brauchen mid ∈ [0,360).
-              const midN = ((mid % 360) + 360) % 360;
               // Innerster Ring: Text gekrümmt entlang des Bogens; tiefere Ringe radial.
               const curved = s.level === 1;
               // 2.+ Ebene (radiale Labels) eine Spur kleiner als die Top-Topics.
@@ -721,28 +559,25 @@ export function TaxonomySunburst({
                   : rInner + (rOuter - rInner) * LABEL_R_FRAC;
               const [lx, ly] = polar(labelR, mid);
               // Dünne Ringe (z. B. der 3.) bekommen kein Label — nur Farbe.
-              // Ring 1 immer; tiefere Ringe nur im Desktop UND wenn aufgeklappt
-              // (compact/mobil: nie tiefer als Ring 1). Im kompakten Modus sind die
-              // Bänder ohnehin < 22px dick ⇒ greift auch die Dicke-Schranke.
+              // Compact (mobil): ausschliesslich Ring 1 beschriften.
               const showLabel =
                 span >= LABEL_MIN_ANGLE &&
                 thickness > 22 &&
-                (s.level === 1 || (!compact && expandSub));
+                (!compact || s.level === 1);
               // Radiale Ausrichtung (tiefere Ringe): tangential gedreht, links gespiegelt.
               let rot = mid - 90;
-              if (midN > 180) rot += 180;
+              if (mid > 180) rot += 180;
               // Untere Hälfte: Text-Pfad umkehren, sonst stünde der Text kopfüber.
-              const flip = midN > 90 && midN < 270;
+              const flip = mid > 90 && mid < 270;
               return (
                 <g key={`${s.node.id}-${s.level}`}>
                   <path
                     d={arcPath(rInner, rOuter, pa0, pa1)}
-                    fill={unrated ? "transparent" : fillFor(lean)}
-                    // Bewertet ⇒ heller Kartenrand (var(--card), wie die
-                    // Balken-Separatoren, strokeWidth 1.5) für eine saubere Kante
-                    // gegen die Nachbarn; zusammen mit RING_GAP trägt er die
-                    // Struktur (kein Track-Ring mehr). Unbewertet ⇒ transparent mit
-                    // gestricheltem, „provisorischem" Rand.
+                    fill={fillFor(lean)}
+                    // Bewertet ⇒ heller Kartenrand (wie die Balken-Separatoren,
+                    // strokeWidth 1.5) für eine saubere Kante gegen Nachbar & Schiene
+                    // — radial vom Innenloch bis zum Track-Ring; unbewertet ⇒
+                    // gestrichelter, „provisorischer" Rand.
                     stroke={unrated ? "rgba(0,0,0,0.2)" : "var(--card)"}
                     strokeWidth={unrated ? 1 : 1.5}
                     strokeDasharray={unrated ? "3 2.5" : undefined}
@@ -839,45 +674,6 @@ export function TaxonomySunburst({
               );
             })}
 
-            {/* Block-Labels aussen: „Ja-Themen" (rechts), „Ausgewogen" (oben),
-                „Nein-Themen" (links). Position = Mittel-Winkel des jeweiligen
-                Blocks; Text-Anker/Baseline aus der Winkelrichtung, damit der Text
-                nach aussen läuft statt ins Rad. */}
-            {blocks.map(({ block, mid }) => {
-              const [bx0, by0] = polar(BLOCK_LABEL_R, mid);
-              const rad = ((mid - 90) * Math.PI) / 180;
-              const dx = Math.cos(rad);
-              const dy = Math.sin(rad);
-              const anchor = dx > 0.25 ? "start" : dx < -0.25 ? "end" : "middle";
-              const baseline =
-                dy > 0.25 ? "hanging" : dy < -0.25 ? "auto" : "central";
-              // Seitliche (linke/rechte) Labels etwas nach innen und nach unten
-              // rücken, damit die langen „Meine …"-Labels nicht an den Rand stossen.
-              const horiz = Math.abs(dx) > 0.25;
-              const bx = horiz ? bx0 - Math.sign(dx) * 10 : bx0;
-              const by = horiz ? by0 + 10 : by0;
-              const { key, color } = BLOCK_LABEL[block];
-              return (
-                <text
-                  key={`blk-${block}`}
-                  x={bx}
-                  y={by}
-                  textAnchor={anchor}
-                  dominantBaseline={baseline}
-                  fontSize={BLOCK_LABEL_FONT}
-                  fontWeight={600}
-                  fill={color}
-                  style={{
-                    letterSpacing: "0.02em",
-                    pointerEvents: "none",
-                    userSelect: "none",
-                  }}
-                >
-                  {t(key)}
-                </text>
-              );
-            })}
-
             {/* Zentrumsscheibe — nimmt die Hintergrundfarbe an, damit der Ring
                 schwebt statt auf einer Scheibe zu kleben. */}
             <circle
@@ -951,7 +747,7 @@ export function TaxonomySunburst({
             >
               <path
                 d="M 4.84 4.63 A 9 9 0 0 1 15.16 4.63 L 12.29 8.72 A 4 4 0 0 0 7.71 8.72 Z"
-                fill="transparent"
+                fill={fillFor(null)}
                 stroke="rgba(0,0,0,0.2)"
                 strokeWidth={1.2}
                 strokeDasharray="2 1.6"

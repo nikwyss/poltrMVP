@@ -283,7 +283,7 @@
     "bandTitle": "La tua posizione per tema",
     "bandSubtitle": "Posizione e lunghezza derivano dalle tue valutazioni degli argomenti.",
     "cloudTitle": "Le tue valutazioni per tema",
-    "cloudSubtitle": "Due bracci per tema dal centro neutro: il corallo (a sinistra) raccoglie gli argomenti contro (depone per un No), il blu (a destra) quelli a favore (per un Sì). I separatori mostrano i singoli argomenti; il badge è la tendenza (Sì − No).",
+    "cloudSubtitle": "Due bracci per tema dal centro neutro: il corallo (a sinistra) raccoglie gli argomenti contro (depone per un No), il blu (a destra) quelli a favore (per un Sì). Il badge è la tendenza (Sì − No).",
     "cloudArmNo": "depone per un No",
     "cloudArmYes": "depone per un Sì",
     "cloudEyebrow": "Pro & contro",
@@ -342,6 +342,7 @@
     "sunburstEyebrow": "Le tue valutazioni per tema",
     "sunburstSubtitle": "Colore e posizione derivano dalle tue valutazioni degli argomenti.",
     "sunburstSubtopics": "Mostra sottotemi",
+    "sunburstSubLabels": "Etichetta i sottotemi",
     "icircleTitle": "Banda d'opinione",
     "sunburstCenter": "Totale",
     "sunburstLeanStrongNo": "Nettamente con gli argomenti del No",
@@ -350,7 +351,10 @@
     "sunburstLeanYes": "Piuttosto con gli argomenti del Sì",
     "sunburstLeanStrongYes": "Nettamente con gli argomenti del Sì",
     "sunburstLeanUnrated": "Non ancora valutato",
-    "sunburstDissentNote": "Ambivalente: argomenti forti da entrambe le parti"
+    "sunburstDissentNote": "Ambivalente: argomenti forti da entrambe le parti",
+    "sunburstBlockYes": "I miei temi Sì",
+    "sunburstBlockNeutral": "I miei temi neutri",
+    "sunburstBlockNo": "I miei temi No"
   },
   "argumentarium": {
     "title": "Temi e argomenti sull'oggetto «{name}»",

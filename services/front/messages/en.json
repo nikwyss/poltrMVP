@@ -283,7 +283,7 @@
     "bandTitle": "Your position per topic",
     "bandSubtitle": "Position and length result from your argument ratings.",
     "cloudTitle": "Your ratings per topic",
-    "cloudSubtitle": "Two arms per topic from the neutral centre: the coral one (left) bundles the con arguments (speaks for a No), the blue one (right) the pro arguments (for a Yes). Separators show the individual arguments; the badge is the tendency (Yes − No).",
+    "cloudSubtitle": "Two arms per topic from the neutral centre: the coral one (left) bundles the con arguments (speaks for a No), the blue one (right) the pro arguments (for a Yes). The badge is the tendency (Yes − No).",
     "cloudArmNo": "speaks for a No",
     "cloudArmYes": "speaks for a Yes",
     "cloudEyebrow": "Pro & con",
@@ -342,6 +342,7 @@
     "sunburstEyebrow": "Your ratings by topic",
     "sunburstSubtitle": "Colour and position result from your argument ratings.",
     "sunburstSubtopics": "Show subtopics",
+    "sunburstSubLabels": "Label subtopics",
     "icircleTitle": "Opinion band",
     "sunburstCenter": "Total",
     "sunburstLeanStrongNo": "Clearly with the No arguments",
@@ -350,7 +351,10 @@
     "sunburstLeanYes": "Leaning to the Yes arguments",
     "sunburstLeanStrongYes": "Clearly with the Yes arguments",
     "sunburstLeanUnrated": "Not yet rated",
-    "sunburstDissentNote": "Ambivalent: strong arguments on both sides"
+    "sunburstDissentNote": "Ambivalent: strong arguments on both sides",
+    "sunburstBlockYes": "My Yes topics",
+    "sunburstBlockNeutral": "My neutral topics",
+    "sunburstBlockNo": "My No topics"
   },
   "argumentarium": {
     "title": "Topics & arguments on «{name}»",

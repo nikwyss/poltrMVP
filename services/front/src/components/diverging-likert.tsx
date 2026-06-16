@@ -179,7 +179,7 @@ export function DivergingLikert({
         >
           {t("cloudTitle")}
         </p>
-        <p className="mb-4 max-w-[62ch] text-[13.5px] leading-relaxed text-muted-foreground">
+        <p className="mb-4 text-[13.5px] leading-relaxed text-muted-foreground">
           {t("cloudSubtitle")}
         </p>
 

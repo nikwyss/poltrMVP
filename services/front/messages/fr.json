@@ -283,7 +283,7 @@
     "bandTitle": "Ta position par thème",
     "bandSubtitle": "La position et la longueur découlent de tes évaluations des arguments.",
     "cloudTitle": "Tes évaluations par thème",
-    "cloudSubtitle": "Deux bras par thème depuis le centre neutre : le corail (à gauche) regroupe les arguments contre (plaide pour un Non), le bleu (à droite) les arguments pour (pour un Oui). Les séparateurs montrent les arguments individuels ; le badge est la tendance (Oui − Non).",
+    "cloudSubtitle": "Deux bras par thème depuis le centre neutre : le corail (à gauche) regroupe les arguments contre (plaide pour un Non), le bleu (à droite) les arguments pour (pour un Oui). Le badge est la tendance (Oui − Non).",
     "cloudArmNo": "plaide pour un Non",
     "cloudArmYes": "plaide pour un Oui",
     "cloudEyebrow": "Pour & contre",
@@ -342,6 +342,7 @@
     "sunburstEyebrow": "Tes évaluations par thème",
     "sunburstSubtitle": "La couleur et la position découlent de tes évaluations des arguments.",
     "sunburstSubtopics": "Afficher les sous-thèmes",
+    "sunburstSubLabels": "Étiqueter les sous-thèmes",
     "icircleTitle": "Bande d'opinion",
     "sunburstCenter": "Total",
     "sunburstLeanStrongNo": "Nettement pour les arguments du non",
@@ -350,7 +351,10 @@
     "sunburstLeanYes": "Plutôt pour les arguments du oui",
     "sunburstLeanStrongYes": "Nettement pour les arguments du oui",
     "sunburstLeanUnrated": "Pas encore évalué",
-    "sunburstDissentNote": "Ambivalent : arguments forts des deux côtés"
+    "sunburstDissentNote": "Ambivalent : arguments forts des deux côtés",
+    "sunburstBlockYes": "Mes thèmes Oui",
+    "sunburstBlockNeutral": "Mes thèmes neutres",
+    "sunburstBlockNo": "Mes thèmes Non"
   },
   "argumentarium": {
     "title": "Thèmes & arguments sur l'objet «{name}»",

@@ -283,7 +283,7 @@
     "bandTitle": "Tia posiziun tenor temas",
     "bandSubtitle": "La posiziun e la lunghezza resultan da tias evaluaziuns dals arguments.",
     "cloudTitle": "Tias evaluaziuns per tema",
-    "cloudSubtitle": "Dus bratschs per tema dal center neutral: il corallin (a sanestra) reunescha ils arguments cunter (plaida per in Na), il blau (a dretga) ils arguments pro (per in Gea). Las lingias mussan ils arguments singuls; il badge è la tendenza (Gea − Na).",
+    "cloudSubtitle": "Dus bratschs per tema dal center neutral: il corallin (a sanestra) reunescha ils arguments cunter (plaida per in Na), il blau (a dretga) ils arguments pro (per in Gea). Il badge è la tendenza (Gea − Na).",
     "cloudArmNo": "plaida per in Na",
     "cloudArmYes": "plaida per in Gea",
     "cloudEyebrow": "Pro & contra",
@@ -342,6 +342,7 @@
     "sunburstEyebrow": "Tias evaluaziuns tenor temas",
     "sunburstSubtitle": "La colur e la posiziun resultan da tias evaluaziuns dals arguments.",
     "sunburstSubtopics": "Mussar suttatemas",
+    "sunburstSubLabels": "Etichettar suttatemas",
     "icircleTitle": "Banda d'opiniun",
     "sunburstCenter": "Total",
     "sunburstLeanStrongNo": "Cleramain datiers dals arguments per in na",
@@ -350,7 +351,10 @@
     "sunburstLeanYes": "Pli tgunci datiers dals arguments per in gea",
     "sunburstLeanStrongYes": "Cleramain datiers dals arguments per in gea",
     "sunburstLeanUnrated": "Anc betg valità",
-    "sunburstDissentNote": "Ambivalent: arguments ferms da omaduas varts"
+    "sunburstDissentNote": "Ambivalent: arguments ferms da omaduas varts",
+    "sunburstBlockYes": "Mes temas Gea",
+    "sunburstBlockNeutral": "Mes temas neutrals",
+    "sunburstBlockNo": "Mes temas Na"
   },
   "argumentarium": {
     "title": "Temas & arguments davart l'object «{name}»",
