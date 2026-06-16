@@ -26,6 +26,49 @@
 
 - Moderation
 
+## CI / Build-Pipeline beschleunigen (build-and-push-services.yml)
+
+Problem heute: jeder `services/**`-Push baut **alle fünf** Services, jeweils mit
+`docker build --no-cache` (CMS = voller Payload/Next-Build von Null) und seriell
+(`max-parallel: 1`).
+
+1. **Nur geänderte Services bauen (dynamische Matrix).** Vorgeschalteter
+   `changes`-Job mit `dorny/paths-filter`, der pro Service ein Boolean liefert;
+   die Build-Matrix wird daraus generiert. Ändere appview → baut nur appview.
+2. **`--no-cache` raus + GHA-Layer-Cache rein.** Mit `docker/build-push-action`
+   + `cache-from/to: type=gha`. Dann: `package.json` unverändert → `pnpm i` wird
+   übersprungen, nur der Next-Build läuft. (Die „unknown blob"-Race, wegen der
+   `max-parallel:1` steht, betrifft nur den ghcr-*Push* zwischen Services — der
+   GHA-Cache ist davon unabhängig.)
+3. **`.dockerignore` für CMS** (`node_modules`, `.next`, `.git`, `.env*`) →
+   kleinerer Context, stabilerer Cache.
+
+Zusammen: ein appview-Only-Push baut künftig **nur appview, mit warmem Cache**
+statt alle fünf `--no-cache`. Offen: bleibt `max-parallel:1` (sicher, langsamer)
+oder gegen die Blob-Race anders absichern (z.B. separate `cache-to`-Keys je
+Service)?
+
+## Writer-Loops nebenläufigkeitssicher machen (Crosspost + Translation)
+
+Heute durch `writer.yaml` `replicas: 1` (Recreate) **verdeckt**, aber latent: der
+Crosspost- und der Translation-Loop **claimen ihre Arbeit nicht atomar**.
+- Crosspost ([crosspost.py:39-94](services/appview/src/atproto/crosspost.py#L39)):
+  `SELECT … WHERE bsky_post_uri IS NULL` → Bluesky-POST → erst **danach** `UPDATE`.
+  Zwei Writer (z.B. localhost + Cluster auf derselben DB/PDS) → **doppelte
+  öffentliche Bluesky-Posts**.
+- Translation: gleiches SELECT-ohne-Claim-Muster → doppelte LLM-Calls ($) + Races.
+- Acceptance ist bereits safe (`FOR UPDATE SKIP LOCKED`, acceptance.py).
+
+**Korrekter Fix (NICHT naiv):** Row-Lock **nicht** über den Netzwerk-Call halten.
+Stattdessen **Claim-by-Marker**: atomar beanspruchen
+`UPDATE app_arguments SET bsky_post_uri='<pending-sentinel>' WHERE uri IN
+(SELECT uri … WHERE bsky_post_uri IS NULL FOR UPDATE SKIP LOCKED LIMIT n)
+RETURNING …` → posten → echte URI setzen (bei Fehler Marker zurücksetzen).
+Braucht einen Pending-Zustand (Sentinel-Wert oder Claim-Spalte/-Zeitstempel).
+Analog für Translation (`translation_status='claimed'`). Erst dann sind mehrere
+Writer unkritisch. Solange Singleton: nur Aufräum-/Robustheits-Gewinn.
+Kontext: Diskussion 2026-06-16 (localhost+deployed gegen geteilte DB/PDS).
+
 ## Security-Review des Auth-Umbaus (2026-06-11)
 
 1. **Email-as-HMAC (billiger First-Order-Fix, eigener Plan):** `auth_creds.email` →
