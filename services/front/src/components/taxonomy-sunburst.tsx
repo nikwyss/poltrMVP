@@ -6,10 +6,15 @@
  * Positionsband um die ganze Tiefe der Hierarchie auf einen Blick.
  *
  * Farbe = aggregierte Haltung ∈ [-1,1] des Viewers (zentrale Aggregierung, siehe
- * lib/aggregate.ts + doc/AGGREGATION.md) als kontinuierliche diverging-Skala: rot (auf Gegner-Seite) → grau
- * (neutral) → blau (auf Befürworter-Seite). Unbewertet/ohne Login = weiss
- * (mit feinem Umriss). Stark gespaltene Knoten (hoher `dissent`) bekommen einen
- * Amber-Rand — sie sind nicht indifferent, sondern hin- und hergerissen.
+ * lib/aggregate.ts + doc/AGGREGATION.md) auf der GETEILTEN diverging-Skala aus
+ * lib/chart-palette.ts — Koralle (Gegner-Seite) ↔ TRACK (neutral) ↔ Navy
+ * (Befürworter-Seite), volltonig (keine Tiefen-Transparenz). Endpunkte und
+ * Nullpunkt sind identisch mit den Likert-Balken-Armen. Hinter jedem Ring liegt
+ * ein durchgehender Track-Ring in TRACK-Farbe (die „Schiene"); die gefärbten
+ * Segmente sind die Füllung darauf. Unbewertet/ohne Login = Schienenfarbe mit
+ * feinem gestricheltem Umriss (wie ein leerer Track-Abschnitt der Balken). Stark
+ * gespaltene Knoten (hoher `dissent`) bekommen einen Amber-Rand — sie sind nicht
+ * indifferent, sondern hin- und hergerissen.
  *
  * Segmentgröße: alle Geschwister gleich breit (Winkel des Elternsegments / Anzahl
  * Geschwister) — die Visualisierung zeigt Struktur & Haltung, nicht Volumen.
@@ -20,6 +25,16 @@ import { useMemo, useState } from "react";
 import type { TaxonomyNode } from "@/types/ballots";
 import { Card, CardContent } from "@/components/ui/card";
 import { nodeLeaning, nodeDissent } from "@/lib/aggregate";
+import {
+  ARM_NO,
+  ARM_YES,
+  TRACK,
+  TRACK_CSS,
+  mixRgb,
+  rgbStr,
+  leanRgb,
+  type RGB,
+} from "@/lib/chart-palette";
 
 type T = (key: string, values?: Record<string, string | number>) => string;
 
@@ -38,14 +53,10 @@ function signed(v: number): string {
 // dissent darüber ⇒ Knoten gilt als „gespalten" (hoher Dissens) ⇒ Amber-Rand.
 const SPLIT_THRESHOLD = 0.5;
 
-// Pole — durchgehende Skala rot (Nein) ↔ warmes Grau ↔ blau (Ja), konsistent
-// mit der Likert-Verteilung („Verteilung je Thema").
-const RED: [number, number, number] = [176, 60, 42]; // Gegner-Seite (Brick)
-const BLUE: [number, number, number] = [60, 90, 143]; // Befürworter-Seite (Navy)
-const MID: [number, number, number] = [233, 230, 224]; // neutrale Mitte (warmes Grau)
+// Pole + Schiene kommen aus der geteilten Palette (chart-palette.ts), damit
+// Sunburst und Likert-Balken exakt dieselben Endpunkte/Nullpunkt teilen:
+//   ARM_NO (Koralle, Nein) ↔ TRACK (neutral) ↔ ARM_YES (Navy, Ja).
 const AMBER = "rgb(217, 159, 40)"; // Blitz + Hinweis für stark gespaltene Knoten
-
-const UNRATED: [number, number, number] = [255, 255, 255]; // unbewertet = weiss (mit feinem Umriss)
 
 // Geometrie
 const SIZE = 420;
@@ -60,39 +71,18 @@ const LABEL_OUTER_PAD = 11; // Compact: Abstand der äussersten Label-Zeile vom 
 const CORNER_R = 4; // abgerundete Segment-Ecken
 const PAD_DEG = 1.4; // ° Luft zwischen Segmenten (statt Trennlinien)
 const RING_GAP = 3; // radiale Lücke zwischen den Ring-Ebenen
-const OUTER_OPACITY = 0.62; // Deckkraft des äussersten Rings (innen = 1)
 const MAX_LEVELS = 3; // nie mehr als 3 Ringe zeichnen (4. Ebene wird weggelassen)
 const THIRD_RING_WIDTH = 16; // 3. Ring nur als dünnes Band; Ebene 1 & 2 teilen den Rest
 // Mobile-Variante (`compact`): 2. Ring als Band, etwas länger als der 3. Ring;
 // Ring 1 bekommt den ganzen Rest (einziger beschrifteter Ring).
 const SECOND_RING_COMPACT_W = 34;
 
-function lerp(a: number, b: number, t: number): number {
-  return Math.round(a + (b - a) * t);
-}
-
-function mixT(
-  c1: [number, number, number],
-  c2: [number, number, number],
-  t: number,
-): [number, number, number] {
-  return [lerp(c1[0], c2[0], t), lerp(c1[1], c2[1], t), lerp(c1[2], c2[2], t)];
-}
-
-function rgb(c: [number, number, number]): string {
-  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
-}
-
-// Haltung -1..1 → Füllton auf der Skala rot ↔ warmes Grau ↔ blau. Schwache
-// Neigung bleibt hell (nahe Mitte), starke Neigung wird satt/dunkel; null = weiss.
-function fillRgb(lean: number | null | undefined): [number, number, number] | null {
-  if (lean == null) return null;
-  return lean >= 0
-    ? mixT(MID, BLUE, Math.min(1, lean))
-    : mixT(MID, RED, Math.min(1, -lean));
-}
+// Füllfarbe für ein Segment. Bewertet ⇒ Ton auf der geteilten Skala (leanRgb);
+// unbewertet ⇒ Schienenfarbe (TRACK), sodass leere Segmente nahtlos in den
+// Track-Ring darunter übergehen (markiert wird „unbewertet" allein durch den
+// gestrichelten Rand, analog zu den leeren Track-Abschnitten der Balken).
 function fillFor(lean: number | null | undefined): string {
-  return rgb(fillRgb(lean) ?? UNRATED);
+  return rgbStr(leanRgb(lean) ?? TRACK);
 }
 
 // Wahrnehmungs-Helligkeit (Rec. 601) — für Kontrast-Entscheid Label hell/dunkel.
@@ -104,7 +94,7 @@ function luminance([r, g, b]: [number, number, number]): number {
 // fünf Stufen der Likert-Verteilung.
 const LEGEND_GRADIENT = (() => {
   const cols = [-1, -0.7, -0.4, -0.15, 0.15, 0.4, 0.7, 1].map(
-    (l) => rgb(fillRgb(l)!),
+    (l) => rgbStr(leanRgb(l)!),
   );
   const n = cols.length;
   const parts: string[] = [];
@@ -115,20 +105,20 @@ const LEGEND_GRADIENT = (() => {
 
 // Dunkle Töne aus derselben Farbfamilie wie die Füllung — für Label-Text ohne
 // harten Weiss-Kontrast / Halo.
-const DARK_BLUE: [number, number, number] = [28, 52, 120]; // dunkles Blau
-const DARK_RED: [number, number, number] = [112, 34, 20]; // dunkles Rot
-const DARK_NEUTRAL: [number, number, number] = [88, 86, 92]; // mittleres Grau
+const DARK_BLUE: RGB = [28, 52, 120]; // dunkles Blau
+const DARK_RED: RGB = [112, 34, 20]; // dunkles Rot
+const DARK_NEUTRAL: RGB = [88, 86, 92]; // mittleres Grau
 
 // Label-Farbe kontrastabhängig: auf dunkler (satter) Füllung heller Text, auf
 // heller Füllung die dunkle Variante der Segment-Hue (blau→dunkelblau, rot→
 // dunkelrot, neutral→mittelgrau). Schwache Neigung mischt Richtung Grau.
 function textColor(lean: number | null | undefined): string {
-  const c = fillRgb(lean);
-  if (!c) return rgb(DARK_NEUTRAL); // unbewertet (helle Füllung)
+  const c = leanRgb(lean);
+  if (!c) return rgbStr(DARK_NEUTRAL); // unbewertet (helle Füllung)
   if (luminance(c) < 128) return "rgb(249, 249, 247)"; // dunkle Füllung → heller Text
   const strength = Math.min(1, Math.abs(lean!));
   const dark = lean! >= 0 ? DARK_BLUE : DARK_RED;
-  return rgb(mixT(DARK_NEUTRAL, dark, strength));
+  return rgbStr(mixRgb(DARK_NEUTRAL, dark, strength));
 }
 
 // Label an Wortgrenzen auf bis zu maxLines Zeilen umbrechen; Überlauf mit „…".
@@ -362,7 +352,9 @@ export function TaxonomySunburst({
     : "";
   // Farbe = Seite (blau/rot), abgedunkelt für Lesbarkeit.
   const ratingColor =
-    lean == null ? "rgba(0,0,0,0.5)" : rgb(mixT(lean >= 0 ? BLUE : RED, [30, 30, 30], 0.1));
+    lean == null
+      ? "rgba(0,0,0,0.5)"
+      : rgbStr(mixRgb(lean >= 0 ? ARM_YES : ARM_NO, [30, 30, 30], 0.1));
   // Gespalten (hoher dissent) ⇒ Amber-Hinweis im Panel, passend zum Amber-Rand.
   const activeSplit = !!active && nodeDissent(active) > SPLIT_THRESHOLD;
   // Panel auf die dem Segment gegenüberliegende Seite legen (Winkel 0–180 = rechte
@@ -410,6 +402,25 @@ export function TaxonomySunburst({
             role="img"
             aria-label={t("sunburstTitle")}
           >
+            {/* Track-Ringe als Unterlage: jeder Ring liegt als durchgehendes,
+                schienenfarbenes Band hinter den Segmenten. Leere Bereiche (Lücken
+                zwischen Segmenten, unbewertete Knoten) zeigen so dieselbe Schiene
+                wie die Balken unten — die gefärbten Segmente sind die „Füllung". */}
+            {Array.from({ length: maxLevel }, (_, i) => i + 1).map((level) => {
+              const rInner = radii[level - 1] + RING_GAP / 2;
+              const rOuter = radii[level] - RING_GAP / 2;
+              return (
+                <circle
+                  key={`track-${level}`}
+                  cx={CX}
+                  cy={CY}
+                  r={(rInner + rOuter) / 2}
+                  fill="none"
+                  stroke={TRACK_CSS}
+                  strokeWidth={rOuter - rInner}
+                />
+              );
+            })}
             {segs.map((s) => {
               // Radiale Lücke zwischen den Ebenen: jedes Band beidseitig einrücken.
               const rInner = radii[s.level - 1] + RING_GAP / 2;
@@ -421,9 +432,6 @@ export function TaxonomySunburst({
               const pad = Math.min(PAD_DEG, span * 0.35) / 2;
               const pa0 = s.a0 + pad;
               const pa1 = s.a1 - pad;
-              // Tiefenstaffelung: innen voll deckend, aussen Richtung OUTER_OPACITY.
-              const depthT = maxLevel > 1 ? (s.level - 1) / (maxLevel - 1) : 0;
-              const baseOpacity = 1 - depthT * (1 - OUTER_OPACITY);
               const lean = leanOf(s.node);
               const unrated = lean == null; // weiss ⇒ feiner Umriss nötig
               // Gespalten = hoher Dissens (Ja- UND Nein-Argumente stark bewertet) ⇒ Amber-Rand.
@@ -495,7 +503,9 @@ export function TaxonomySunburst({
                     strokeDasharray={unrated ? "3 2.5" : undefined}
                     style={{
                       cursor: clickable ? "pointer" : "default",
-                      opacity: (hover && hover !== s.node ? 0.82 : 1) * baseOpacity,
+                      // Volltonig (keine Tiefen-Transparenz) — die Aussage steckt
+                      // allein in der Mischfarbe, exakt wie bei den Balken.
+                      opacity: hover && hover !== s.node ? 0.82 : 1,
                       transition: "opacity 120ms",
                     }}
                     onMouseEnter={() => setHover(s.node)}
@@ -513,7 +523,7 @@ export function TaxonomySunburst({
                           fill={AMBER}
                           transform={`translate(${bx} ${by}) scale(${k}) translate(-12 -12)`}
                           style={{ pointerEvents: "none" }}
-                          opacity={(hover && hover !== s.node ? 0.82 : 1) * baseOpacity}
+                          opacity={hover && hover !== s.node ? 0.82 : 1}
                         />
                       );
                     })()}
@@ -612,12 +622,12 @@ export function TaxonomySunburst({
 
         {/* Legende: Pole auf der durchgehenden Skala — abgesetzt durch eine Linie */}
         <div className="mt-5 border-t border-black/5 pt-4 flex items-center justify-center gap-3 text-[13px] font-medium">
-          <span style={{ color: `rgb(${RED.join(",")})` }}>{t("poleOpponents")}</span>
+          <span style={{ color: rgbStr(ARM_NO) }}>{t("poleOpponents")}</span>
           <span
             className="h-2.5 w-44 rounded-full"
             style={{ background: LEGEND_GRADIENT }}
           />
-          <span style={{ color: `rgb(${BLUE.join(",")})` }}>{t("poleSupporters")}</span>
+          <span style={{ color: rgbStr(ARM_YES) }}>{t("poleSupporters")}</span>
         </div>
 
         {/* Zweite Zeile: Sonder-Marker — gestricheltes Sektörchen = unbewertet,
