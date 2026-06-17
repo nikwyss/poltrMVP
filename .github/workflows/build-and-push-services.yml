@@ -85,8 +85,17 @@ jobs:
           KUBECONFIG_FILE="${{ github.workspace }}/kubeconfig"
           export KUBECONFIG="$KUBECONFIG_FILE"
           echo "KUBECONFIG path: $KUBECONFIG"
-          # optionally show the server & context (no secrets)
-          kubectl config view --kubeconfig "$KUBECONFIG" --minify -o yaml
+          # The secret kubeconfig may not set a current-context — without one,
+          # `--minify` (and the set-image calls below) fail hard. Auto-select the
+          # first available context if none is current.
+          if ! kubectl config current-context >/dev/null 2>&1; then
+            CTX="$(kubectl config get-contexts -o name | head -1)"
+            if [ -z "$CTX" ]; then echo "ERROR: kubeconfig has no context" >&2; exit 1; fi
+            echo "No current-context set — selecting: $CTX"
+            kubectl config use-context "$CTX"
+          fi
+          echo "Using context: $(kubectl config current-context)"
+          kubectl config view -o yaml || true
           IMAGE_FRONT=ghcr.io/${{ github.repository_owner }}/poltr-frontend:${{ github.sha }}
           IMAGE_APP=ghcr.io/${{ github.repository_owner }}/poltr-appview:${{ github.sha }}
           IMAGE_WRITER=ghcr.io/${{ github.repository_owner }}/poltr-community-writer:${{ github.sha }}
