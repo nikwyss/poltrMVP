@@ -2,6 +2,17 @@
 
 ## 2026-06-17
 
+### Akzeptanz-Pipeline: Writer-Gates (Quota + PR-Authorization) + Flag entfernt (`services/community-writer`, `services/indexer`, `infra`)
+
+Schliesst den Direkt-PDS-Bypass: ein User kontrolliert sein eigenes Repo und kann user-authored Records direkt am appview-API (samt dessen Submit-Checks) vorbei schreiben. Der community-writer (Promotion zum Community-Record) ist der autoritative Trust-Boundary — daher prüft er jetzt selbst, statt der synchronen appview-Reservierung zu vertrauen.
+
+- **Writer** ([acceptance.py](services/community-writer/src/atproto/acceptance.py)):
+  - `_accept_argument` setzt die Per-(user, ballot)-Quota autoritativ durch (`_enforce_argument_quota`): legit-AppView-Pfad hat schon eine `app_content_creations`-Ledger-Zeile (`uri = user_uri`) → übersprungen (keine Doppelzählung); ein Direkt-PDS-Write hat keine → wird gegen Tages-/Ballot-Cap geprüft und eingetragen. `pg_advisory_xact_lock` mit identischer Key-Formel wie [quota.py](services/appview/src/routes/deliberation/quota.py), so serialisieren appview-`reserve()` und Writer. Gleiche Env/Defaults (`APPVIEW_ARGUMENT_DAILY_LIMIT`/`_BALLOT_LIMIT`).
+  - `_accept_response` spiegelt die `submit_review`-Authorization gegen den DB-Stand: Einladung `invited=true`, `checked_in_at` gesetzt, `state != 'closed'`, Vote-Validität (APPROVE/REJECT, REJECT braucht Begründung).
+  - Tests: writer-Suite 10 → 19 grün (Quota daily/ballot/skip, Response not_invited/not_checked_in/review_closed/no_peerreview/invalid_vote/missing_justification).
+- **`ACCEPTANCE_PIPELINE_ENABLED` entfernt:** die appview schreibt user-authored Records seit Phase 7 unbedingt ins User-Repo, also MUSS der Consumer immer laufen — sonst verschwinden Beiträge. Flag raus aus [record_handler.js](services/indexer/src/record_handler.js) (Staging immer), [main.py](services/community-writer/src/main.py) (Acceptance-Loop immer) und allen Templates (`secrets.yaml.dist`, `.env.dist` ×3); die toten appview-Producer-Flags (`APPVIEW_ARGS/RESPONSES/REVIEW_REQUESTS_USER_REPO_ENABLED`) aus den Templates entfernt. Live-`secrets.yaml` hat das Flag bereits auf `true` → jetzt no-op, kann bei Gelegenheit raus.
+- **Offen** (s. doc/TODO.md): Comments/Likes haben weiterhin keine Quota (Direkt-Projektion ohne Writer-Choke-Point); Long-Transaction + Dead-Letter der Queue.
+
 ### Terminologie: „governance" → „community" projektweit (`services/*`, `infra`, `doc`)
 
 Einheitliche Sprache: aus „governance account/pds/repo" wird „community account/pds/repo", die Abkürzung `GOV` → `COMMUNITY` (ausgeschrieben). ~575 Treffer über 59+ Dateien, alle Tests grün (appview 38, community-writer 10, indexer 4).

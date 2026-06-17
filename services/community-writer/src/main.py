@@ -48,15 +48,14 @@ async def _main():
             pass
 
     # Crosspost + translation both self-gate via their *_ENABLED env flags.
+    # The acceptance pipeline always runs: the appview writes user-authored records
+    # unconditionally into user repos (no producer flag), so the writer must drain
+    # the queue or those records never become community records.
     tasks = [
         asyncio.create_task(run_crosspost_forever()),
         asyncio.create_task(run_translation_forever()),
+        asyncio.create_task(run_acceptance_forever()),
     ]
-    # Acceptance pipeline (Phase 3) — only when enabled; dormant otherwise so the
-    # writer keeps doing just crossposts/translation on older DBs.
-    if os.getenv("ACCEPTANCE_PIPELINE_ENABLED", "false").lower() == "true":
-        logger.info("Acceptance pipeline enabled")
-        tasks.append(asyncio.create_task(run_acceptance_forever()))
 
     await stop.wait()
 

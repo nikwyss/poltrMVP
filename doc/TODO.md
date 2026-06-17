@@ -3,13 +3,11 @@
 ## Next
 
 - [ ] Missing: per-email rate limit on code requests
-
+- [ ] email änderungs mechanismus im profil 
 - [ ] Comment-Tree: immer nur auswahl der comments zeigen, und dann mit "Zeige mehr" links expandierbar machen. 
 - [ ] @tanstack/vue-virtual beim feed view?
-- [x] Posting-Limite: Anzahl Argument Proposals + Anzahl Kommentare pro Tag und pro Monat/Abstimmug
 - [ ] Posting_limit:  Das Frontend-Display (Restkontingent im Composer, Deaktivieren bei Cap, 429-Handling/i18n) war laut doc/SECURITY_AUTH.md als „pending" markiert — die Durchsetzung im Backend steht, die UI-Anzeige evtl. noch nicht vollständig.
   
-- [ ] email änderungs mechanismus im profil 
 - [ ] Neue Analyse: Gegenüberstellungen umd Ambivalenz auzuzeigen. => Ja, aber. => "Es ist ihre Entscheidung, ob sie diesen Nachteil in Kauf nehmen würden" 
 - [ ] Wohin kommen neue argumente. Bleiben die vorerst unzugeordnet? Oder einfach dem hauptthema angehängt.??
 
@@ -159,9 +157,7 @@ Deliberations-Endpoints — kann heute `auth_creds` lesen.** Zwei Stufen:
   > Community-Passwörter. Wer maximale Trennung will, müsste das PDS-Schreiben hinter einen
   > eigenen, schmalen „community-writer"-Service ziehen (→ Richtung 2b).
 
-- [ ] **2b — Auth als eigener Microservice (groß):** nur dieser Dienst hält
-  `auth_creds`/`auth_sessions`; alle anderen validieren Sessions über eine interne
-  Token-Introspection-API. Maximale Isolation, deutlich mehr Umbau.
+
 
 Verwandt: die Email↔DID-Linkage (Klartext-Email in `auth_creds`) ist ein Daten-/Krypto-
 Change, kein Grant-Change → Punkt 1 im „Security-Review des Auth-Umbaus" oben
@@ -170,23 +166,42 @@ Change, kein Grant-Change → Punkt 1 im „Security-Review des Auth-Umbaus" obe
 
 ## ATProto-native Deliberation — Härtung der Akzeptanz-Pipeline vor Prod (2026-06-16)
 
-Die Phase-3-Akzeptanz-Pipeline (`services/appview/src/atproto/acceptance.py`) ist Dev-tauglich,
-aber vor dem Einsatz über Dev hinaus zu härten:
+Die Akzeptanz-Pipeline ([services/community-writer/src/atproto/acceptance.py](services/community-writer/src/atproto/acceptance.py))
+ist Dev-tauglich, aber vor dem Einsatz über Dev hinaus zu härten:
 - [ ] **Long-Transaction:** der Drain hält eine DB-Transaktion über den PDS-Write (`FOR UPDATE SKIP LOCKED`
   + createRecord in derselben Tx) → bei höherem Volumen problematisch. Claim/Process entkoppeln
   (z.B. Status `processing` + Lock früh freigeben, oder kurze Claim-Tx + separate Done-Tx).
 - [ ] **Head-of-line-Blocking / kein Dead-Letter:** ein dauerhaft fehlschlagender Row bleibt `pending`
   und blockiert die Queue. Attempt-Counter + Backoff + Dead-Letter (`status='failed'` nach N Versuchen).
-- [ ] **Writer-Quota:** der Writer vertraut aktuell der synchronen appview-Reservierung und prüft Quota
-  selbst nicht. Für den Bypass-/Föderationspfad muss das Gate die Quota autoritativ gegen
-  `app_content_creations` durchsetzen (L11).
-- [ ] **Master-Key-Split fertigstellen:** Env-Namen + Code-Pfade sind getrennt (`APPVIEW_USER_CREDS_MASTER_KEY_B64`
-  für `auth_creds`, `APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64` für `community_accounts`; Python `pds_creds.py`
-  USER/COMMUNITY-Funktionen, CMS `communityMasterKeyB64()`, Legacy-Fallback). **Offen:** auf Dev/Prod tatsächlich
-  **unterschiedliche** Werte setzen — dazu `community_accounts.pw_*` mit dem neuen Community-Key **re-encrypten**
-  (kurzes Migrations-Skript: alt entschlüsseln → neu verschlüsseln) und den Legacy-Fallback entfernen. Erst dann
-  öffnet ein appview-Leak nicht mehr die Community-Creds.
+- [x] **Writer-Quota / -Authorization (erledigt 2026-06-17):** der Writer prüft jetzt autoritativ
+  gegen den DB-Stand statt der appview-Reservierung zu vertrauen. `_accept_argument` setzt die
+  Per-(user, ballot)-Caps gegen `app_content_creations` durch (legit-Pfad via `uri`-Ledger-Zeile
+  übersprungen, Direkt-PDS-Write gezählt + eingetragen, Advisory-Lock wie `quota.py`).
+  `_accept_response` spiegelt die `submit_review`-Checks (Einladung `invited=true`, `checked_in_at`,
+  `state != closed`, Vote-Validität). Schliesst den Direkt-PDS-Bypass für Argumente/Responses.
 Plan: `typed-kindling-flask`. [[project_architecture_layers]].
+
+## Wo es heute wirklich offen ist: Comments & Likes (Direkt-PDS-Quota-Bypass)
+
+Comments und Likes leben per Design im User-Repo und werden **direkt projiziert**, nur
+gegated durch die (permissive) Eligibility-View — [record_handler.js:171](services/indexer/src/record_handler.js#L171)
+und [:211](services/indexer/src/record_handler.js#L211):
+
+```js
+if (!isCommunityDid(did) && !(await isEligibleDid(did))) { ... return; }
+```
+
+Hier gibt es **keinen Quota-Check.** Ein User kann via direktem PDS-Write beliebig viele
+Comments/Likes erzeugen und die AppView-Quota ([quota.py](services/appview/src/routes/deliberation/quota.py))
+umgehen. Das ist das echte, aktuell offene Loch in dieser Klasse von Bedenken.
+
+> Unterschied zum Writer-Quota-Punkt oben: Argumente/Responses werden über den
+> Community-Account autoritativ (Choke-Point = Writer) und sind aus User-Repos heute
+> verworfen; Comments/Likes haben **keinen** Promotion-Schritt — die Indexer-Projektion
+> IST der einzige Choke-Point. Das Gate (inkl. Quota) muss daher hier sitzen, oder
+> Comments/Likes müssten ebenfalls über eine Queue/Writer geroutet werden (eigener
+> Design-Entscheid; Quota im Projektor ist replay-heikel, da das 24h-Fenster
+> wall-clock-abhängig ist).
 
 ## VISION
 - [ ] Translations: translations only in the appviev. a) Originalsprache im PDS speichern. b). Auch in "einfache Sprache" übersetzbar? (Inclusion)
@@ -200,6 +215,7 @@ Plan: `typed-kindling-flask`. [[project_architecture_layers]].
 
 
 ## Done
+- Posting-Limite: Anzahl Argument Proposals + Anzahl Kommentare pro Tag und pro Monat/Abstimmug
 - Auswertungsplots. (erste version.)
 - Argument-Aggregation (topic groupings etc.) => noisy-or
 - Taxonomy snapshot.

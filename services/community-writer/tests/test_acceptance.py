@@ -15,9 +15,11 @@ from src.atproto import acceptance
 # Fake asyncpg connection: dispatch fetchrow by a substring of the SQL.
 # ---------------------------------------------------------------------------
 class FakeConn:
-    def __init__(self, responses: dict):
-        self._responses = responses  # SQL-substring -> row dict | None
+    def __init__(self, responses: dict, vals: dict | None = None):
+        self._responses = responses  # SQL-substring -> fetchrow row dict | None
+        self._vals = vals or {}      # SQL-substring -> fetchval scalar
         self.calls = []
+        self.executed = []
 
     async def fetchrow(self, sql, *params):
         self.calls.append((sql, params))
@@ -25,6 +27,17 @@ class FakeConn:
             if key in sql:
                 return val
         return None
+
+    async def fetchval(self, sql, *params):
+        self.calls.append((sql, params))
+        for key, val in self._vals.items():
+            if key in sql:
+                return val
+        return None
+
+    async def execute(self, sql, *params):
+        self.executed.append((sql, params))
+        return "OK"
 
 
 USER_RECORD = {
@@ -120,6 +133,53 @@ async def test_accept_argument_idempotent_when_already_exists():
     create.assert_not_awaited()  # crash-recovery: do not double-write
 
 
+@pytest.mark.asyncio
+async def test_accept_argument_rejects_when_daily_quota_exceeded():
+    # No ledger row for this uri (direct-to-PDS write) → quota enforced here.
+    conn = FakeConn(
+        {"v_eligible_participants": {"eligible": True},
+         "community_accounts": {"did": "did:plc:community"},
+         "FROM app_content_creations": {"daily": 5, "lifetime": 5}},
+    )
+    with patch.object(acceptance, "get_community_record", AsyncMock(return_value=None)), \
+         patch.object(acceptance, "create_community_record", AsyncMock()) as create:
+        status, reason = await acceptance._accept_argument(AsyncMock(), conn, ARG_ROW)
+    assert (status, reason) == ("rejected", "quota_daily")
+    create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_accept_argument_rejects_when_ballot_quota_exceeded():
+    # Daily under cap, lifetime over the ballot cap.
+    conn = FakeConn(
+        {"v_eligible_participants": {"eligible": True},
+         "community_accounts": {"did": "did:plc:community"},
+         "FROM app_content_creations": {"daily": 0, "lifetime": 50}},
+    )
+    with patch.object(acceptance, "get_community_record", AsyncMock(return_value=None)), \
+         patch.object(acceptance, "create_community_record", AsyncMock()) as create:
+        status, reason = await acceptance._accept_argument(AsyncMock(), conn, ARG_ROW)
+    assert (status, reason) == ("rejected", "quota_ballot")
+    create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_accept_argument_skips_quota_when_ledger_row_exists():
+    # appview reserve() already recorded this slot (ledger row keyed to user_uri).
+    conn = FakeConn(
+        {"v_eligible_participants": {"eligible": True},
+         "community_accounts": {"did": "did:plc:community"}},
+        vals={"WHERE uri = $1": 1},
+    )
+    with patch.object(acceptance, "get_community_record", AsyncMock(return_value=None)), \
+         patch.object(acceptance, "create_community_record", AsyncMock(return_value={"uri": "x"})) as create:
+        status, reason = await acceptance._accept_argument(AsyncMock(), conn, ARG_ROW)
+    assert (status, reason) == ("done", None)
+    create.assert_awaited_once()
+    # legit path already counted → no second ledger INSERT
+    assert not any("INSERT INTO app_content_creations" in sql for sql, _ in conn.executed)
+
+
 # ---------------------------------------------------------------------------
 # _accept_response
 # ---------------------------------------------------------------------------
@@ -139,12 +199,26 @@ RESP_ROW = {
 }
 
 
+def _resp_conn(**overrides):
+    """FakeConn for a fully-authorized response; override individual rows per test.
+    Note the distinct keys: 'did FROM app_arguments' (community-DID lookup) must not
+    collide with 'app_peerreviews' (whose query also references app_arguments)."""
+    responses = {
+        "v_eligible_participants": {"eligible": True},
+        "did FROM app_arguments": {"did": "did:plc:community"},
+        "app_peerreviews": {"state": "open"},
+        "app_peerreview_invitations": {"checked_in_at": "2026-06-17T00:00:00Z"},
+    }
+    responses.update(overrides)
+    return FakeConn({k: v for k, v in responses.items() if v is not _MISSING})
+
+
+_MISSING = object()
+
+
 @pytest.mark.asyncio
 async def test_accept_response_happy_path():
-    conn = FakeConn({
-        "v_eligible_participants": {"eligible": True},
-        "app_arguments": {"did": "did:plc:community"},
-    })
+    conn = _resp_conn()
     with patch.object(acceptance, "get_community_record", AsyncMock(return_value=None)), \
          patch.object(acceptance, "create_community_record", AsyncMock(return_value={"uri": "x"})) as create:
         status, reason = await acceptance._accept_response(AsyncMock(), conn, RESP_ROW)
@@ -166,6 +240,62 @@ async def test_accept_response_rejects_when_argument_unknown():
     with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
         status, reason = await acceptance._accept_response(AsyncMock(), conn, RESP_ROW)
     assert (status, reason) == ("rejected", "argument_not_found")
+    create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_accept_response_rejects_when_not_invited():
+    conn = _resp_conn(app_peerreview_invitations=_MISSING)
+    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
+        status, reason = await acceptance._accept_response(AsyncMock(), conn, RESP_ROW)
+    assert (status, reason) == ("rejected", "not_invited")
+    create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_accept_response_rejects_when_not_checked_in():
+    conn = _resp_conn(app_peerreview_invitations={"checked_in_at": None})
+    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
+        status, reason = await acceptance._accept_response(AsyncMock(), conn, RESP_ROW)
+    assert (status, reason) == ("rejected", "not_checked_in")
+    create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_accept_response_rejects_when_review_closed():
+    conn = _resp_conn(app_peerreviews={"state": "closed"})
+    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
+        status, reason = await acceptance._accept_response(AsyncMock(), conn, RESP_ROW)
+    assert (status, reason) == ("rejected", "review_closed")
+    create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_accept_response_rejects_when_no_peerreview():
+    conn = _resp_conn(app_peerreviews=_MISSING)
+    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
+        status, reason = await acceptance._accept_response(AsyncMock(), conn, RESP_ROW)
+    assert (status, reason) == ("rejected", "no_peerreview")
+    create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_accept_response_rejects_invalid_vote():
+    conn = _resp_conn()
+    row = {**RESP_ROW, "record": {**RESP_RECORD, "vote": "MAYBE"}}
+    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
+        status, reason = await acceptance._accept_response(AsyncMock(), conn, row)
+    assert (status, reason) == ("rejected", "invalid_vote")
+    create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_accept_response_rejects_reject_without_justification():
+    conn = _resp_conn()
+    row = {**RESP_ROW, "record": {**RESP_RECORD, "vote": "REJECT"}}  # no justification
+    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
+        status, reason = await acceptance._accept_response(AsyncMock(), conn, row)
+    assert (status, reason) == ("rejected", "missing_justification")
     create.assert_not_awaited()
 
 
