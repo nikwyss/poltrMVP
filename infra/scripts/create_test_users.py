@@ -22,7 +22,7 @@ Environment variables:
   PDS_ADMIN_PASSWORD  PDS admin password (Basic auth)
   PDS_PUBLIC_HANDLE   Handle domain (default: id.poltr.ch)
   DB_URL              appview DB connection URL
-  MASTER_KEY_B64      APPVIEW_PDS_CREDS_MASTER_KEY_B64 (NaCl encryption key)
+  MASTER_KEY_B64      APPVIEW_USER_CREDS_MASTER_KEY_B64 (NaCl encryption key)
   N                   Number of users to create (default: 1)
   EMAIL_DOMAIN        Email domain for generated test addresses (default: test.poltr.ch)
 """

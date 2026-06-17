@@ -18,7 +18,7 @@ Required env:
   PDS_HOST           default http://localhost:2583
   CMS_DB_URL         e.g. postgresql://cms:<pw>@localhost:5432/cms
   APPVIEW_DB_URL     e.g. postgresql://appview:<pw>@localhost:5432/appview
-  MASTER_KEY_B64     APPVIEW_PDS_CREDS_MASTER_KEY_B64
+  MASTER_KEY_B64     APPVIEW_GOV_CREDS_MASTER_KEY_B64
 
 Optional:
   BALLOT_CMS_ID      default 1

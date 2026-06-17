@@ -22,7 +22,7 @@ Environment variables:
   XLSX_PATH                         Path to content.xlsx (default: dump/content.xlsx)
   ADMIN_HANDLE                      Handle to exclude (default: admin.id.poltr.ch)
   INDEXER_POSTGRES_URL              Postgres connection string (reads auth.auth_creds)
-  APPVIEW_PDS_CREDS_MASTER_KEY_B64  Base64-encoded NaCl secret key for app password decryption
+  APPVIEW_USER_CREDS_MASTER_KEY_B64  Base64-encoded NaCl secret key for app password decryption
 """
 
 import base64
@@ -472,7 +472,7 @@ def main():
     xlsx_path = os.getenv("XLSX_PATH", "dump/content.xlsx")
     admin_handle = os.getenv("ADMIN_HANDLE", "admin.id.poltr.ch")
     db_url = os.getenv("INDEXER_POSTGRES_URL", "")
-    master_key_b64 = os.getenv("APPVIEW_PDS_CREDS_MASTER_KEY_B64", "")
+    master_key_b64 = os.getenv("APPVIEW_USER_CREDS_MASTER_KEY_B64", "")
 
     if not pds_admin_password:
         print("ERROR: PDS_ADMIN_PASSWORD required")
@@ -484,7 +484,7 @@ def main():
         sys.exit(1)
 
     if not db_url or not master_key_b64:
-        print("ERROR: INDEXER_POSTGRES_URL and APPVIEW_PDS_CREDS_MASTER_KEY_B64 required")
+        print("ERROR: INDEXER_POSTGRES_URL and APPVIEW_USER_CREDS_MASTER_KEY_B64 required")
         print("  (used to read stored app passwords from auth.auth_creds)")
         sys.exit(1)
 

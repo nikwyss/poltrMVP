@@ -2,11 +2,11 @@
 """One-shot script: encrypt the governance account password and INSERT into auth_creds.
 
 Usage:
-  APPVIEW_PDS_CREDS_MASTER_KEY_B64=<key> python3 insert_governance_cred.py
+  APPVIEW_GOV_CREDS_MASTER_KEY_B64=<key> python3 insert_governance_cred.py
 
 Or pipe the master key:
-  export APPVIEW_PDS_CREDS_MASTER_KEY_B64=$(kubectl get secret appview-secrets -n poltr \
-      -o jsonpath='{.data.APPVIEW_PDS_CREDS_MASTER_KEY_B64}' | base64 -d)
+  export APPVIEW_GOV_CREDS_MASTER_KEY_B64=$(kubectl get secret appview-secrets -n poltr \
+      -o jsonpath='{.data.APPVIEW_GOV_CREDS_MASTER_KEY_B64}' | base64 -d)
   python3 insert_governance_cred.py
 """
 

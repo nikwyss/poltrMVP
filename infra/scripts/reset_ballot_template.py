@@ -18,7 +18,7 @@ Usage:
     # Dry run (default — shows what would be deleted, touches nothing):
     BALLOT_RKEY=663 \\
     DB_URL=postgresql://allforone:<pw>@localhost:5432/appview \\
-    MASTER_KEY_B64=<APPVIEW_PDS_CREDS_MASTER_KEY_B64> \\
+    MASTER_KEY_B64=<APPVIEW_GOV_CREDS_MASTER_KEY_B64> \\
     python3 infra/scripts/reset_ballot_template.py
 
     # Actually delete:
@@ -32,7 +32,7 @@ Prerequisites:
 Env vars:
     BALLOT_RKEY      Ballot rkey (BK number, e.g. "663"). Default: "663".
     DB_URL           PostgreSQL connection URL (governance creds + cleanup).
-    MASTER_KEY_B64   APPVIEW_PDS_CREDS_MASTER_KEY_B64 (decrypts governance password).
+    MASTER_KEY_B64   APPVIEW_GOV_CREDS_MASTER_KEY_B64 (decrypts governance password).
     PDS_HOST         PDS endpoint. Default: http://localhost:2583.
 
 What is KEPT:

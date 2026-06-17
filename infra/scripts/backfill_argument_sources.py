@@ -14,7 +14,7 @@ For each governance account (one per ballot), the script:
 Environment:
   PDS_HOST         PDS endpoint                          (default: http://localhost:2583)
   DB_URL           PostgreSQL connection URL             (required)
-  MASTER_KEY_B64   APPVIEW_PDS_CREDS_MASTER_KEY_B64      (required)
+  MASTER_KEY_B64   APPVIEW_GOV_CREDS_MASTER_KEY_B64      (required)
   BALLOT_RKEY      Only backfill this ballot             (optional: omit = all)
   DRY_RUN          'true' = inspect only, no writes      (default: false)
   LIMIT_PER_REPO   Max records per governance account    (default: 0 = no limit)

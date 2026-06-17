@@ -23,7 +23,7 @@ Prerequisites:
 Environment variables:
   PDS_HOST         PDS endpoint (default: http://localhost:2583)
   DB_URL           PostgreSQL connection URL (loads encrypted creds)
-  MASTER_KEY_B64   APPVIEW_PDS_CREDS_MASTER_KEY_B64 (for decryption)
+  MASTER_KEY_B64   APPVIEW_GOV_CREDS_MASTER_KEY_B64 (for decryption)
   GOV_DID          Optional: limit to a single governance account
   DRY_RUN          Set to "true" to list records without deleting (default: false)
 """

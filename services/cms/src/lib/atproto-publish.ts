@@ -110,10 +110,9 @@ async function waitForPlcResolution(did: string, timeout = 10000, interval = 200
 // Password encryption (NaCl SecretBox, same as Python pds_creds.py)
 // ---------------------------------------------------------------------------
 
-// Governance-Master-Key (Key-Split vorbereitet): eigener Env-Name, Fallback auf
-// den Legacy-Einzel-Key. CMS verschlüsselt nur GOVERNANCE-Creds → Gov-Key.
+// Governance-Master-Key (Key-Split): CMS verschlüsselt nur GOVERNANCE-Creds → Gov-Key.
 function govMasterKeyB64(): string {
-  return env('APPVIEW_GOV_CREDS_MASTER_KEY_B64', process.env.APPVIEW_PDS_CREDS_MASTER_KEY_B64)
+  return env('APPVIEW_GOV_CREDS_MASTER_KEY_B64')
 }
 
 function encryptPassword(password: string): { ciphertext: Buffer; nonce: Buffer } {

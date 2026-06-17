@@ -18,7 +18,7 @@ Environment variables:
   PDS_HOST         PDS endpoint (default: http://localhost:2583)
   DB_URL           PostgreSQL connection URL (for governance_accounts lookup)
   BALLOT_RKEY      Ballot rkey — credentials are loaded from governance_accounts table
-  MASTER_KEY_B64   APPVIEW_PDS_CREDS_MASTER_KEY_B64 (for decrypting governance password)
+  MASTER_KEY_B64   APPVIEW_GOV_CREDS_MASTER_KEY_B64 (for decrypting governance password)
   MAX_RESPONSES    Max number of responses to import (default: 0 = all)
   DRY_RUN          Set to "true" to inspect records without writing (default: false)
   PEERREVIEW_XLSX  Path to content_peerreview.xlsx (default: dump/content_peerreview.xlsx)
@@ -464,7 +464,7 @@ def main():
         print("ERROR: DB_URL, BALLOT_RKEY, and MASTER_KEY_B64 required")
         print("  DB_URL:          PostgreSQL connection URL")
         print("  BALLOT_RKEY:     Ballot rkey (e.g. '663')")
-        print("  MASTER_KEY_B64:  APPVIEW_PDS_CREDS_MASTER_KEY_B64")
+        print("  MASTER_KEY_B64:  APPVIEW_GOV_CREDS_MASTER_KEY_B64")
         sys.exit(1)
 
     # Load credentials from governance_accounts table

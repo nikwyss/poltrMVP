@@ -2,6 +2,16 @@
 
 ## 2026-06-17
 
+### Legacy-Master-Key entfernt — keine Rückwärtskompatibilität mehr (`services/*`, `infra`)
+
+Der alte Einzel-Master-Key `APPVIEW_PDS_CREDS_MASTER_KEY_B64` und sämtliche Fallback-Pfade darauf sind entfernt. Es gilt nur noch der Key-Split: USER-Key (`auth_creds`) vs. GOV-Key (`governance_accounts`).
+
+- **`pds_creds.py`** (appview + `services/writer/src/shared/`, identisch gesynct): `_LEGACY_KEY_ENV` + der `or os.getenv(_LEGACY)`-Fallback in `_load_key` + der deprecated `load_master_key()`-Alias entfernt. `_load_key` verlangt jetzt strikt den jeweiligen scoped Key.
+- **`atproto-publish.ts`** (CMS): `govMasterKeyB64()` ohne Legacy-Fallback → nur noch `APPVIEW_GOV_CREDS_MASTER_KEY_B64` (CMS hat ihn via secretKeyRef).
+- **Secrets/Templates**: `APPVIEW_PDS_CREDS_MASTER_KEY_B64` aus `secrets.yaml` (+ `.dist`) und allen `.env.dist` raus; Kommentare entlegacyt.
+- **`infra/scripts`**: Docstrings + der echte Read in `import_comments.py` auf die scoped Keys umgestellt (gov-Scripts → `APPVIEW_GOV_CREDS_MASTER_KEY_B64`, App-Passwort-Scripts → `APPVIEW_USER_CREDS_MASTER_KEY_B64`).
+- Tests grün (appview 38, writer 10). Auf Dev haben USER-/GOV-Key denselben Wert → kein Re-Encryption nötig.
+
 ### Writer in eigenen Service + eigenes Image getrennt (`services/writer`, `services/appview`, `infra`)
 
 Der Writer-Quellcode wird aus `services/appview` herausgelöst — die appview wird von mehreren Usern für weitere Module genutzt, der Writer ist deliberations-spezifisch. Vorher teilten sich beide Image + Source-Tree (appview-Image, `command:`-Override).
