@@ -42,7 +42,7 @@ kubectl apply -f infra/kube/secrets.yaml
 ## 3. Deploy (Flags noch AUS)
 
 ```bash
-kubectl apply -f infra/kube/writer.yaml
+kubectl apply -f infra/kube/community-writer.yaml
 kubectl rollout restart deploy/appview deploy/indexer deploy/cms -n poltr
 kubectl get pods -n poltr            # writer-Pod läuft? appview/indexer/cms neu?
 ```
@@ -55,13 +55,13 @@ nichts gebrochen haben.
   **appview**-Pod loggt **nichts** dazu.
 - **Translator**: Übersetzungen erscheinen weiter; nur **writer**-Pod loggt sie.
 - **Legacy-Create**: Argument/Response landen wie bisher im Governance-Repo (appview schreibt direkt).
-- Logs: `kubectl logs -n poltr deploy/writer` / `deploy/appview` / `deploy/indexer`.
+- Logs: `kubectl logs -n poltr deploy/community-writer` / `deploy/appview` / `deploy/indexer`.
 
 ## 5. Pipeline scharf schalten — Consumer ZUERST
 
 Reihenfolge wichtig (nie Producer ohne Consumer, sonst „verschwinden" Argumente):
 1. **Consumer**: `ACCEPTANCE_PIPELINE_ENABLED:"true"` in **indexer-secrets** + **writer-secrets** → apply →
-   `kubectl rollout restart deploy/indexer deploy/writer -n poltr`. (Queue leer → No-op.)
+   `kubectl rollout restart deploy/indexer deploy/community-writer -n poltr`. (Queue leer → No-op.)
 2. **Producer**: `APPVIEW_ARGS_USER_REPO_ENABLED` / `APPVIEW_RESPONSES_USER_REPO_ENABLED` /
    `APPVIEW_REVIEW_REQUESTS_USER_REPO_ENABLED` = `"true"` in **appview-secrets** → apply →
    `kubectl rollout restart deploy/appview -n poltr`.

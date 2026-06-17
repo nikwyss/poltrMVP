@@ -4,7 +4,7 @@
 # einen eigenen internen Prozess: Crosspost (Phase 1), Translation (Phase 5),
 # Akzeptanz-Pipeline (app_acceptance_queue) + Review-Assignment (Phase 6).
 #
-# EIGENER Service + EIGENES Image (services/writer, ghcr.io/.../poltr-writer);
+# EIGENER Service + EIGENES Image (services/community-writer, ghcr.io/.../poltr-community-writer);
 # reiner Hintergrund-Worker (CMD im Dockerfile, kein HTTP-Server, kein k8s-Service).
 # src/shared/ enthält manuell aus services/appview gesyncte Module (pds_creds, db,
 # errors, languages) — beim Ändern dort drüben mitziehen.
@@ -21,7 +21,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: writer
+  name: community-writer
   namespace: poltr
 spec:
   strategy:
@@ -29,17 +29,17 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: writer
+      app: community-writer
   template:
     metadata:
       labels:
-        app: writer
+        app: community-writer
     spec:
       imagePullSecrets:
         - name: ghcr-registry
       containers:
-        - name: writer
-          image: ghcr.io/nikwyss/poltr-writer:latest
+        - name: community-writer
+          image: ghcr.io/nikwyss/poltr-community-writer:latest
           imagePullPolicy: Always
           envFrom:
             - secretRef:

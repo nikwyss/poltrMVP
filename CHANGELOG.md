@@ -6,22 +6,22 @@
 
 Der alte Einzel-Master-Key `APPVIEW_PDS_CREDS_MASTER_KEY_B64` und sämtliche Fallback-Pfade darauf sind entfernt. Es gilt nur noch der Key-Split: USER-Key (`auth_creds`) vs. GOV-Key (`governance_accounts`).
 
-- **`pds_creds.py`** (appview + `services/writer/src/shared/`, identisch gesynct): `_LEGACY_KEY_ENV` + der `or os.getenv(_LEGACY)`-Fallback in `_load_key` + der deprecated `load_master_key()`-Alias entfernt. `_load_key` verlangt jetzt strikt den jeweiligen scoped Key.
+- **`pds_creds.py`** (appview + `services/community-writer/src/shared/`, identisch gesynct): `_LEGACY_KEY_ENV` + der `or os.getenv(_LEGACY)`-Fallback in `_load_key` + der deprecated `load_master_key()`-Alias entfernt. `_load_key` verlangt jetzt strikt den jeweiligen scoped Key.
 - **`atproto-publish.ts`** (CMS): `govMasterKeyB64()` ohne Legacy-Fallback → nur noch `APPVIEW_GOV_CREDS_MASTER_KEY_B64` (CMS hat ihn via secretKeyRef).
 - **Secrets/Templates**: `APPVIEW_PDS_CREDS_MASTER_KEY_B64` aus `secrets.yaml` (+ `.dist`) und allen `.env.dist` raus; Kommentare entlegacyt.
 - **`infra/scripts`**: Docstrings + der echte Read in `import_comments.py` auf die scoped Keys umgestellt (gov-Scripts → `APPVIEW_GOV_CREDS_MASTER_KEY_B64`, App-Passwort-Scripts → `APPVIEW_USER_CREDS_MASTER_KEY_B64`).
 - Tests grün (appview 38, writer 10). Auf Dev haben USER-/GOV-Key denselben Wert → kein Re-Encryption nötig.
 
-### Writer in eigenen Service + eigenes Image getrennt (`services/writer`, `services/appview`, `infra`)
+### Writer in eigenen Service + eigenes Image getrennt (`services/community-writer`, `services/appview`, `infra`)
 
 Der Writer-Quellcode wird aus `services/appview` herausgelöst — die appview wird von mehreren Usern für weitere Module genutzt, der Writer ist deliberations-spezifisch. Vorher teilten sich beide Image + Source-Tree (appview-Image, `command:`-Override).
 
-- **Neu `services/writer/`** (eigenes Image `ghcr.io/nikwyss/poltr-writer`, eigenes Dockerfile, reiner Worker ohne HTTP): `main.py` (Entrypoint `python -m src.main`) + `atproto/{crosspost,acceptance,governance}.py` + `translation/translator.py` + `arguments/peer_review_assign.py`.
-- **`services/writer/src/shared/`** — aus appview **manuell gesyncte** Kopien (vorerst kein Shared-Package): `pds_creds.py` (Krypto, format-kritisch), `db.py`, `errors.py`, `languages.py`. Imports der vier biegen auf `src.shared.*`; alles andere behält seine Pfade.
+- **Neu `services/community-writer/`** (eigenes Image `ghcr.io/nikwyss/poltr-community-writer`, eigenes Dockerfile, reiner Worker ohne HTTP): `main.py` (Entrypoint `python -m src.main`) + `atproto/{crosspost,acceptance,governance}.py` + `translation/translator.py` + `arguments/peer_review_assign.py`.
+- **`services/community-writer/src/shared/`** — aus appview **manuell gesyncte** Kopien (vorerst kein Shared-Package): `pds_creds.py` (Krypto, format-kritisch), `db.py`, `errors.py`, `languages.py`. Imports der vier biegen auf `src.shared.*`; alles andere behält seine Pfade.
 - **appview entschlackt**: `writer_main.py`, `atproto/crosspost.py`, `atproto/acceptance.py`, `translation/translator.py` entfernt (von der appview-API nirgends importiert). `governance.py`/`peer_review_assign.py` bleiben (appview nutzt `get_did_for_ballot` bzw. den Aktivitäts-Hook). `atproto_api.py` (630 LOC) bleibt ganz bei appview — der Writer braucht null davon.
-- **CI/Deploy**: `writer` als normaler Service in die Build-Matrix (eigenes Image, kein Sonderfall); Deploy `set image deployment/writer = poltr-writer:sha`. `writer.yaml`: Image → `poltr-writer`, `command:`-Override raus (CMD im Dockerfile).
-- Tests verschoben: `test_acceptance.py` → `services/writer/tests`. appview 38 grün, writer 10 grün.
-- **Hinweis manueller Sync:** Änderungen an `pds_creds/db/errors/languages` in appview müssen nach `services/writer/src/shared/` mitgezogen werden (v.a. `pds_creds` — Chiffrat-Format).
+- **CI/Deploy**: `writer` als normaler Service in die Build-Matrix (eigenes Image, kein Sonderfall); Deploy `set image deployment/community-writer = poltr-community-writer:sha`. `community-writer.yaml`: Image → `poltr-community-writer`, `command:`-Override raus (CMD im Dockerfile).
+- Tests verschoben: `test_acceptance.py` → `services/community-writer/tests`. appview 38 grün, writer 10 grün.
+- **Hinweis manueller Sync:** Änderungen an `pds_creds/db/errors/languages` in appview müssen nach `services/community-writer/src/shared/` mitgezogen werden (v.a. `pds_creds` — Chiffrat-Format).
 
 ### Anti-Spam: Eligibility-Gate für Comments/Likes + PDS-Rate-Limits (`services/indexer`, `infra`)
 

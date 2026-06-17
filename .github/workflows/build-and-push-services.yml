@@ -18,7 +18,7 @@ jobs:
       # race on ghcr.io cross-repo blob mounts and fail with "unknown blob".
       max-parallel: 1
       matrix:
-        service: [appview, indexer, writer, front, cms, calculator]
+        service: [appview, indexer, community-writer, front, cms, calculator]
 
     steps:
       - name: Checkout
@@ -89,14 +89,14 @@ jobs:
           kubectl config view --kubeconfig "$KUBECONFIG" --minify -o yaml
           IMAGE_FRONT=ghcr.io/${{ github.repository_owner }}/poltr-front:${{ github.sha }}
           IMAGE_APP=ghcr.io/${{ github.repository_owner }}/poltr-appview:${{ github.sha }}
-          IMAGE_WRITER=ghcr.io/${{ github.repository_owner }}/poltr-writer:${{ github.sha }}
+          IMAGE_WRITER=ghcr.io/${{ github.repository_owner }}/poltr-community-writer:${{ github.sha }}
           IMAGE_INDEXER=ghcr.io/${{ github.repository_owner }}/poltr-indexer:${{ github.sha }}
           IMAGE_CMS=ghcr.io/${{ github.repository_owner }}/poltr-cms:${{ github.sha }}
           IMAGE_CALCULATOR=ghcr.io/${{ github.repository_owner }}/poltr-calculator:${{ github.sha }}
           # run kubectl operations (guarded to avoid failing whole workflow for missing resources)
           kubectl -n poltr set image deployment/appview appview="$IMAGE_APP" || true
-          echo "Updating writer deployment to $IMAGE_WRITER"
-          kubectl -n poltr set image deployment/writer writer="$IMAGE_WRITER" || true
+          echo "Updating community-writer deployment to $IMAGE_WRITER"
+          kubectl -n poltr set image deployment/community-writer community-writer="$IMAGE_WRITER" || true
           echo "Updating frontend deployment to $IMAGE_FRONT"
           kubectl -n poltr set image deployment/frontend frontend="$IMAGE_FRONT" || true
           kubectl -n poltr set image deployment/indexer indexer="$IMAGE_INDEXER" || true
@@ -106,8 +106,8 @@ jobs:
           kubectl -n poltr set image deployment/calculator calculator="$IMAGE_CALCULATOR" || true
           echo "Waiting for appview rollout..."
           kubectl -n poltr rollout status deployment/appview --timeout=180s || true
-          echo "Waiting for writer rollout..."
-          kubectl -n poltr rollout status deployment/writer --timeout=180s || true
+          echo "Waiting for community-writer rollout..."
+          kubectl -n poltr rollout status deployment/community-writer --timeout=180s || true
           echo "Waiting for indexer rollout..."
           kubectl -n poltr rollout status deployment/indexer --timeout=180s || true
           echo "Waiting for frontend rollout..."
