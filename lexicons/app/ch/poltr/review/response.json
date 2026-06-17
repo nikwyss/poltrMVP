@@ -64,7 +64,7 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 5,
-          "description": "Bewertung auf einer 1–5-Skala. 1 = ungenügend, 5 = ausgezeichnet. Legacy-Importe aus Demokratiefabrik mappen 0/1 auf 1/5."
+          "description": "Bewertung auf einer 1–5-Skala. 1 = ungenügend, 5 = ausgezeichnet."
         }
       }
     }

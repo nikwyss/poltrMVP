@@ -8,7 +8,7 @@ cross-post loop here, reusing src.atproto.crosspost unchanged.
 Later phases add the acceptance pipeline (user-authored records → community
 records), the translator, and the peer-review assignment to this same process.
 
-Run:  python -m src.writer_main
+Run:  python -m src.main
 """
 
 import asyncio
@@ -19,7 +19,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-import src.core.db as db
+import src.shared.db as db
 from src.atproto.acceptance import run_acceptance_forever
 from src.atproto.crosspost import run_crosspost_forever
 from src.translation.translator import run_translation_forever

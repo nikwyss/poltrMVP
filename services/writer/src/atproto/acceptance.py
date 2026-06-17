@@ -2,7 +2,7 @@
 
 User-authored argument records land in their OWN repos (self-signed). The
 projector (indexer) stages them into `app_acceptance_queue`. This module — run by
-the writer process (src.writer_main) when ACCEPTANCE_PIPELINE_ENABLED=true —
+the writer process (src.main) when ACCEPTANCE_PIPELINE_ENABLED=true —
 drains that queue: gates each item (eligibility), then writes the canonical
 community record into the governance repo (the user content copied + a
 `source:{originUri,originCid}` provenance reference). The governance-authored
@@ -24,7 +24,7 @@ import os
 
 import httpx
 
-from src.core.db import get_pool
+from src.shared.db import get_pool
 from src.atproto.governance import (
     create_governance_record,
     get_governance_record,

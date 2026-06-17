@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 import httpx
 
-from src.core.db import get_pool
+from src.shared.db import get_pool
 from src.atproto.governance import get_governance_token, _pds_internal_url
 
 logger = logging.getLogger("crosspost")
@@ -130,5 +130,5 @@ async def _poll_loop():
 
 async def run_crosspost_forever():
     """Run the cross-post poll loop in the FOREGROUND, for the standalone writer
-    process (src.writer_main). The internal write-side owns governance writes now."""
+    process (src.main). The internal write-side owns governance writes now."""
     await _poll_loop()

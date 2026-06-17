@@ -1,12 +1,13 @@
-# Writer — interne Schreib-Seite (Phase 1 der ATProto-native-Deliberation-Umstellung)
+# Writer — interne Schreib-Seite der ATProto-native-Deliberation
 #
 # Zieht die Governance-Schreibarbeit aus der internet-zugewandten appview-API in
-# einen eigenen internen Prozess. Phase 1 = nur der Bluesky-Crosspost-Loop
-# (reuse von services/appview/src/atproto/crosspost.py über src.writer_main).
-# Spätere Phasen: Akzeptanz-Pipeline (app_acceptance_queue), Translator, Assignment.
+# einen eigenen internen Prozess: Crosspost (Phase 1), Translation (Phase 5),
+# Akzeptanz-Pipeline (app_acceptance_queue) + Review-Assignment (Phase 6).
 #
-# Nutzt dasselbe Image wie appview, nur mit anderem Command (kein HTTP-Server,
-# kein Service nötig — reiner Hintergrund-Worker).
+# EIGENER Service + EIGENES Image (services/writer, ghcr.io/.../poltr-writer);
+# reiner Hintergrund-Worker (CMD im Dockerfile, kein HTTP-Server, kein k8s-Service).
+# src/shared/ enthält manuell aus services/appview gesyncte Module (pds_creds, db,
+# errors, languages) — beim Ändern dort drüben mitziehen.
 #
 # Full split (entschieden): eigener Pod + eigene DB-Rolle 'writer'. writer-secrets
 # enthält NUR writer-Spezifisches (DB-URL writer@, Flags); geteilte Config
@@ -38,9 +39,8 @@ spec:
         - name: ghcr-registry
       containers:
         - name: writer
-          image: ghcr.io/nikwyss/poltr-appview:latest
+          image: ghcr.io/nikwyss/poltr-writer:latest
           imagePullPolicy: Always
-          command: ["python", "-m", "src.writer_main"]
           envFrom:
             - secretRef:
                 name: writer-secrets

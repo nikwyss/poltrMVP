@@ -33,8 +33,8 @@ from src.atproto.governance import (
     get_governance_record,
     put_governance_record,
 )
-from src.core.db import get_pool
-from src.core.languages import (
+from src.shared.db import get_pool
+from src.shared.languages import (
     DEFAULT_LANGUAGE,
     SUPPORTED_LANGUAGES,
     SUPPORTED_LANGUAGES_SET,
@@ -854,7 +854,7 @@ async def _poll_loop() -> None:
 
 async def run_translation_forever() -> None:
     """Foreground translation loop for the standalone writer process
-    (src.writer_main). Resets the circuit breaker so a fresh start resumes
+    (src.main). Resets the circuit breaker so a fresh start resumes
     processing. The internal write-side owns governance writes now."""
     global _halted, _halt_reason
     _halted = False

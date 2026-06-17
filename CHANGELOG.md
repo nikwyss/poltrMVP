@@ -2,6 +2,17 @@
 
 ## 2026-06-17
 
+### Writer in eigenen Service + eigenes Image getrennt (`services/writer`, `services/appview`, `infra`)
+
+Der Writer-Quellcode wird aus `services/appview` herausgelöst — die appview wird von mehreren Usern für weitere Module genutzt, der Writer ist deliberations-spezifisch. Vorher teilten sich beide Image + Source-Tree (appview-Image, `command:`-Override).
+
+- **Neu `services/writer/`** (eigenes Image `ghcr.io/nikwyss/poltr-writer`, eigenes Dockerfile, reiner Worker ohne HTTP): `main.py` (Entrypoint `python -m src.main`) + `atproto/{crosspost,acceptance,governance}.py` + `translation/translator.py` + `arguments/peer_review_assign.py`.
+- **`services/writer/src/shared/`** — aus appview **manuell gesyncte** Kopien (vorerst kein Shared-Package): `pds_creds.py` (Krypto, format-kritisch), `db.py`, `errors.py`, `languages.py`. Imports der vier biegen auf `src.shared.*`; alles andere behält seine Pfade.
+- **appview entschlackt**: `writer_main.py`, `atproto/crosspost.py`, `atproto/acceptance.py`, `translation/translator.py` entfernt (von der appview-API nirgends importiert). `governance.py`/`peer_review_assign.py` bleiben (appview nutzt `get_did_for_ballot` bzw. den Aktivitäts-Hook). `atproto_api.py` (630 LOC) bleibt ganz bei appview — der Writer braucht null davon.
+- **CI/Deploy**: `writer` als normaler Service in die Build-Matrix (eigenes Image, kein Sonderfall); Deploy `set image deployment/writer = poltr-writer:sha`. `writer.yaml`: Image → `poltr-writer`, `command:`-Override raus (CMD im Dockerfile).
+- Tests verschoben: `test_acceptance.py` → `services/writer/tests`. appview 38 grün, writer 10 grün.
+- **Hinweis manueller Sync:** Änderungen an `pds_creds/db/errors/languages` in appview müssen nach `services/writer/src/shared/` mitgezogen werden (v.a. `pds_creds` — Chiffrat-Format).
+
 ### Anti-Spam: Eligibility-Gate für Comments/Likes + PDS-Rate-Limits (`services/indexer`, `infra`)
 
 Schliesst die Lücke, dass self-signed Comments/Likes direkt in User-Repos geschrieben werden können (an der appview-API + ihren Per-User-Quotas vorbei) und der Projektor sie **ungefiltert** indexierte — anders als Argumente/Reviews, die bereits durchs Eligibility-Gate laufen.

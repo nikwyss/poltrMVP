@@ -1,0 +1,10 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+asyncpg==0.31.0
+python-dotenv==1.0.1
+slowapi==0.1.9
+httpx==0.24.1
+email-validator==2.3.0
+pynacl  # for pds creds
+base58  # for multibase encoding in DID document
+httpx[http2]
