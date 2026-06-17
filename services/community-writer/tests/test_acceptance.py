@@ -76,6 +76,20 @@ def test_as_dict_handles_str_dict_none():
     assert acceptance._as_dict("not json") is None
 
 
+def test_shared_content_quota_lock_key_and_limits():
+    # Backstop: lock_key must be deterministic + input-sensitive so it stays in the
+    # same advisory-lock space as appview reserve() (mirror of src/core/content_quota).
+    from src.shared import content_quota
+    k = content_quota.lock_key("did:plc:x", "argument", "663")
+    assert k == content_quota.lock_key("did:plc:x", "argument", "663")   # stable
+    assert k != content_quota.lock_key("did:plc:x", "argument", "664")   # ballot-sensitive
+    assert k != content_quota.lock_key("did:plc:y", "argument", "663")   # did-sensitive
+    assert -(2 ** 63) <= k < 2 ** 63                                      # signed 64-bit
+    for kind in ("argument", "comment"):
+        daily, ballot = content_quota.limits_for(kind)
+        assert isinstance(daily, int) and isinstance(ballot, int) and daily <= ballot
+
+
 # ---------------------------------------------------------------------------
 # _accept_argument
 # ---------------------------------------------------------------------------
@@ -199,21 +213,16 @@ RESP_ROW = {
 }
 
 
-def _resp_conn(**overrides):
-    """FakeConn for a fully-authorized response; override individual rows per test.
-    Note the distinct keys: 'did FROM app_arguments' (community-DID lookup) must not
-    collide with 'app_peerreviews' (whose query also references app_arguments)."""
-    responses = {
-        "v_eligible_participants": {"eligible": True},
-        "did FROM app_arguments": {"did": "did:plc:community"},
-        "app_peerreviews": {"state": "open"},
-        "app_peerreview_invitations": {"checked_in_at": "2026-06-17T00:00:00Z"},
-    }
-    responses.update(overrides)
-    return FakeConn({k: v for k, v in responses.items() if v is not _MISSING})
-
-
-_MISSING = object()
+def _resp_conn(gate_reason=None):
+    """FakeConn for a response that resolves to a known community argument; the
+    DB-state authorization is delegated to app_response_gate(), so tests just set
+    its return value (None = allowed, else a reason). Eligibility + community-DID
+    lookup are stubbed; 'did FROM app_arguments' is the community-DID query."""
+    return FakeConn(
+        {"v_eligible_participants": {"eligible": True},
+         "did FROM app_arguments": {"did": "did:plc:community"}},
+        vals={"app_response_gate": gate_reason},
+    )
 
 
 @pytest.mark.asyncio
@@ -244,38 +253,17 @@ async def test_accept_response_rejects_when_argument_unknown():
 
 
 @pytest.mark.asyncio
-async def test_accept_response_rejects_when_not_invited():
-    conn = _resp_conn(app_peerreview_invitations=_MISSING)
+@pytest.mark.parametrize(
+    "gate_reason",
+    ["no_peerreview", "not_invited", "review_closed", "not_checked_in"],
+)
+async def test_accept_response_propagates_gate_rejection(gate_reason):
+    # The DB-state authorization is the shared app_response_gate(); the writer just
+    # propagates whatever reason it returns as a queue rejection.
+    conn = _resp_conn(gate_reason=gate_reason)
     with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
         status, reason = await acceptance._accept_response(AsyncMock(), conn, RESP_ROW)
-    assert (status, reason) == ("rejected", "not_invited")
-    create.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_accept_response_rejects_when_not_checked_in():
-    conn = _resp_conn(app_peerreview_invitations={"checked_in_at": None})
-    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
-        status, reason = await acceptance._accept_response(AsyncMock(), conn, RESP_ROW)
-    assert (status, reason) == ("rejected", "not_checked_in")
-    create.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_accept_response_rejects_when_review_closed():
-    conn = _resp_conn(app_peerreviews={"state": "closed"})
-    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
-        status, reason = await acceptance._accept_response(AsyncMock(), conn, RESP_ROW)
-    assert (status, reason) == ("rejected", "review_closed")
-    create.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_accept_response_rejects_when_no_peerreview():
-    conn = _resp_conn(app_peerreviews=_MISSING)
-    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
-        status, reason = await acceptance._accept_response(AsyncMock(), conn, RESP_ROW)
-    assert (status, reason) == ("rejected", "no_peerreview")
+    assert (status, reason) == ("rejected", gate_reason)
     create.assert_not_awaited()
 
 

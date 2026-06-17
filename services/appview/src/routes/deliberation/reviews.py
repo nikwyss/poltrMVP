@@ -368,6 +368,9 @@ async def submit_review(
     vote = body.get("vote")
     justification = body.get("justification", "")
 
+    # Vote-payload validity (not DB state, so deliberately NOT in app_response_gate):
+    # the same check lives in the community-writer's _accept_response. writer-first
+    # rule — see "Guard-Parität" in doc/SECURITY_AUTH.md.
     if not argument_uri or not criteria or vote not in ("APPROVE", "REJECT"):
         return JSONResponse(
             status_code=400,
@@ -389,33 +392,28 @@ async def submit_review(
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
+            # Lock the review row to serialize against the quorum-flip
+            # (checkReviewQuorum updates WHERE state='open'); closed_at feeds the
+            # review_closed response body below.
             pr = await conn.fetchrow(
-                """
-                SELECT state, closed_at
-                FROM app_peerreviews
-                WHERE argument_uri = $1
-                  AND EXISTS (SELECT 1 FROM app_arguments a
-                              WHERE a.uri = $1 AND NOT a.deleted)
-                FOR UPDATE
-                """,
+                "SELECT closed_at FROM app_peerreviews WHERE argument_uri = $1 FOR UPDATE",
                 argument_uri,
             )
-            if not pr:
+
+            # Authorization decision — SINGLE SOURCE OF TRUTH shared with the
+            # community-writer: app_response_gate() in
+            # infra/scripts/postgres/db-setup.sql. Returns NULL = allowed, else a
+            # reason in fixed priority; we map it to the user-facing response here
+            # (the writer maps the same reason to a queue rejection).
+            reason = await conn.fetchval(
+                "SELECT app_response_gate($1, $2)", argument_uri, session.did
+            )
+            if reason == "no_peerreview":
                 return JSONResponse(
                     status_code=404,
                     content={"error": "not_found", "message": "No peer review"},
                 )
-
-            inv = await conn.fetchrow(
-                """
-                SELECT checked_in_at
-                FROM app_peerreview_invitations
-                WHERE argument_uri = $1 AND invitee_did = $2 AND invited = true
-                """,
-                argument_uri,
-                session.did,
-            )
-            if not inv:
+            if reason == "not_invited":
                 return JSONResponse(
                     status_code=403,
                     content={
@@ -423,17 +421,15 @@ async def submit_review(
                         "message": "No invitation found for this argument",
                     },
                 )
-
-            # 'closed' is unconditionally too late. 'provisional_closed' is OK
-            # only if the user was already checked in when the review flipped
-            # — and check-in is required before submit regardless.
-            if pr["state"] == "closed":
+            # 'closed' is unconditionally too late — hand the draft back so the
+            # frontend can preserve the user's work.
+            if reason == "review_closed":
                 return JSONResponse(
                     status_code=409,
                     content={
                         "error": "review_closed",
                         "message": "Peer review is closed",
-                        "closedAt": _iso(pr["closed_at"]),
+                        "closedAt": _iso(pr["closed_at"]) if pr else None,
                         "acceptedDraft": {
                             "argumentUri": argument_uri,
                             "criteria": criteria,
@@ -442,7 +438,7 @@ async def submit_review(
                         },
                     },
                 )
-            if inv["checked_in_at"] is None:
+            if reason == "not_checked_in":
                 return JSONResponse(
                     status_code=409,
                     content={

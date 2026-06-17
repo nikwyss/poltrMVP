@@ -10,26 +10,16 @@ the create handlers — race-free, unlike the indexer-populated
 env-tunable.
 """
 
-import os
-import hashlib
-
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
 
 from src.auth.middleware import TSession, verify_session_token
 from src.core.db import get_pool
 from src.core.fastapi import logger
-
-ARGUMENT_DAILY_LIMIT = int(os.getenv("APPVIEW_ARGUMENT_DAILY_LIMIT", "2"))
-ARGUMENT_BALLOT_LIMIT = int(os.getenv("APPVIEW_ARGUMENT_BALLOT_LIMIT", "10"))
-COMMENT_DAILY_LIMIT = int(os.getenv("APPVIEW_COMMENT_DAILY_LIMIT", "10"))
-COMMENT_BALLOT_LIMIT = int(os.getenv("APPVIEW_COMMENT_BALLOT_LIMIT", "50"))
-
-# kind -> (daily_limit, ballot_limit)
-LIMITS = {
-    "argument": (ARGUMENT_DAILY_LIMIT, ARGUMENT_BALLOT_LIMIT),
-    "comment": (COMMENT_DAILY_LIMIT, COMMENT_BALLOT_LIMIT),
-}
+# Caps + advisory-lock key live in ONE place, shared with the community-writer's
+# authoritative quota gate (acceptance._enforce_argument_quota) so both serialize
+# on the same lock and agree on the limits. Do not reintroduce local copies.
+from src.core.content_quota import limits_for, lock_key
 
 router = APIRouter(prefix="/xrpc", tags=["poltr-quota"])
 
@@ -56,15 +46,6 @@ class QuotaExceeded(Exception):
         )
 
 
-def _lock_key(did: str, kind: str, ballot_rkey: str) -> int:
-    """Stable signed 64-bit key for pg_advisory_xact_lock, so the count+insert is
-    serialized per (user, kind, ballot) against concurrent creates."""
-    digest = hashlib.blake2b(
-        f"{did}|{kind}|{ballot_rkey}".encode(), digest_size=8
-    ).digest()
-    return int.from_bytes(digest, "big", signed=True)
-
-
 async def reserve(did: str, kind: str, ballot_rkey: str) -> int:
     """Atomically enforce both caps and insert a ledger row.
 
@@ -72,12 +53,12 @@ async def reserve(did: str, kind: str, ballot_rkey: str) -> int:
     release() if the subsequent PDS write fails. The advisory lock makes the
     check-then-insert safe against concurrent creates by the same user.
     """
-    daily_limit, ballot_limit = LIMITS[kind]
+    daily_limit, ballot_limit = limits_for(kind)
     pool = await get_pool()
     async with pool.acquire() as conn:
         async with conn.transaction():
             await conn.execute(
-                "SELECT pg_advisory_xact_lock($1)", _lock_key(did, kind, ballot_rkey)
+                "SELECT pg_advisory_xact_lock($1)", lock_key(did, kind, ballot_rkey)
             )
             daily_used = await conn.fetchval(
                 """
@@ -128,7 +109,7 @@ async def set_uri(row_id: int, uri: str | None) -> None:
 
 def _block(counts: dict, kind: str) -> dict:
     daily_used, ballot_used = counts.get(kind, (0, 0))
-    daily_limit, ballot_limit = LIMITS[kind]
+    daily_limit, ballot_limit = limits_for(kind)
     return {
         "dailyUsed": daily_used,
         "dailyLimit": daily_limit,

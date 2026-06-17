@@ -2,6 +2,15 @@
 
 ## 2026-06-17
 
+### Guard-Parität AppView↔Writer: Drift strukturell ausgeschlossen (`services/appview`, `services/community-writer`, `infra`, `doc`)
+
+Die im vorigen Schritt eingeführten Writer-Gates duplizierten die autoritativen Checks (Quota, PR-Authorization) gegenüber der AppView → Drift-Risiko (gefährliche Richtung: Writer hinkt nach = Bypass öffnet sich still). Die must-match-Prädikate liegen jetzt in *je einem* Artefakt, das beide Seiten nur aufrufen.
+
+- **Quota-Caps + Advisory-Lock-Key → shared Modul** [content_quota.py](services/appview/src/core/content_quota.py) (`limits_for`, `lock_key`), byte-identisch nach [services/community-writer/src/shared/content_quota.py](services/community-writer/src/shared/content_quota.py) gespiegelt (Muster wie `pds_creds.py`). [quota.py](services/appview/src/routes/deliberation/quota.py) (`_lock_key`/`LIMITS` raus) und [acceptance.py](services/community-writer/src/atproto/acceptance.py) (`_quota_lock_key`/`_arg_*_limit` raus) biegen darauf um. Beide serialisieren garantiert auf demselben `pg_advisory_xact_lock`-Key.
+- **PR-Submission-Authorization → SQL-Funktion** `app_response_gate(argument_uri, reviewer_did)` ([migration 008](services/appview/migrations/008_create_app_response_gate.sql) + db-setup.sql): Single-Source der DB-State-Checks, gibt NULL=erlaubt oder Reason in fixer Priorität. `submit_review` ([reviews.py](services/appview/src/routes/deliberation/reviews.py)) mappt den Reason auf HTTP (Vertrag inkl. `acceptedDraft` erhalten, `FOR UPDATE` bleibt); `_accept_response` mappt ihn auf eine Queue-Rejection. Behebt zugleich die bisher leicht abweichende Reason-Priorität zwischen beiden. Vote-Payload-Validierung + `already_reviewed` bleiben bewusst aufrufer-lokal (kein DB-State).
+- **Prinzip dokumentiert:** „Guard-Parität: writer-first" in [SECURITY_AUTH.md](doc/SECURITY_AUTH.md) (AppView=untrusted Client/UX-Superset, Writer=autoritativer Boden; asymmetrisches Invariant + Drift-Richtungen); Pointer in [PEER_REVIEW.md](doc/PEER_REVIEW.md) Submission. Cross-Ref-Kommentare an der verbleibenden Vote-Duplikation.
+- **Tests:** writer 19→20 (Gate-Rejections parametrisiert über `app_response_gate`, `lock_key`-Determinismus-Backstop); neu [test_reviews_submit.py](services/appview/tests/test_reviews_submit.py) (Reason→Response-Mapping, `acceptedDraft`, `already_reviewed`, Vote-400 — vorher null Coverage für submit_review). Funktion live gegen Dev-DB verifiziert (bogus→`no_peerreview`, offenes Review/nicht-eingeladen→`not_invited`).
+
 ### Akzeptanz-Pipeline: Writer-Gates (Quota + PR-Authorization) + Flag entfernt (`services/community-writer`, `services/indexer`, `infra`)
 
 Schliesst den Direkt-PDS-Bypass: ein User kontrolliert sein eigenes Repo und kann user-authored Records direkt am appview-API (samt dessen Submit-Checks) vorbei schreiben. Der community-writer (Promotion zum Community-Record) ist der autoritative Trust-Boundary — daher prüft er jetzt selbst, statt der synchronen appview-Reservierung zu vertrauen.

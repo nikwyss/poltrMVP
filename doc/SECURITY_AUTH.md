@@ -141,6 +141,42 @@ cap, 429 handling, i18n).
 
 ---
 
+## Guard-Parität: writer-first (autoritatives Gate ≠ AppView-Check)
+
+Seit dem ATProto-nativen Modell schreibt die appview user-authored Records ins
+**eigene User-Repo**; der **community-writer** promotet sie (mit Community-Creds) zum
+autoritativen Community-Record. Daraus folgt das Sicherheits-Invariant:
+
+> Die **AppView ist ein untrusted Client.** Wer ein eigenes PDS-Repo hat, kann jeden
+> Record direkt schreiben — an der appview-API (samt Quota/Rate-Limit/PR-Checks)
+> vorbei. Der **community-writer ist der Trust-Boundary**: jede Prüfung, die
+> entscheidet ob ein Record *autoritativ wird*, muss dort sitzen.
+
+Die zwei Schichten sind **asymmetrisch**, nicht spiegelgleich:
+
+- **Writer = Boden.** Muss vollständig prüfen ([`acceptance.py`](../services/community-writer/src/atproto/acceptance.py): `_accept_argument` Quota, `_accept_response` PR-Authorization).
+- **AppView = UX-Superset.** Schnelles Feedback (Status-Codes, `acceptedDraft`), Rate-Limit, Quota-*Reservierung* — braucht der Writer nicht.
+
+| Drift-Richtung | Folge |
+|---|---|
+| Writer hinkt AppView nach (Check nur in der AppView) | **Sicherheitsloch** — Direkt-PDS-Bypass öffnet sich wieder. Die gefährliche Richtung. |
+| Writer strenger als AppView | Beitrag „verschwindet" (im User-Repo, nie promotet). Schlechte UX, kein Sicherheitsproblem. |
+
+**Regel:** neue autoritative Regel **zuerst im Writer**, optional in der AppView
+spiegeln. Vergisst man die AppView, verliert man nur frühes Feedback (safe-by-default).
+
+**Drift strukturell ausgeschlossen** — die must-match-Prädikate liegen in *je einem*
+Artefakt, das beide Seiten nur aufrufen (statt nachzubauen):
+
+- **Eligibility** → DB-View `auth.v_eligible_participants` (auch der JS-Indexer liest sie).
+- **Quota-Caps + Advisory-Lock-Key** → [`content_quota.py`](../services/appview/src/core/content_quota.py) (`limits_for`, `lock_key`); im writer als byte-identischer Mirror unter `src/shared/` (manuell synchronisiert wie `pds_creds.py`).
+- **PR-Submission-Authorization** → SQL-Funktion `app_response_gate(argument_uri, reviewer_did)` (db-setup.sql / migration `008`); `submit_review` mappt den Reason auf HTTP, `_accept_response` auf eine Queue-Rejection.
+
+Bewusst **nicht** zentralisiert (durch dieses Prinzip + Cross-Ref-Kommentare gedeckt):
+Vote-Payload-Validierung (kein DB-State) und reine AppView-UX (Rate-Limit, `acceptedDraft`).
+
+---
+
 ## Open / deferred
 
 **CAPTCHA (Cloudflare Turnstile)** ⬜ — deferred; circuit breaker is the

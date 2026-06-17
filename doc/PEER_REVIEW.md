@@ -153,6 +153,8 @@ Check-ins are unrestricted while `state='open'`; only `provisional_closed` refus
 
 If the review is `provisional_closed` but the reviewer was checked in *before* the flip, submit proceeds — their `checked_in_at` is already non-null. The `acceptedDraft` echo on `409 review_closed` lets the frontend show the user their work even when the server can't accept it.
 
+The DB-state rows of that table (`no_peerreview` / `not_invited` / `review_closed` / `not_checked_in`, in that fixed priority) are **not** hand-coded here — they come from the SQL function `app_response_gate(argument_uri, reviewer_did)` (db-setup.sql / migration `008`), the single source of truth shared with the community-writer's `_accept_response`. So a self-signed response written **directly to the PDS** (bypassing this endpoint) is gated identically at promotion time. Only the vote-payload checks (`400`) and `already_reviewed` (`409`) stay endpoint-local. See *Guard-Parität: writer-first* in [SECURITY_AUTH.md](SECURITY_AUTH.md).
+
 ## Closure — two-step
 
 ### Step 1: per-response trigger (indexer)

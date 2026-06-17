@@ -31,6 +31,7 @@ import os
 import httpx
 
 from src.shared.db import get_pool
+from src.shared.content_quota import limits_for, lock_key
 from src.atproto.community import (
     create_community_record,
     get_community_record,
@@ -66,30 +67,13 @@ def _as_dict(value):
 
 
 # --- Per-(user, ballot) argument quota -------------------------------------
-# Mirrors appview src/routes/deliberation/quota.py. The writer is the
-# authoritative gate: the appview reserve() path writes an app_content_creations
-# ledger row keyed to the user-repo uri. A direct-to-PDS write (bypassing the
-# appview API and its quota) has no such row — so we enforce the same caps here
-# and record the slot, making the cap hold regardless of entry path. Same env
-# vars / defaults as appview, so both sides agree.
-def _arg_daily_limit() -> int:
-    return int(os.getenv("APPVIEW_ARGUMENT_DAILY_LIMIT", "2"))
-
-
-def _arg_ballot_limit() -> int:
-    return int(os.getenv("APPVIEW_ARGUMENT_BALLOT_LIMIT", "10"))
-
-
-def _quota_lock_key(did: str, kind: str, ballot_rkey: str) -> int:
-    """Stable signed 64-bit advisory-lock key — identical formula to appview
-    quota._lock_key, so appview reserve() and writer reconciliation serialize on
-    the same key space (count+insert is race-free across both)."""
-    digest = hashlib.blake2b(
-        f"{did}|{kind}|{ballot_rkey}".encode(), digest_size=8
-    ).digest()
-    return int.from_bytes(digest, "big", signed=True)
-
-
+# The writer is the authoritative gate: the appview reserve() path writes an
+# app_content_creations ledger row keyed to the user-repo uri. A direct-to-PDS
+# write (bypassing the appview API and its quota) has no such row — so we enforce
+# the same caps here and record the slot, making the cap hold regardless of entry
+# path. Caps + lock key come from the SHARED policy module (src.shared.content_quota),
+# identical to what appview reserve() uses, so both serialize on the same lock and
+# agree on the limits. Do not reintroduce local copies of either.
 async def _enforce_argument_quota(conn, did, ballot_rkey, user_uri) -> str | None:
     """Authoritatively enforce the per-(user, ballot) argument caps. Returns a
     rejection reason ('quota_daily' | 'quota_ballot'), or None to proceed.
@@ -107,7 +91,7 @@ async def _enforce_argument_quota(conn, did, ballot_rkey, user_uri) -> str | Non
     # reserve()/other writer instances — same advisory-lock key space.
     await conn.execute(
         "SELECT pg_advisory_xact_lock($1)",
-        _quota_lock_key(did, "argument", ballot_rkey),
+        lock_key(did, "argument", ballot_rkey),
     )
     counts = await conn.fetchrow(
         """
@@ -121,9 +105,10 @@ async def _enforce_argument_quota(conn, did, ballot_rkey, user_uri) -> str | Non
     )
     daily_used = (counts["daily"] if counts else 0) or 0
     ballot_used = (counts["lifetime"] if counts else 0) or 0
-    if daily_used >= _arg_daily_limit():
+    daily_limit, ballot_limit = limits_for("argument")
+    if daily_used >= daily_limit:
         return "quota_daily"
-    if ballot_used >= _arg_ballot_limit():
+    if ballot_used >= ballot_limit:
         return "quota_ballot"
     await conn.execute(
         "INSERT INTO app_content_creations (did, kind, ballot_rkey, uri) "
@@ -209,7 +194,8 @@ async def _accept_response(client, conn, row) -> tuple[str, str | None]:
         return ("rejected", "no_argument_ref")
 
     # Validate the vote (mirror appview submit_review): APPROVE/REJECT only, and a
-    # REJECT needs a justification.
+    # REJECT needs a justification. Payload check, not DB state → intentionally not
+    # in app_response_gate; writer-first rule (doc/SECURITY_AUTH.md "Guard-Parität").
     vote = user_record.get("vote")
     if vote not in ("APPROVE", "REJECT"):
         return ("rejected", "invalid_vote")
@@ -223,35 +209,15 @@ async def _accept_response(client, conn, row) -> tuple[str, str | None]:
     if not community_did:
         return ("rejected", "argument_not_found")
 
-    # Authorization gate (mirror appview submit_review, against authoritative DB
-    # state): the response must come from an invited, checked-in reviewer on a
-    # review that is still open. A direct-to-PDS response that bypassed the appview
-    # API is gated here. (Rejecting on 'closed' matches submit_review; the
-    # NOTIFY-driven drain runs near-instantly, so a legit response losing the race
-    # to a closing review is a rare edge.)
-    pr = await conn.fetchrow(
-        """
-        SELECT state FROM app_peerreviews
-        WHERE argument_uri = $1
-          AND EXISTS (SELECT 1 FROM app_arguments a WHERE a.uri = $1 AND NOT a.deleted)
-        """,
-        argument_uri,
-    )
-    if not pr:
-        return ("rejected", "no_peerreview")
-    if pr["state"] == "closed":
-        return ("rejected", "review_closed")
-    inv = await conn.fetchrow(
-        """
-        SELECT checked_in_at FROM app_peerreview_invitations
-        WHERE argument_uri = $1 AND invitee_did = $2 AND invited = true
-        """,
-        argument_uri, did,
-    )
-    if not inv:
-        return ("rejected", "not_invited")
-    if inv["checked_in_at"] is None:
-        return ("rejected", "not_checked_in")
+    # Authorization gate (DB state) — SINGLE SOURCE OF TRUTH shared with the
+    # appview's submit_review: app_response_gate() in
+    # infra/scripts/postgres/db-setup.sql. Returns NULL = allowed, else a reason
+    # (invited, checked-in, review still open). A direct-to-PDS response that
+    # bypassed the appview API is gated here too. The appview maps the same reason
+    # to a user-facing HTTP response; we map it to a queue rejection.
+    reason = await conn.fetchval("SELECT app_response_gate($1, $2)", argument_uri, did)
+    if reason:
+        return ("rejected", reason)
 
     rkey = compose_review_rkey(argument_uri, did)
     existing = await get_community_record(client, community_did, RESPONSE_NSID, rkey)
