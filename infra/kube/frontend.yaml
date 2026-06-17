@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: ghcr.io/nikwyss/poltr-front:latest
+          image: ghcr.io/nikwyss/poltr-frontend:latest
           imagePullPolicy: Always
           envFrom:
             - secretRef:

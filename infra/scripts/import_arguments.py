@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
 Import PRO/CONTRA arguments from the Demokratiefabrik content.xlsx dump
-into the governance repo as app.ch.poltr.ballot.argument records.
+into the community repo as app.ch.poltr.ballot.argument records.
 
-All arguments are written to the governance account's repo. The authorDid
+All arguments are written to the community account's repo. The authorDid
 field is set to a random non-admin user to simulate real authorship.
 
 Environment variables:
   PDS_HOST                          PDS endpoint (default: http://localhost:2583)
-  PDS_GOVERNANCE_ACCOUNT_HANDLE     Governance account handle
-  PDS_GOVERNANCE_ACCOUNT_PASSWORD   Governance account password
+  PDS_COMMUNITY_ACCOUNT_HANDLE     Community account handle
+  PDS_COMMUNITY_ACCOUNT_PASSWORD   Community account password
   BALLOT_URI                        AT URI of the ballot to attach arguments to
   MAX_IMPORTS                       Number of arguments to import (default: 1, 0 = all)
   XLSX_PATH                         Path to content.xlsx (default: dump/content.xlsx)
@@ -40,34 +40,34 @@ class Argument:
 
 
 class ArgumentImporter:
-    def __init__(self, pds_host: str, gov_handle: str, gov_password: str,
+    def __init__(self, pds_host: str, community_handle: str, community_password: str,
                  ballot_uri: str, admin_handle: str, db_url: str):
         self.pds_host = pds_host
-        self.gov_handle = gov_handle
-        self.gov_password = gov_password
+        self.community_handle = community_handle
+        self.community_password = community_password
         self.ballot_uri = ballot_uri
         self.admin_handle = admin_handle
         self.db_url = db_url
-        self.gov_did: Optional[str] = None
-        self.gov_token: Optional[str] = None
+        self.community_did: Optional[str] = None
+        self.community_token: Optional[str] = None
         self.author_dids: list[str] = []  # non-admin user DIDs for authorDid
 
-    def authenticate_governance(self) -> bool:
-        """Create a PDS session for the governance account."""
-        print(f"Authenticating as governance account: {self.gov_handle}")
+    def authenticate_community(self) -> bool:
+        """Create a PDS session for the community account."""
+        print(f"Authenticating as community account: {self.community_handle}")
         try:
             resp = requests.post(
                 f"{self.pds_host}/xrpc/com.atproto.server.createSession",
-                json={"identifier": self.gov_handle, "password": self.gov_password},
+                json={"identifier": self.community_handle, "password": self.community_password},
             )
             resp.raise_for_status()
             data = resp.json()
-            self.gov_did = data["did"]
-            self.gov_token = data["accessJwt"]
-            print(f"  Authenticated as {self.gov_did}")
+            self.community_did = data["did"]
+            self.community_token = data["accessJwt"]
+            print(f"  Authenticated as {self.community_did}")
             return True
         except Exception as e:
-            print(f"ERROR: Failed to authenticate governance account - {e}")
+            print(f"ERROR: Failed to authenticate community account - {e}")
             return False
 
     def load_author_dids(self):
@@ -81,8 +81,8 @@ class ArgumentImporter:
                 if handle == self.admin_handle:
                     print(f"  Skipping admin: {handle}")
                     continue
-                if did == self.gov_did:
-                    print(f"  Skipping governance: {handle}")
+                if did == self.community_did:
+                    print(f"  Skipping community: {handle}")
                     continue
                 self.author_dids.append(did)
             print(f"  {len(self.author_dids)} user(s) available for author assignment")
@@ -90,7 +90,7 @@ class ArgumentImporter:
             conn.close()
 
     def create_argument(self, arg: Argument, author_did: str) -> bool:
-        """Create an argument record in the governance repo."""
+        """Create an argument record in the community repo."""
         rkey = str(arg.id)
 
         record = {
@@ -110,7 +110,7 @@ class ArgumentImporter:
         }
 
         payload = {
-            "repo": self.gov_did,
+            "repo": self.community_did,
             "collection": "app.ch.poltr.ballot.argument",
             "rkey": rkey,
             "record": record,
@@ -121,7 +121,7 @@ class ArgumentImporter:
             response = requests.post(
                 f"{self.pds_host}/xrpc/com.atproto.repo.putRecord",
                 headers={
-                    "Authorization": f"Bearer {self.gov_token}",
+                    "Authorization": f"Bearer {self.community_token}",
                     "Content-Type": "application/json",
                 },
                 json=payload,
@@ -147,7 +147,7 @@ class ArgumentImporter:
             return False
 
     def import_from_xlsx(self, xlsx_path: str, max_imports: int = 1):
-        """Read PRO/CONTRA arguments from xlsx and import to governance repo."""
+        """Read PRO/CONTRA arguments from xlsx and import to community repo."""
         print(f"Reading arguments from: {xlsx_path}")
 
         wb = openpyxl.load_workbook(xlsx_path, read_only=True)
@@ -198,16 +198,16 @@ class ArgumentImporter:
 
 def main():
     pds_host = os.getenv("PDS_HOST", "http://localhost:2583")
-    gov_handle = os.getenv("PDS_GOVERNANCE_ACCOUNT_HANDLE", "")
-    gov_password = os.getenv("PDS_GOVERNANCE_ACCOUNT_PASSWORD", "")
+    community_handle = os.getenv("PDS_COMMUNITY_ACCOUNT_HANDLE", "")
+    community_password = os.getenv("PDS_COMMUNITY_ACCOUNT_PASSWORD", "")
     ballot_uri = os.getenv("BALLOT_URI", "")
     max_imports = int(os.getenv("MAX_IMPORTS", "1"))
     xlsx_path = os.getenv("XLSX_PATH", "dump/content.xlsx")
     admin_handle = os.getenv("ADMIN_HANDLE", "admin.id.poltr.ch")
     db_url = os.getenv("INDEXER_POSTGRES_URL", "")
 
-    if not gov_handle or not gov_password:
-        print("ERROR: PDS_GOVERNANCE_ACCOUNT_HANDLE and PDS_GOVERNANCE_ACCOUNT_PASSWORD required")
+    if not community_handle or not community_password:
+        print("ERROR: PDS_COMMUNITY_ACCOUNT_HANDLE and PDS_COMMUNITY_ACCOUNT_PASSWORD required")
         sys.exit(1)
 
     if not ballot_uri:
@@ -219,18 +219,18 @@ def main():
         print("ERROR: INDEXER_POSTGRES_URL required (for loading user DIDs)")
         sys.exit(1)
 
-    print("=== AT Protocol Argument Import (Governance Repo) ===")
+    print("=== AT Protocol Argument Import (Community Repo) ===")
     print(f"PDS Host:    {pds_host}")
-    print(f"Governance:  {gov_handle}")
+    print(f"Community:  {community_handle}")
     print(f"Ballot URI:  {ballot_uri}")
     print(f"Max imports: {max_imports if max_imports > 0 else 'all'}")
     print(f"XLSX path:   {xlsx_path}")
     print()
 
-    importer = ArgumentImporter(pds_host, gov_handle, gov_password,
+    importer = ArgumentImporter(pds_host, community_handle, community_password,
                                 ballot_uri, admin_handle, db_url)
 
-    if not importer.authenticate_governance():
+    if not importer.authenticate_community():
         sys.exit(1)
 
     importer.load_author_dids()

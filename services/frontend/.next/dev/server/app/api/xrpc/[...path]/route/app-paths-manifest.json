@@ -1,0 +1,3 @@
+{
+  "/api/xrpc/[...path]/route": "app/api/xrpc/[...path]/route.js"
+}

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Create a governance/admin handle on the PDS.
-Usage: python create_gov_handle.py <handle> <email>
-Example: python create_gov_handle.py admin.id.poltr.ch admin@poltr.ch
+Create a community/admin handle on the PDS.
+Usage: python create_community_handle.py <handle> <email>
+Example: python create_community_handle.py admin.id.poltr.ch admin@poltr.ch
 """
 import os
 import sys

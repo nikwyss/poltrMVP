@@ -1,7 +1,7 @@
 """Typed PDS errors with categorization.
 
 Lives in its own module to avoid circular imports: it is imported by
-`atproto_api.py`, `governance.py` (which raise it) and `core/fastapi.py`
+`atproto_api.py`, `community.py` (which raise it) and `core/fastapi.py`
 (which registers the shared handler).
 
 The categorization maps the PDS's own XRPC error responses (and transport

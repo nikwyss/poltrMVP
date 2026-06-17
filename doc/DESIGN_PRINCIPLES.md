@@ -1,6 +1,6 @@
 # Design Principles — POLTR Frontend
 
-Leitlinien für das visuelle Erscheinungsbild des Frontends (`services/front`).
+Leitlinien für das visuelle Erscheinungsbild des Frontends (`services/frontend`).
 Sie beschreiben das *Warum* hinter den Entscheidungen, damit neue Seiten und
 Komponenten konsistent bleiben, ohne dass jede Regel neu verhandelt werden muss.
 

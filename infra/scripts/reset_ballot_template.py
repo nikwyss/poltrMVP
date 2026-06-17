@@ -9,7 +9,7 @@ peer-reviews, the whole taxonomy). After running, the ballot looks like a brand-
 project: only the official arguments, nothing else.
 
 Deletes in BOTH places so the reset is immediate and reindex-safe:
-  - PDS governance repo  → community argument records + their crossposts + reviews
+  - PDS community repo  → community argument records + their crossposts + reviews
   - Postgres             → community args + all derived/calculator tables
 
 This is a DEV tool — safe to run repeatedly. Dry-run by default.
@@ -18,7 +18,7 @@ Usage:
     # Dry run (default — shows what would be deleted, touches nothing):
     BALLOT_RKEY=663 \\
     DB_URL=postgresql://allforone:<pw>@localhost:5432/appview \\
-    MASTER_KEY_B64=<APPVIEW_GOV_CREDS_MASTER_KEY_B64> \\
+    MASTER_KEY_B64=<APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64> \\
     python3 infra/scripts/reset_ballot_template.py
 
     # Actually delete:
@@ -31,13 +31,13 @@ Prerequisites:
 
 Env vars:
     BALLOT_RKEY      Ballot rkey (BK number, e.g. "663"). Default: "663".
-    DB_URL           PostgreSQL connection URL (governance creds + cleanup).
-    MASTER_KEY_B64   APPVIEW_GOV_CREDS_MASTER_KEY_B64 (decrypts governance password).
+    DB_URL           PostgreSQL connection URL (community creds + cleanup).
+    MASTER_KEY_B64   APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64 (decrypts community password).
     PDS_HOST         PDS endpoint. Default: http://localhost:2583.
 
 What is KEPT:
     - Official arguments (PDS source = sourceOfficial / Postgres source_type = 'official')
-    - The governance account itself + its profile + official crossposts
+    - The community account itself + its profile + official crossposts
 """
 
 import argparse
@@ -63,23 +63,23 @@ REVIEW_COLLECTIONS = [
 
 
 # ---------------------------------------------------------------------------
-# Governance credentials + PDS session
+# Community credentials + PDS session
 # ---------------------------------------------------------------------------
-def load_governance_creds(db_url: str, ballot_rkey: str, master_key_b64: str):
-    """Load governance account (did, handle, decrypted password) from the DB."""
+def load_community_creds(db_url: str, ballot_rkey: str, master_key_b64: str):
+    """Load community account (did, handle, decrypted password) from the DB."""
     conn = psycopg2.connect(db_url)
     try:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT did, handle, pw_ciphertext, pw_nonce "
-                "FROM auth.governance_accounts WHERE ballot_rkey = %s",
+                "FROM auth.community_accounts WHERE ballot_rkey = %s",
                 (ballot_rkey,),
             )
             row = cur.fetchone()
     finally:
         conn.close()
     if not row:
-        sys.exit(f"ERROR: no governance account for ballot_rkey={ballot_rkey}")
+        sys.exit(f"ERROR: no community account for ballot_rkey={ballot_rkey}")
     did, handle, pw_ct, pw_nonce = row
     box = nacl_secret.SecretBox(base64.b64decode(master_key_b64))
     password = box.decrypt(bytes(pw_ct), bytes(pw_nonce)).decode("utf-8")
@@ -87,8 +87,8 @@ def load_governance_creds(db_url: str, ballot_rkey: str, master_key_b64: str):
 
 
 def create_session(identifier: str, password: str) -> str:
-    """Create a PDS session for the governance account → accessJwt (Bearer).
-    `identifier` should be the DID: the governance handle can be stale/reassigned
+    """Create a PDS session for the community account → accessJwt (Bearer).
+    `identifier` should be the DID: the community handle can be stale/reassigned
     on the PDS (login by handle then 401), whereas the DID is stable."""
     resp = requests.post(
         f"{PDS_HOST}/xrpc/com.atproto.server.createSession",
@@ -144,7 +144,7 @@ def _rkey(uri: str) -> str:
 # PDS cleanup
 # ---------------------------------------------------------------------------
 def reset_pds(did: str, token: str, community_crosspost_rkeys: set, execute: bool) -> None:
-    print(f"\n=== PDS governance repo {did} ===")
+    print(f"\n=== PDS community repo {did} ===")
 
     # 1) community argument records (keep sourceOfficial)
     args = list_records(did, ARG_COLLECTION)
@@ -181,7 +181,7 @@ def reset_pds(did: str, token: str, community_crosspost_rkeys: set, execute: boo
 # (label, SQL) — counts run first (dry run), then the same WHERE deletes on execute.
 # Order matters only for app_likes (must read arg/comment uris before they vanish);
 # we delete likes by subject-prefix/explicit-set so ordering before args is safe.
-def reset_postgres(db_url: str, ballot_rkey: str, gov_did: str, execute: bool) -> set:
+def reset_postgres(db_url: str, ballot_rkey: str, community_did: str, execute: bool) -> set:
     """Cleans all derived/community Postgres rows for the ballot. Returns the set
     of community crosspost rkeys (for the PDS step)."""
     print(f"\n=== Postgres cleanup (ballot_rkey={ballot_rkey}) ===")
@@ -265,8 +265,8 @@ def main():
     mode = "EXECUTE" if args.execute else "DRY RUN"
     print(f"Reset ballot template — ballot_rkey={ballot_rkey} — PDS={PDS_HOST} — {mode}")
 
-    did, handle, password = load_governance_creds(db_url, ballot_rkey, master_key_b64)
-    print(f"Governance account: {handle} ({did})")
+    did, handle, password = load_community_creds(db_url, ballot_rkey, master_key_b64)
+    print(f"Community account: {handle} ({did})")
 
     # Postgres first: it resolves the community crosspost rkeys the PDS step needs.
     crosspost_rkeys = reset_postgres(db_url, ballot_rkey, did, args.execute)

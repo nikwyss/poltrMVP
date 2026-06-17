@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Delete obsolete record collections from governance ballot PDS repos.
+Delete obsolete record collections from community ballot PDS repos.
 
 The following collections are no longer used by the live AppView/Indexer code
 and are leftovers from earlier iterations:
 
   - app.ch.poltr.ballot.entry      Ballots are CMS content, not ATProto records.
   - app.ch.poltr.content.rating    Ratings live on USER accounts, never on
-                                   governance accounts.
+                                   community accounts.
   - app.bsky.feed.like             Bsky cross-likes live on USER accounts.
   - app.bsky.feed.generator        The poltr feed-generator record lives on
                                    did:web:app.poltr.info, not on per-ballot
-                                   governance accounts.
+                                   community accounts.
 
-By default this iterates over ALL governance accounts in auth.governance_accounts.
-Pass GOV_DID to restrict to a single account.
+By default this iterates over ALL community accounts in auth.community_accounts.
+Pass COMMUNITY_DID to restrict to a single account.
 
 Prerequisites:
   - PDS port-forward:      kubectl port-forward -n poltr svc/pds 2583:80
@@ -23,8 +23,8 @@ Prerequisites:
 Environment variables:
   PDS_HOST         PDS endpoint (default: http://localhost:2583)
   DB_URL           PostgreSQL connection URL (loads encrypted creds)
-  MASTER_KEY_B64   APPVIEW_GOV_CREDS_MASTER_KEY_B64 (for decryption)
-  GOV_DID          Optional: limit to a single governance account
+  MASTER_KEY_B64   APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64 (for decryption)
+  COMMUNITY_DID          Optional: limit to a single community account
   DRY_RUN          Set to "true" to list records without deleting (default: false)
 """
 
@@ -41,7 +41,7 @@ from nacl import secret as nacl_secret
 PDS_HOST = os.getenv("PDS_HOST", "http://localhost:2583")
 DB_URL = os.getenv("DB_URL", "")
 MASTER_KEY_B64 = os.getenv("MASTER_KEY_B64", "")
-GOV_DID_FILTER = os.getenv("GOV_DID", "").strip() or None
+COMMUNITY_DID_FILTER = os.getenv("COMMUNITY_DID", "").strip() or None
 DRY_RUN = os.getenv("DRY_RUN", "false").lower() == "true"
 
 OBSOLETE_COLLECTIONS = [
@@ -52,8 +52,8 @@ OBSOLETE_COLLECTIONS = [
 ]
 
 
-def load_governance_accounts():
-    """Yield (did, handle, password) for each governance account."""
+def load_community_accounts():
+    """Yield (did, handle, password) for each community account."""
     if not DB_URL or not MASTER_KEY_B64:
         print("ERROR: DB_URL and MASTER_KEY_B64 are required")
         sys.exit(1)
@@ -64,23 +64,23 @@ def load_governance_accounts():
     conn = psycopg2.connect(DB_URL)
     try:
         with conn.cursor() as cur:
-            if GOV_DID_FILTER:
+            if COMMUNITY_DID_FILTER:
                 cur.execute(
                     "SELECT did, handle, pw_ciphertext, pw_nonce "
-                    "FROM auth.governance_accounts WHERE did = %s",
-                    (GOV_DID_FILTER,),
+                    "FROM auth.community_accounts WHERE did = %s",
+                    (COMMUNITY_DID_FILTER,),
                 )
             else:
                 cur.execute(
                     "SELECT did, handle, pw_ciphertext, pw_nonce "
-                    "FROM auth.governance_accounts ORDER BY ballot_rkey"
+                    "FROM auth.community_accounts ORDER BY ballot_rkey"
                 )
             rows = cur.fetchall()
     finally:
         conn.close()
 
     if not rows:
-        print("ERROR: No governance accounts matched the query")
+        print("ERROR: No community accounts matched the query")
         sys.exit(1)
 
     for did, handle, pw_ct, pw_nonce in rows:
@@ -177,11 +177,11 @@ def cleanup_account(did, handle, password):
 def main():
     print(f"PDS:     {PDS_HOST}")
     print(f"Mode:    {'DRY_RUN (no deletes)' if DRY_RUN else 'LIVE — records will be deleted'}")
-    print(f"Filter:  {'did=' + GOV_DID_FILTER if GOV_DID_FILTER else 'ALL governance accounts'}")
+    print(f"Filter:  {'did=' + COMMUNITY_DID_FILTER if COMMUNITY_DID_FILTER else 'ALL community accounts'}")
     print(f"Targets: {', '.join(OBSOLETE_COLLECTIONS)}")
 
     grand = {"deleted": 0, "failed": 0, "found": 0, "accounts": 0}
-    for did, handle, password in load_governance_accounts():
+    for did, handle, password in load_community_accounts():
         grand["accounts"] += 1
         result = cleanup_account(did, handle, password)
         for k in ("deleted", "failed", "found"):

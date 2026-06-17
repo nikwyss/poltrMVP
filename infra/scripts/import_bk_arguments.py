@@ -6,7 +6,7 @@ from dump/BK_ARGUMENTS.md.
 For each argument that does not yet exist in cms.imported_arguments
 (matched by title), this script:
   1. Writes an app.ch.poltr.ballot.argument record with sourceOfficial to
-     the ballot's governance PDS account.
+     the ballot's community PDS account.
   2. Inserts a corresponding row into cms.imported_arguments with
      status='published' and pds_uri / pds_cid already populated.
 
@@ -18,7 +18,7 @@ Required env:
   PDS_HOST           default http://localhost:2583
   CMS_DB_URL         e.g. postgresql://cms:<pw>@localhost:5432/cms
   APPVIEW_DB_URL     e.g. postgresql://appview:<pw>@localhost:5432/appview
-  MASTER_KEY_B64     APPVIEW_GOV_CREDS_MASTER_KEY_B64
+  MASTER_KEY_B64     APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64
 
 Optional:
   BALLOT_CMS_ID      default 1
@@ -114,20 +114,20 @@ def decrypt(ciphertext: bytes, nonce: bytes, master_key_b64: str) -> str:
     return nacl_secret.SecretBox(key).decrypt(ciphertext, nonce).decode("utf-8")
 
 
-def load_governance(
+def load_community(
     appview_db_url: str, ballot_rkey: str, master_key_b64: str
 ) -> tuple[str, str]:
     conn = psycopg2.connect(appview_db_url)
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT did, pw_ciphertext, pw_nonce FROM auth.governance_accounts WHERE ballot_rkey = %s",
+                "SELECT did, pw_ciphertext, pw_nonce FROM auth.community_accounts WHERE ballot_rkey = %s",
                 (ballot_rkey,),
             )
             row = cur.fetchone()
             if not row:
                 raise RuntimeError(
-                    f"No governance account for ballot rkey {ballot_rkey}"
+                    f"No community account for ballot rkey {ballot_rkey}"
                 )
             did, pw_ct, pw_nonce = row
             return did, decrypt(bytes(pw_ct), bytes(pw_nonce), master_key_b64)
@@ -201,8 +201,8 @@ def main() -> int:
     print(f"Ballot id={ballot_cms_id}, rkey={ballot_rkey}")
     print(f"Already imported: {len(existing_titles)} title(s)")
 
-    # Governance creds (from appview DB)
-    gov_did, gov_pw = load_governance(appview_db_url, ballot_rkey, master_key_b64)
+    # Community creds (from appview DB)
+    community_did, community_pw = load_community(appview_db_url, ballot_rkey, master_key_b64)
 
     # Parse markdown
     arguments = parse_dump(DUMP_PATH)
@@ -216,7 +216,7 @@ def main() -> int:
         return 0
 
     # PDS session
-    jwt = None if dry_run else create_session(pds_host, gov_did, gov_pw)
+    jwt = None if dry_run else create_session(pds_host, community_did, community_pw)
 
     cms_conn = psycopg2.connect(cms_db_url)
     cms_conn.autocommit = False
@@ -249,7 +249,7 @@ def main() -> int:
                 continue
 
             # 1. Write to PDS
-            res = create_record(pds_host, gov_did, jwt, record)
+            res = create_record(pds_host, community_did, jwt, record)
             uri, cid = res["uri"], res["cid"]
 
             # 2. Insert into CMS DB. Title/body live in the localized side

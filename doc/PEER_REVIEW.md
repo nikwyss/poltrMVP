@@ -30,7 +30,7 @@ Quorum sets the **ceiling** on responses before the lifecycle flips from `open` 
 │ Other users make authenticated requests                                │
 │   → auth middleware fires peer_review_assign hook (throttled 30 s)     │
 │   → eligible candidates get probabilistically selected                 │
-│   → invitation record (invited=true | false) on governance PDS         │
+│   → invitation record (invited=true | false) on community PDS         │
 │   No per-argument cap — invitations keep flowing until enough          │
 │   responses arrive.                                                    │
 └────────────────────────────────────────────────────────────────────────┘
@@ -46,7 +46,7 @@ Quorum sets the **ceiling** on responses before the lifecycle flips from `open` 
 ┌────────────────────────────────────────────────────────────────────────┐
 │ Reviewer submits app.ch.poltr.review.response                          │
 │   → AppView validates: invited, checked in, state ≠ closed             │
-│   → record on governance PDS                                           │
+│   → record on community PDS                                           │
 │   → indexer indexes; flip state to provisional_closed if quorum        │
 │     reached OR outcome mathematically locked, then open grace window   │
 └────────────────────────────────────────────────────────────────────────┘
@@ -322,7 +322,7 @@ Check-in columns on `app_review_invitations`:
 | Finaliser | [services/indexer/src/db.js — `finalizeExpiredPeerReviews`](../services/indexer/src/db.js), [main.js — `/peerreview-finalize` route](../services/indexer/src/main.js) |
 | Finaliser cronjob | [infra/kube/cronjobs.yaml — `peerreview-finalize`](../infra/kube/cronjobs.yaml) |
 | Migration | [infra/scripts/postgres/migrate-peer-review-grace.sql](../infra/scripts/postgres/migrate-peer-review-grace.sql) |
-| Rkey composer | [services/appview/src/atproto/governance.py — `compose_review_rkey`](../services/appview/src/atproto/governance.py) |
+| Rkey composer | [services/appview/src/atproto/community.py — `compose_review_rkey`](../services/appview/src/atproto/community.py) |
 | Lexicons | [lexicons/app/ch/poltr/review/invitation.json](../lexicons/app/ch/poltr/review/invitation.json), [response.json](../lexicons/app/ch/poltr/review/response.json), [note.json](../lexicons/app/ch/poltr/review/note.json) |
 
 ## Frontend integration
@@ -335,7 +335,7 @@ Reads `review_status` on every argument and renders:
 - `rejected` → small red dot + "Community-verworfen" milestone
 - `preliminary` → no badge
 
-Both milestone variants share `MilestoneActivityCard` in [services/front/src/app/(app)/ballot/[id]/arguments/feed/page.tsx](../services/front/src/app/(app)/ballot/[id]/arguments/feed/page.tsx). Rejected arguments are visible to everyone.
+Both milestone variants share `MilestoneActivityCard` in [services/frontend/src/app/(app)/ballot/[id]/arguments/feed/page.tsx](../services/frontend/src/app/(app)/ballot/[id]/arguments/feed/page.tsx). Rejected arguments are visible to everyone.
 
 ### Review form
 

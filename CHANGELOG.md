@@ -2,6 +2,23 @@
 
 ## 2026-06-17
 
+### Terminologie: „governance" → „community" projektweit (`services/*`, `infra`, `doc`)
+
+Einheitliche Sprache: aus „governance account/pds/repo" wird „community account/pds/repo", die Abkürzung `GOV` → `COMMUNITY` (ausgeschrieben). ~575 Treffer über 59+ Dateien, alle Tests grün (appview 38, community-writer 10, indexer 4).
+
+- **DB-Tabelle** `auth.governance_accounts` → `auth.community_accounts` (db-setup.sql + alle Queries in appview/community-writer/indexer/cms + Grants + Scripts). **Live-Migration nötig** (`ALTER TABLE … RENAME`, koordinierter Cutover — s.u.).
+- **Env-Var** `APPVIEW_GOV_CREDS_MASTER_KEY_B64` → `APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64` (Code + Secrets + community-writer.yaml/cms.yaml secretKeyRefs). **Cluster-Cutover nötig.**
+- **Modul** `atproto/governance.py` → `atproto/community.py` (beide Services); Funktionen `create/get/put_governance_record` → `…_community_record`, `get_governance_token` → `get_community_token`, `*_gov_password` → `*_community_password`, `gov_did`/`governance_did` → `community_did`.
+- **indexer** `governanceDids`/`isGovernanceDid` → `communityDids`/`isCommunityDid`.
+- **Script** `create_gov_handle.py` → `create_community_handle.py`; alle `GOV_DID`/`gov_handle`-Env/Vars umbenannt.
+- Englische Verben „governed/governs" + Lockfile-Hashes bewusst unberührt; historische CHANGELOG-Einträge als Record belassen.
+
+### Service-Renames für Klarheit (`infra`, `services`, `doc`)
+
+- **`writer` → `community-writer`**: Ordner, Image (`poltr-community-writer`), Deployment/Pod/Container/Labels, CI-Matrix + Deploy. `writer-secrets` + DB-Rolle `writer` **bewusst unverändert**. Deployment-Name ändert sich → einmaliger Cluster-Übergang nötig (apply neu + altes `writer`-Deployment löschen).
+- **`front` → `frontend`**: Ordner + Image (`poltr-frontend`) + CI-Matrix/Build-Arg. Deployment/Service/Container/Labels hiessen **schon** `frontend` (Inkonsistenz behoben) → CI tauscht das Image nahtlos, **kein** Cluster-Eingriff. `front-secrets` unverändert.
+- Doc-/Code-Pfadverweise (`services/front` → `services/frontend`) repo-weit angeglichen; historische CHANGELOG-Einträge bleiben als Record.
+
 ### Legacy-Master-Key entfernt — keine Rückwärtskompatibilität mehr (`services/*`, `infra`)
 
 Der alte Einzel-Master-Key `APPVIEW_PDS_CREDS_MASTER_KEY_B64` und sämtliche Fallback-Pfade darauf sind entfernt. Es gilt nur noch der Key-Split: USER-Key (`auth_creds`) vs. GOV-Key (`governance_accounts`).

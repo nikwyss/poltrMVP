@@ -1,0 +1,8 @@
+{
+  "/(app)/ballot/[id]/arguments/taxonomy/page": "app/(app)/ballot/[id]/arguments/taxonomy/page.js",
+  "/(app)/home/page": "app/(app)/home/page.js",
+  "/[slug]/page": "app/[slug]/page.js",
+  "/api/auth/session/route": "app/api/auth/session/route.js",
+  "/api/poltr/[...path]/route": "app/api/poltr/[...path]/route.js",
+  "/api/xrpc/[...path]/route": "app/api/xrpc/[...path]/route.js"
+}

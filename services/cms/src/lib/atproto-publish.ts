@@ -1,10 +1,10 @@
 /**
- * ATProto governance account creation for ballots, plus PDS record
+ * ATProto community account creation for ballots, plus PDS record
  * publishing for content curated in the CMS (currently: imported
  * arguments from the Bundeskanzlei leaflet).
  *
  * Creates a PDS account, encrypts and stores credentials in the
- * AppView governance_accounts table.
+ * AppView community_accounts table.
  */
 
 import crypto from 'node:crypto'
@@ -110,13 +110,13 @@ async function waitForPlcResolution(did: string, timeout = 10000, interval = 200
 // Password encryption (NaCl SecretBox, same as Python pds_creds.py)
 // ---------------------------------------------------------------------------
 
-// Governance-Master-Key (Key-Split): CMS verschlüsselt nur GOVERNANCE-Creds → Gov-Key.
-function govMasterKeyB64(): string {
-  return env('APPVIEW_GOV_CREDS_MASTER_KEY_B64')
+// Community-Master-Key (Key-Split): CMS verschlüsselt nur COMMUNITY-Creds → Community-Key.
+function communityMasterKeyB64(): string {
+  return env('APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64')
 }
 
 function encryptPassword(password: string): { ciphertext: Buffer; nonce: Buffer } {
-  const keyB64 = govMasterKeyB64()
+  const keyB64 = communityMasterKeyB64()
   const key = Buffer.from(keyB64, 'base64')
 
   if (key.length !== 32) {
@@ -134,10 +134,10 @@ function encryptPassword(password: string): { ciphertext: Buffer; nonce: Buffer 
 }
 
 // ---------------------------------------------------------------------------
-// AppView DB: store governance account
+// AppView DB: store community account
 // ---------------------------------------------------------------------------
 
-async function storeGovernanceAccount(
+async function storeCommunityAccount(
   did: string,
   handle: string,
   ballotRkey: string,
@@ -150,7 +150,7 @@ async function storeGovernanceAccount(
   try {
     await client.connect()
     await client.query(
-      `INSERT INTO auth.governance_accounts (did, handle, ballot_rkey, pw_ciphertext, pw_nonce)
+      `INSERT INTO auth.community_accounts (did, handle, ballot_rkey, pw_ciphertext, pw_nonce)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (ballot_rkey) DO NOTHING`,
       [did, handle, ballotRkey, ciphertext, nonce],
@@ -171,7 +171,7 @@ function generatePassword(length = 32): string {
     .join('')
 }
 
-export async function publishGovernanceAccount(
+export async function publishCommunityAccount(
   ballotId: string,
 ): Promise<{ did: string; handle: string }> {
   const domain = env('PDS_PUBLIC_HANDLE', 'id.poltr.ch')
@@ -190,7 +190,7 @@ export async function publishGovernanceAccount(
 
   // Encrypt and store credentials
   const { ciphertext, nonce } = encryptPassword(password)
-  await storeGovernanceAccount(did, handle, ballotId, ciphertext, nonce)
+  await storeCommunityAccount(did, handle, ballotId, ciphertext, nonce)
 
   return { did, handle }
 }
@@ -208,8 +208,8 @@ const SUPPORTED_LANGUAGES = (process.env.POLTR_LANGUAGES || 'de,fr,it,rm,en')
   .map((c) => c.trim())
   .filter(Boolean)
 
-function decryptGovernancePassword(ciphertext: Buffer, nonce: Buffer): string {
-  const keyB64 = govMasterKeyB64()
+function decryptCommunityPassword(ciphertext: Buffer, nonce: Buffer): string {
+  const keyB64 = communityMasterKeyB64()
   const key = Buffer.from(keyB64, 'base64')
   if (key.length !== 32) throw new Error('Master key must be 32 bytes')
 
@@ -218,11 +218,11 @@ function decryptGovernancePassword(ciphertext: Buffer, nonce: Buffer): string {
     new Uint8Array(nonce),
     new Uint8Array(key),
   )
-  if (!opened) throw new Error('Failed to decrypt governance password')
+  if (!opened) throw new Error('Failed to decrypt community password')
   return Buffer.from(opened).toString('utf-8')
 }
 
-async function loadGovernanceCreds(ballotRkey: string): Promise<{
+async function loadCommunityCreds(ballotRkey: string): Promise<{
   did: string
   handle: string
   password: string
@@ -239,15 +239,15 @@ async function loadGovernanceCreds(ballotRkey: string): Promise<{
       pw_nonce: Buffer
     }>(
       `SELECT did, handle, pw_ciphertext, pw_nonce
-       FROM auth.governance_accounts
+       FROM auth.community_accounts
        WHERE ballot_rkey = $1`,
       [ballotRkey],
     )
     if (!res.rows.length) {
-      throw new Error(`No governance account for ballot rkey ${ballotRkey}`)
+      throw new Error(`No community account for ballot rkey ${ballotRkey}`)
     }
     const { did, handle, pw_ciphertext, pw_nonce } = res.rows[0]
-    const password = decryptGovernancePassword(pw_ciphertext, pw_nonce)
+    const password = decryptCommunityPassword(pw_ciphertext, pw_nonce)
     return { did, handle, password }
   } finally {
     await client.end()
@@ -491,7 +491,7 @@ async function resolveBallotRkey(
 }
 
 /**
- * Publish an imported argument (from the CMS) to its ballot's governance
+ * Publish an imported argument (from the CMS) to its ballot's community
  * PDS account. Returns the AT URI + CID of the created record.
  */
 export async function publishImportedArgument(
@@ -500,7 +500,7 @@ export async function publishImportedArgument(
   doc: ImportedArgumentDoc,
 ): Promise<{ uri: string; cid: string }> {
   const ballotRkey = await resolveBallotRkey(payload, doc.ballot)
-  const { did, password } = await loadGovernanceCreds(ballotRkey)
+  const { did, password } = await loadCommunityCreds(ballotRkey)
   const record = await buildArgumentRecord(payload, doc, ballotRkey)
 
   const { accessJwt } = await pdsCreateSession(did, password)
@@ -519,7 +519,7 @@ export async function updateImportedArgument(
 ): Promise<{ uri: string; cid: string }> {
   if (!doc.pdsUri) throw new Error('updateImportedArgument requires pdsUri')
   const ballotRkey = await resolveBallotRkey(payload, doc.ballot)
-  const { did, password } = await loadGovernanceCreds(ballotRkey)
+  const { did, password } = await loadCommunityCreds(ballotRkey)
   const record = await buildArgumentRecord(payload, doc, ballotRkey)
 
   const { accessJwt } = await pdsCreateSession(did, password)
@@ -537,7 +537,7 @@ export async function deleteImportedArgument(
 ): Promise<void> {
   if (!doc.pdsUri) return // never published — nothing to remove
   const ballotRkey = await resolveBallotRkey(payload, doc.ballot)
-  const { did, password } = await loadGovernanceCreds(ballotRkey)
+  const { did, password } = await loadCommunityCreds(ballotRkey)
 
   const { accessJwt } = await pdsCreateSession(did, password)
   await pdsDeleteRecord(did, accessJwt, ARGUMENT_NSID, rkeyFromUri(doc.pdsUri))
@@ -547,7 +547,7 @@ export async function deleteImportedArgument(
 // Taxonomy snapshots
 //
 // Beim „Persistieren" der Top-down-Taxonomie im CMS wird der persistierte Baum
-// als unveränderlicher, öffentlich nachvollziehbarer Record auf das Governance-
+// als unveränderlicher, öffentlich nachvollziehbarer Record auf das Community-
 // Konto des Ballots geschrieben (append-only, ein Record je echter Änderung).
 // Die Versionshistorie wird zusätzlich in app_taxonomy_snapshot indexiert.
 // ---------------------------------------------------------------------------
@@ -625,7 +625,7 @@ function uniqueSlug(base: string, used: Set<string>): string {
  * Wurzel-Baum → flache Knotenliste (ohne die strukturelle Wurzel) in DFS-Pre-Order.
  * Die Array-Reihenfolge IST die Geschwister-Reihenfolge (der Indexer leitet daraus
  * `node_order` ab). Elternbezug über den stabilen `key`-Slug; Argumente per rkey
- * (gleiches Governance-Repo). Knoten ohne `key` (im Editor neu angelegt) bekommen
+ * (gleiches Community-Repo). Knoten ohne `key` (im Editor neu angelegt) bekommen
  * hier einen eingefrorenen, kollisionsfreien Slug; bestehende keys bleiben.
  */
 function flattenTree(root: CalcTreeNode): SnapshotNode[] {
@@ -749,7 +749,7 @@ export type SnapshotResult =
 
 /**
  * Den Taxonomie-Baum eines Ballots als unveränderlichen Snapshot-Record auf dessen
- * Governance-Konto schreiben (append-only) und in app_taxonomy_snapshot indexieren.
+ * Community-Konto schreiben (append-only) und in app_taxonomy_snapshot indexieren.
  * Dieser Record ist die **Quelle der Wahrheit** — der Indexer projiziert ihn in
  * app_taxonomy_node/_membership.
  *
@@ -791,7 +791,7 @@ export async function publishTaxonomySnapshot(
   }
   if (prev) record.prev = { uri: prev.at_uri, cid: prev.cid }
 
-  const { did, password } = await loadGovernanceCreds(ballotRkey)
+  const { did, password } = await loadCommunityCreds(ballotRkey)
   const { accessJwt } = await pdsCreateSession(did, password)
   const { uri, cid } = await pdsCreateRecord(did, accessJwt, SNAPSHOT_NSID, record)
 

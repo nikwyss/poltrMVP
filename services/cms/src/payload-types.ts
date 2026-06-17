@@ -276,7 +276,7 @@ export interface Ballot {
    */
   status: 'draft' | 'published' | 'archived';
   /**
-   * Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for the governance account handle — dots are replaced with hyphens (e.g. "133.3" → ballot-133-3.id.poltr.ch).
+   * Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for the community account handle — dots are replaced with hyphens (e.g. "133.3" → ballot-133-3.id.poltr.ch).
    */
   rkey: string;
   title: string;
@@ -320,13 +320,13 @@ export interface Ballot {
    */
   officialRef?: string | null;
   /**
-   * ATProto Governance Account DID (auto-created on publish — reload the page after publishing to see the value).
+   * ATProto Community Account DID (auto-created on publish — reload the page after publishing to see the value).
    */
-  governanceDid?: string | null;
+  communityDid?: string | null;
   /**
-   * ATProto Governance Account Handle (auto-created on publish — reload the page after publishing to see the value).
+   * ATProto Community Account Handle (auto-created on publish — reload the page after publishing to see the value).
    */
-  governanceHandle?: string | null;
+  communityHandle?: string | null;
   /**
    * Verknüpfte offizielle Argumente. Zum Bearbeiten anklicken oder oben rechts neu anlegen.
    */
@@ -558,8 +558,8 @@ export interface BallotsSelect<T extends boolean = true> {
   ballotType?: T;
   voteDate?: T;
   officialRef?: T;
-  governanceDid?: T;
-  governanceHandle?: T;
+  communityDid?: T;
+  communityHandle?: T;
   officialArguments?: T;
   updatedAt?: T;
   createdAt?: T;

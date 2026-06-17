@@ -9,7 +9,7 @@ POLTR ist heute weitgehend einsprachig (Deutsch). Frontend hat zwar `next-intl` 
 - **Offizielle Argumente** (CMS `OfficialArguments`) haben in der Bundeskanzlei-Quelle bereits Übersetzungen (DE/FR/IT) — diese gehen aktuell beim Import verloren.
 - **Community-Argumente** und **Kommentare** entstehen in der Sprache des Autors; nicht-DE-Sprecher sehen sie roh.
 - Das Lexicon `app.ch.poltr.ballot.argument` hat **kein** Sprach- oder `translations`-Feld; die DB-Tabellen `app_arguments`/`app_comments` ebenfalls nicht.
-- TypeScript-Stub `language?: 'de-CH'|'fr-CH'|'it-CH'|'rm-CH'` existiert in [services/front/src/types/ballots.ts](../services/front/src/types/ballots.ts) — wird aber nirgends genutzt.
+- TypeScript-Stub `language?: 'de-CH'|'fr-CH'|'it-CH'|'rm-CH'` existiert in [services/frontend/src/types/ballots.ts](../services/frontend/src/types/ballots.ts) — wird aber nirgends genutzt.
 
 **Ziel:** Jeder textuelle ATProto-Record führt die Originalsprache + Übersetzungen für **DE/FR/IT/RM/EN** mit sich. Offizielle Argumente werden **manuell** im Payload CMS gepflegt (Payload Localization). Community-Arguments + Comments werden **automatisch via KI** im Hintergrund übersetzt — der KI-Call selbst kommt in einer zweiten Iteration; jetzt nur die Architektur.
 
@@ -65,11 +65,11 @@ Jeder Service liest beim Start daraus und stellt eine getypte Liste bereit:
   ```js
   export const SUPPORTED_LANGUAGES = (process.env.POLTR_LANGUAGES || "de,fr,it,rm,en").split(",");
   ```
-- **Frontend** [services/front/src/i18n/config.ts](../services/front/src/i18n/config.ts):
+- **Frontend** [services/frontend/src/i18n/config.ts](../services/frontend/src/i18n/config.ts):
   ```ts
   export const locales = (process.env.NEXT_PUBLIC_POLTR_LANGUAGES || "de,fr,it,rm,en").split(",") as Locale[];
   ```
-  Übersetzungsdateien `services/front/messages/fr.json`, `it.json`, `rm.json` als Skelett anlegen (Inhalte folgen — kein Scope dieses Plans).
+  Übersetzungsdateien `services/frontend/messages/fr.json`, `it.json`, `rm.json` als Skelett anlegen (Inhalte folgen — kein Scope dieses Plans).
 - **CMS** [services/cms/src/payload.config.ts](../services/cms/src/payload.config.ts) — Payload erwartet die Locales statisch im Config-Block (siehe §2). Hier kann man `POLTR_LANGUAGES` lesen und zu Locale-Objekten mappen, **aber** jede neue Locale erzeugt eine DB-Migration in Payload (siehe "Sprache hinzufügen"-Sektion am Ende).
 
 **Niemals** Sprach-Listen in Routen-Handlern, Worker-Logik oder Komponenten hartcodieren — immer aus der zentralen Konstante des jeweiligen Service.
@@ -116,9 +116,9 @@ Hinweis: Originalsprach-Inhalt bleibt im Top-Level `title`/`body`. Das `translat
 
 ### 1b. Comments: Sidecar-Records statt Inline (Repo-Topologie!)
 
-**Warum anders als Arguments:** Arguments leben im Governance-Account des Ballots — POLTR kontrolliert die Credentials, kann den ganzen Record mit `putRecord` überschreiben. **Comments leben jedoch in User-Repos** (interne Comments) bzw. **fremden Bluesky-Repos** (externe Replies via crosspost-poller). Dort darf der Worker **niemals** schreiben.
+**Warum anders als Arguments:** Arguments leben im Community-Account des Ballots — POLTR kontrolliert die Credentials, kann den ganzen Record mit `putRecord` überschreiben. **Comments leben jedoch in User-Repos** (interne Comments) bzw. **fremden Bluesky-Repos** (externe Replies via crosspost-poller). Dort darf der Worker **niemals** schreiben.
 
-Lösung: Übersetzungen sind **eigenständige Sidecar-Records** im governance-Account des Ballots, die per `subject.uri` auf den Original-Comment zeigen. Original-Comment bleibt unverändert; nur `langs` (Original-Sprachdeklaration) wird in `app.ch.poltr.comment` ergänzt.
+Lösung: Übersetzungen sind **eigenständige Sidecar-Records** im community-Account des Ballots, die per `subject.uri` auf den Original-Comment zeigen. Original-Comment bleibt unverändert; nur `langs` (Original-Sprachdeklaration) wird in `app.ch.poltr.comment` ergänzt.
 
 **Neues Lexicon `app.ch.poltr.comment.translation`** (eine Übersetzung pro Record — kein Array; composed rkey = idempotent + einzeln moderierbar):
 
@@ -169,7 +169,7 @@ Lösung: Übersetzungen sind **eigenständige Sidecar-Records** im governance-Ac
 
 (Kein Lexicon-File im Repo bisher — Schema bleibt implizit, Indexer liest `record.langs ?? [DEFAULT_LANGUAGE]`.)
 
-**Externe Bluesky-Replies funktionieren transparent:** `subject.uri` zeigt einfach auf den fremden `at://did:plc:.../app.bsky.feed.post/...` URI; POLTR schreibt nichts in fremde Repos, nur in den eigenen Governance-Account.
+**Externe Bluesky-Replies funktionieren transparent:** `subject.uri` zeigt einfach auf den fremden `at://did:plc:.../app.bsky.feed.post/...` URI; POLTR schreibt nichts in fremde Repos, nur in den eigenen Community-Account.
 
 ---
 
@@ -206,7 +206,7 @@ Aktuelles Modell (`language`-Select-Feld + monolinguale Texte) ist konzeptionell
 
 | Feld | Heute | Nach Umbau |
 |---|---|---|
-| `rkey`, `voteDate`, `ballotType`, `officialRef`, `status`, `governanceDid`, `governanceHandle` | — | unverändert (Metadaten, nicht localized) |
+| `rkey`, `voteDate`, `ballotType`, `officialRef`, `status`, `communityDid`, `communityHandle` | — | unverändert (Metadaten, nicht localized) |
 | `title` | monolingual | `localized: true` |
 | `description` | monolingual richText | `localized: true` |
 | `topic` | monolingual | `localized: true` |
@@ -318,7 +318,7 @@ Danach das `language`-Select-Feld aus dem Schema entfernen. Für `OfficialArgume
 4. Admin klickt im Switcher auf `fr` → Formular reloads, FR-Slots leer. Inhalt eintragen → speichern. Payload schreibt nur den FR-Slot.
 5. Wiederholen für `it`, `rm`, `en`.
 6. Status auf `published`:
-   - **Ballot:** Hook erstellt nur den Governance-Account (kein PDS-Record für Ballots).
+   - **Ballot:** Hook erstellt nur den Community-Account (kein PDS-Record für Ballots).
    - **OfficialArgument:** Hook liest `originLanguage`-Locale + alle anderen befüllten Locales, baut den ATProto-Record mit `langs: [origin]` + `translations[]`, schreibt auf PDS.
 
 ---
@@ -481,7 +481,7 @@ def _serialize_cms_ballot(doc, counts=None, viewer_like=None) -> dict:
         "availableLangs": doc.get("_availableLangs", ["de"]),  # vom locale=all-Call befüllt
         "createdAt": doc.get("createdAt"),
         "updatedAt": doc.get("updatedAt"),
-        "governanceDid": doc.get("governanceDid"),
+        "communityDid": doc.get("communityDid"),
         "argumentCount": (counts or {}).get("argument_count", 0),
         "commentCount": (counts or {}).get("comment_count", 0),
         "likeCount": (counts or {}).get("like_count", 0),
@@ -489,11 +489,11 @@ def _serialize_cms_ballot(doc, counts=None, viewer_like=None) -> dict:
     }
 ```
 
-`governanceDid` bleibt drin — die Frontend braucht das, um die zugehörigen ATProto-Argumente zu finden (Brücke zwischen Schichten).
+`communityDid` bleibt drin — die Frontend braucht das, um die zugehörigen ATProto-Argumente zu finden (Brücke zwischen Schichten).
 
 ### 5b-2. Frontend — Refactoring-Inventar
 
-**Typen** [services/front/src/types/ballots.ts](../services/front/src/types/ballots.ts):
+**Typen** [services/frontend/src/types/ballots.ts](../services/frontend/src/types/ballots.ts):
 
 - `BallotRecord` löschen.
 - `BallotWithMetadata` umbenennen zu `Ballot` und flach machen:
@@ -510,7 +510,7 @@ def _serialize_cms_ballot(doc, counts=None, viewer_like=None) -> dict:
     availableLangs: string[];
     createdAt?: string;
     updatedAt?: string;
-    governanceDid?: string;        // Bridge zur Deliberation
+    communityDid?: string;        // Bridge zur Deliberation
     argumentCount?: number;
     commentCount?: number;
     likeCount?: number;
@@ -519,7 +519,7 @@ def _serialize_cms_ballot(doc, counts=None, viewer_like=None) -> dict:
   ```
 - `ArgumentRecord`, `CommentRecord`, `ArgumentWithMetadata`, `CommentWithMetadata` bleiben unverändert — die sind echte ATProto-Records.
 
-**Agent-Calls** [services/front/src/lib/agent.ts](../services/front/src/lib/agent.ts) Zeilen 28-46:
+**Agent-Calls** [services/frontend/src/lib/agent.ts](../services/frontend/src/lib/agent.ts) Zeilen 28-46:
 
 - `getBallot(rkey)` ruft `/api/ballots/<rkey>?lang=<currentLocale>` statt `/api/xrpc/app.ch.poltr.ballot.get?rkey=...`
 - `listBallots()` ruft `/api/ballots?lang=<currentLocale>` statt `/api/xrpc/app.ch.poltr.ballot.list`
@@ -529,12 +529,12 @@ def _serialize_cms_ballot(doc, counts=None, viewer_like=None) -> dict:
 
 | Datei | Was zu tun |
 |---|---|
-| [services/front/src/app/(app)/home/page.tsx](../services/front/src/app/(app)/home/page.tsx) (Zeilen 31, 34, 38, 45, 80, 83) | `ballot.record.title` → `ballot.title`; `ballot.uri.split("/").pop()` → `ballot.rkey`; `key={ballot.uri}` → `key={ballot.rkey}` |
-| [services/front/src/app/(app)/ballots/page.tsx](../services/front/src/app/(app)/ballots/page.tsx) (Zeilen 30, 33, 37, 44, 79, 82) | analog |
-| [services/front/src/app/(app)/ballot/[id]/arguments/feed/page.tsx](../services/front/src/app/(app)/ballot/[id]/arguments/feed/page.tsx) (Zeilen 816-846, 956) | `ballot.record.title` → `ballot.title`; `ballot.record.text` → `ballot.description`; das `ballot.record.language`-Badge (Zeilen 818-820) durch UI für `availableLangs` ersetzen (siehe §8); `ballotUri={ballot.uri}` (Zeile 956) → entweder `ballotRkey={ballot.rkey}` oder weiterhin URI bauen falls argument-create endpoint das so erwartet (= AT-URI des governance accounts, nicht der Ballot selbst!) |
-| [services/front/src/app/(app)/ballot/[id]/arguments/booklet/page.tsx](../services/front/src/app/(app)/ballot/[id]/arguments/booklet/page.tsx) (Zeilen 652-672, 698) | analog: `ballot.record.*` → `ballot.*`; `ExpandableText text={ballot.record.text}` → `text={ballot.description}` |
+| [services/frontend/src/app/(app)/home/page.tsx](../services/frontend/src/app/(app)/home/page.tsx) (Zeilen 31, 34, 38, 45, 80, 83) | `ballot.record.title` → `ballot.title`; `ballot.uri.split("/").pop()` → `ballot.rkey`; `key={ballot.uri}` → `key={ballot.rkey}` |
+| [services/frontend/src/app/(app)/ballots/page.tsx](../services/frontend/src/app/(app)/ballots/page.tsx) (Zeilen 30, 33, 37, 44, 79, 82) | analog |
+| [services/frontend/src/app/(app)/ballot/[id]/arguments/feed/page.tsx](../services/frontend/src/app/(app)/ballot/[id]/arguments/feed/page.tsx) (Zeilen 816-846, 956) | `ballot.record.title` → `ballot.title`; `ballot.record.text` → `ballot.description`; das `ballot.record.language`-Badge (Zeilen 818-820) durch UI für `availableLangs` ersetzen (siehe §8); `ballotUri={ballot.uri}` (Zeile 956) → entweder `ballotRkey={ballot.rkey}` oder weiterhin URI bauen falls argument-create endpoint das so erwartet (= AT-URI des community accounts, nicht der Ballot selbst!) |
+| [services/frontend/src/app/(app)/ballot/[id]/arguments/booklet/page.tsx](../services/frontend/src/app/(app)/ballot/[id]/arguments/booklet/page.tsx) (Zeilen 652-672, 698) | analog: `ballot.record.*` → `ballot.*`; `ExpandableText text={ballot.record.text}` → `text={ballot.description}` |
 
-**Wichtig**: Zeile 956 in `feed/page.tsx` (`ballotUri={ballot.uri}`) bezieht sich auf den Argument-Create-Endpoint. Heute steht in `ballot.uri` der `cms://`-Pseudo-URI. Bei der Argumentcreation wird intern aber der **rkey** zur Auflösung des Governance-Accounts verwendet. Den Aufruf auf `ballotRkey={ballot.rkey}` umstellen; Backend `create_argument()` entsprechend anpassen (statt URI-Parsing direkt `rkey` entgegennehmen).
+**Wichtig**: Zeile 956 in `feed/page.tsx` (`ballotUri={ballot.uri}`) bezieht sich auf den Argument-Create-Endpoint. Heute steht in `ballot.uri` der `cms://`-Pseudo-URI. Bei der Argumentcreation wird intern aber der **rkey** zur Auflösung des Community-Accounts verwendet. Den Aufruf auf `ballotRkey={ballot.rkey}` umstellen; Backend `create_argument()` entsprechend anpassen (statt URI-Parsing direkt `rkey` entgegennehmen).
 
 ### 5b-3. Migration in zwei Phasen (atomar nicht möglich, da Frontend + Backend zusammenhängen)
 
@@ -546,7 +546,7 @@ So bleibt das System während des Refactors funktionsfähig (keine Big-Bang-Depl
 
 ### 5b-4. Was unverändert bleibt
 
-- `auth.governance_accounts`-Tabelle (Bridge: `ballot_rkey` → `did`) — unverändert, wird weiter von Argument-Endpoints genutzt.
+- `auth.community_accounts`-Tabelle (Bridge: `ballot_rkey` → `did`) — unverändert, wird weiter von Argument-Endpoints genutzt.
 - Argument/Comment-Routes (`/xrpc/app.ch.poltr.argument.*`, `/xrpc/app.ch.poltr.comment.*`) — bleiben **echtes** XRPC, da Arguments/Comments tatsächlich ATProto-Records sind.
 - Indexer — kennt Ballots nicht und braucht das auch nicht.
 
@@ -575,10 +575,10 @@ services/appview/src/routes/
 
 ### 5b-6. Frontend-Proxy-Erweiterung
 
-[services/front/src/app/api/](../services/front/src/app/api/) hat heute nur den XRPC-Catch-all-Proxy `xrpc/[...path]`. Für die neuen `/api/ballots*`-REST-Routen kommt eine zweite Proxy-Route dazu:
+[services/frontend/src/app/api/](../services/frontend/src/app/api/) hat heute nur den XRPC-Catch-all-Proxy `xrpc/[...path]`. Für die neuen `/api/ballots*`-REST-Routen kommt eine zweite Proxy-Route dazu:
 
 ```
-services/front/src/app/api/
+services/frontend/src/app/api/
 ├── auth/                    # bleibt
 ├── xrpc/[...path]/          # bleibt — proxiet zu AppView XRPC (Deliberation)
 └── poltr/[...path]/         # NEU — proxiet zu AppView REST (Basis-App)
@@ -629,7 +629,7 @@ async def _process_arguments_batch():
     # 2. fehlende Sprachen = SUPPORTED_LANGUAGES - (langs ∪ translations[].lang)
     # 3. _translate_via_llm → Infomaniak Apertus (OpenAI-kompatibel, JSON-Prompt)
     # 4. putRecord mit erweitertem translations[] auf den Argument-Record selbst
-    #    (governance-Account hat Schreibrecht).
+    #    (community-Account hat Schreibrecht).
     # 5. KEIN direktes DB-Update — Firehose → Indexer macht das.
     pass
 
@@ -640,7 +640,7 @@ async def _process_comments_batch():
     # 3. Für jede fehlende Sprache:
     #      - LLM-Call (_translate_via_llm → Infomaniak Apertus)
     #      - createRecord/putRecord auf collection 'app.ch.poltr.comment.translation'
-    #        im governance-Account des Ballots — composed rkey = f"{commentRkey}-{lang}"
+    #        im community-Account des Ballots — composed rkey = f"{commentRkey}-{lang}"
     #      - Record-Body: { subject: {uri: c.uri}, ballot: ballot_rkey, lang, body, source:'ai', model, translatedAt }
     # 4. KEIN direktes DB-Update — Firehose → Indexer macht das.
     pass
@@ -669,21 +669,21 @@ JSON-Prompt erzwungen (Infomaniak unterstützt kein forced tool-use, siehe
 [doc/infomaniak.md](infomaniak.md)); transiente Gateway-Fehler (429/5xx) werden
 mit 1/2/4 s Backoff wiederholt, permanente (400/401) sofort durchgereicht. Die
 ganze Pipeline (DB → Worker → PDS → Indexer → DB) bleibt unverändert; geschrieben
-wird ausschliesslich über `putRecord` auf den Governance-Account.
+wird ausschliesslich über `putRecord` auf den Community-Account.
 
 ---
 
 ## 8. Frontend
 
-[services/front/src/i18n/config.ts](../services/front/src/i18n/config.ts): `locales` aus `NEXT_PUBLIC_POLTR_LANGUAGES` ableiten (siehe Sprachen-Konstanten-Sektion oben); `localeLabels` für `de`, `fr`, `it`, `rm`, `en` befüllen.
+[services/frontend/src/i18n/config.ts](../services/frontend/src/i18n/config.ts): `locales` aus `NEXT_PUBLIC_POLTR_LANGUAGES` ableiten (siehe Sprachen-Konstanten-Sektion oben); `localeLabels` für `de`, `fr`, `it`, `rm`, `en` befüllen.
 
-Argument-Komponenten ([services/front/src/app/(app)/ballot/[id]/arguments/feed/page.tsx](../services/front/src/app/(app)/ballot/[id]/arguments/feed/page.tsx), `booklet/page.tsx`, `[argRkey]/page.tsx`):
+Argument-Komponenten ([services/frontend/src/app/(app)/ballot/[id]/arguments/feed/page.tsx](../services/frontend/src/app/(app)/ballot/[id]/arguments/feed/page.tsx), `booklet/page.tsx`, `[argRkey]/page.tsx`):
 
 - Beim Fetch der Argument-Liste die Cookie-Locale als `?lang=`-Query mitgeben.
 - AppView liefert bereits das passende `title`/`body`. Wenn `translationSource === 'ai'` oder `translatedFrom !== lang`: kleines Badge "Automatisch übersetzt aus DE" anzeigen (Übersetzungs-String für das Badge selbst in `messages/*.json`).
 - Argument-Create-Form: Sprache standardmäßig aus aktueller Locale ableiten, kein zusätzliches UI nötig.
 
-TypeScript-Typen in [services/front/src/types/ballots.ts](../services/front/src/types/ballots.ts) anpassen: bestehender `language`-Stub durch `langs: string[]`, `availableLangs: string[]`, `translationSource?: 'manual'|'ai'` ersetzen.
+TypeScript-Typen in [services/frontend/src/types/ballots.ts](../services/frontend/src/types/ballots.ts) anpassen: bestehender `language`-Stub durch `langs: string[]`, `availableLangs: string[]`, `translationSource?: 'manual'|'ai'` ersetzen.
 
 ---
 
@@ -707,23 +707,23 @@ TypeScript-Typen in [services/front/src/types/ballots.ts](../services/front/src/
 | [services/appview/src/core/languages.py](../services/appview/src/core/languages.py) | **NEU** — `SUPPORTED_LANGUAGES`, `DEFAULT_LANGUAGE` aus Env |
 | [services/appview/src/routes/ballots/ballots.py](../services/appview/src/routes/ballots/ballots.py) | Schrumpft auf NUR Ballot-Endpoints, neue `/api/ballots*`-REST-Routen, flacher Serializer, `?lang=`+`?locale=all` an CMS |
 | services/appview/src/routes/deliberation/{arguments,comments,likes,activity,reviews}.py | **NEU** — Splits aus ballots.py; XRPC-Routen für Deliberation; Arguments lang-aware (siehe §5a), Create akzeptiert `langs` |
-| services/front/src/app/api/poltr/[...path]/route.ts | **NEU** — Proxy-Route für REST-Pfad (zu AppViews `/api/ballots*`); Pattern identisch zu `xrpc/[...path]` |
-| [services/front/src/types/ballots.ts](../services/front/src/types/ballots.ts) | `BallotRecord` löschen, `BallotWithMetadata` → flacher `Ballot`-Type (mit `rkey`, `originLanguage`, `availableLangs`); Argument/Comment-Types unverändert |
-| [services/front/src/lib/agent.ts](../services/front/src/lib/agent.ts) | `getBallot`/`listBallots` auf `/api/ballots*` umstellen, `lang`-Parameter |
-| services/front/src/app/(app)/home/page.tsx, ballots/page.tsx, ballot/[id]/arguments/feed/page.tsx, ballot/[id]/arguments/booklet/page.tsx | `ballot.record.*` → `ballot.*`; `ballot.uri.split("/").pop()` → `ballot.rkey`; `ballot.record.text` → `ballot.description`; `ballot.record.language`-Badge durch `availableLangs`-UI ersetzen |
+| services/frontend/src/app/api/poltr/[...path]/route.ts | **NEU** — Proxy-Route für REST-Pfad (zu AppViews `/api/ballots*`); Pattern identisch zu `xrpc/[...path]` |
+| [services/frontend/src/types/ballots.ts](../services/frontend/src/types/ballots.ts) | `BallotRecord` löschen, `BallotWithMetadata` → flacher `Ballot`-Type (mit `rkey`, `originLanguage`, `availableLangs`); Argument/Comment-Types unverändert |
+| [services/frontend/src/lib/agent.ts](../services/frontend/src/lib/agent.ts) | `getBallot`/`listBallots` auf `/api/ballots*` umstellen, `lang`-Parameter |
+| services/frontend/src/app/(app)/home/page.tsx, ballots/page.tsx, ballot/[id]/arguments/feed/page.tsx, ballot/[id]/arguments/booklet/page.tsx | `ballot.record.*` → `ballot.*`; `ballot.uri.split("/").pop()` → `ballot.rkey`; `ballot.record.text` → `ballot.description`; `ballot.record.language`-Badge durch `availableLangs`-UI ersetzen |
 | [services/appview/src/translation/translator.py](../services/appview/src/translation/translator.py) | **NEU** — Background-Worker Skelett |
-| [services/front/src/i18n/config.ts](../services/front/src/i18n/config.ts) | 5 Sprachen, neue `Locale`-Type |
-| [services/front/src/types/ballots.ts](../services/front/src/types/ballots.ts) | Neue Response-Felder |
+| [services/frontend/src/i18n/config.ts](../services/frontend/src/i18n/config.ts) | 5 Sprachen, neue `Locale`-Type |
+| [services/frontend/src/types/ballots.ts](../services/frontend/src/types/ballots.ts) | Neue Response-Felder |
 | Frontend Argument-Seiten | `?lang=` Query + Badge für AI-Übersetzung |
 
 ---
 
 ## Wiederverwendete bestehende Bausteine
 
-- **`create_governance_record` / `put_governance_record`** in [services/appview/src/atproto/governance.py](../services/appview/src/atproto/governance.py) — Worker nutzt diese Funktionen für PDS-Writes mit governance-Credentials.
+- **`create_community_record` / `put_community_record`** in [services/appview/src/atproto/community.py](../services/appview/src/atproto/community.py) — Worker nutzt diese Funktionen für PDS-Writes mit community-Credentials.
 - **Asyncio-Poll-Pattern** aus [services/appview/src/arguments/peer_review.py](../services/appview/src/arguments/peer_review.py) — Worker-Skelett 1:1 übernehmbar.
-- **NaCl-SecretBox-Verschlüsselung** der governance passwords → kein neuer Auth-Code nötig.
-- **next-intl Cookie-basierter Locale-Resolver** in [services/front/src/i18n/request.ts](../services/front/src/i18n/request.ts) — liefert die Sprache, mit der Frontend AppView ruft.
+- **NaCl-SecretBox-Verschlüsselung** der community passwords → kein neuer Auth-Code nötig.
+- **next-intl Cookie-basierter Locale-Resolver** in [services/frontend/src/i18n/request.ts](../services/frontend/src/i18n/request.ts) — liefert die Sprache, mit der Frontend AppView ruft.
 
 ---
 
@@ -742,7 +742,7 @@ TypeScript-Typen in [services/front/src/types/ballots.ts](../services/front/src/
    - Locale-Cookie auf `fr` setzen, Ballot-Seite öffnen → französische Variante des Arguments sichtbar; Badge "Original auf Deutsch" bei jenen ohne FR-Übersetzung.
 5. **Worker (ohne KI)**:
    - `APPVIEW_TRANSLATE_ENABLED=true` setzen, ein neues Community-Argument auf `de` erstellen → DB-Status `pending` → Worker pickt es auf → loggt "TODO: KI noch nicht angeschlossen", setzt Status nicht auf `complete` (idle).
-   - Bestätigt dass Such-Query, Batching, governance-Session, putRecord-Pfad funktionieren.
+   - Bestätigt dass Such-Query, Batching, community-Session, putRecord-Pfad funktionieren.
 6. **Worker (mit KI, Phase 2)**: nach Anthropic-Integration: derselbe Test → nach max. 2 Poll-Zyklen erscheinen 4 Übersetzungen im Record, DB-Status `complete`, Frontend zeigt alle Sprachen.
 
 ---
@@ -753,7 +753,7 @@ Wenn künftig eine 6. Sprache (z.B. `pt`) ergänzt werden soll:
 
 1. **Helm/ConfigMap:** `POLTR_LANGUAGES=de,fr,it,rm,en,pt` (+ `NEXT_PUBLIC_POLTR_LANGUAGES`).
 2. **CMS [payload.config.ts](../services/cms/src/payload.config.ts):** neue Locale-Definition in `localization.locales`; Payload-Migration laufen lassen (legt `title_pt`, `body_pt` Spalten in den Payload-DB-Tabellen an).
-3. **Frontend:** Datei `services/front/messages/pt.json` anlegen + Inhalte übersetzen.
+3. **Frontend:** Datei `services/frontend/messages/pt.json` anlegen + Inhalte übersetzen.
 4. **Rolling-Restart:** CMS, AppView, Indexer, Frontend ziehen die neuen Env-Vars.
 5. **Backfill (automatisch):** Der Indexer setzt bei nächstem Firehose-Event für bestehende Records `translation_status` von `'complete'` → `'partial'` (eine Sprache fehlt jetzt). Worker pickt sie auf und ergänzt `pt`-Übersetzungen via KI.
    - Falls Backfill sofort getriggert werden soll (statt auf nächsten Edit zu warten):

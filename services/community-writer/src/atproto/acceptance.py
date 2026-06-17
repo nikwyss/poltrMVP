@@ -4,8 +4,8 @@ User-authored argument records land in their OWN repos (self-signed). The
 projector (indexer) stages them into `app_acceptance_queue`. This module — run by
 the writer process (src.main) when ACCEPTANCE_PIPELINE_ENABLED=true —
 drains that queue: gates each item (eligibility), then writes the canonical
-community record into the governance repo (the user content copied + a
-`source:{originUri,originCid}` provenance reference). The governance-authored
+community record into the community repo (the user content copied + a
+`source:{originUri,originCid}` provenance reference). The community-authored
 community record flows back through the firehose and is projected into
 app_arguments the normal way.
 
@@ -25,9 +25,9 @@ import os
 import httpx
 
 from src.shared.db import get_pool
-from src.atproto.governance import (
-    create_governance_record,
-    get_governance_record,
+from src.atproto.community import (
+    create_community_record,
+    get_community_record,
     compose_review_rkey,
 )
 from src.arguments.peer_review_assign import maybe_assign_reviews_for_user
@@ -73,15 +73,15 @@ async def _accept_argument(client, conn, row) -> tuple[str, str | None]:
     ballot = row["ballot"]
     gov = (
         await conn.fetchrow(
-            "SELECT did FROM auth.governance_accounts WHERE ballot_rkey = $1",
+            "SELECT did FROM auth.community_accounts WHERE ballot_rkey = $1",
             str(ballot),
         )
         if ballot is not None
         else None
     )
-    gov_did = gov["did"] if gov else None
-    if not gov_did:
-        return ("rejected", "no_governance_account")
+    community_did = gov["did"] if gov else None
+    if not community_did:
+        return ("rejected", "no_community_account")
 
     user_record = _as_dict(row["record"])
     if not user_record:
@@ -91,7 +91,7 @@ async def _accept_argument(client, conn, row) -> tuple[str, str | None]:
 
     # Idempotency / crash-recovery: community record already there (written, but
     # we crashed before marking 'done') → treat as accepted.
-    existing = await get_governance_record(client, gov_did, ARGUMENT_NSID, rkey)
+    existing = await get_community_record(client, community_did, ARGUMENT_NSID, rkey)
     if existing is not None:
         return ("done", None)
 
@@ -102,12 +102,12 @@ async def _accept_argument(client, conn, row) -> tuple[str, str | None]:
     source["originCid"] = row["user_cid"]
     community["source"] = source
 
-    await create_governance_record(client, gov_did, ARGUMENT_NSID, community, rkey=rkey)
+    await create_community_record(client, community_did, ARGUMENT_NSID, community, rkey=rkey)
     return ("done", None)
 
 
 async def _accept_response(client, conn, row) -> tuple[str, str | None]:
-    """Gate + promote one staged peer-review response. The governance repo is the
+    """Gate + promote one staged peer-review response. The community repo is the
     one holding the referenced (community) argument; the rkey matches the legacy
     compose_review_rkey so dedup/quorum behave identically."""
     did = row["did"]
@@ -129,12 +129,12 @@ async def _accept_response(client, conn, row) -> tuple[str, str | None]:
     gov = await conn.fetchrow(
         "SELECT did FROM app_arguments WHERE uri = $1", argument_uri
     )
-    gov_did = gov["did"] if gov else None
-    if not gov_did:
+    community_did = gov["did"] if gov else None
+    if not community_did:
         return ("rejected", "argument_not_found")
 
     rkey = compose_review_rkey(argument_uri, did)
-    existing = await get_governance_record(client, gov_did, RESPONSE_NSID, rkey)
+    existing = await get_community_record(client, community_did, RESPONSE_NSID, rkey)
     if existing is not None:
         return ("done", None)
 
@@ -142,14 +142,14 @@ async def _accept_response(client, conn, row) -> tuple[str, str | None]:
     community["originUri"] = row["user_uri"]
     community["originCid"] = row["user_cid"]
 
-    await create_governance_record(client, gov_did, RESPONSE_NSID, community, rkey=rkey)
+    await create_community_record(client, community_did, RESPONSE_NSID, community, rkey=rkey)
     return ("done", None)
 
 
 async def _accept_request(client, conn, row) -> tuple[str, str | None]:
     """A user requested review assignment (Phase 6 pull model). Gate eligibility,
     then run the reused assignment logic (lottery/daily-limit/slots), which writes
-    the invitation records into the governance repo."""
+    the invitation records into the community repo."""
     did = row["did"]
     elig = await conn.fetchrow(
         "SELECT eligible FROM auth.v_eligible_participants WHERE did = $1", did

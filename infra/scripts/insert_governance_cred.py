@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""One-shot script: encrypt the governance account password and INSERT into auth_creds.
+"""One-shot script: encrypt the community account password and INSERT into auth_creds.
 
 Usage:
-  APPVIEW_GOV_CREDS_MASTER_KEY_B64=<key> python3 insert_governance_cred.py
+  APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64=<key> python3 insert_community_cred.py
 
 Or pipe the master key:
-  export APPVIEW_GOV_CREDS_MASTER_KEY_B64=$(kubectl get secret appview-secrets -n poltr \
-      -o jsonpath='{.data.APPVIEW_GOV_CREDS_MASTER_KEY_B64}' | base64 -d)
-  python3 insert_governance_cred.py
+  export APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64=$(kubectl get secret appview-secrets -n poltr \
+      -o jsonpath='{.data.APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64}' | base64 -d)
+  python3 insert_community_cred.py
 """
 
 import os
@@ -20,12 +20,12 @@ from src.lib.pds_creds import encrypt_app_password
 
 DID = "did:plc:3ch7iwf6od4szklpolupbv7o"
 HANDLE = "admin.id.poltr.ch"
-EMAIL = "governance@poltr.ch"  # placeholder — adjust if needed
+EMAIL = "community@poltr.ch"  # placeholder — adjust if needed
 PASSWORD = "U88+yGBFb4f9iDzl//RPBUj6dn6GZFfC"
 
 ciphertext, nonce = encrypt_app_password(PASSWORD)
 
-print("-- Encrypted governance account credentials")
+print("-- Encrypted community account credentials")
 print("-- Run this SQL against your PostgreSQL database:")
 print()
 print(f"INSERT INTO auth.auth_creds (did, handle, email, pds_url, app_pw_ciphertext, app_pw_nonce)")

@@ -5,7 +5,7 @@ Polls app_arguments / app_comments for records whose translation_status is
 'pending' or 'partial', figures out which SUPPORTED_LANGUAGES are still
 missing, and (eventually) calls an LLM to produce translations. The
 translation result is then written back to the PDS via `putRecord` on the
-governance account so the firehose carries the update into the indexer.
+community account so the firehose carries the update into the indexer.
 
 The LLM call goes to Infomaniak AI Tools (Swiss-hosted, OpenAI-compatible
 chat completions) using the Swiss open model Apertus by default — same
@@ -28,10 +28,10 @@ from typing import Optional
 
 import httpx
 
-from src.atproto.governance import (
+from src.atproto.community import (
     get_did_for_ballot,
-    get_governance_record,
-    put_governance_record,
+    get_community_record,
+    put_community_record,
 )
 from src.shared.db import get_pool
 from src.shared.languages import (
@@ -423,7 +423,7 @@ async def _persist_record(
     """putRecord, converting any failure into TranslatePersistError so the poll
     loop trips the circuit breaker instead of re-translating next cycle."""
     try:
-        await put_governance_record(client, did, collection, rkey, record)
+        await put_community_record(client, did, collection, rkey, record)
     except Exception as err:
         raise TranslatePersistError(
             f"putRecord {collection}/{rkey} on {did} failed: {err}"
@@ -476,10 +476,10 @@ async def _process_argument(
     graft it back from the DB so the indexer's source-consistency CHECK passes.
     The DB is not touched directly — firehose + indexer re-sync the row."""
     uri = row["uri"]
-    gov_did = row["did"]
+    community_did = row["did"]
     rkey = row["rkey"]
 
-    record = await get_governance_record(client, gov_did, ARGUMENT_NSID, rkey)
+    record = await get_community_record(client, community_did, ARGUMENT_NSID, rkey)
     if record is None:
         logger.warning(f"translator: record not on PDS, skipping {uri}")
         return
@@ -540,7 +540,7 @@ async def _process_argument(
 
     record["langs"] = langs
     record["translations"] = list(by_lang.values())
-    await _persist_record(client, gov_did, ARGUMENT_NSID, rkey, record)
+    await _persist_record(client, community_did, ARGUMENT_NSID, rkey, record)
     fixes = []
     if repaired:
         fixes.append("repaired source")
@@ -557,9 +557,9 @@ async def _process_argument(
 async def _process_batch() -> None:
     """Process both inline-translation (Arguments) and sidecar (Comments) paths.
 
-    Arguments use putRecord on the governance-owned argument record (inline
+    Arguments use putRecord on the community-owned argument record (inline
     translations[]). Comments live in foreign repos — we publish sidecar
-    translation records into the ballot's governance account instead. The two
+    translation records into the ballot's community account instead. The two
     paths share the httpx client but use different PDS write primitives.
 
     The comment path is gated behind APPVIEW_TRANSLATE_COMMENTS_ENABLED (off by
@@ -610,7 +610,7 @@ async def _process_arguments_batch(client: httpx.AsyncClient) -> None:
 
 async def _process_comments_batch(client: httpx.AsyncClient) -> None:
     """Sidecar variant: comments are not rewritten (foreign repos), instead
-    we publish app.ch.poltr.comment.translation records into the governance
+    we publish app.ch.poltr.comment.translation records into the community
     account of the comment's ballot."""
     pool = await get_pool()
     batch = _batch_size()
@@ -670,10 +670,10 @@ async def _process_comment(client: httpx.AsyncClient, pool, row: dict) -> None:
         )
         return
 
-    gov_did = await get_did_for_ballot(ballot_rkey)
-    if not gov_did:
+    community_did = await get_did_for_ballot(ballot_rkey)
+    if not community_did:
         logger.warning(
-            f"translator: no governance account for ballot {ballot_rkey} (comment {comment_uri})"
+            f"translator: no community account for ballot {ballot_rkey} (comment {comment_uri})"
         )
         return
 
@@ -706,7 +706,7 @@ async def _process_comment(client: httpx.AsyncClient, pool, row: dict) -> None:
         # Idempotent overwrite at the composed rkey (create or replace).
         # Guarded so a write failure trips the circuit breaker.
         await _persist_record(
-            client, gov_did, COMMENT_TRANSLATION_NSID, rkey, sidecar_record
+            client, community_did, COMMENT_TRANSLATION_NSID, rkey, sidecar_record
         )
 
     # No direct DB write — firehose → indexer recomputes translation_status
@@ -855,7 +855,7 @@ async def _poll_loop() -> None:
 async def run_translation_forever() -> None:
     """Foreground translation loop for the standalone writer process
     (src.main). Resets the circuit breaker so a fresh start resumes
-    processing. The internal write-side owns governance writes now."""
+    processing. The internal write-side owns community writes now."""
     global _halted, _halt_reason
     _halted = False
     _halt_reason = ""

@@ -9,8 +9,8 @@ The booklet and feed pages list arguments. Opening an argument as a full-page na
 The current implementation lives in two modules:
 
 ```
-services/front/src/lib/overlay/           ← generic stack / nav / scroll
-services/front/src/lib/overlay-content/   ← app-specific type → component
+services/frontend/src/lib/overlay/           ← generic stack / nav / scroll
+services/frontend/src/lib/overlay-content/   ← app-specific type → component
 ```
 
 ## Core model
@@ -46,7 +46,7 @@ We use *anchors*, not pixel scroll-positions, because:
 
 ### Scoping: only inside `/ballot/[id]/…`
 
-The `<OverlayProvider>` and `<OverlayContentHost>` are mounted in [src/app/(app)/ballot/[id]/layout.tsx](../services/front/src/app/(app)/ballot/[id]/layout.tsx) — not at the top-level `(app)/layout.tsx`. Consequences:
+The `<OverlayProvider>` and `<OverlayContentHost>` are mounted in [src/app/(app)/ballot/[id]/layout.tsx](../services/frontend/src/app/(app)/ballot/[id]/layout.tsx) — not at the top-level `(app)/layout.tsx`. Consequences:
 
 - `useOverlay()` is only usable within a ballot route. Calling it from `/home`, `/profile`, etc. throws a clear error.
 - Overlay state is scoped to the ballot context, so `useParams().id` (used inside `ArgumentDetail` to resolve `ballotRkey`) always works.
@@ -56,7 +56,7 @@ If overlays are ever needed from outside a ballot context (e.g. global notificat
 ## Module layout
 
 ```
-services/front/src/lib/overlay/
+services/frontend/src/lib/overlay/
 ├── types.ts            # OverlayEntry union, OverlayCallbacks, OverlayHistoryState
 ├── url.ts              # parseOverlayStack ↔ serializeOverlayStack
 ├── context.tsx         # OverlayProvider: pushCount, scrollEl, callbacks-ref
@@ -64,11 +64,11 @@ services/front/src/lib/overlay/
 ├── overlay-host.tsx    # OverlayHost — generic Radix-Dialog shell
 └── index.ts
 
-services/front/src/lib/overlay-content/
+services/frontend/src/lib/overlay-content/
 ├── overlay-content-host.tsx   # type-switch → ArgumentDetail / CommentDetail / …
 └── index.ts
 
-services/front/src/components/
+services/frontend/src/components/
 ├── argument-detail.tsx   # rendered for { type: "argument" }
 └── comment-detail.tsx    # rendered for { type: "comment" }
 ```
@@ -121,7 +121,7 @@ useOverlayCallback("onArgumentRated", handleArgRated);
 
 The OverlayContentHost forwards the latest registered callback to the relevant detail component on every render — pages that don't care omit the registration; the callback no-ops.
 
-Callback names live in `OverlayCallbacks` in [types.ts](../services/front/src/lib/overlay/types.ts).
+Callback names live in `OverlayCallbacks` in [types.ts](../services/frontend/src/lib/overlay/types.ts).
 
 ### `<OverlayHost>` (low-level)
 
@@ -155,7 +155,7 @@ The single, app-specific overlay surface. Mounted once in the ballot layout. Kno
 
 Example: a `peerreview` overlay backed by a new `PeerReviewDetail` component.
 
-1. **Already done for peer-review:** extend the `OverlayEntry` union in [types.ts](../services/front/src/lib/overlay/types.ts). For something new:
+1. **Already done for peer-review:** extend the `OverlayEntry` union in [types.ts](../services/frontend/src/lib/overlay/types.ts). For something new:
 
    ```ts
    export type OverlayEntry =
@@ -170,7 +170,7 @@ Example: a `peerreview` overlay backed by a new `PeerReviewDetail` component.
 
 3. **i18n** — add `backToMilestone` and `overlayTitleMilestone` to every locale file (`messages/{de,en,fr,it,rm}.json`, under `common`).
 
-4. **Render branch in [overlay-content-host.tsx](../services/front/src/lib/overlay-content/overlay-content-host.tsx):**
+4. **Render branch in [overlay-content-host.tsx](../services/frontend/src/lib/overlay-content/overlay-content-host.tsx):**
 
    ```tsx
    case "milestone":
@@ -193,13 +193,13 @@ Example: a `peerreview` overlay backed by a new `PeerReviewDetail` component.
    - Accept type-specific navigation callbacks (`onNavigateToComment`, etc.) — these wrap `ctx.navigate(...)` for in-overlay links
    - Render `data-overlay-anchor="<id>"` on each clickable item that can navigate further (the comment row, the parent-argument summary, …). The `<id>` is the same identifier passed as `{anchor: id}` in the corresponding `ctx.navigate` call.
 
-Look at [`<ArgumentDetail>`](../services/front/src/components/argument-detail.tsx) or [`<CommentDetail>`](../services/front/src/components/comment-detail.tsx) for a working template.
+Look at [`<ArgumentDetail>`](../services/frontend/src/components/argument-detail.tsx) or [`<CommentDetail>`](../services/frontend/src/components/comment-detail.tsx) for a working template.
 
 ## Adding a new page-level callback
 
 Example: notifying the booklet when an argument is deleted.
 
-1. Add the field to `OverlayCallbacks` in [types.ts](../services/front/src/lib/overlay/types.ts):
+1. Add the field to `OverlayCallbacks` in [types.ts](../services/frontend/src/lib/overlay/types.ts):
 
    ```ts
    export type OverlayCallbacks = {
@@ -208,7 +208,7 @@ Example: notifying the booklet when an argument is deleted.
    };
    ```
 
-2. Wire it into the detail component in [overlay-content-host.tsx](../services/front/src/lib/overlay-content/overlay-content-host.tsx):
+2. Wire it into the detail component in [overlay-content-host.tsx](../services/frontend/src/lib/overlay-content/overlay-content-host.tsx):
 
    ```tsx
    <ArgumentDetail
@@ -278,15 +278,15 @@ Radix's `<Dialog>` requires:
 
 | File | Role |
 |---|---|
-| [services/front/src/lib/overlay/types.ts](../services/front/src/lib/overlay/types.ts) | `OverlayEntry` union, `OverlayCallbacks` registry, history-state shape |
-| [services/front/src/lib/overlay/url.ts](../services/front/src/lib/overlay/url.ts) | Parse / serialize `?ov=…` |
-| [services/front/src/lib/overlay/context.tsx](../services/front/src/lib/overlay/context.tsx) | `OverlayProvider` — pushCount, scrollEl, callback-registry, popstate |
-| [services/front/src/lib/overlay/use-overlay.ts](../services/front/src/lib/overlay/use-overlay.ts) | `useOverlay`, `useOverlayCallback`, `useOverlayCallbacks` |
-| [services/front/src/lib/overlay/overlay-host.tsx](../services/front/src/lib/overlay/overlay-host.tsx) | Generic Radix Dialog wrapper |
-| [services/front/src/lib/overlay-content/overlay-content-host.tsx](../services/front/src/lib/overlay-content/overlay-content-host.tsx) | App-specific type-switch + label wiring |
-| [services/front/src/components/argument-detail.tsx](../services/front/src/components/argument-detail.tsx) | Argument overlay body |
-| [services/front/src/components/comment-detail.tsx](../services/front/src/components/comment-detail.tsx) | Comment overlay body |
-| [services/front/src/app/(app)/ballot/[id]/layout.tsx](../services/front/src/app/(app)/ballot/[id]/layout.tsx) | Mounts `<OverlayProvider>` + `<OverlayContentHost>` |
+| [services/frontend/src/lib/overlay/types.ts](../services/frontend/src/lib/overlay/types.ts) | `OverlayEntry` union, `OverlayCallbacks` registry, history-state shape |
+| [services/frontend/src/lib/overlay/url.ts](../services/frontend/src/lib/overlay/url.ts) | Parse / serialize `?ov=…` |
+| [services/frontend/src/lib/overlay/context.tsx](../services/frontend/src/lib/overlay/context.tsx) | `OverlayProvider` — pushCount, scrollEl, callback-registry, popstate |
+| [services/frontend/src/lib/overlay/use-overlay.ts](../services/frontend/src/lib/overlay/use-overlay.ts) | `useOverlay`, `useOverlayCallback`, `useOverlayCallbacks` |
+| [services/frontend/src/lib/overlay/overlay-host.tsx](../services/frontend/src/lib/overlay/overlay-host.tsx) | Generic Radix Dialog wrapper |
+| [services/frontend/src/lib/overlay-content/overlay-content-host.tsx](../services/frontend/src/lib/overlay-content/overlay-content-host.tsx) | App-specific type-switch + label wiring |
+| [services/frontend/src/components/argument-detail.tsx](../services/frontend/src/components/argument-detail.tsx) | Argument overlay body |
+| [services/frontend/src/components/comment-detail.tsx](../services/frontend/src/components/comment-detail.tsx) | Comment overlay body |
+| [services/frontend/src/app/(app)/ballot/[id]/layout.tsx](../services/frontend/src/app/(app)/ballot/[id]/layout.tsx) | Mounts `<OverlayProvider>` + `<OverlayContentHost>` |
 
 ## Related planning docs
 

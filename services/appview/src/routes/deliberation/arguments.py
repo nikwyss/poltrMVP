@@ -1,7 +1,7 @@
 """
 XRPC routes for arguments: argument.list, argument.get, argument.create.
 
-Arguments are ATProto records living on ballot-specific governance accounts,
+Arguments are ATProto records living on ballot-specific community accounts,
 indexed into app_arguments. The (title, body) pair is multilingual: original
 languages live in `langs`/`title`/`body`; further translations are inline in
 `translations` and resolved at read time via _lang.pick_translation().
@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import JSONResponse
 
 from src.atproto.atproto_api import pds_create_record
-from src.atproto.governance import get_did_for_ballot
+from src.atproto.community import get_did_for_ballot
 from src.auth.middleware import TSession, verify_session_token
 from src.core.db import get_pool
 from src.core.fastapi import logger, limiter
@@ -441,14 +441,14 @@ async def create_argument(
             content={"error": "invalid_request", "message": "title and body required"},
         )
 
-    # Look up the governance DID for this ballot (via ballot_rkey = CMS ID)
-    gov_did = await get_did_for_ballot(str(ballot_id))
-    if not gov_did:
+    # Look up the community DID for this ballot (via ballot_rkey = CMS ID)
+    community_did = await get_did_for_ballot(str(ballot_id))
+    if not community_did:
         return JSONResponse(
             status_code=404,
             content={
                 "error": "not_found",
-                "message": "No governance account for this ballot",
+                "message": "No community account for this ballot",
             },
         )
 
@@ -478,7 +478,7 @@ async def create_argument(
     try:
         # ATProto-native: write the self-signed argument into the USER's own repo.
         # The internal write-side (writer) picks it up off the firehose, gates it,
-        # and writes the canonical community record into the governance repo. The
+        # and writes the canonical community record into the community repo. The
         # quota slot tracks the user-repo record URI.
         result = await pds_create_record(
             session, "app.ch.poltr.ballot.argument", record

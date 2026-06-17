@@ -41,7 +41,7 @@ See [todo.md](./todo.md) for specific week-by-week tasks.
 
 ### ⚠️ Not Yet Defined
 - **Global visibility:** Subscribing to global relays (Bluesky Jetstream)
-- **Moderation:** Labels, takedown flows and governance rules (drafted but not finalized)
+- **Moderation:** Labels, takedown flows and community rules (drafted but not finalized)
 - **UI/UX:** High-level ideas exist; no final frontend patterns yet
 
 ## Phases
@@ -94,10 +94,10 @@ See [todo.md](./todo.md) for specific week-by-week tasks.
 
 **Target:** Q2 2026
 
-### Phase 3: Governance & Moderation
+### Phase 3: Community & Moderation
 **Goal:** Sustainable community management
 
-**Proposal Governance**
+**Proposal Community**
 - [ ] Define who can create proposals
 - [ ] Verification system for official proposals
 - [ ] Proposal status workflow
@@ -147,13 +147,13 @@ See [todo.md](./todo.md) for specific week-by-week tasks.
 
 ## Open Questions (High Priority)
 
-### Product Scope & Governance
+### Product Scope & Community
 1. **MVP Boundaries** - What's the minimum feature set for launch?
    - Voting only? Argument ranking? Recommendations?
-2. **P2P Governance** - Who can create proposals?
+2. **P2P Community** - Who can create proposals?
    - Verified vs unverified users?
    - Official proposal verification system?
-3. **Content Governance** - What content is allowed? How to handle misinformation?
+3. **Content Community** - What content is allowed? How to handle misinformation?
 4. **Verification & Reputation** - Anti-abuse mechanisms and reputation scoring
 
 ### Technical Decisions

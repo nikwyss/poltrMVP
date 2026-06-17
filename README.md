@@ -53,7 +53,7 @@ Each service also has its own README in `services/*/README.md`.
 
 ```bash
 # Frontend
-cd services/front && npm install && npm start
+cd services/frontend && npm install && npm start
 # → http://127.0.0.1:5173
 
 # AppView

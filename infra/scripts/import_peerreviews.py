@@ -7,18 +7,18 @@ Reads two xlsx files:
   - content_peerreview.xlsx: 99 INSERT procedures (aggregated outcomes)
   - content_peerreview_progression.xlsx: 2,562 individual invitation/response rows
 
-Records are written to a ballot-specific governance account's PDS repo using
+Records are written to a ballot-specific community account's PDS repo using
 createRecord with composed rkeys ({content_id}-{mapped_did_suffix}), making
 duplicates structurally impossible. Re-runs skip already-existing records.
 
-Each ballot has its own governance account (per-ballot governance model).
-Credentials are loaded from the governance_accounts table in the DB.
+Each ballot has its own community account (per-ballot community model).
+Credentials are loaded from the community_accounts table in the DB.
 
 Environment variables:
   PDS_HOST         PDS endpoint (default: http://localhost:2583)
-  DB_URL           PostgreSQL connection URL (for governance_accounts lookup)
-  BALLOT_RKEY      Ballot rkey — credentials are loaded from governance_accounts table
-  MASTER_KEY_B64   APPVIEW_GOV_CREDS_MASTER_KEY_B64 (for decrypting governance password)
+  DB_URL           PostgreSQL connection URL (for community_accounts lookup)
+  BALLOT_RKEY      Ballot rkey — credentials are loaded from community_accounts table
+  MASTER_KEY_B64   APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64 (for decrypting community password)
   MAX_RESPONSES    Max number of responses to import (default: 0 = all)
   DRY_RUN          Set to "true" to inspect records without writing (default: false)
   PEERREVIEW_XLSX  Path to content_peerreview.xlsx (default: dump/content_peerreview.xlsx)
@@ -119,14 +119,14 @@ def _criteria_to_rating(val: Optional[int]) -> int:
 # ---------------------------------------------------------------------------
 
 
-def load_governance_creds(db_url: str, ballot_rkey: str, master_key_b64: str) -> tuple[str, str, str]:
-    """Load governance account DID, handle and decrypted password from DB.
+def load_community_creds(db_url: str, ballot_rkey: str, master_key_b64: str) -> tuple[str, str, str]:
+    """Load community account DID, handle and decrypted password from DB.
     Returns (did, handle, password)."""
     conn = psycopg2.connect(db_url)
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT did, handle, pw_ciphertext, pw_nonce FROM auth.governance_accounts WHERE ballot_rkey = %s",
+                "SELECT did, handle, pw_ciphertext, pw_nonce FROM auth.community_accounts WHERE ballot_rkey = %s",
                 (ballot_rkey,),
             )
             row = cur.fetchone()
@@ -134,7 +134,7 @@ def load_governance_creds(db_url: str, ballot_rkey: str, master_key_b64: str) ->
         conn.close()
 
     if not row:
-        print(f"ERROR: No governance account found for ballot_rkey={ballot_rkey}")
+        print(f"ERROR: No community account found for ballot_rkey={ballot_rkey}")
         sys.exit(1)
 
     did, handle, pw_ct, pw_nonce = row
@@ -153,34 +153,34 @@ def load_governance_creds(db_url: str, ballot_rkey: str, master_key_b64: str) ->
 # ---------------------------------------------------------------------------
 
 class PeerReviewImporter:
-    def __init__(self, pds_host: str, gov_handle: str, gov_password: str,
+    def __init__(self, pds_host: str, community_handle: str, community_password: str,
                  ballot_uri: str, ballot_rkey: str,
                  dry_run: bool = False, max_responses: int = 0):
         self.pds_host = pds_host
-        self.gov_handle = gov_handle
-        self.gov_password = gov_password
+        self.community_handle = community_handle
+        self.community_password = community_password
         self.ballot_uri = ballot_uri
         self.ballot_rkey = ballot_rkey
         self.dry_run = dry_run
         self.max_responses = max_responses
-        self.gov_did: Optional[str] = None
+        self.community_did: Optional[str] = None
         self.access_token: Optional[str] = None
         self.users: list[PdsUser] = []
         self.content_id_to_argument_uri: dict[int, str] = {}  # content_id -> AT URI
 
     def authenticate(self) -> bool:
-        """Create a PDS session for the governance account."""
-        print(f"Authenticating as {self.gov_handle}...")
+        """Create a PDS session for the community account."""
+        print(f"Authenticating as {self.community_handle}...")
         try:
             resp = requests.post(
                 f"{self.pds_host}/xrpc/com.atproto.server.createSession",
-                json={"identifier": self.gov_handle, "password": self.gov_password},
+                json={"identifier": self.community_handle, "password": self.community_password},
             )
             resp.raise_for_status()
             data = resp.json()
             self.access_token = data["accessJwt"]
-            self.gov_did = data["did"]
-            print(f"  Authenticated as {self.gov_did}")
+            self.community_did = data["did"]
+            print(f"  Authenticated as {self.community_did}")
             return True
         except Exception as e:
             print(f"ERROR: Authentication failed - {e}")
@@ -222,17 +222,17 @@ class PeerReviewImporter:
         return True
 
     def scan_existing_arguments(self):
-        """Scan the governance repo for argument records.
+        """Scan the community repo for argument records.
         Builds content_id → AT URI mapping using the rkey (which is the content_id).
-        Only the governance repo is scanned — arguments live exclusively there."""
-        print(f"Scanning governance repo ({self.gov_did}) for argument records...")
+        Only the community repo is scanned — arguments live exclusively there."""
+        print(f"Scanning community repo ({self.community_did}) for argument records...")
         collection = "app.ch.poltr.ballot.argument"
 
         cursor = None
         while True:
             url = (
                 f"{self.pds_host}/xrpc/com.atproto.repo.listRecords"
-                f"?repo={self.gov_did}&collection={collection}&limit=100"
+                f"?repo={self.community_did}&collection={collection}&limit=100"
             )
             if cursor:
                 url += f"&cursor={cursor}"
@@ -268,7 +268,7 @@ class PeerReviewImporter:
         return self.users[idx].did
 
     def _create_record(self, collection: str, rkey: str, record: dict) -> bool:
-        """Write a record to the governance PDS repo via createRecord.
+        """Write a record to the community PDS repo via createRecord.
         Fails if the rkey already exists (immutable — no updates)."""
         if self.dry_run:
             print(f"  [DRY RUN] createRecord {collection}/{rkey}")
@@ -280,7 +280,7 @@ class PeerReviewImporter:
             "Content-Type": "application/json",
         }
         payload = {
-            "repo": self.gov_did,
+            "repo": self.community_did,
             "collection": collection,
             "rkey": rkey,
             "record": record,
@@ -464,16 +464,16 @@ def main():
         print("ERROR: DB_URL, BALLOT_RKEY, and MASTER_KEY_B64 required")
         print("  DB_URL:          PostgreSQL connection URL")
         print("  BALLOT_RKEY:     Ballot rkey (e.g. '663')")
-        print("  MASTER_KEY_B64:  APPVIEW_GOV_CREDS_MASTER_KEY_B64")
+        print("  MASTER_KEY_B64:  APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64")
         sys.exit(1)
 
-    # Load credentials from governance_accounts table
-    gov_did, gov_handle, gov_password = load_governance_creds(db_url, ballot_rkey, master_key_b64)
-    ballot_uri = f"at://{gov_did}/app.ch.poltr.ballot.entry/{ballot_rkey}"
+    # Load credentials from community_accounts table
+    community_did, community_handle, community_password = load_community_creds(db_url, ballot_rkey, master_key_b64)
+    ballot_uri = f"at://{community_did}/app.ch.poltr.ballot.entry/{ballot_rkey}"
 
     print("=== AT Protocol Peer Review Import ===")
     print(f"PDS Host:        {pds_host}")
-    print(f"Gov Account:     {gov_handle} ({gov_did})")
+    print(f"Community Account:     {community_handle} ({community_did})")
     print(f"Ballot URI:      {ballot_uri}")
     print(f"Max Responses:   {max_responses if max_responses > 0 else 'all'}")
     print(f"Dry Run:         {dry_run}")
@@ -481,7 +481,7 @@ def main():
     print(f"Progression XLSX:{progression_path}")
     print()
 
-    importer = PeerReviewImporter(pds_host, gov_handle, gov_password,
+    importer = PeerReviewImporter(pds_host, community_handle, community_password,
                                   ballot_uri, ballot_rkey, dry_run, max_responses)
 
     if not importer.authenticate():

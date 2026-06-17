@@ -33,7 +33,7 @@ from datetime import date, datetime, timezone
 
 import httpx
 
-from src.atproto.governance import compose_review_rkey, create_governance_record
+from src.atproto.community import compose_review_rkey, create_community_record
 from src.core.db import get_pool
 
 logger = logging.getLogger("peer_review_assign")
@@ -65,7 +65,7 @@ async def maybe_assign_reviews_for_user(did: str) -> None:
     """Entry point — call once per authenticated request.
 
     Returns quickly if disabled, throttled, or the user has reached their
-    daily limit. Otherwise writes new invitation records on the governance
+    daily limit. Otherwise writes new invitation records on the community
     PDS and updates the local DB synchronously.
     """
     if not _enabled() or not did:
@@ -115,7 +115,7 @@ async def _assign(did: str) -> None:
     async with pool.acquire() as conn:
         candidates = await conn.fetch(
             """
-            SELECT a.uri, a.did AS gov_did
+            SELECT a.uri, a.did AS community_did
             FROM app_peerreviews pr
             JOIN app_arguments a ON a.uri = pr.argument_uri
             WHERE pr.state = 'open'
@@ -141,7 +141,7 @@ async def _assign(did: str) -> None:
 
             selected = random.random() <= probability
             argument_uri = arg["uri"]
-            gov_did = arg["gov_did"]
+            community_did = arg["community_did"]
             rkey = compose_review_rkey(argument_uri, did)
             created_at = datetime.now(timezone.utc)
             record = {
@@ -153,9 +153,9 @@ async def _assign(did: str) -> None:
             }
 
             try:
-                result = await create_governance_record(
+                result = await create_community_record(
                     client,
-                    gov_did,
+                    community_did,
                     "app.ch.poltr.peerreview.invitation",
                     record,
                     rkey=rkey,
@@ -223,7 +223,7 @@ async def request_peer_review(session) -> None:
 
 async def _review_hook(session) -> None:
     # ATProto-native: appview writes a peerreview.request into the user's OWN repo;
-    # the writer runs the actual assignment off the firehose (no gov-write here).
+    # the writer runs the actual assignment off the firehose (no community-write here).
     await request_peer_review(session)
 
 

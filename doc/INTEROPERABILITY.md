@@ -74,7 +74,7 @@ These configurations are implemented or at least implementable.
 <br />Enable it with <code>NEXT_PUBLIC_APP_PASSWORD_ENABLED</code>
 
 
-- **`MIRROR (ENABLED)`** — Poltr content is mirrored to Bluesky as `app.bsky.feed.post`. All crossposting is handled by the **AppView** (`services/appview/src/lib/crosspost.py`) as a background asyncio task. Ballots are posted under the governance account; arguments are posted under the argument author's account (as replies to the ballot post). Comments (`app.ch.poltr.comment`) are not yet cross-posted to Bluesky — this is a known gap (see Gaps summary below). This enables: a) Bluesky users can subscribe to a poltr feed, b) Bluesky users can comment/like/repost ballots and arguments. Controlled by `APPVIEW_CROSSPOST_ENABLED` and `APPVIEW_CROSSPOST_POLL_INTERVAL_SECONDS` (default 30s) env vars on the AppView.
+- **`MIRROR (ENABLED)`** — Poltr content is mirrored to Bluesky as `app.bsky.feed.post`. All crossposting is handled by the **AppView** (`services/appview/src/lib/crosspost.py`) as a background asyncio task. Ballots are posted under the community account; arguments are posted under the argument author's account (as replies to the ballot post). Comments (`app.ch.poltr.comment`) are not yet cross-posted to Bluesky — this is a known gap (see Gaps summary below). This enables: a) Bluesky users can subscribe to a poltr feed, b) Bluesky users can comment/like/repost ballots and arguments. Controlled by `APPVIEW_CROSSPOST_ENABLED` and `APPVIEW_CROSSPOST_POLL_INTERVAL_SECONDS` (default 30s) env vars on the AppView.
 
 - **`REVERSE (ENABLED)`** — Bluesky posts are  periodically imported back into poltr. Limit: Only enabled for **active ballots** (`app_ballots.active = 1`). The indexer polls the Bluesky public API (`app.bsky.feed.getPostThread`) for each active ballot's cross-post URI on a configurable interval (default 10 min). The full reply thread tree (up to depth 10) is walked recursively and upserted into `app_comments` (origin = `extern`). Engagement counts (likes, reposts, replies) are updated on the ballot row.
 
@@ -85,7 +85,7 @@ MIRROR — AppView (crosspost.py)
   │  every APPVIEW_CROSSPOST_POLL_INTERVAL_SECONDS (default 30s)
   │
   ├─ SELECT ballots without bsky_post_uri
-  │    → createRecord(app.bsky.feed.post) under governance account
+  │    → createRecord(app.bsky.feed.post) under community account
   │    → UPDATE app_ballots SET bsky_post_uri, bsky_post_cid
   │
   ├─ SELECT arguments without bsky_post_uri (whose ballot has bsky_post_uri)
@@ -146,7 +146,7 @@ The following matrix tables visualize interactions where cross-platform logins a
 <tr>
   <td> <b>Read</b></td>
 
-  <td>The AppView (<code>crosspost.py</code>) auto-creates mirrored <code>app.bsky.feed.post</code> records for ballots and arguments. Ballots are posted under the governance account; arguments are posted under the author's account as replies to the ballot post. Comments do not need mirroring as they are already stored as <code>app.bsky.feed.post</code>. Additionally, a <a href="BLUESKY_FEED.md">Bluesky feed generator</a> can expose poltr content as a subscribable feed on bsky.app.</td>
+  <td>The AppView (<code>crosspost.py</code>) auto-creates mirrored <code>app.bsky.feed.post</code> records for ballots and arguments. Ballots are posted under the community account; arguments are posted under the author's account as replies to the ballot post. Comments do not need mirroring as they are already stored as <code>app.bsky.feed.post</code>. Additionally, a <a href="BLUESKY_FEED.md">Bluesky feed generator</a> can expose poltr content as a subscribable feed on bsky.app.</td>
 </tr>
 
 <tr>
@@ -193,7 +193,7 @@ Whether the discussion on Bluesky is connected back to poltr hinges on the optio
 ## Gaps summary
 
 ### `MIRROR` — poltr content on Bluesky
-Ballots and arguments are cross-posted by the AppView (`crosspost.py`). Ballots are posted under the governance account; arguments are posted under the governance account as replies to the ballot post. **Comments are not yet cross-posted** — since they use the custom `app.ch.poltr.comment` lexicon, they are invisible to Bluesky users. To make poltr discussions visible on Bluesky, comments would need to be mirrored as `app.bsky.feed.post` replies to the argument's cross-post. Ratings are not yet cross-posted as Bluesky likes.
+Ballots and arguments are cross-posted by the AppView (`crosspost.py`). Ballots are posted under the community account; arguments are posted under the community account as replies to the ballot post. **Comments are not yet cross-posted** — since they use the custom `app.ch.poltr.comment` lexicon, they are invisible to Bluesky users. To make poltr discussions visible on Bluesky, comments would need to be mirrored as `app.bsky.feed.post` replies to the argument's cross-post. Ratings are not yet cross-posted as Bluesky likes.
 
 ### `REVERSE` — Bluesky reactions back to poltr (active ballots only)
 Implemented via periodic polling in the **Indexer** (`bsky_poller.js`). Scoped to ballots with `active = 1` in `app_ballots`. The indexer calls `getPostThread` on the Bluesky public API for each active ballot's cross-post URI. Captures:

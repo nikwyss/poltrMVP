@@ -44,23 +44,23 @@ const COLLECTION_REVIEW_RESPONSE_LEGACY = "app.ch.poltr.review.response";
 const ACCEPTANCE_PIPELINE_ENABLED =
   (process.env.ACCEPTANCE_PIPELINE_ENABLED ?? "false") === "true";
 
-// Per-ballot governance accounts: loaded from DB
-let governanceDids = new Set();
+// Per-ballot community accounts: loaded from DB
+let communityDids = new Set();
 
-export async function refreshGovernanceDids() {
+export async function refreshCommunityDids() {
   try {
-    const res = await pool.query("SELECT did FROM auth.governance_accounts");
-    governanceDids = new Set(res.rows.map((r) => r.did));
+    const res = await pool.query("SELECT did FROM auth.community_accounts");
+    communityDids = new Set(res.rows.map((r) => r.did));
     console.log(
-      `Refreshed governance DIDs: ${governanceDids.size} account(s)`,
+      `Refreshed community DIDs: ${communityDids.size} account(s)`,
     );
   } catch (err) {
-    console.error("Failed to refresh governance DIDs:", err.message);
+    console.error("Failed to refresh community DIDs:", err.message);
   }
 }
 
-function isGovernanceDid(did) {
-  return governanceDids.has(did);
+function isCommunityDid(did) {
+  return communityDids.has(did);
 }
 
 /**
@@ -117,12 +117,12 @@ export const handleEvent = async (evt) => {
   const action = evt.event;
 
   if (collection === COLLECTION_ARGUMENT) {
-    if (!isGovernanceDid(did)) {
+    if (!isCommunityDid(did)) {
       if (ACCEPTANCE_PIPELINE_ENABLED && action === "create" && evt.record) {
         // ATProto-native: a user wrote a self-signed argument into their OWN
         // repo. Stage it for the writer (gate → community record). The writer's
-        // governance-authored community record returns here as an
-        // isGovernanceDid(did) event and is projected the normal way (below).
+        // community-authored community record returns here as an
+        // isCommunityDid(did) event and is projected the normal way (below).
         // Update/Delete of the user original are ignored (drift solved).
         await stageForAcceptance(pool, {
           userUri: uri,
@@ -134,7 +134,7 @@ export const handleEvent = async (evt) => {
         });
         return;
       }
-      console.log(`Ignoring argument from non-governance repo: ${did}`);
+      console.log(`Ignoring argument from non-community repo: ${did}`);
       return;
     }
     if (action === "delete") {
@@ -165,10 +165,10 @@ export const handleEvent = async (evt) => {
     if (action === "create" || action === "update") {
       const record = evt.record;
       if (!record) return;
-      // Eligibility gate (L3). Governance repos never author comments (they live
+      // Eligibility gate (L3). Community repos never author comments (they live
       // in user repos — see appview comments.py), but allow them defensively so a
       // future curated/official comment isn't silently dropped.
-      if (!isGovernanceDid(did) && !(await isEligibleDid(did))) {
+      if (!isCommunityDid(did) && !(await isEligibleDid(did))) {
         console.log(`Ignoring comment from ineligible repo: ${did}`);
         return;
       }
@@ -177,12 +177,12 @@ export const handleEvent = async (evt) => {
   }
 
   if (collection === COLLECTION_COMMENT_TRANSLATION) {
-    // Sidecar translations live in the ballot's governance account; reject
-    // any record from a non-governance DID to keep moderation/auth invariants
+    // Sidecar translations live in the ballot's community account; reject
+    // any record from a non-community DID to keep moderation/auth invariants
     // identical to arguments/reviews.
-    if (!isGovernanceDid(did)) {
+    if (!isCommunityDid(did)) {
       console.log(
-        `Ignoring comment.translation from non-governance repo: ${did}`,
+        `Ignoring comment.translation from non-community repo: ${did}`,
       );
       return;
     }
@@ -208,7 +208,7 @@ export const handleEvent = async (evt) => {
       // Eligibility gate (L3): same chokepoint as comments. Likes are written
       // self-signed into user repos, so this is the only place a direct-to-PDS
       // like from an ineligible/banned account can be stopped.
-      if (!isGovernanceDid(did) && !(await isEligibleDid(did))) {
+      if (!isCommunityDid(did) && !(await isEligibleDid(did))) {
         console.log(`Ignoring rating from ineligible repo: ${did}`);
         return;
       }
@@ -220,9 +220,9 @@ export const handleEvent = async (evt) => {
     collection === COLLECTION_PEERREVIEW_INVITATION ||
     collection === COLLECTION_REVIEW_INVITATION_LEGACY
   ) {
-    if (!isGovernanceDid(did)) {
+    if (!isCommunityDid(did)) {
       console.log(
-        `Ignoring peerreview invitation from non-governance repo: ${did}`,
+        `Ignoring peerreview invitation from non-community repo: ${did}`,
       );
       return;
     }
@@ -237,7 +237,7 @@ export const handleEvent = async (evt) => {
     collection === COLLECTION_PEERREVIEW_RESPONSE ||
     collection === COLLECTION_REVIEW_RESPONSE_LEGACY
   ) {
-    if (!isGovernanceDid(did)) {
+    if (!isCommunityDid(did)) {
       if (
         ACCEPTANCE_PIPELINE_ENABLED &&
         action === "create" &&
@@ -246,7 +246,7 @@ export const handleEvent = async (evt) => {
       ) {
         // ATProto-native: a reviewer wrote a self-signed response into their OWN
         // repo. Stage it for the writer (gate → community response). No ballot
-        // ref — the writer resolves the governance repo from record.argument.
+        // ref — the writer resolves the community repo from record.argument.
         await stageForAcceptance(pool, {
           userUri: uri,
           userCid: cidString,
@@ -257,7 +257,7 @@ export const handleEvent = async (evt) => {
         });
         return;
       }
-      console.log(`Ignoring peerreview response from non-governance repo: ${did}`);
+      console.log(`Ignoring peerreview response from non-community repo: ${did}`);
       return;
     }
     if (action === "create") {
@@ -276,12 +276,12 @@ export const handleEvent = async (evt) => {
   if (collection === COLLECTION_PEERREVIEW_REQUEST) {
     // Pull-Trigger (Phase 6): user-authored Bitte um Review-Zuteilung → stagen
     // (kind=request); der Writer führt _assign aus und schreibt die Invitations
-    // ins Governance-Repo. Nicht projizieren (kein Lese-Modell für Requests).
+    // ins Community-Repo. Nicht projizieren (kein Lese-Modell für Requests).
     if (
       ACCEPTANCE_PIPELINE_ENABLED &&
       action === "create" &&
       evt.record &&
-      !isGovernanceDid(did)
+      !isCommunityDid(did)
     ) {
       await stageForAcceptance(pool, {
         userUri: uri,
@@ -296,9 +296,9 @@ export const handleEvent = async (evt) => {
   }
 
   if (collection === COLLECTION_TAXONOMY_SNAPSHOT) {
-    // Quelle der Wahrheit für die Taxonomie. Nur aus Governance-Repos akzeptieren.
-    if (!isGovernanceDid(did)) {
-      console.log(`Ignoring taxonomy.snapshot from non-governance repo: ${did}`);
+    // Quelle der Wahrheit für die Taxonomie. Nur aus Community-Repos akzeptieren.
+    if (!isCommunityDid(did)) {
+      console.log(`Ignoring taxonomy.snapshot from non-community repo: ${did}`);
       return;
     }
     // Append-only: ein Snapshot-Delete ist kein normaler Flow — die DB behält den

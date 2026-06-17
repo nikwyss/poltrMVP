@@ -216,7 +216,7 @@ def _serialize_ballot(
     """Convert a CMS ballot document into the flat API shape.
 
     No `$type`, no `record` wrapper, no AT-URI, no CID — these are not
-    ATProto records. `rkey` is the stable identifier; `governanceDid` is the
+    ATProto records. `rkey` is the stable identifier; `communityDid` is the
     bridge to the (ATProto-backed) deliberation layer.
     """
     rkey = doc.get("rkey", str(doc.get("id", "")))
@@ -236,7 +236,7 @@ def _serialize_ballot(
         "availableLangs": avail,
         "createdAt": doc.get("createdAt"),
         "updatedAt": doc.get("updatedAt"),
-        "governanceDid": doc.get("governanceDid"),
+        "communityDid": doc.get("communityDid"),
         "argumentCount": (counts or {}).get("argument_count", 0),
         "commentCount": (counts or {}).get("comment_count", 0),
         "likeCount": (counts or {}).get("like_count", 0),
@@ -260,7 +260,7 @@ async def _get_ballot_counts(
             """
             SELECT ga.ballot_rkey, COUNT(*) AS cnt
             FROM app_arguments a
-            JOIN auth.governance_accounts ga ON ga.did = a.did
+            JOIN auth.community_accounts ga ON ga.did = a.did
             WHERE ga.ballot_rkey = ANY($1) AND NOT a.deleted
             GROUP BY ga.ballot_rkey
             """,
@@ -272,7 +272,7 @@ async def _get_ballot_counts(
             SELECT ga.ballot_rkey, COUNT(*) AS cnt
             FROM app_comments c
             JOIN app_arguments a ON a.uri = c.argument_uri
-            JOIN auth.governance_accounts ga ON ga.did = a.did
+            JOIN auth.community_accounts ga ON ga.did = a.did
             WHERE ga.ballot_rkey = ANY($1) AND NOT c.deleted
             GROUP BY ga.ballot_rkey
             """,

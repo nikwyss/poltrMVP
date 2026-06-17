@@ -22,7 +22,7 @@ duplicate provider cost, redundant DB load.
   blocker is purely these singleton loops.
 - If appview ever needs to scale out, first extract the background loops into a
   **dedicated single-replica worker pod or a Cronjob/Job** (it still needs the
-  `APPVIEW_PDS_CREDS_MASTER_KEY_B64` for governance credentials), and disable the
+  `APPVIEW_PDS_CREDS_MASTER_KEY_B64` for community credentials), and disable the
   in-process loops in the web replicas (e.g. `APPVIEW_TRANSLATE_ENABLED=false`
   there). This is also the right pattern for large one-off translation backfills.
 

@@ -1,7 +1,7 @@
 """Entrypoint for the internal write-side ("writer") process.
 
 Phase 1 of the ATProto-native deliberation rework (see plan
-typed-kindling-flask): governance write-back work moves off the internet-facing
+typed-kindling-flask): community write-back work moves off the internet-facing
 appview API into a dedicated internal process. This first step runs the Bluesky
 cross-post loop here, reusing src.atproto.crosspost unchanged.
 

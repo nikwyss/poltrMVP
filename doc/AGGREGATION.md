@@ -1,7 +1,7 @@
 # Aggregierung der Argument-Bewertungen zu einer Themen-Haltung
 
 > Status: aktuell **Noisy-OR (γ=1)** auf einem **unipolaren** Bewertungs-Modell.
-> Zentral implementiert in [`services/front/src/lib/aggregate.ts`](../services/front/src/lib/aggregate.ts)
+> Zentral implementiert in [`services/frontend/src/lib/aggregate.ts`](../services/frontend/src/lib/aggregate.ts)
 > (Schalter `AGG_METHOD`, Dämpfung `AGG_NOISY_GAMMA`).
 
 ## Worum geht es?
@@ -112,7 +112,7 @@ unabhängig von `AGG_METHOD` (Richtung vs. Streit sind verschiedene Dinge).
 
 ## Wo es implementiert ist
 
-- **Zentral:** [`services/front/src/lib/aggregate.ts`](../services/front/src/lib/aggregate.ts)
+- **Zentral:** [`services/frontend/src/lib/aggregate.ts`](../services/frontend/src/lib/aggregate.ts)
   - `AGG_METHOD` (+ `AGG_LEHMER_P` / `AGG_POWER_P`) — die einzigen Schalter.
   - `aggregateLeaning(contribs)` / `nodeLeaning(node)` — Haltung ∈ [−1,1] | `null`.
   - `aggregateDissent(contribs)` / `nodeDissent(node)` — Kontroversität ∈ [0,1].

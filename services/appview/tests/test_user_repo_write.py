@@ -1,6 +1,6 @@
 """
 Phase 7: user-authored argument creation is UNCONDITIONAL — appview always writes
-the self-signed record into the user's OWN repo (the flag-gated legacy governance
+the self-signed record into the user's OWN repo (the flag-gated legacy community
 branch was removed). The writer then creates the canonical community record off
 the firehose.
 """
@@ -38,7 +38,7 @@ def _no_rate_limit():
 @pytest.fixture
 def _common_deps():
     """Patch every dependency of create_argument except the user-repo write."""
-    with patch.object(args_mod, "get_did_for_ballot", AsyncMock(return_value="did:plc:gov")), \
+    with patch.object(args_mod, "get_did_for_ballot", AsyncMock(return_value="did:plc:community")), \
          patch.object(args_mod, "reserve", AsyncMock(return_value=1)), \
          patch.object(args_mod, "set_uri", AsyncMock()), \
          patch.object(args_mod, "release", AsyncMock()):

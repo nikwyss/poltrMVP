@@ -59,7 +59,7 @@ CREATE INDEX app_likes_did_idx ON app_likes (did);
 CREATE TABLE app_arguments (
   uri           text PRIMARY KEY,       -- at://did/.../app.ch.poltr.ballot.argument/...
   cid           text NOT NULL,
-  did           text NOT NULL,          -- repo DID (governance account)
+  did           text NOT NULL,          -- repo DID (community account)
   rkey          text NOT NULL,          -- record key
   author_did    text,                   -- DID of the user who authored this argument (required for source_type='user')
   title         text NOT NULL,
@@ -106,7 +106,7 @@ CREATE TABLE app_arguments (
 -- Reconcile-Log in einem. Der Projektor stellt user-authored Original-Records
 -- (aus User-Repos) hier ein; der Writer pollt (LISTEN/NOTIFY + FOR UPDATE SKIP
 -- LOCKED), gated sie und schreibt den kanonischen Community-Record ins
--- Governance-Repo. `kind` unterscheidet alle drei Pfade (argument/response/request).
+-- Community-Repo. `kind` unterscheidet alle drei Pfade (argument/response/request).
 -- UNIQUE(user_uri) = Idempotenz (ein Original → eine Zeile). `record` cached den
 -- gesehenen Record (CID-gepinnt) → spart dem Writer ein getRecord.
 CREATE TABLE app_acceptance_queue (
@@ -205,7 +205,7 @@ CREATE UNIQUE INDEX app_taxonomy_membership_arg_uidx          -- genau EIN Knote
   ON app_taxonomy_membership (ballot_rkey, argument_uri);
 
 -- Index der veröffentlichten Taxonomie-Snapshots. Beim „Persistieren" schreibt das
--- CMS einen unveränderlichen app.ch.poltr.taxonomy.snapshot-Record auf das Governance-
+-- CMS einen unveränderlichen app.ch.poltr.taxonomy.snapshot-Record auf das Community-
 -- Konto des Ballots (append-only) und protokolliert ihn hier — damit die Versions-
 -- historie im CMS ohne PDS-Abfrage angezeigt werden kann. Quelle der Wahrheit für
 -- den AKTUELLEN Baum bleibt app_taxonomy_node/app_taxonomy_membership; diese Tabelle ist
@@ -383,7 +383,7 @@ CREATE INDEX app_content_creations_lookup_idx
   ON app_content_creations (did, kind, ballot_rkey, created_at);
 
 -- ---------------------------------------------------------------------------
--- Sidecar translations for comments. Owned by the ballot's governance account
+-- Sidecar translations for comments. Owned by the ballot's community account
 -- on the PDS (NSID: app.ch.poltr.comment.translation), populated here from the
 -- firehose. Original comment records stay untouched in their foreign repo.
 -- ---------------------------------------------------------------------------
@@ -433,7 +433,7 @@ CREATE TABLE app_profiles (
 -- auth schema: auth tables (appview only, no indexer access)
 -- =============================================================================
 
-CREATE TABLE auth.governance_accounts (
+CREATE TABLE auth.community_accounts (
   did               text PRIMARY KEY,
   handle            text NOT NULL,
   ballot_rkey       text UNIQUE,
@@ -574,9 +574,9 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO in
 -- das bestehende cascadeDeleteArgumentDerived auf app_taxonomy_membership).
 GRANT DELETE ON app_taxonomy_node, app_taxonomy_membership TO indexer;
 REVOKE ALL ON SCHEMA auth FROM indexer;
--- Indexer needs to read governance DIDs (but not credentials)
+-- Indexer needs to read community DIDs (but not credentials)
 GRANT USAGE ON SCHEMA auth TO indexer;
-GRANT SELECT (did, handle, ballot_rkey) ON auth.governance_accounts TO indexer;
+GRANT SELECT (did, handle, ballot_rkey) ON auth.community_accounts TO indexer;
 -- Eligibility-Gate (L3): nur die schmale View, kein auth_creds-Zugriff (Email/Creds
 -- bleiben unsichtbar; die View liest auth_creds mit den Rechten ihres Owners).
 GRANT SELECT ON auth.v_eligible_participants TO indexer;
@@ -607,14 +607,14 @@ REVOKE ALL ON SCHEMA auth FROM calculator;
 -- den CONNECT-Check ohnehin; indexer/calculator haben oben bereits GRANT CONNECT.
 REVOKE CONNECT ON DATABASE appview FROM PUBLIC;
 
--- cms: braucht die appview-DB NUR für Governance-Account-Creds und den
+-- cms: braucht die appview-DB NUR für Community-Account-Creds und den
 -- Taxonomie-Snapshot-Dedup-Ledger. Sonst KEIN auth-/public-Zugriff.
--- (Keine Sequence-Grants nötig: governance_accounts PK=did text,
+-- (Keine Sequence-Grants nötig: community_accounts PK=did text,
 --  app_taxonomy_snapshot PK=(ballot_rkey,version) — keine serial-Spalte.)
 CREATE ROLE cms WITH LOGIN PASSWORD 'CHANGE_ME';
 GRANT CONNECT ON DATABASE appview TO cms;
 GRANT USAGE ON SCHEMA auth TO cms;
-GRANT SELECT, INSERT ON auth.governance_accounts TO cms;
+GRANT SELECT, INSERT ON auth.community_accounts TO cms;
 GRANT USAGE ON SCHEMA public TO cms;
 GRANT SELECT, INSERT ON app_taxonomy_snapshot TO cms;
 -- ALTER ROLE cms WITH PASSWORD 'CHANGE_ME';
@@ -648,16 +648,16 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA auth   GRANT SELECT, INSERT, UPDATE, DELETE O
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO appview;
 ALTER DEFAULT PRIVILEGES IN SCHEMA auth   GRANT USAGE, SELECT ON SEQUENCES TO appview;
 -- Phase 7 (ATProto-native abgeschlossen): die appview-API schreibt keine
--- Governance-Records mehr (kein create_/put_governance_record, kein Translator) —
--- das tut der writer. Daher governance_accounts auf spaltenweises SELECT verengen:
+-- Community-Records mehr (kein create_/put_community_record, kein Translator) —
+-- das tut der writer. Daher community_accounts auf spaltenweises SELECT verengen:
 -- kein pw_ciphertext/pw_nonce, kein Write (wie der indexer oben). appview liest
 -- daraus nur did/ballot_rkey (ballots.py-JOIN + get_did_for_ballot).
-REVOKE ALL ON auth.governance_accounts FROM appview;
-GRANT SELECT (did, handle, ballot_rkey, ballot_uri) ON auth.governance_accounts TO appview;
+REVOKE ALL ON auth.community_accounts FROM appview;
+GRANT SELECT (did, handle, ballot_rkey, ballot_uri) ON auth.community_accounts TO appview;
 -- ALTER ROLE appview WITH PASSWORD 'CHANGE_ME';
 
--- writer: die interne Schreib-Seite (governance-writer). Wie der Indexer auf das
--- public-Schema, PLUS Lesezugriff auf die GOVERNANCE-CREDENTIALS (pw_ciphertext/
+-- writer: die interne Schreib-Seite (community-writer). Wie der Indexer auf das
+-- public-Schema, PLUS Lesezugriff auf die COMMUNITY-CREDENTIALS (pw_ciphertext/
 -- pw_nonce) — die entscheidende Differenz zum Projektor/Indexer, der die pw-
 -- Spalten NICHT sieht. KEIN Zugriff auf User-Identität (auth_creds/Sessions).
 CREATE ROLE writer WITH LOGIN PASSWORD 'CHANGE_ME';
@@ -668,6 +668,6 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO writer;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE ON TABLES TO writer;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO writer;
 GRANT USAGE ON SCHEMA auth TO writer;
-GRANT SELECT ON auth.governance_accounts TO writer;        -- inkl. pw_* → Gov-Sessions
+GRANT SELECT ON auth.community_accounts TO writer;        -- inkl. pw_* → Community-Sessions
 GRANT SELECT ON auth.v_eligible_participants TO writer;     -- Eligibility-Gate
 -- ALTER ROLE writer WITH PASSWORD 'CHANGE_ME';

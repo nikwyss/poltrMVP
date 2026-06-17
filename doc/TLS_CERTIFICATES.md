@@ -37,7 +37,7 @@ Certificate (Kubernetes) --> ClusterIssuer (letsencrypt-prod-dns)
 
 | `Certificate` | DNS names | Secret | Used by |
 |---|---|---|---|
-| `poltr-handle-tls` | `*.id.poltr.ch` | `poltr-handle-tls` | Ingress route for ATProto handle resolution (per-user + per-ballot governance accounts) |
+| `poltr-handle-tls` | `*.id.poltr.ch` | `poltr-handle-tls` | Ingress route for ATProto handle resolution (per-user + per-ballot community accounts) |
 | `poltr-wildcard-cert` | `*.poltr.info` | `poltr-wildcard-tls` | Ingress for `pds2.poltr.info`, `app.poltr.info`, `cms.poltr.info`, etc. |
 | `poltr-ch-cert` / `poltr-ch-tls` | `poltr.ch`, `www.poltr.ch` | `poltr-ch-tls` | Ingress for the public frontend |
 

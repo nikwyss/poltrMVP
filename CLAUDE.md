@@ -6,7 +6,7 @@ ATProto-based civic-tech platform for Swiss referenda. Monorepo with custom serv
 
 | Service | Path | Tech | Endpoint |
 |---------|------|------|----------|
-| Frontend | `services/front` | Next.js + React 19 | poltr.ch |
+| Frontend | `services/frontend` | Next.js + React 19 | poltr.ch |
 | AppView | `services/appview` | Python 3.11 + FastAPI | app.poltr.info |
 | Indexer | `services/indexer` | Node.js | indexer.poltr.info |
 | Calculator | `services/calculator` | Python 3.11 + FastAPI | calculator.poltr.info |
@@ -144,36 +144,36 @@ Ballots are managed in **Payload CMS** (`services/cms`), not as ATProto records.
 ### Flow
 
 1. Admin creates/edits ballot in CMS (`/admin/collections/ballots`)
-2. Admin sets status to "published" → `afterChange` hook creates a PDS governance account
+2. Admin sets status to "published" → `afterChange` hook creates a PDS community account
 3. AppView reads ballots from CMS API, enriches with argument/comment counts from DB
-4. Users write arguments/comments → stored in the ballot's governance account on PDS
+4. Users write arguments/comments → stored in the ballot's community account on PDS
 
 ### Key files
 
 | File | Role |
 |------|------|
 | `services/cms/src/collections/Ballots.ts` | Ballot collection + publish hook |
-| `services/cms/src/lib/atproto-publish.ts` | Governance account creation (PDS + DB) |
+| `services/cms/src/lib/atproto-publish.ts` | Community account creation (PDS + DB) |
 | `services/appview/src/routes/participation/ballots.py` | Ballot endpoints (proxy CMS + enrich counts) |
 
-## Governance Model: Per-Ballot Accounts
+## Community Model: Per-Ballot Accounts
 
-Each ballot has its own PDS governance account. The account holds all arguments, review invitations/responses, and Bluesky cross-posts for that ballot.
+Each ballot has its own PDS community account. The account holds all arguments, review invitations/responses, and Bluesky cross-posts for that ballot.
 
 - **Handle schema:** `ballot-{id}.id.poltr.ch` (id = CMS ballot ID)
-- **Credentials:** Encrypted in `auth.governance_accounts` table (using `APPVIEW_PDS_CREDS_MASTER_KEY_B64`). Indexer has column-level SELECT on `did`, `handle`, `ballot_rkey` only
+- **Credentials:** Encrypted in `auth.community_accounts` table (using `APPVIEW_PDS_CREDS_MASTER_KEY_B64`). Indexer has column-level SELECT on `did`, `handle`, `ballot_rkey` only
 - **Created by:** CMS publish hook (TypeScript) or AppView `create_ballot_account()` (Python)
 
 ### How records are routed
 
-All governance functions (`create_governance_record`, `put_governance_record`) require an explicit `did` parameter. The caller resolves the governance DID via:
+All community functions (`create_community_record`, `put_community_record`) require an explicit `did` parameter. The caller resolves the community DID via:
 - `get_did_for_ballot(ballot_id)` — for argument creation (ballot_id = CMS ID)
 - `app_arguments.did` column — for review submission
-- `governance_accounts` table — for crossposting
+- `community_accounts` table — for crossposting
 
 ### Bluesky Integration
 
-- **Argument crossposting:** Arguments are cross-posted as standalone Bluesky posts under their governance account (`services/appview/src/participation/crosspost.py`)
+- **Argument crossposting:** Arguments are cross-posted as standalone Bluesky posts under their community account (`services/appview/src/participation/crosspost.py`)
 - **External comment import:** The Bluesky poller (`services/indexer/src/bsky_poller.js`) polls cross-posted argument threads for replies and imports them as external comments (`origin = 'extern'` in `app_comments`). Controlled by `BSKY_POLL_ENABLED` env var
 - **No ballot crossposting:** Ballots are CMS content and are not posted to Bluesky
 
@@ -182,7 +182,7 @@ All governance functions (`create_governance_record`, `put_governance_record`) r
 - **Passwordless auth:** Magic Link via email (+ 6-digit short code as alternative)
 - **Session token:** 48 bytes random, stored as **SHA-256 hash** in `auth.auth_sessions`. Cookie has the original. DB leak = useless hashes
 - **PDS access tokens:** Not in DB. Cached in-memory only (1h TTL). Re-login via encrypted app password on cache miss
-- **Encrypted credentials:** User app passwords (`auth.auth_creds`) and governance passwords (`auth.governance_accounts`) encrypted with NaCl SecretBox using `APPVIEW_PDS_CREDS_MASTER_KEY_B64`
+- **Encrypted credentials:** User app passwords (`auth.auth_creds`) and community passwords (`auth.community_accounts`) encrypted with NaCl SecretBox using `APPVIEW_PDS_CREDS_MASTER_KEY_B64`
 - **Logout:** Deletes all sessions for the user's DID (all devices). Endpoint: `ch.poltr.auth.logout`
 - **Frontend:** No ATProto libraries, no PDS access. Communicates only with AppView via XRPC proxy
 - **Cookie:** `httpOnly`, `secure` (prod), `samesite=lax`
@@ -202,7 +202,7 @@ Frontend/eID Proto
    PostgreSQL ◄── Indexer ◄── PDS (firehose)
        │                       │
        ▼                       ▼
-    Verifier              Per-ballot governance
+    Verifier              Per-ballot community
     (Swiss eID)           accounts (one per Vorlage)
 ```
 
@@ -236,7 +236,7 @@ The Bluesky relay (`bsky.network`) permanently throttles accounts if it sees an 
 
 Script: `infra/scripts/import_peerreviews.py`
 
-Imports historical peer-review data from Demokratiefabrik xlsx dumps into a ballot-specific governance account as `app.ch.poltr.review.invitation` and `app.ch.poltr.review.response` records. Credentials are loaded from the `auth.governance_accounts` table.
+Imports historical peer-review data from Demokratiefabrik xlsx dumps into a ballot-specific community account as `app.ch.poltr.review.invitation` and `app.ch.poltr.review.response` records. Credentials are loaded from the `auth.community_accounts` table.
 
 **Prerequisites:**
 - Port-forward PDS: `kubectl port-forward -n poltr svc/pds 2583:80`
@@ -258,7 +258,7 @@ python3 infra/scripts/import_peerreviews.py
 |---------|-------------|---------|
 | `PDS_HOST` | PDS endpoint | `http://localhost:2583` |
 | `DB_URL` | PostgreSQL connection URL | — |
-| `BALLOT_RKEY` | Ballot rkey (credentials loaded from `auth.governance_accounts`) | — |
+| `BALLOT_RKEY` | Ballot rkey (credentials loaded from `auth.community_accounts`) | — |
 | `MASTER_KEY_B64` | `APPVIEW_PDS_CREDS_MASTER_KEY_B64` for decryption | — |
 | `MAX_RESPONSES` | Limit responses imported (0 = all) | `0` |
 | `DRY_RUN` | `true` to inspect without writing | `false` |

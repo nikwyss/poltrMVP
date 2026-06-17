@@ -326,14 +326,14 @@ def _print_db_cleanup_sql():
   DELETE FROM indexer_cursors;
 
   -- Keep: auth.mountain_templates (static data)
-  -- Keep: app_ballots (governance content, update DID after re-creating governance account)
+  -- Keep: app_ballots (community content, update DID after re-creating community account)
 
-  -- After re-creating the governance account:
-  --   UPDATE app_ballots SET did = '<new_governance_did>';{C.RESET}
+  -- After re-creating the community account:
+  --   UPDATE app_ballots SET did = '<new_community_did>';{C.RESET}
 """)
-    print(f"  {C.DIM}Post-reset: recreate governance account:{C.RESET}")
-    print(f"  {C.DIM}  PDS_ADMIN_PASSWORD=<pw> python create_gov_handle.py admin.id.poltr.ch admin@poltr.ch{C.RESET}")
-    print(f"  {C.DIM}  Then update PDS_GOVERNANCE_ACCOUNT_DID in pds-secrets with the new DID.{C.RESET}")
+    print(f"  {C.DIM}Post-reset: recreate community account:{C.RESET}")
+    print(f"  {C.DIM}  PDS_ADMIN_PASSWORD=<pw> python create_community_handle.py admin.id.poltr.ch admin@poltr.ch{C.RESET}")
+    print(f"  {C.DIM}  Then update PDS_COMMUNITY_ACCOUNT_DID in pds-secrets with the new DID.{C.RESET}")
 
 
 # ===========================================================================

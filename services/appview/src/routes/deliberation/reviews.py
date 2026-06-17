@@ -468,18 +468,18 @@ async def submit_review(
                     },
                 )
 
-            gov_did = await conn.fetchval(
+            community_did = await conn.fetchval(
                 "SELECT did FROM app_arguments WHERE uri = $1",
                 argument_uri,
             )
 
-    if not gov_did:
+    if not community_did:
         return JSONResponse(
             status_code=404,
             content={"error": "not_found", "message": "Argument not found"},
         )
 
-    # Write review response to governance PDS. The indexer will pick it up via
+    # Write review response to community PDS. The indexer will pick it up via
     # firehose and (if quorum is now reached) transition the review to
     # provisional_closed in checkReviewQuorum.
     review_record = {
@@ -496,7 +496,7 @@ async def submit_review(
     # ATProto-native: write the self-signed response into the reviewer's OWN repo.
     # The internal write-side (writer) picks it up off the firehose, gates it, and
     # writes the canonical community response (deterministic rkey via
-    # compose_review_rkey) into the argument's governance repo.
+    # compose_review_rkey) into the argument's community repo.
     result = await pds_create_record(
         session, "app.ch.poltr.peerreview.response", review_record
     )

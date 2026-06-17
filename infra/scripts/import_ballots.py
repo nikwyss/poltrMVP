@@ -248,8 +248,8 @@ class ProposalImporter:
 def main():
     # Get configuration from arguments or environment
     csv_url = VOTING_URL # its a csv
-    handle = os.getenv("PDS_GOVERNANCE_ACCOUNT_HANDLE")
-    password = os.getenv("PDS_GOVERNANCE_ACCOUNT_PASSWORD")
+    handle = os.getenv("PDS_COMMUNITY_ACCOUNT_HANDLE")
+    password = os.getenv("PDS_COMMUNITY_ACCOUNT_PASSWORD")
     pds_host = os.getenv("PDS_HOST", "http://localhost:2583")
     max_imports = int(os.getenv("MAX_IMPORTS", "0"))  # 0 = unlimited
     ballot_anr = os.getenv("BALLOT_ANR", "")  # e.g. "413.2" to import a single ballot
@@ -261,12 +261,12 @@ def main():
     
     if not handle:
         print("ERROR: Handle required")
-        print("Set PDS_GOVERNANCE_ACCOUNT_HANDLE environment variable")
+        print("Set PDS_COMMUNITY_ACCOUNT_HANDLE environment variable")
         sys.exit(1)
     
     if not password:
         print("ERROR: Password required")
-        print("Set PDS_GOVERNANCE_ACCOUNT_PASSWORD environment variable")
+        print("Set PDS_COMMUNITY_ACCOUNT_PASSWORD environment variable")
         sys.exit(1)
     
     # Print configuration

@@ -5,11 +5,11 @@ from nacl.exceptions import CryptoError
 
 # SecretBox = XSalsa20-Poly1305 (24-byte nonce, 32-byte key).
 #
-# Key-Split: USER-Creds (auth_creds) und GOVERNANCE-Creds (governance_accounts)
+# Key-Split: USER-Creds (auth_creds) und COMMUNITY-Creds (community_accounts)
 # werden mit GETRENNTEN Master-Keys verschlüsselt, damit ein Leak des einen Dienstes
 # nicht den anderen Credential-Topf öffnet. Auf Dev dürfen beide denselben Wert haben.
 USER_KEY_ENV = "APPVIEW_USER_CREDS_MASTER_KEY_B64"   # appview only
-GOV_KEY_ENV = "APPVIEW_GOV_CREDS_MASTER_KEY_B64"     # writer + CMS
+COMMUNITY_KEY_ENV = "APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64"     # writer + CMS
 
 
 def _load_key(env_var: str) -> bytes:
@@ -45,10 +45,10 @@ def decrypt_app_password(ciphertext: bytes, nonce: bytes) -> str:
     return _decrypt(ciphertext, nonce, _load_key(USER_KEY_ENV))
 
 
-# --- GOVERNANCE-Creds (governance_accounts) — writer/CMS/appview-gov path ----
-def encrypt_gov_password(plaintext: str) -> tuple[bytes, bytes]:
-    return _encrypt(plaintext, _load_key(GOV_KEY_ENV))
+# --- COMMUNITY-Creds (community_accounts) — writer/CMS/appview-gov path ----
+def encrypt_community_password(plaintext: str) -> tuple[bytes, bytes]:
+    return _encrypt(plaintext, _load_key(COMMUNITY_KEY_ENV))
 
 
-def decrypt_gov_password(ciphertext: bytes, nonce: bytes) -> str:
-    return _decrypt(ciphertext, nonce, _load_key(GOV_KEY_ENV))
+def decrypt_community_password(ciphertext: bytes, nonce: bytes) -> str:
+    return _decrypt(ciphertext, nonce, _load_key(COMMUNITY_KEY_ENV))

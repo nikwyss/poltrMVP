@@ -42,7 +42,7 @@ poltr/
 ### Service-Specific Setup
 
 Each service has its own development instructions:
-- Frontend: `services/front/README.md`
+- Frontend: `services/frontend/README.md`
 - AppView: `services/appview/README.md`
 - Indexer: `services/indexer/README.md`
 
@@ -86,7 +86,7 @@ kubectl logs -n poltr deployment/indexer --tail=50
 
 ### Frontend
 ```bash
-cd services/front
+cd services/frontend
 npm test
 ```
 

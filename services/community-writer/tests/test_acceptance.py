@@ -70,17 +70,17 @@ def test_as_dict_handles_str_dict_none():
 async def test_accept_argument_happy_path_writes_community_record():
     conn = FakeConn({
         "v_eligible_participants": {"eligible": True},
-        "governance_accounts": {"did": "did:plc:gov"},
+        "community_accounts": {"did": "did:plc:community"},
     })
-    with patch.object(acceptance, "get_governance_record", AsyncMock(return_value=None)), \
-         patch.object(acceptance, "create_governance_record", AsyncMock(return_value={"uri": "x", "cid": "y"})) as create:
+    with patch.object(acceptance, "get_community_record", AsyncMock(return_value=None)), \
+         patch.object(acceptance, "create_community_record", AsyncMock(return_value={"uri": "x", "cid": "y"})) as create:
         status, reason = await acceptance._accept_argument(AsyncMock(), conn, ARG_ROW)
 
     assert (status, reason) == ("done", None)
     create.assert_awaited_once()
     args = create.await_args.args
-    # create_governance_record(client, gov_did, NSID, community, rkey=...)
-    assert args[1] == "did:plc:gov"
+    # create_community_record(client, community_did, NSID, community, rkey=...)
+    assert args[1] == "did:plc:community"
     assert args[2] == acceptance.ARGUMENT_NSID
     community = args[3]
     # content copied + provenance reference added to the source union
@@ -93,28 +93,28 @@ async def test_accept_argument_happy_path_writes_community_record():
 @pytest.mark.asyncio
 async def test_accept_argument_rejects_ineligible():
     conn = FakeConn({"v_eligible_participants": {"eligible": False},
-                     "governance_accounts": {"did": "did:plc:gov"}})
-    with patch.object(acceptance, "create_governance_record", AsyncMock()) as create:
+                     "community_accounts": {"did": "did:plc:community"}})
+    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
         status, reason = await acceptance._accept_argument(AsyncMock(), conn, ARG_ROW)
     assert (status, reason) == ("rejected", "not_eligible")
     create.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_accept_argument_rejects_when_no_governance_account():
-    conn = FakeConn({"v_eligible_participants": {"eligible": True}})  # governance_accounts -> None
-    with patch.object(acceptance, "create_governance_record", AsyncMock()) as create:
+async def test_accept_argument_rejects_when_no_community_account():
+    conn = FakeConn({"v_eligible_participants": {"eligible": True}})  # community_accounts -> None
+    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
         status, reason = await acceptance._accept_argument(AsyncMock(), conn, ARG_ROW)
-    assert (status, reason) == ("rejected", "no_governance_account")
+    assert (status, reason) == ("rejected", "no_community_account")
     create.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_accept_argument_idempotent_when_already_exists():
     conn = FakeConn({"v_eligible_participants": {"eligible": True},
-                     "governance_accounts": {"did": "did:plc:gov"}})
-    with patch.object(acceptance, "get_governance_record", AsyncMock(return_value={"already": "there"})), \
-         patch.object(acceptance, "create_governance_record", AsyncMock()) as create:
+                     "community_accounts": {"did": "did:plc:community"}})
+    with patch.object(acceptance, "get_community_record", AsyncMock(return_value={"already": "there"})), \
+         patch.object(acceptance, "create_community_record", AsyncMock()) as create:
         status, reason = await acceptance._accept_argument(AsyncMock(), conn, ARG_ROW)
     assert (status, reason) == ("done", None)
     create.assert_not_awaited()  # crash-recovery: do not double-write
@@ -125,7 +125,7 @@ async def test_accept_argument_idempotent_when_already_exists():
 # ---------------------------------------------------------------------------
 RESP_RECORD = {
     "$type": "app.ch.poltr.peerreview.response",
-    "argument": "at://did:plc:gov/app.ch.poltr.ballot.argument/argrkey",
+    "argument": "at://did:plc:community/app.ch.poltr.ballot.argument/argrkey",
     "reviewer": "did:plc:reviewer",
     "vote": "APPROVE",
 }
@@ -143,10 +143,10 @@ RESP_ROW = {
 async def test_accept_response_happy_path():
     conn = FakeConn({
         "v_eligible_participants": {"eligible": True},
-        "app_arguments": {"did": "did:plc:gov"},
+        "app_arguments": {"did": "did:plc:community"},
     })
-    with patch.object(acceptance, "get_governance_record", AsyncMock(return_value=None)), \
-         patch.object(acceptance, "create_governance_record", AsyncMock(return_value={"uri": "x"})) as create:
+    with patch.object(acceptance, "get_community_record", AsyncMock(return_value=None)), \
+         patch.object(acceptance, "create_community_record", AsyncMock(return_value={"uri": "x"})) as create:
         status, reason = await acceptance._accept_response(AsyncMock(), conn, RESP_ROW)
 
     assert (status, reason) == ("done", None)
@@ -163,7 +163,7 @@ async def test_accept_response_happy_path():
 @pytest.mark.asyncio
 async def test_accept_response_rejects_when_argument_unknown():
     conn = FakeConn({"v_eligible_participants": {"eligible": True}})  # app_arguments -> None
-    with patch.object(acceptance, "create_governance_record", AsyncMock()) as create:
+    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
         status, reason = await acceptance._accept_response(AsyncMock(), conn, RESP_ROW)
     assert (status, reason) == ("rejected", "argument_not_found")
     create.assert_not_awaited()

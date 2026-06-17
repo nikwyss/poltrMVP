@@ -1,7 +1,7 @@
 """
 Background cross-posting loop: mirrors arguments to Bluesky.
 
-Arguments are posted as standalone posts under their governance account.
+Arguments are posted as standalone posts under their community account.
 Ballots are CMS content and not cross-posted as ATProto records.
 
 Controlled by APPVIEW_CROSSPOST_ENABLED env var (checked at runtime each iteration).
@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 import httpx
 
 from src.shared.db import get_pool
-from src.atproto.governance import get_governance_token, _pds_internal_url
+from src.atproto.community import get_community_token, _pds_internal_url
 
 logger = logging.getLogger("crosspost")
 
@@ -36,7 +36,7 @@ async def _crosspost_arguments(client: httpx.AsyncClient):
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
-            SELECT a.uri, a.did AS gov_did, a.title, a.body, a.type, a.peerreview_status
+            SELECT a.uri, a.did AS community_did, a.title, a.body, a.type, a.peerreview_status
             FROM app_arguments a
             WHERE a.bsky_post_uri IS NULL AND NOT a.deleted
             ORDER BY a.created_at ASC
@@ -50,9 +50,9 @@ async def _crosspost_arguments(client: httpx.AsyncClient):
     peer_review_on = os.getenv("APPVIEW_PEER_REVIEW_ENABLED", "false").lower() == "true"
 
     for row in rows:
-        gov_did = row["gov_did"]
+        community_did = row["community_did"]
         try:
-            token = await get_governance_token(client, gov_did)
+            token = await get_community_token(client, community_did)
 
             prefix = "PRO" if row["type"] == "PRO" else "CONTRA"
             title = row["title"] or ""
@@ -76,7 +76,7 @@ async def _crosspost_arguments(client: httpx.AsyncClient):
                     "Authorization": f"Bearer {token}",
                 },
                 json={
-                    "repo": gov_did,
+                    "repo": community_did,
                     "collection": "app.bsky.feed.post",
                     "record": post_record,
                 },
@@ -130,5 +130,5 @@ async def _poll_loop():
 
 async def run_crosspost_forever():
     """Run the cross-post poll loop in the FOREGROUND, for the standalone writer
-    process (src.main). The internal write-side owns governance writes now."""
+    process (src.main). The internal write-side owns community writes now."""
     await _poll_loop()

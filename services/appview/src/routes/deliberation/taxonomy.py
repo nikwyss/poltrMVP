@@ -134,7 +134,7 @@ def _aggregate(node: dict, acc: set, arg_meta: dict) -> set:
     trägt also nur Richtung Befürworter (oder 0), ein Contra nur Richtung Gegner —
     nie über die Mitte. `pref = 0` = „spricht gar nicht dafür" = kein Beitrag.
     Beiträge werden nach positiver/negativer Seite gebündelt und normiert.
-    (Vgl. services/front/src/lib/aggregate.ts + doc/AGGREGATION.md.)"""
+    (Vgl. services/frontend/src/lib/aggregate.ts + doc/AGGREGATION.md.)"""
     local: set = set()
     for a in node["arguments"]:
         local.add(a["uri"])

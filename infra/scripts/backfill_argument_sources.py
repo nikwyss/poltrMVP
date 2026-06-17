@@ -4,8 +4,8 @@ Backfill: rewrite existing user-submitted argument records on the PDS so
 they carry an explicit `source: { $type: '...#sourceUser', authorDid }`
 union instead of the legacy top-level `authorDid` field.
 
-For each governance account (one per ballot), the script:
-  1. Loads & decrypts the governance password from auth.governance_accounts.
+For each community account (one per ballot), the script:
+  1. Loads & decrypts the community password from auth.community_accounts.
   2. Opens a PDS session.
   3. Lists existing app.ch.poltr.ballot.argument records.
   4. Skips records that already have a `source` field (idempotent).
@@ -14,10 +14,10 @@ For each governance account (one per ballot), the script:
 Environment:
   PDS_HOST         PDS endpoint                          (default: http://localhost:2583)
   DB_URL           PostgreSQL connection URL             (required)
-  MASTER_KEY_B64   APPVIEW_GOV_CREDS_MASTER_KEY_B64      (required)
+  MASTER_KEY_B64   APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64      (required)
   BALLOT_RKEY      Only backfill this ballot             (optional: omit = all)
   DRY_RUN          'true' = inspect only, no writes      (default: false)
-  LIMIT_PER_REPO   Max records per governance account    (default: 0 = no limit)
+  LIMIT_PER_REPO   Max records per community account    (default: 0 = no limit)
 """
 
 import os
@@ -140,19 +140,19 @@ def main() -> int:
             if only_ballot:
                 cur.execute(
                     "SELECT did, handle, ballot_rkey, pw_ciphertext, pw_nonce "
-                    "FROM auth.governance_accounts WHERE ballot_rkey = %s",
+                    "FROM auth.community_accounts WHERE ballot_rkey = %s",
                     (only_ballot,),
                 )
             else:
                 cur.execute(
                     "SELECT did, handle, ballot_rkey, pw_ciphertext, pw_nonce "
-                    "FROM auth.governance_accounts ORDER BY ballot_rkey"
+                    "FROM auth.community_accounts ORDER BY ballot_rkey"
                 )
             accounts = cur.fetchall()
     finally:
         conn.close()
 
-    print(f"Found {len(accounts)} governance account(s) to scan.")
+    print(f"Found {len(accounts)} community account(s) to scan.")
 
     total_seen = 0
     total_rewritten = 0

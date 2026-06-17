@@ -29,7 +29,7 @@ poltr/
 ### 1. Frontend Development
 
 ```bash
-cd services/front
+cd services/frontend
 npm install
 npm start
 ```
@@ -38,7 +38,7 @@ Access at: `http://127.0.0.1:5173`
 
 **Important:** Use `127.0.0.1` (not `localhost`) for OAuth compatibility.
 
-See `services/front/README.md` for details.
+See `services/frontend/README.md` for details.
 
 ### 2. AppView Development
 
@@ -129,7 +129,7 @@ sqlite3 account.sqlite
 
 ```bash
 # Frontend
-docker build -t poltr-front ./services/front
+docker build -t poltr-frontend ./services/frontend
 
 # AppView
 docker build -t poltr-appview ./services/appview
@@ -142,10 +142,10 @@ docker build -t poltr-indexer ./services/indexer
 
 ```bash
 # Tag for GitHub Container Registry
-docker tag poltr-front ghcr.io/<owner>/poltr-front:latest
+docker tag poltr-frontend ghcr.io/<owner>/poltr-frontend:latest
 
 # Push
-docker push ghcr.io/<owner>/poltr-front:latest
+docker push ghcr.io/<owner>/poltr-frontend:latest
 ```
 
 ## Common Tasks

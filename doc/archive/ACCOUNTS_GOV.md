@@ -13,7 +13,7 @@
   Collections:
   - app.ch.poltr.vote.proposal → 72 Records
 
-  Das ist ein Governance-Account mit Schweizer Abstimmungsvorlagen:
+  Das ist ein Community-Account mit Schweizer Abstimmungsvorlagen:
   ┌──────────────────────────────────────────┬────────────┬─────────┐
   │                 Vorlage                  │   Datum    │   Typ   │
   ├──────────────────────────────────────────┼────────────┼─────────┤

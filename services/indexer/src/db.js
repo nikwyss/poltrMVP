@@ -252,7 +252,7 @@ export async function upsertArgumentDb(clientOrPool, params) {
   const ballotRkey = ballotUri ? ballotUri.split("/").pop() : null;
   const createdAt = record.createdAt ? new Date(record.createdAt) : new Date();
   // Provenance (ATProto-native #sourceUser): set by the writer on the community
-  // record, points at the user-signed original. Null for legacy governance-
+  // record, points at the user-signed original. Null for legacy community-
   // authored args and official/org content.
   const originUri = record.source?.originUri ?? null;
   const originCid = record.source?.originCid ?? null;
@@ -380,7 +380,7 @@ export async function cascadeDeleteArgumentDerived(uri) {
 // Taxonomy snapshot projection (PDS = source of truth → DB read-model)
 //
 // The CMS writes one app.ch.poltr.taxonomy.snapshot record (the whole tree) to a
-// ballot's governance account. This projects it into app_taxonomy_node/_membership.
+// ballot's community account. This projects it into app_taxonomy_node/_membership.
 // ---------------------------------------------------------------------------
 
 const TAXONOMY_ARGUMENT_NSID = "app.ch.poltr.ballot.argument";
@@ -401,7 +401,7 @@ const TAXONOMY_ROOT_KEY = "__root__";
  *   - memberships are replaced wholesale, reconciled against live (non-deleted)
  *     arguments (a snapshot may reference an argument deleted since it was written).
  *
- * @param {object} params { did (governance repo DID), record }
+ * @param {object} params { did (community repo DID), record }
  */
 export async function projectTaxonomySnapshotDb(params) {
   const { did, record } = params;
@@ -498,7 +498,7 @@ export async function projectTaxonomySnapshotDb(params) {
 
     // 5. Replace memberships, reconciled against live arguments. argument_uri is
     //    reconstructed from the rkey + the snapshot's own repo DID (args live in the
-    //    same governance repo).
+    //    same community repo).
     await client.query(`DELETE FROM app_taxonomy_membership WHERE ballot_rkey = $1`, [
       ballotRkey,
     ]);

@@ -61,9 +61,9 @@ test("upsertArgumentDb persists origin_uri / origin_cid from the community recor
     },
   };
   await upsertArgumentDb(pool, {
-    uri: "at://did:plc:gov/app.ch.poltr.ballot.argument/r",
-    cid: "bafygov",
-    did: "did:plc:gov",
+    uri: "at://did:plc:community/app.ch.poltr.ballot.argument/r",
+    cid: "bafycommunity",
+    did: "did:plc:community",
     rkey: "r",
     record,
   });
@@ -74,7 +74,7 @@ test("upsertArgumentDb persists origin_uri / origin_cid from the community recor
   assert.ok(insert.params.includes("bafyuser"));
 });
 
-test("upsertArgumentDb leaves origin null for legacy/governance-authored records", async () => {
+test("upsertArgumentDb leaves origin null for legacy/community-authored records", async () => {
   const pool = fakePool();
   const record = {
     $type: "app.ch.poltr.ballot.argument",
@@ -82,7 +82,7 @@ test("upsertArgumentDb leaves origin null for legacy/governance-authored records
     source: { $type: "app.ch.poltr.ballot.argument#sourceUser", authorDid: "did:plc:user" },
   };
   await upsertArgumentDb(pool, {
-    uri: "at://did:plc:gov/c/r", cid: "bafygov", did: "did:plc:gov", rkey: "r", record,
+    uri: "at://did:plc:community/c/r", cid: "bafycommunity", did: "did:plc:community", rkey: "r", record,
   });
   const insert = pool.calls[0];
   // last two params (origin_uri, origin_cid) are null
@@ -94,15 +94,15 @@ test("upsertPeerreviewResponseDb persists origin_uri / origin_cid", async () => 
   const pool = fakePool();
   const record = {
     $type: "app.ch.poltr.peerreview.response",
-    argument: "at://did:plc:gov/app.ch.poltr.ballot.argument/arg",
+    argument: "at://did:plc:community/app.ch.poltr.ballot.argument/arg",
     reviewer: "did:plc:reviewer",
     vote: "APPROVE",
     originUri: "at://did:plc:reviewer/app.ch.poltr.peerreview.response/r1",
     originCid: "bafiresp",
   };
   await upsertPeerreviewResponseDb(pool, {
-    uri: "at://did:plc:gov/app.ch.poltr.peerreview.response/rk",
-    cid: "bafigov",
+    uri: "at://did:plc:community/app.ch.poltr.peerreview.response/rk",
+    cid: "baficommunity",
     record,
   });
   const insert = pool.calls[0];

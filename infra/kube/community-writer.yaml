@@ -1,6 +1,6 @@
 # Writer — interne Schreib-Seite der ATProto-native-Deliberation
 #
-# Zieht die Governance-Schreibarbeit aus der internet-zugewandten appview-API in
+# Zieht die Community-Schreibarbeit aus der internet-zugewandten appview-API in
 # einen eigenen internen Prozess: Crosspost (Phase 1), Translation (Phase 5),
 # Akzeptanz-Pipeline (app_acceptance_queue) + Review-Assignment (Phase 6).
 #
@@ -13,7 +13,7 @@
 # enthält NUR writer-Spezifisches (DB-URL writer@, Flags); geteilte Config
 # (Master-Key, Peer-Review, Log-Level, PDS_INTERNAL_URL) wird via secretKeyRef
 # aus appview-/pds-secrets geerbt — keine Duplikate. Der entscheidende Unterschied
-# zu appview: nur die 'writer'-DB-Rolle liest die Gov-Creds (pw-Spalten). Den
+# zu appview: nur die 'writer'-DB-Rolle liest die Community-Creds (pw-Spalten). Den
 # Master-Key teilen beide noch (bis zum Key-Split, doc/TODO.md).
 #
 # Voraussetzung: APPVIEW_CROSSPOST_ENABLED="true" in writer-secrets. Die
@@ -47,12 +47,12 @@ spec:
           env:
             # Geteilte Werte erben (keine Duplikate in writer-secrets).
             # Master-Key: bis zum Key-Split mit appview geteilt → danach eigenen
-            # Gov-Key in writer-secrets legen und diesen Eintrag entfernen.
-            - name: APPVIEW_GOV_CREDS_MASTER_KEY_B64
+            # Community-Key in writer-secrets legen und diesen Eintrag entfernen.
+            - name: APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64
               valueFrom:
                 secretKeyRef:
                   name: appview-secrets
-                  key: APPVIEW_GOV_CREDS_MASTER_KEY_B64
+                  key: APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64
             - name: APPVIEW_PEER_REVIEW_ENABLED
               valueFrom:
                 secretKeyRef:

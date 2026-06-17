@@ -29,30 +29,30 @@
 ## Phase 7 — ERLEDIGT (2026-06-17)
 
 Code-Cleanup + Cluster-Rollout durch:
-- [x] appview-Code ohne Gov-Write (arguments/reviews/peer_review_assign), Tests grün (48)
+- [x] appview-Code ohne Community-Write (arguments/reviews/peer_review_assign), Tests grün (48)
 - [x] LEXICONS.md aktualisiert (ATProto-native Modell + peerreview-Lexika)
 - [x] Neues Image deployt; tote Producer-Flags aus `appview-secrets` raus
 - [x] **appview → `appview@`** (kein Pod nutzt mehr `allforone`)
-- [x] **DB-Grant verengt**: `governance_accounts` für appview nur noch spaltenweises
+- [x] **DB-Grant verengt**: `community_accounts` für appview nur noch spaltenweises
       SELECT (kein pw, kein Write) — live verifiziert, End-Zustand in `db-setup.sql`
 
-Nicht gemacht (bewusst → Key-Split-Workstream, s.u.): GOV-Key aus dem appview-Pod-Env nehmen.
+Nicht gemacht (bewusst → Key-Split-Workstream, s.u.): COMMUNITY-Key aus dem appview-Pod-Env nehmen.
 
 ## Master-Key-Split fertigstellen (echte Krypto-Trennung) — verschoben aus Phase 7
 
-Heute haben USER-/GOV-/Legacy-Master-Key auf Dev **denselben Wert**; die Env-Namen sind
+Heute haben USER-/COMMUNITY-/Legacy-Master-Key auf Dev **denselben Wert**; die Env-Namen sind
 schon getrennt (`pds_creds.py`), aber der Wert nicht. Solange identisch, bringt das
-Entfernen des GOV-Keys aus dem appview-Env **nichts** (der gleiche Wert bleibt als
-USER-Key). Durch den Phase-7-DB-Grant ist der Key für Gov-Creds ohnehin funktionslos
+Entfernen des COMMUNITY-Keys aus dem appview-Env **nichts** (der gleiche Wert bleibt als
+USER-Key). Durch den Phase-7-DB-Grant ist der Key für Community-Creds ohnehin funktionslos
 (appview kann das Chiffrat nicht lesen) — also kein akutes Risiko, aber unsauber.
 
 Echte Trennung:
-1. Neuen, **distinkten** Gov-Key erzeugen.
-2. **Re-Encryption**-Migration: alle `governance_accounts.pw_*` mit dem alten Key
-   entschlüsseln, mit dem neuen Gov-Key neu verschlüsseln.
-3. Neuen Gov-Key NUR in `writer-secrets` + `cms-secrets`; `cms.yaml`/`writer.yaml` so,
+1. Neuen, **distinkten** Community-Key erzeugen.
+2. **Re-Encryption**-Migration: alle `community_accounts.pw_*` mit dem alten Key
+   entschlüsseln, mit dem neuen Community-Key neu verschlüsseln.
+3. Neuen Community-Key NUR in `writer-secrets` + `cms-secrets`; `cms.yaml`/`writer.yaml` so,
    dass sie ihn **nicht** mehr aus `appview-secrets` erben.
-4. `APPVIEW_GOV_CREDS_MASTER_KEY_B64` (+ Legacy) aus `appview-secrets` entfernen — appview
+4. `APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64` (+ Legacy) aus `appview-secrets` entfernen — appview
    behält nur `APPVIEW_USER_CREDS_MASTER_KEY_B64` (auth_creds).
 
 Gehört zum [[project_auth_privacy_workstream]] (Email-as-HMAC, DID-Pool, eID-Gating).
@@ -142,22 +142,22 @@ Deliberations-Endpoints — kann heute `auth_creds` lesen.** Zwei Stufen:
   + Content-Tabellen). Der Großteil des Codes kommt dann gar nicht mehr an den
   Credential-Store. Mittlerer Aufwand, hoher Defense-in-depth-Gewinn.
 
-  > **Wichtige Subtilität — `governance_accounts` gehört zum Content-Pool, nicht zum Auth-Pool.**
+  > **Wichtige Subtilität — `community_accounts` gehört zum Content-Pool, nicht zum Auth-Pool.**
   > Die Tabelle liegt zwar im `auth`-Schema, ist aber funktional eine *Content-Pfad*-Credential
-  > (PDS-Passwörter der Per-Ballot-Governance-Konten), kein User-Identitäts-Datum wie `auth_creds`.
+  > (PDS-Passwörter der Per-Ballot-Community-Konten), kein User-Identitäts-Datum wie `auth_creds`.
   > Der **gesamte** Deliberations-Schreibpfad braucht sie (nicht nur Peerreviews): Argument-
   > Erstellung (`arguments.py`), Peerreview-Einladung (`peer_review_assign.py`) + -Antwort
   > (`reviews.py`), Übersetzungen (`translator.py`), Crossposting (`crosspost.py`) lesen
-  > `pw_ciphertext/pw_nonce` via `_get_governance_password()` → PDS-Session; dazu DID-Routing
-  > (`get_did_for_ballot`/`_uri`/`is_governance_did`), INSERT (`create_ballot_account`) und
+  > `pw_ciphertext/pw_nonce` via `_get_community_password()` → PDS-Session; dazu DID-Routing
+  > (`get_did_for_ballot`/`_uri`/`is_community_did`), INSERT (`create_ballot_account`) und
   > Enrichment-JOINs (`ballots.py`).
   > → Aufteilung explizit machen:
   > - `appview_auth` → `auth_creds`, `auth_sessions`, Pending-/Email-Tabellen, `mountain_templates`.
-  > - `appview_app` → `governance_accounts` (R/W, inkl. Credential-Spalten) + Content-Tabellen;
+  > - `appview_app` → `community_accounts` (R/W, inkl. Credential-Spalten) + Content-Tabellen;
   >   **kein** Zugriff auf `auth_creds`.
   > Konsequenz: der Content-Pool ist **nicht** komplett credential-frei — er hält weiterhin die
-  > Governance-Passwörter. Wer maximale Trennung will, müsste das PDS-Schreiben hinter einen
-  > eigenen, schmalen „governance-writer"-Service ziehen (→ Richtung 2b).
+  > Community-Passwörter. Wer maximale Trennung will, müsste das PDS-Schreiben hinter einen
+  > eigenen, schmalen „community-writer"-Service ziehen (→ Richtung 2b).
 
 - [ ] **2b — Auth als eigener Microservice (groß):** nur dieser Dienst hält
   `auth_creds`/`auth_sessions`; alle anderen validieren Sessions über eine interne
@@ -181,11 +181,11 @@ aber vor dem Einsatz über Dev hinaus zu härten:
   selbst nicht. Für den Bypass-/Föderationspfad muss das Gate die Quota autoritativ gegen
   `app_content_creations` durchsetzen (L11).
 - [ ] **Master-Key-Split fertigstellen:** Env-Namen + Code-Pfade sind getrennt (`APPVIEW_USER_CREDS_MASTER_KEY_B64`
-  für `auth_creds`, `APPVIEW_GOV_CREDS_MASTER_KEY_B64` für `governance_accounts`; Python `pds_creds.py`
-  USER/GOV-Funktionen, CMS `govMasterKeyB64()`, Legacy-Fallback). **Offen:** auf Dev/Prod tatsächlich
-  **unterschiedliche** Werte setzen — dazu `governance_accounts.pw_*` mit dem neuen Gov-Key **re-encrypten**
+  für `auth_creds`, `APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64` für `community_accounts`; Python `pds_creds.py`
+  USER/COMMUNITY-Funktionen, CMS `communityMasterKeyB64()`, Legacy-Fallback). **Offen:** auf Dev/Prod tatsächlich
+  **unterschiedliche** Werte setzen — dazu `community_accounts.pw_*` mit dem neuen Community-Key **re-encrypten**
   (kurzes Migrations-Skript: alt entschlüsseln → neu verschlüsseln) und den Legacy-Fallback entfernen. Erst dann
-  öffnet ein appview-Leak nicht mehr die Gov-Creds.
+  öffnet ein appview-Leak nicht mehr die Community-Creds.
 Plan: `typed-kindling-flask`. [[project_architecture_layers]].
 
 ## VISION
@@ -208,8 +208,8 @@ Plan: `typed-kindling-flask`. [[project_architecture_layers]].
 - Randomisierung von argumenten und kommentaren auf gleicher stufe: user-konstante randomisierung. 
 - Scroll-positioning . springt immer noch zur top position, wenn man auf feed zurückkehrt.
 - Anzahl Kommentare bei Argumenten einblenden. 
-- Ballot creation endpoint: wire up `create_ballot_account()` in AppView (currently only DB + governance_pds.py ready)
-- Per-ballot governance accounts: each ballot gets its own PDS account (`ballot-{rkey}.id.poltr.ch`), credentials in `governance_accounts` table, removed `PDS_GOVERNANCE_ACCOUNT_DID`/`PDS_GOVERNANCE_PASSWORD` env vars
+- Ballot creation endpoint: wire up `create_ballot_account()` in AppView (currently only DB + community_pds.py ready)
+- Per-ballot community accounts: each ballot gets its own PDS account (`ballot-{rkey}.id.poltr.ch`), credentials in `community_accounts` table, removed `PDS_COMMUNITY_ACCOUNT_DID`/`PDS_COMMUNITY_PASSWORD` env vars
 - Consolidate cross-posting from indexer to appview (revoke indexer auth.auth_creds access)
 - Design and implement user profile pages on bluesky
 - Create pseudonym system: Swiss mountain names table (Bergnamen)

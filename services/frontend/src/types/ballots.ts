@@ -30,8 +30,8 @@ export interface Ballot {
   availableLangs: string[];
   createdAt?: string;
   updatedAt?: string;
-  /** Bridge to the deliberation layer: governance account DID for this ballot. */
-  governanceDid?: string;
+  /** Bridge to the deliberation layer: community account DID for this ballot. */
+  communityDid?: string;
   argumentCount?: number;
   commentCount?: number;
   likeCount?: number;
@@ -214,7 +214,7 @@ export interface PeerreviewResponse {
 export interface PeerreviewStatus {
   argumentUri: string;
   peerreviewStatus: 'preliminary' | 'approved' | 'rejected';
-  governanceUri?: string;
+  communityUri?: string;
   quorum: number;
   approvals: number;
   rejections: number;

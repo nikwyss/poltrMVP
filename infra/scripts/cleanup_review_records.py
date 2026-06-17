@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
 Delete all app.ch.poltr.peerreview.invitation and app.ch.poltr.peerreview.response
-records from the governance PDS repo, so they can be re-imported with createRecord.
+records from the community PDS repo, so they can be re-imported with createRecord.
 
 Also clears the corresponding DB tables so the indexer re-indexes cleanly.
 
 Prerequisites:
   - PDS port-forward: kubectl port-forward -n poltr svc/pds 2583:80
-  - Governance account password set (see CLAUDE.md)
+  - Community account password set (see CLAUDE.md)
 
 Environment variables:
   PDS_HOST        PDS endpoint (default: http://localhost:2583)
-  GOV_DID         Governance account DID
-  GOV_PASSWORD    Governance account password
+  COMMUNITY_DID         Community account DID
+  COMMUNITY_PASSWORD    Community account password
 """
 
 import os
@@ -22,8 +22,8 @@ import time
 import requests
 
 PDS_HOST = os.getenv("PDS_HOST", "http://localhost:2583")
-GOV_DID = os.getenv("GOV_DID", "did:plc:3ch7iwf6od4szklpolupbv7o")
-GOV_PASSWORD = os.getenv("GOV_PASSWORD", "TempPass12345678")
+COMMUNITY_DID = os.getenv("COMMUNITY_DID", "did:plc:3ch7iwf6od4szklpolupbv7o")
+COMMUNITY_PASSWORD = os.getenv("COMMUNITY_PASSWORD", "TempPass12345678")
 
 COLLECTIONS = [
     "app.ch.poltr.peerreview.invitation",
@@ -34,7 +34,7 @@ COLLECTIONS = [
 def authenticate():
     resp = requests.post(
         f"{PDS_HOST}/xrpc/com.atproto.server.createSession",
-        json={"identifier": GOV_DID, "password": GOV_PASSWORD},
+        json={"identifier": COMMUNITY_DID, "password": COMMUNITY_PASSWORD},
     )
     resp.raise_for_status()
     data = resp.json()
@@ -49,7 +49,7 @@ def list_records(collection):
     while True:
         url = (
             f"{PDS_HOST}/xrpc/com.atproto.repo.listRecords"
-            f"?repo={GOV_DID}&collection={collection}&limit=100"
+            f"?repo={COMMUNITY_DID}&collection={collection}&limit=100"
         )
         if cursor:
             url += f"&cursor={cursor}"
@@ -73,7 +73,7 @@ def delete_record(token, collection, rkey):
             "Content-Type": "application/json",
         },
         json={
-            "repo": GOV_DID,
+            "repo": COMMUNITY_DID,
             "collection": collection,
             "rkey": rkey,
         },

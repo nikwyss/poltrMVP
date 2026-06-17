@@ -1,0 +1,3 @@
+{
+  "/(app)/ballot/[id]/arguments/taxonomy/page": "app/(app)/ballot/[id]/arguments/taxonomy/page.js"
+}

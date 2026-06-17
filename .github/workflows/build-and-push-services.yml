@@ -18,7 +18,7 @@ jobs:
       # race on ghcr.io cross-repo blob mounts and fail with "unknown blob".
       max-parallel: 1
       matrix:
-        service: [appview, indexer, community-writer, front, cms, calculator]
+        service: [appview, indexer, community-writer, frontend, cms, calculator]
 
     steps:
       - name: Checkout
@@ -32,7 +32,7 @@ jobs:
           IMAGE=ghcr.io/${{ github.repository_owner }}/poltr-${{ matrix.service }}
           TAG=${{ github.sha }}
           BUILD_ARGS=""
-          if [ "${{ matrix.service }}" = "front" ]; then
+          if [ "${{ matrix.service }}" = "frontend" ]; then
             BUILD_ARGS="--build-arg NEXT_PUBLIC_EID_VERIFICATION_ENABLED=false"
           fi
           docker build --no-cache $BUILD_ARGS -t ${IMAGE}:${TAG} -t ${IMAGE}:latest ./services/${{ matrix.service }}
@@ -87,7 +87,7 @@ jobs:
           echo "KUBECONFIG path: $KUBECONFIG"
           # optionally show the server & context (no secrets)
           kubectl config view --kubeconfig "$KUBECONFIG" --minify -o yaml
-          IMAGE_FRONT=ghcr.io/${{ github.repository_owner }}/poltr-front:${{ github.sha }}
+          IMAGE_FRONT=ghcr.io/${{ github.repository_owner }}/poltr-frontend:${{ github.sha }}
           IMAGE_APP=ghcr.io/${{ github.repository_owner }}/poltr-appview:${{ github.sha }}
           IMAGE_WRITER=ghcr.io/${{ github.repository_owner }}/poltr-community-writer:${{ github.sha }}
           IMAGE_INDEXER=ghcr.io/${{ github.repository_owner }}/poltr-indexer:${{ github.sha }}

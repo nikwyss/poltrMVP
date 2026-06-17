@@ -25,12 +25,12 @@ spec:
             - secretRef:
                 name: cms-secrets
           env:
-            - name: APPVIEW_GOV_CREDS_MASTER_KEY_B64
+            - name: APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64
               valueFrom:
                 secretKeyRef:
                   name: appview-secrets
-                  key: APPVIEW_GOV_CREDS_MASTER_KEY_B64
-            # Eng gescopte cms-Rolle (nur auth.governance_accounts +
+                  key: APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64
+            # Eng gescopte cms-Rolle (nur auth.community_accounts +
             # app_taxonomy_snapshot) — bewusst aus cms-secrets, NICHT aus
             # appview-secrets (das auf die allforone-Superuser-Rolle zeigt).
             - name: APPVIEW_POSTGRES_URL

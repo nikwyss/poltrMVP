@@ -48,7 +48,7 @@ All accounts on the old PDS (`pds.poltr.info`) were permanently `RepoInactive: t
 2. Follow K8s reset procedure (scale down, wipe PVC, apply secrets, scale up)
 3. Update DNS: `*.id.poltr.ch` CNAME → `pds2.poltr.info`
 4. Verify with `pds_reset.py --verify` — relay must report `active: true`
-5. Recreate governance account, update `PDS_GOVERNANCE_ACCOUNT_DID`, update `app_ballots` DIDs
+5. Recreate community account, update `PDS_COMMUNITY_ACCOUNT_DID`, update `app_ballots` DIDs
 6. Rebuild frontend Docker image (new `NEXT_PUBLIC_PDS_URL` baked in)
 
 ## Prerequisites
@@ -697,7 +697,7 @@ PDS_ADMIN_PASSWORD=<pw> python infra/scripts/pds_reset.py --verify
 |--------|---------|
 | `infra/scripts/pds_reset.py` | Generate new PDS identity (`--verify` for post-reset check) |
 | `infra/scripts/test_registration.py` | Full federation chain diagnostic |
-| `infra/scripts/create_gov_handle.py` | Create governance account on PDS |
+| `infra/scripts/create_community_handle.py` | Create community account on PDS |
 
 ## Setup Checklist (Quick Reference)
 

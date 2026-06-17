@@ -4,7 +4,7 @@ XRPC routes for comments: comment.list, comment.get, comment.create.
 Comments are ATProto records (`app.ch.poltr.comment`) that live in user repos
 (intern) or foreign Bluesky repos (extern). Translations are NOT inline on the
 record — POLTR cannot write into foreign repos. Instead they live as sidecar
-records `app.ch.poltr.comment.translation` in the ballot's governance account
+records `app.ch.poltr.comment.translation` in the ballot's community account
 and are indexed into `app_comment_translations`; the serializer LEFT JOINs to
 pull the requested-language body in one roundtrip.
 """

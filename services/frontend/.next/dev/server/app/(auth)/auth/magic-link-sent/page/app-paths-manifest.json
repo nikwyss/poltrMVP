@@ -1,0 +1,3 @@
+{
+  "/(auth)/auth/magic-link-sent/page": "app/(auth)/auth/magic-link-sent/page.js"
+}

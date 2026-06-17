@@ -12,9 +12,9 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import src.core.db as db
 from src.atproto.errors import PDSError
-# Background governance loops moved to the dedicated community-writer SERVICE
+# Background community loops moved to the dedicated community-writer SERVICE
 # (services/community-writer, eigenes Image): cross-posting (Phase 1) and
-# translation (Phase 5). The appview API runs NO background governance loops anymore.
+# translation (Phase 5). The appview API runs NO background community loops anymore.
 # Peer-review assignment used to run as a background loop. It is now triggered
 # on authenticated requests via src.auth.middleware → peer_review_assign.
 

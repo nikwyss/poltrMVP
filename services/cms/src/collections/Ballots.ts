@@ -24,7 +24,7 @@ export const Ballots: CollectionConfig = {
   endpoints: [
     {
       // Taxonomie persistieren = den Editor-Baum als unveränderlichen
-      // app.ch.poltr.taxonomy.snapshot-Record auf das Governance-Konto des Ballots
+      // app.ch.poltr.taxonomy.snapshot-Record auf das Community-Konto des Ballots
       // schreiben (append-only). Dieser Record ist die QUELLE DER WAHRHEIT; der
       // Indexer projiziert ihn in app_taxonomy_node/_membership. Unveränderter Baum
       // → kein neuer Record (Dedup über Content-Hash).
@@ -150,7 +150,7 @@ export const Ballots: CollectionConfig = {
               required: true,
               unique: true,
               admin: {
-                description: 'Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for the governance account handle — dots are replaced with hyphens (e.g. "133.3" → ballot-133-3.id.poltr.ch).',
+                description: 'Official BK number (Bundeskanzlei). E.g. "663" or "133.3" for counter-proposals. Used for the community account handle — dots are replaced with hyphens (e.g. "133.3" → ballot-133-3.id.poltr.ch).',
               },
               validate: (value: unknown) => {
                 if (typeof value !== 'string') return 'rkey is required'
@@ -213,21 +213,21 @@ export const Ballots: CollectionConfig = {
               },
             },
             {
-              name: 'governanceDid',
+              name: 'communityDid',
               type: 'text',
               admin: {
                 readOnly: true,
                 description:
-                  'ATProto Governance Account DID (auto-created on publish — reload the page after publishing to see the value).',
+                  'ATProto Community Account DID (auto-created on publish — reload the page after publishing to see the value).',
               },
             },
             {
-              name: 'governanceHandle',
+              name: 'communityHandle',
               type: 'text',
               admin: {
                 readOnly: true,
                 description:
-                  'ATProto Governance Account Handle (auto-created on publish — reload the page after publishing to see the value).',
+                  'ATProto Community Account Handle (auto-created on publish — reload the page after publishing to see the value).',
               },
             },
           ],
@@ -300,41 +300,41 @@ export const Ballots: CollectionConfig = {
         if (context?.skipPublishHook) return doc
 
         const isPublishing =
-          doc.status === 'published' && !doc.governanceDid
+          doc.status === 'published' && !doc.communityDid
 
         if (!isPublishing) return doc
 
-        const { publishGovernanceAccount, HandleAlreadyTakenError } = await import(
+        const { publishCommunityAccount, HandleAlreadyTakenError } = await import(
           '../lib/atproto-publish'
         )
 
         try {
-          const { did, handle } = await publishGovernanceAccount(doc.rkey)
+          const { did, handle } = await publishCommunityAccount(doc.rkey)
 
-          // Update the document with governance account info — share the
+          // Update the document with community account info — share the
           // outer transaction (via `req`) and tag the call with a context
           // flag so this hook short-circuits on the recursive afterChange.
           await req.payload.update({
             collection: 'ballots',
             id: doc.id,
             data: {
-              governanceDid: did,
-              governanceHandle: handle,
+              communityDid: did,
+              communityHandle: handle,
             },
             req,
             context: { skipPublishHook: true },
           })
 
           req.payload.logger.info(
-            `Governance account created for ballot ${doc.id}: ${handle} (${did})`
+            `Community account created for ballot ${doc.id}: ${handle} (${did})`
           )
         } catch (err) {
           req.payload.logger.error(
-            `Failed to create governance account for ballot ${doc.id}: ${err}`
+            `Failed to create community account for ballot ${doc.id}: ${err}`
           )
           if (err instanceof HandleAlreadyTakenError) {
             throw new APIError(
-              `Governance-Account konnte nicht angelegt werden: Handle "${err.handle}" ist auf dem PDS bereits vergeben (vermutlich Waise aus einem früheren, halbgelungenen Save). Bitte den PDS-Account löschen oder in auth.governance_accounts adoptieren.`,
+              `Community-Account konnte nicht angelegt werden: Handle "${err.handle}" ist auf dem PDS bereits vergeben (vermutlich Waise aus einem früheren, halbgelungenen Save). Bitte den PDS-Account löschen oder in auth.community_accounts adoptieren.`,
               409,
               undefined,
               true,
@@ -342,7 +342,7 @@ export const Ballots: CollectionConfig = {
           }
           const msg = err instanceof Error ? err.message : String(err)
           throw new APIError(
-            `Governance-Account konnte nicht angelegt werden: ${msg}`,
+            `Community-Account konnte nicht angelegt werden: ${msg}`,
             500,
             undefined,
             true,

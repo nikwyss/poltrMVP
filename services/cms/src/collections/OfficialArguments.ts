@@ -7,7 +7,7 @@ import { addDataAndFileToRequest } from 'payload'
  * (sourceType='organization').
  *
  * The status=published transition triggers a publish hook that writes
- * the record into the ballot's governance PDS account so it shows up
+ * the record into the ballot's community PDS account so it shows up
  * alongside user-submitted arguments via the same firehose-driven path.
  */
 export const OfficialArguments: CollectionConfig = {

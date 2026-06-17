@@ -68,7 +68,7 @@ one IP (the frontend pod) for everyone. The proxy forwards the real browser IP i
 (`X-Poltr-Proxy-Secret`); the AppView `key_func` (`_client_ip_key` in
 [`core/fastapi.py`](../services/appview/src/core/fastapi.py)) trusts it only on a
 constant-time secret match, else falls back to the connection IP. Forwarding done
-in [`front/src/lib/appview-proxy.ts`](../services/front/src/lib/appview-proxy.ts)
+in [`front/src/lib/appview-proxy.ts`](../services/frontend/src/lib/appview-proxy.ts)
 (XRPC proxy + all `/api/auth/*` routes). uvicorn runs **without**
 `--forwarded-allow-ips` (that would let direct callers spoof XFF).
 Secret lives once in `appview-secrets`; frontend inherits it via `secretKeyRef`

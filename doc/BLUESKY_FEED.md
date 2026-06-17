@@ -57,7 +57,7 @@ Every post in the skeleton **must be an `app.bsky.feed.post` record** already in
 
 Ballots are already cross-posted by the indexer (`upsertBskyPost` in `services/indexer/src/pds_client.js`). The same pattern needs to be extended to arguments and any other content types that should appear in the feed.
 
-Each cross-post creates an `app.bsky.feed.post` on the poltr PDS (under the governance account) with an `app.bsky.embed.external` link card pointing back to poltr.ch. The Bluesky relay picks these up and indexes them.
+Each cross-post creates an `app.bsky.feed.post` on the poltr PDS (under the community account) with an `app.bsky.embed.external` link card pointing back to poltr.ch. The Bluesky relay picks these up and indexes them.
 
 The cross-post URI and CID are stored in the database (e.g. `app_ballots.bsky_post_uri`, `app_ballots.bsky_post_cid`), which the feed generator queries.
 
@@ -76,7 +76,7 @@ Minimal implementation (Python/FastAPI example):
 ```python
 @router.get("/xrpc/app.bsky.feed.getFeedSkeleton")
 async def get_feed_skeleton(
-    feed: str,          # at://governance-did/app.bsky.feed.generator/poltr
+    feed: str,          # at://community-did/app.bsky.feed.generator/poltr
     limit: int = 50,
     cursor: str = None,
 ):
@@ -116,9 +116,9 @@ The service also needs a `app.bsky.feed.describeFeedGenerator` endpoint:
 @router.get("/xrpc/app.bsky.feed.describeFeedGenerator")
 async def describe_feed_generator():
     return {
-        "did": GOVERNANCE_DID,  # or a did:web for the service
+        "did": COMMUNITY_DID,  # or a did:web for the service
         "feeds": [
-            {"uri": f"at://{GOVERNANCE_DID}/app.bsky.feed.generator/poltr"}
+            {"uri": f"at://{COMMUNITY_DID}/app.bsky.feed.generator/poltr"}
         ],
     }
 ```
@@ -130,7 +130,7 @@ The feed generator needs its own identity. Two options:
 | Option | Setup | Best for |
 |--------|-------|----------|
 | `did:web` | Add `/.well-known/did.json` to the feed service domain | Dedicated feed service |
-| Governance account DID | Reuse the existing governance `did:plc` | Feed hosted on the appview |
+| Community account DID | Reuse the existing community `did:plc` | Feed hosted on the appview |
 
 If hosting the feed as a route on the appview (`app.poltr.info`), a `did:web:app.poltr.info` is the simplest approach. Create `/.well-known/did.json`:
 
@@ -150,16 +150,16 @@ If hosting the feed as a route on the appview (`app.poltr.info`), a `did:web:app
 
 ### 4. Feed declaration record
 
-Register the feed by creating an `app.bsky.feed.generator` record in the governance account's repo on the PDS:
+Register the feed by creating an `app.bsky.feed.generator` record in the community account's repo on the PDS:
 
 ```bash
-# Via XRPC (with governance Bearer JWT)
+# Via XRPC (with community Bearer JWT)
 curl -X POST \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <governanceJwt>" \
+  -H "Authorization: Bearer <communityJwt>" \
   "http://localhost:2583/xrpc/com.atproto.repo.putRecord" \
   -d '{
-    "repo": "<GOVERNANCE_DID>",
+    "repo": "<COMMUNITY_DID>",
     "collection": "app.bsky.feed.generator",
     "rkey": "poltr",
     "record": {
@@ -172,7 +172,7 @@ curl -X POST \
   }'
 ```
 
-The `rkey` (`poltr`) becomes part of the feed URI: `at://<GOVERNANCE_DID>/app.bsky.feed.generator/poltr`.
+The `rkey` (`poltr`) becomes part of the feed URI: `at://<COMMUNITY_DID>/app.bsky.feed.generator/poltr`.
 
 After this record exists, Bluesky users can find and subscribe to the feed on bsky.app.
 
@@ -222,7 +222,7 @@ Ratings don't need cross-posting for the feed — they're reactions, not content
 | Cross-posting | Creates `app.bsky.feed.post` records on poltr PDS | Ballots: yes. Arguments: no. |
 | Relay indexing | Bluesky relay picks up cross-posts from poltr PDS | Yes (federation is active) |
 | Feed generator service | Returns skeleton of cross-post URIs | No (needs implementation) |
-| Feed declaration record | `app.bsky.feed.generator` in governance repo | No (one-time setup) |
-| Service identity | `did:web` or reuse governance DID | No (one-time setup) |
+| Feed declaration record | `app.bsky.feed.generator` in community repo | No (one-time setup) |
+| Service identity | `did:web` or reuse community DID | No (one-time setup) |
 
 The feed generator itself is lightweight (a single DB query behind an HTTP endpoint). The main prerequisite is ensuring all content that should appear in the feed is cross-posted as `app.bsky.feed.post`.
