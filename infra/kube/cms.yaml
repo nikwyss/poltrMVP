@@ -25,10 +25,12 @@ spec:
             - secretRef:
                 name: cms-secrets
           env:
+            # COMMUNITY-Master-Key wohnt jetzt in writer-secrets (community-writer
+            # ist der Eigentümer); cms erbt ihn von dort, nicht mehr aus appview-secrets.
             - name: APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64
               valueFrom:
                 secretKeyRef:
-                  name: appview-secrets
+                  name: writer-secrets
                   key: APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64
             # Eng gescopte cms-Rolle (nur auth.community_accounts +
             # app_taxonomy_snapshot) — bewusst aus cms-secrets, NICHT aus

@@ -227,7 +227,7 @@ function parseArgumentSource(record) {
 }
 
 function _peerReviewQuorum() {
-  return parseInt(process.env.APPVIEW_PEER_REVIEW_QUORUM || "10", 10);
+  return parseInt(process.env.PEER_REVIEW_QUORUM || "10", 10);
 }
 
 function _peerReviewGraceSeconds() {

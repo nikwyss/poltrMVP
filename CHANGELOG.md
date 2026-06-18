@@ -2,6 +2,25 @@
 
 ## 2026-06-17
 
+### Secret-Aufräumung: Peer-Review + COMMUNITY-Key zum Writer-Pod, tote Keys raus (`infra`, `services`)
+
+Folgearbeit zur Dead-Code-Entfernung: die Env-/Secret-Verteilung an die writer-first-Realität angeglichen. Ziel — alle Peer-Review-Assignment-Parameter wohnen am Writer-Pod, appview-secrets hält nur noch, was die appview wirklich liest.
+
+- **Peer-Review-Parameter → writer-secrets, neue Namenskonvention** (ohne `APPVIEW_`-Präfix): `PEER_REVIEW_DAILY_LIMIT`, `PEER_REVIEW_INVITE_PROBABILITY`, `PEER_REVIEW_QUORUM`. Writer-Code [peer_review_assign.py](services/community-writer/src/arguments/peer_review_assign.py) und Indexer [db.js](services/indexer/src/db.js) lesen die neuen Namen; [indexer.yaml](infra/kube/indexer.yaml) erbt `PEER_REVIEW_QUORUM` jetzt aus writer-secrets (vorher unverdrahtet → Indexer fiel still auf Default 10 zurück). Der geteilte Master-Schalter `APPVIEW_PEER_REVIEW_ENABLED` bleibt in appview-secrets (appview + writer).
+- **`APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64` → writer-secrets** als alleinige Heimat; [cms.yaml](infra/kube/cms.yaml) erbt ihn von dort (statt aus appview-secrets). appview hält nur noch `APPVIEW_USER_CREDS_MASTER_KEY_B64`.
+- **Tote Keys entfernt:** `APPVIEW_PORT` (Port ist in start.sh/Dockerfile hart auf 3000), `APPVIEW_HOSTNAME` (wurde in den Frontend-Pod injiziert, aber **nirgends gelesen** — das Frontend nutzt `APPVIEW_URL`), `APPVIEW_PEER_REVIEW_POLL_INTERVAL_SECONDS` (Legacy-Poll, kein Consumer). [frontend.yaml](infra/kube/frontend.yaml) ohne den ungenutzten `APPVIEW_HOSTNAME`-secretKeyRef.
+- **`.env.dist` bereinigt:** appview ohne `APPVIEW_TRANSLATE_*`/`APPVIEW_CROSSPOST_*` (writer-only seit Phase 1/5), `APPVIEW_HOSTNAME`/`APPVIEW_PORT`, obsolete `PDS_GOVERNANCE_ACCOUNT_DID`/`APPVIEW_GOV_CREDS_MASTER_KEY_B64`; writer-`.env.dist` auf `APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64` + `PEER_REVIEW_*` umgestellt (lag noch auf dem alten `GOV`-Namen).
+- Sowohl `secrets.yaml.dist` als auch die Live-`secrets.yaml` synchron angepasst (Werte unverändert). **Cluster-Cutover:** writer-secrets + cms/indexer/frontend neu applien; `front-secrets` braucht kein `APPVIEW_HOSTNAME` mehr.
+
+### Toter Code in der AppView nach dem Writer-Split entfernt (`services/appview`)
+
+Aufräumarbeit nach `writer`/`community-writer`-Split: die AppView ist jetzt writer-first untrusted client und schreibt nirgends mehr in Community-Repos. Mehrere Module/Funktionen, die das früher taten, waren unerreichbar geworden (und [`_get_community_password`](services/appview/src/atproto/community.py) hätte zur Laufzeit sogar gefehlschlagen, weil der DB-Grant auf `auth.community_accounts.pw_ciphertext` für die appview-Rolle entzogen wurde). Reine Lösch-Aufräumung, keine Live-Route/DB/Writer berührt; alle 47 Tests grün, `import src.main` ok.
+
+- **[peer_review_assign.py](services/appview/src/arguments/peer_review_assign.py):** `maybe_assign_reviews_for_user` + `_assign` (+ Helfer `_daily_limit`/`_invite_probability`/`_throttle_seconds`/`_last_check` und der `community`-Import) entfernt — die Assignment-Lotterie läuft seit Phase 6 ausschliesslich im community-writer (`acceptance.py:245`). Übrig bleibt der Live-Pfad `fire_and_forget → _review_hook → request_peer_review` (schreibt `peerreview.request` ins User-Repo). Stale „assigns here (legacy)"-Kommentar in [middleware.py](services/appview/src/auth/middleware.py) korrigiert.
+- **[atproto/community.py](services/appview/src/atproto/community.py):** auf die einzige Live-Funktion `get_did_for_ballot` (read-only) reduziert; alle Write-/Session-/Account-Funktionen (`create/put/get_community_record`, `get_community_token`, `_create_session`, `_get_community_password`, `compose_review_rkey`, `create_ballot_account`) und die toten Read-Helfer (`get_did_for_ballot_uri`, `is_community_did`) raus — Community-Writes + Account-Erstellung gehören dem community-writer bzw. dem CMS-Publish-Hook.
+- **[core/cursor.py](services/appview/src/core) gelöscht:** unbenutzt (Cursor-Logik ist in feed.py/activity.py inline), vorbestehender toter Code.
+- **`src/translation/` gelöscht:** leeres verwaistes Package; der Translation-Worker liegt seit Phase 5 im community-writer.
+
 ### Guard-Parität AppView↔Writer: Drift strukturell ausgeschlossen (`services/appview`, `services/community-writer`, `infra`, `doc`)
 
 Die im vorigen Schritt eingeführten Writer-Gates duplizierten die autoritativen Checks (Quota, PR-Authorization) gegenüber der AppView → Drift-Risiko (gefährliche Richtung: Writer hinkt nach = Bypass öffnet sich still). Die must-match-Prädikate liegen jetzt in *je einem* Artefakt, das beide Seiten nur aufrufen.

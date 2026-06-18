@@ -43,7 +43,7 @@ poltr/
 
 ## Documentation
 
-- **[Wiki]([https://github.com/nikwyss/poltrMVP/wiki](https://github.com/nikwyss/poltrMVP/wiki))** -- Full system overview
+- **[Wiki](https://github.com/nikwyss/poltrMVP/wiki/)** -- Full system overview
 - **[TODO](doc/TODO.md)** -- Current tasks and completed work
 - **[Changelog](CHANGELOG.md)** -- Daily development log
 

@@ -40,6 +40,14 @@ spec:
                 secretKeyRef:
                   name: appview-secrets
                   key: POLTR_DEFAULT_LANGUAGE
+            # Peer-review quorum seeds app_peerreviews.quorum at argument creation.
+            # Lives in writer-secrets (home of all peer-review config); the indexer
+            # is the actual consumer and inherits it from there.
+            - name: PEER_REVIEW_QUORUM
+              valueFrom:
+                secretKeyRef:
+                  name: writer-secrets
+                  key: PEER_REVIEW_QUORUM
 
           ports:
             # Admin/backfill HTTP server listens on BACKFILL_PORT (3001).

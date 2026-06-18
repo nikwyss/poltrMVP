@@ -28,11 +28,8 @@ spec:
                 secretKeyRef:
                   name: cms-secrets
                   key: CMS_INTERNAL_SERVER_URL
-            - name: APPVIEW_HOSTNAME
-              valueFrom:
-                secretKeyRef:
-                  name: appview-secrets
-                  key: APPVIEW_HOSTNAME
+            # APPVIEW_HOSTNAME removed — the frontend never read it (it uses the
+            # full APPVIEW_URL from front-secrets); it was an unused injection.
             # Inherit the proxy secret from appview-secrets (single source of
             # truth) so the XRPC proxy can forward the real client IP to the
             # AppView rate limiter. See doc/SECURITY_AUTH.md #1.

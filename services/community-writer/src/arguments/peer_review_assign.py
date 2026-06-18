@@ -7,22 +7,23 @@ make an authenticated request and decide *then* whether they get new review
 invitations. Inactive users never get assigned — their slots stay open for
 active users to fill.
 
-Constraints:
-  - APPVIEW_PEER_REVIEW_DAILY_LIMIT      max new active invitations per user
+Constraints (peer-review config is writer-owned → PEER_REVIEW_* in writer-secrets;
+only the master switch APPVIEW_PEER_REVIEW_ENABLED is shared with the appview):
+  - PEER_REVIEW_DAILY_LIMIT              max new active invitations per user
                                          in a sliding 24h window (default 3)
-  - APPVIEW_PEER_REVIEW_INVITE_PROBABILITY anti-collusion lottery: even when a
+  - PEER_REVIEW_INVITE_PROBABILITY       anti-collusion lottery: even when a
                                          slot is free, a candidate argument is
                                          only assigned with this probability
                                          (default 0.35). Misses are recorded
                                          as invited=false pool entries so the
                                          same (argument, user) is never
                                          re-rolled.
-  - APPVIEW_PEER_REVIEW_HOOK_THROTTLE_SECONDS minimum spacing between hook
+  - PEER_REVIEW_HOOK_THROTTLE_SECONDS    minimum spacing between hook
                                          runs for the same user (default 30).
 
 Per-review quorum lives on app_peerreviews.quorum (seeded by the indexer at
-argument-creation time from APPVIEW_PEER_REVIEW_QUORUM). State='open' is the
-single signal that a review still accepts new reviewers.
+argument-creation time from PEER_REVIEW_QUORUM). State='open' is the single
+signal that a review still accepts new reviewers.
 """
 
 import asyncio
@@ -46,15 +47,15 @@ _last_check: dict[str, datetime] = {}
 
 
 def _daily_limit() -> int:
-    return int(os.getenv("APPVIEW_PEER_REVIEW_DAILY_LIMIT", "3"))
+    return int(os.getenv("PEER_REVIEW_DAILY_LIMIT", "3"))
 
 
 def _invite_probability() -> float:
-    return float(os.getenv("APPVIEW_PEER_REVIEW_INVITE_PROBABILITY", "0.35"))
+    return float(os.getenv("PEER_REVIEW_INVITE_PROBABILITY", "0.35"))
 
 
 def _throttle_seconds() -> int:
-    return int(os.getenv("APPVIEW_PEER_REVIEW_HOOK_THROTTLE_SECONDS", "30"))
+    return int(os.getenv("PEER_REVIEW_HOOK_THROTTLE_SECONDS", "30"))
 
 
 def _enabled() -> bool:

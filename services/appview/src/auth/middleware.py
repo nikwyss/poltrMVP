@@ -93,11 +93,11 @@ async def verify_session_token(
             }
         )
 
-        # Activity-triggered peer-review. With the pull flag on, this writes a
-        # peerreview.request into the user's own repo (the writer assigns);
-        # otherwise it assigns here (legacy). Throttled internally; fire-and-forget
-        # so the request response isn't blocked. Needs the session (to write to the
-        # user's repo), hence built above first.
+        # Activity-triggered peer-review: writes a peerreview.request into the
+        # user's own repo (the community-writer runs the actual assignment off the
+        # firehose). At most once per active day, fire-and-forget so the request
+        # response isn't blocked. Needs the session (to write to the user's repo),
+        # hence built above first.
         _peer_review_check(session)
 
         return session

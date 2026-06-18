@@ -10,11 +10,13 @@
 # errors, languages) — beim Ändern dort drüben mitziehen.
 #
 # Full split (entschieden): eigener Pod + eigene DB-Rolle 'writer'. writer-secrets
-# enthält NUR writer-Spezifisches (DB-URL writer@, Flags); geteilte Config
-# (Master-Key, Peer-Review, Log-Level, PDS_INTERNAL_URL) wird via secretKeyRef
-# aus appview-/pds-secrets geerbt — keine Duplikate. Der entscheidende Unterschied
-# zu appview: nur die 'writer'-DB-Rolle liest die Community-Creds (pw-Spalten). Den
-# Master-Key teilen beide noch (bis zum Key-Split, doc/TODO.md).
+# enthält writer-Spezifisches (DB-URL writer@, Crosspost/Translate-Flags, den
+# COMMUNITY-Master-Key + die PEER_REVIEW_*-Assignment-Parameter). Nur noch der
+# geteilte Master-Schalter APPVIEW_PEER_REVIEW_ENABLED, APPVIEW_LOG_LEVEL,
+# POLTR_LANGUAGES/DEFAULT und PDS_INTERNAL_URL werden via secretKeyRef aus
+# appview-/pds-secrets geerbt. Der entscheidende Unterschied zu appview: nur die
+# 'writer'-DB-Rolle liest die Community-Creds (pw-Spalten), und nur der Writer
+# hält den COMMUNITY-Master-Key.
 #
 # Voraussetzung: APPVIEW_CROSSPOST_ENABLED="true" in writer-secrets. Die
 # appview-API führt den Crosspost-Loop nicht mehr aus.
@@ -45,30 +47,16 @@ spec:
             - secretRef:
                 name: writer-secrets
           env:
-            # Geteilte Werte erben (keine Duplikate in writer-secrets).
-            # Master-Key: bis zum Key-Split mit appview geteilt → danach eigenen
-            # Community-Key in writer-secrets legen und diesen Eintrag entfernen.
-            - name: APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64
-              valueFrom:
-                secretKeyRef:
-                  name: appview-secrets
-                  key: APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64
+            # COMMUNITY-Master-Key + PEER_REVIEW_*-Assignment-Parameter
+            # (DAILY_LIMIT/INVITE_PROBABILITY/QUORUM) liegen jetzt in writer-secrets
+            # und kommen via envFrom (oben) rein — keine secretKeyRefs mehr nötig.
+            # Nur noch der geteilte Master-Schalter + Log-Level werden aus
+            # appview-secrets geerbt (single source of truth, mit appview geteilt).
             - name: APPVIEW_PEER_REVIEW_ENABLED
               valueFrom:
                 secretKeyRef:
                   name: appview-secrets
                   key: APPVIEW_PEER_REVIEW_ENABLED
-            # Assignment-Logik (Phase 6) im Writer — dieselben Werte wie appview.
-            - name: APPVIEW_PEER_REVIEW_DAILY_LIMIT
-              valueFrom:
-                secretKeyRef:
-                  name: appview-secrets
-                  key: APPVIEW_PEER_REVIEW_DAILY_LIMIT
-            - name: APPVIEW_PEER_REVIEW_INVITE_PROBABILITY
-              valueFrom:
-                secretKeyRef:
-                  name: appview-secrets
-                  key: APPVIEW_PEER_REVIEW_INVITE_PROBABILITY
             - name: APPVIEW_LOG_LEVEL
               valueFrom:
                 secretKeyRef:
