@@ -2,6 +2,10 @@
 
 ATProto-based civic-tech platform for Swiss referenda. Monorepo with custom services and third-party Bluesky services running on Kubernetes (Infomaniak Public Cloud).
 
+
+![POLTR technical architecture poster](https://raw.githubusercontent.com/wiki/nikwyss/poltrMVP/images/poltr-poster_tech.svg)
+
+
 ## Repository Structure
 
 ```
@@ -12,16 +16,18 @@ poltr/
 │   ├── TODO.md            # Task tracking
 │   └── archive/           # Older docs
 ├── infra/                 # Infrastructure
-│   ├── kube/              # K8s manifests (poltr.yaml, cronjobs, secrets)
+│   ├── kube/              # K8s manifests (one file per service, cronjobs, secrets)
 │   ├── cert/              # cert-manager, letsencrypt, wildcard
 │   ├── deployer/          # GHA deployer RBAC
 │   └── scripts/           # One-off scripts (data import, postgres setup)
 ├── services/              # Application code
-│   ├── front/             # Frontend (Next.js, React 19)
-│   ├── appview/           # API service (Python, FastAPI)
-│   ├── indexer/           # Firehose listener (Node.js)
-│   ├── eidproto/          # Swiss eID prototype (Next.js)
-│   └── cms/               # Payload CMS
+│   ├── frontend/          # Frontend (Next.js, React 19)
+│   ├── appview/           # API service — read/write bridge (Python, FastAPI)
+│   ├── indexer/           # Firehose listener, builds read index (Node.js)
+│   ├── community-writer/  # Gatekeeper — vets submissions, writes accepted ones (Python)
+│   ├── calculator/        # Top-down taxonomy compute (Python, FastAPI)
+│   ├── cms/               # Ballot content — source of truth (Payload CMS)
+│   └── eidproto/          # Swiss eID prototype (Next.js)
 ├── CHANGELOG.md
 └── CLAUDE.md
 ```
@@ -33,36 +39,22 @@ poltr/
 | Frontend | Next.js + React 19 | poltr.ch |
 | AppView | Python 3.11 + FastAPI | app.poltr.info |
 | Indexer | Node.js | indexer.poltr.info |
+| Community Writer | Python | internal |
+| Calculator | Python 3.11 + FastAPI | calculator.poltr.info |
 | CMS | Payload CMS | cms.poltr.info |
 | PDS | Bluesky PDS | pds2.poltr.info |
-| Ozone | Bluesky Ozone | ozone.poltr.info |
-|
-| (optional)
-| eID Proto | Next.js | eidproto.poltr.info |
-| Verifier | swiyu | verifier.poltr.info |
+| Ozone | Bluesky Ozone | ozon.poltr.info |
+| PostgreSQL | Shared database | internal |
+| eID Proto _(optional)_ | Next.js | eidproto.poltr.info |
+| Verifier _(optional)_ | swiyu | verifier.poltr.info |
 
 ## Documentation
 
-- **[Wiki](https://github.com/nikwyss/poltrMVP/wiki/)** -- Full system overview
-- **[TODO](doc/TODO.md)** -- Current tasks and completed work
-- **[Changelog](CHANGELOG.md)** -- Daily development log
+- **[Wiki](https://github.com/nikwyss/poltrMVP/wiki/)** — Full system overview
+- **[Changelog](CHANGELOG.md)** — Daily development log
 
 Each service also has its own README in `services/*/README.md`.
 
-## Quick Start
-
-```bash
-# Frontend
-cd services/frontend && npm install && npm start
-# → http://127.0.0.1:5173
-
-# AppView
-cd services/appview && pip install -r requirements.txt && uvicorn src.main:app --port 3000
-
-# Port-forward cluster services
-kubectl port-forward -n poltr deployment/allforone-postgres 5432:5432
-kubectl port-forward -n poltr deployment/pds 2583:2583
-```
 
 ## External Resources
 
