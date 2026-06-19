@@ -522,7 +522,10 @@ CREATE INDEX idx_auth_sessions_expires_at ON auth.auth_sessions (expires_at);
 
 CREATE TABLE auth.auth_pending_logins (
   id              serial PRIMARY KEY,
-  email           varchar(255) NOT NULL,
+  -- Peppered HMAC of the email (NOT plaintext) — same digest as auth_creds.email_hmac.
+  -- The plaintext address is used only transiently to SEND the mail (from the
+  -- request body), never stored. See services/appview/src/auth/email_hmac.py.
+  email_hmac      varchar(255) NOT NULL,
   token           varchar(64) NOT NULL UNIQUE,
   short_code      varchar(6),
   failed_attempts integer NOT NULL DEFAULT 0,
@@ -537,13 +540,14 @@ CREATE TABLE auth.auth_pending_logins (
 );
 
 CREATE INDEX idx_auth_pending_logins_token ON auth.auth_pending_logins (token);
-CREATE INDEX idx_auth_pending_logins_email ON auth.auth_pending_logins (email);
+CREATE INDEX idx_auth_pending_logins_email_hmac ON auth.auth_pending_logins (email_hmac);
 CREATE INDEX idx_auth_pending_logins_expires_at ON auth.auth_pending_logins (expires_at);
 CREATE UNIQUE INDEX idx_auth_pending_logins_short_code ON auth.auth_pending_logins (short_code) WHERE short_code IS NOT NULL;
 
 CREATE TABLE auth.auth_pending_registrations (
   id              serial PRIMARY KEY,
-  email           varchar(255) NOT NULL UNIQUE,
+  -- Peppered HMAC of the email (NOT plaintext). See auth_pending_logins.email_hmac.
+  email_hmac      varchar(255) NOT NULL UNIQUE,
   token           varchar(64) NOT NULL UNIQUE,
   short_code      varchar(6),
   failed_attempts integer NOT NULL DEFAULT 0,
@@ -551,7 +555,7 @@ CREATE TABLE auth.auth_pending_registrations (
   return_url      text,
   expires_at      timestamp NOT NULL,
   created_at      timestamp DEFAULT now(),
-  -- Per-email send throttle (anti email-bombing). Table is UNIQUE(email) with
+  -- Per-email send throttle (anti email-bombing). Table is UNIQUE(email_hmac) with
   -- upsert, so the per-email window cap is tracked on the row rather than by
   -- counting rows (cf. auth_pending_logins). See doc/SECURITY_AUTH.md #2.
   send_count        integer NOT NULL DEFAULT 1,
@@ -561,7 +565,7 @@ CREATE TABLE auth.auth_pending_registrations (
 );
 
 CREATE INDEX idx_auth_pending_registrations_token ON auth.auth_pending_registrations (token);
-CREATE INDEX idx_auth_pending_registrations_email ON auth.auth_pending_registrations (email);
+CREATE INDEX idx_auth_pending_registrations_email_hmac ON auth.auth_pending_registrations (email_hmac);
 CREATE INDEX idx_auth_pending_registrations_expires_at ON auth.auth_pending_registrations (expires_at);
 CREATE UNIQUE INDEX idx_auth_pending_registrations_short_code ON auth.auth_pending_registrations (short_code) WHERE short_code IS NOT NULL;
 

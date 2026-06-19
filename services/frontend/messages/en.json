@@ -370,7 +370,7 @@
     "loginHere": "Sign in here",
     "activateHere": "Activate account & sign in",
     "diffHeading": "Different browser detected",
-    "diffBody": "Enter this code on the device where you started ({email}):",
+    "diffBody": "Enter this code on the device where you started:",
     "diffWarning": "If you did not just start a sign-in somewhere else, do not share this code with anyone and close this page. POLTR will never ask you for this code.",
     "invalidToken": "Invalid or missing link",
     "expired": "This link has expired",

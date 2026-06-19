@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-06-19
+
+### Email-Privacy: HMAC statt Klartext in `auth_creds`, synthetische PDS-Emails, Log-Scrubbing (`services/appview`, `services/cms`, `services/community-writer`, `infra`)
+
+Erste Stufe des zurückgestellten Privacy-Workstreams (s. [doc/TODO.md](doc/TODO.md) „Security-Review des Auth-Umbaus", Punkt 1). Ziel: die Email↔DID-Verknüpfung aus dem Langzeit-Speicher nehmen und die echte Nutzer-Email aus dem PDS heraushalten. AppView-Tests 47 grün.
+
+- **`auth_creds.email` → `email_hmac`** (`varchar`, UNIQUE): gespeichert wird nur noch `HMAC-SHA256(pepper, lower(trim(email)))` als Hex, nie der Klartext. Neues Modul [email_hmac.py](services/appview/src/auth/email_hmac.py) (`email_digest()`); Login/Dedup/Existenz-Checks in [login.py](services/appview/src/auth/login.py), [register.py](services/appview/src/auth/register.py), [magic_link_handler.py](services/appview/src/auth/magic_link_handler.py) gehen darüber. Pepper `APPVIEW_EMAIL_HMAC_PEPPER_B64` lebt NUR im appview-Prozess (DB-Leak ohne Pepper nicht brute-forcebar — Emails sind low-entropy). Migration [009_email_to_hmac.sql](services/appview/migrations/009_email_to_hmac.sql) (nur Rename) + Backfill [backfill_email_hmac.py](infra/scripts/backfill_email_hmac.py) (idempotent via '@'-Diskriminator, Kollisions-Precheck).
+- **Echte Email geht nicht mehr an den PDS:** `createAccount` bekommt eine synthetische Adresse `user-<handle>@<domain>` statt der Nutzer-Email ([register.py](services/appview/src/auth/register.py) `_synthetic_pds_email`). Gleiche Vorlage für Community-Konten ([atproto-publish.ts](services/cms/src/lib/atproto-publish.ts), [community.py](services/community-writer/src/atproto/community.py)). Domain via `PDS_ACCOUNT_EMAIL_DOMAIN` (pds-secrets, default `poltr.ch`), in appview/cms/community-writer per secretKeyRef verdrahtet. Klartext lebt damit nur noch transient in den `auth_pending_*`-Tabellen (Mailversand).
+- **Auth-Logs (Email) gescrubbt:** `mask_email()` → `****` in register/login/[provisioning.py](services/appview/src/atproto/provisioning.py)/[email_service.py](services/appview/src/core/email_service.py); wo sinnvoll did/handle statt Email.
+- **Governance-Account-Passwort entschärft:** das hartcodierte App-Passwort von `admin.id.poltr.ch` aus [maintaining_insert_governance_cred.py](infra/scripts/maintaining_insert_governance_cred.py) entfernt (jetzt `GOVERNANCE_PASSWORD` aus env, bricht ohne ab); Rotations-Tooling [maintaining_rotate_governance_cred.py](infra/scripts/maintaining_rotate_governance_cred.py) (neues PDS-Passwort via admin-API + re-encrypt `auth_creds`, verifiziert via createSession).
+- **Templates:** `APPVIEW_EMAIL_HMAC_PEPPER_B64` + `PDS_ACCOUNT_EMAIL_DOMAIN` in [secrets.yaml.dist](infra/kube/secrets.yaml.dist) und appview-`.env.dist`. db-setup.sql auf `email_hmac` umgestellt.
+- **Offen (s. TODO):** Backfill auf `auth_creds`-Bestandszeilen ausführen (sonst Login-Miss); PDS-Bestandskonten tragen die echte Email noch (optional `admin.updateAccountEmail`); Pepper nicht rotierbar; VAA-Konten-Linkage; Rotation des geleakten Governance-Passworts noch auszuführen.
+
+### Toter Code im community-writer entfernt (`services/community-writer`)
+
+Verwaiste Reste aus dem `writer`/`community-writer`-Split. Reine Lösch-Aufräumung, `pyflakes` sauber, kompiliert.
+
+- **`create_ballot_account`** + Helfer `_generate_password` entfernt ([community.py](services/community-writer/src/atproto/community.py)) — Community-Konten werden ausschliesslich über den CMS-Publish-Hook ([atproto-publish.ts](services/cms/src/lib/atproto-publish.ts)) erstellt; die Writer-Kopie hatte nach dem Split keinen Aufrufer. Dazu die toten Read-Helfer `get_did_for_ballot_uri`/`is_community_did` und der ungenutzte `encrypt_community_password`-Import.
+- **Tote Request-Dublette** `request_peer_review → _review_hook → fire_and_forget` (+ `REQUEST_NSID`/`_last_request_day`) aus [peer_review_assign.py](services/community-writer/src/arguments/peer_review_assign.py) entfernt: das Schreiben des `peerreview.request` ist appview-Sache; der Writer-Live-Pfad ist nur `maybe_assign_reviews_for_user` ([acceptance.py](services/community-writer/src/atproto/acceptance.py) ruft genau das). `import asyncio` damit raus.
+- Kleinkram: ungenutzte `_frontend_url` ([crosspost.py](services/community-writer/src/atproto/crosspost.py)), `db_query` + `List`/`Any`-Import + überflüssige `global pool`/leere f-strings ([db.py](services/community-writer/src/shared/db.py)), ungenutzter `SUPPORTED_LANGUAGES_SET`-Import ([translator.py](services/community-writer/src/translation/translator.py)).
+
+### Repo-Hygiene: committete `.next`-Build-Artefakte entfernt (`infra`, `services/frontend`)
+
+- ~2990 getrackte Dateien unter `services/frontend/.next/` aus dem Index entfernt (`git rm --cached`, Disk unberührt) — sie waren versehentlich committed, weshalb `.gitignore` sie nicht mehr greifen konnte. [.gitignore](.gitignore): das zu flache `*/.next` (matcht nur eine Ebene) + Pro-Service-Zeilen durch ein robustes `.next/` (jede Tiefe) ersetzt.
+
 ## 2026-06-17
 
 ### Secret-Aufräumung: Peer-Review + COMMUNITY-Key zum Writer-Pod, tote Keys raus (`infra`, `services`)

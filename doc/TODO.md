@@ -24,36 +24,7 @@
 
 - Moderation
 
-## Phase 7 — ERLEDIGT (2026-06-17)
 
-Code-Cleanup + Cluster-Rollout durch:
-- [x] appview-Code ohne Community-Write (arguments/reviews/peer_review_assign), Tests grün (48)
-- [x] LEXICONS.md aktualisiert (ATProto-native Modell + peerreview-Lexika)
-- [x] Neues Image deployt; tote Producer-Flags aus `appview-secrets` raus
-- [x] **appview → `appview@`** (kein Pod nutzt mehr `allforone`)
-- [x] **DB-Grant verengt**: `community_accounts` für appview nur noch spaltenweises
-      SELECT (kein pw, kein Write) — live verifiziert, End-Zustand in `db-setup.sql`
-
-Nicht gemacht (bewusst → Key-Split-Workstream, s.u.): COMMUNITY-Key aus dem appview-Pod-Env nehmen.
-
-## Master-Key-Split fertigstellen (echte Krypto-Trennung) — verschoben aus Phase 7
-
-Heute haben USER-/COMMUNITY-/Legacy-Master-Key auf Dev **denselben Wert**; die Env-Namen sind
-schon getrennt (`pds_creds.py`), aber der Wert nicht. Solange identisch, bringt das
-Entfernen des COMMUNITY-Keys aus dem appview-Env **nichts** (der gleiche Wert bleibt als
-USER-Key). Durch den Phase-7-DB-Grant ist der Key für Community-Creds ohnehin funktionslos
-(appview kann das Chiffrat nicht lesen) — also kein akutes Risiko, aber unsauber.
-
-Echte Trennung:
-1. Neuen, **distinkten** Community-Key erzeugen.
-2. **Re-Encryption**-Migration: alle `community_accounts.pw_*` mit dem alten Key
-   entschlüsseln, mit dem neuen Community-Key neu verschlüsseln.
-3. Neuen Community-Key NUR in `writer-secrets` + `cms-secrets`; `cms.yaml`/`writer.yaml` so,
-   dass sie ihn **nicht** mehr aus `appview-secrets` erben.
-4. `APPVIEW_COMMUNITY_CREDS_MASTER_KEY_B64` (+ Legacy) aus `appview-secrets` entfernen — appview
-   behält nur `APPVIEW_USER_CREDS_MASTER_KEY_B64` (auth_creds).
-
-Gehört zum [[project_auth_privacy_workstream]] (Email-as-HMAC, DID-Pool, eID-Gating).
 
 ## CI / Build-Pipeline beschleunigen (build-and-push-services.yml)
 
@@ -100,23 +71,6 @@ Kontext: Diskussion 2026-06-16 (localhost+deployed gegen geteilte DB/PDS).
 
 ## Security-Review des Auth-Umbaus (2026-06-11)
 
-1. **Email-as-HMAC (billiger First-Order-Fix, eigener Plan):** `auth_creds.email` →
-   gepfefferter `HMAC(pepper, email)` statt Klartext, Login-Lookup per `HMAC(eingabe)`.
-   Plaintext nur transient in den Pending-Tabellen (Versand). Keine Funktion geht verl>
-   Hängt davon ab, wie bestehende VAA Konten verknüpft werden.
-   [x] **IMPLEMENTIERT** — Spalte `auth_creds.email` → `email_hmac`
-       (`HMAC-SHA256(pepper, lower(trim(email)))`, hex). Pepper
-       `APPVIEW_EMAIL_HMAC_PEPPER_B64` nur im appview-Prozess. Login/Lookup/Dedup
-       gehen über `email_digest()`. Pending-Tabellen + PDS behalten Klartext
-       (Versand bzw. createAccount). Module: `services/appview/src/auth/email_hmac.py`;
-       Migration `services/appview/migrations/009_email_to_hmac.sql`;
-       Backfill `infra/scripts/backfill_email_hmac.py` (idempotent, '@'-Diskriminator).
-   - **Offen — VAA-Konten:** Wenn bestehende VAA-Konten je per Email gematcht werden,
-     müssen deren Emails beim Import mit DEMSELBEN Pepper HMAC't werden (kein Code).
-   - **Restkosten:** PDS hält weiterhin eine Klartext-Kopie (createAccount); Hashen von
-     `auth_creds` entfernt den Langzeit-Speicher, nicht jede Kopie im System.
-     Pepper NICHT rotierbar ohne Klartext (Rotation = Nutzer müssen Email neu verifizieren).
-     Auth-Logs drucken noch Klartext-Email (separat, Punkt 2 unten / Log-Scrubbing).
 
 2. **DID-Genesis von Verify-Zeit entkoppeln (Nutzer will später weiterverfolgen, aktue>
    nicht prioritär):** atproto-DID-Genesis ist öffentlich sekundengenau zeitgestempelt;
@@ -130,27 +84,12 @@ Kontext: Diskussion 2026-06-16 (localhost+deployed gegen geteilte DB/PDS).
    Prozentzahlen **pro eID-verifizierter Identität** (Swiyu-Verifier) statt pro Account
    gewichtet? Wenn nicht eID-gegated, ist der Vektor offen.
 
+
 Siehe Plan-Datei mit Detail-Mitigations. Verwandt: [[project_architecture_layers]].
 
 
-## Auth- von Content-Zugriff trennen (Architektur-Change, 2026-06-16)
 
-Kontext: ozone/cms wurden aus der geteilten `allforone`-Superuser-Rolle herausgelöst
-(eigene, eng gescopte DB-Rollen; siehe CHANGELOG 2026-06-16). Offen bleibt die
-breiteste verbleibende Fläche: **jeder appview-Request-Handler — auch die reinen
-Deliberations-Endpoints — kann heute `auth_creds` lesen.** Zwei Stufen:
 
-- [ ] **Vorstufe (klein, separat): appview vom Superuser lösen.** appview läuft als
-  `allforone` (Superuser), nutzt aber keine Superuser-Features (verifiziert). Eigene
-  `appview`-Rolle mit tabellen-genauen Grants → danach nutzt **kein Pod** mehr
-  `allforone` (wird reiner Break-Glass/DBA-Account). Analog zu cms/ozone.
-
-- [ ] **2a — Zwei Connection-Pools in einem Prozess (pragmatisch):** ein privilegierter
-  `appview_auth`-Pool (Creds/Sessions schreiben — nur das `auth/`-Modul) und ein eng
-  gescopter `appview_app`-Pool (Deliberation/Content: **kein** Zugriff auf
-  `auth_creds`/Credential-Spalten, nur Sessions-*Lesen* zur Validierung + `app_profiles`
-  + Content-Tabellen). Der Großteil des Codes kommt dann gar nicht mehr an den
-  Credential-Store. Mittlerer Aufwand, hoher Defense-in-depth-Gewinn.
 
   > **Wichtige Subtilität — `community_accounts` gehört zum Content-Pool, nicht zum Auth-Pool.**
   > Die Tabelle liegt zwar im `auth`-Schema, ist aber funktional eine *Content-Pfad*-Credential
@@ -215,44 +154,52 @@ umgehen. Das ist das echte, aktuell offene Loch in dieser Klasse von Bedenken.
 > Design-Entscheid; Quota im Projektor ist replay-heikel, da das 24h-Fenster
 > wall-clock-abhängig ist).
 
-## VISION
-- [ ] Translations: translations only in the appviev. a) Originalsprache im PDS speichern. b). Auch in "einfache Sprache" übersetzbar? (Inclusion)
 
 
 ## CHECK LATER
 
 - Finalize lexicon setup: Poltr-specific version + Bluesky fallback (embedded entries)
 
-## ONGOING
+
+
 
 
 ## Done
-- Posting-Limite: Anzahl Argument Proposals + Anzahl Kommentare pro Tag und pro Monat/Abstimmug
-- Auswertungsplots. (erste version.)
-- Argument-Aggregation (topic groupings etc.) => noisy-or
-- Taxonomy snapshot.
-- Layout Der Argument View (Taxonomy)
-- Email-Magic-Link: Text und Layout (Vorbild Tamedia: Verifzierungscode zum Beispiel) 
-- Randomisierung von argumenten und kommentaren auf gleicher stufe: user-konstante randomisierung. 
-- Scroll-positioning . springt immer noch zur top position, wenn man auf feed zurückkehrt.
-- Anzahl Kommentare bei Argumenten einblenden. 
-- Ballot creation endpoint: wire up `create_ballot_account()` in AppView (currently only DB + community_pds.py ready)
-- Per-ballot community accounts: each ballot gets its own PDS account (`ballot-{rkey}.id.poltr.ch`), credentials in `community_accounts` table, removed `PDS_COMMUNITY_ACCOUNT_DID`/`PDS_COMMUNITY_PASSWORD` env vars
-- Consolidate cross-posting from indexer to appview (revoke indexer auth.auth_creds access)
-- Design and implement user profile pages on bluesky
-- Create pseudonym system: Swiss mountain names table (Bergnamen)
-- Server-side auth: httpOnly cookies, XRPC proxy, no token in localStorage
-- RichText XSS hardening (heading tag whitelist, link href validation)
-- Repo restructure: `infra/` (kube, cert, deployer, scripts), cleaned root
-- Frontend restructured: auth pages under `/auth/`, API routes under `/api/`
+
+
+
+[x] Email-as-HMAC hash
+[x] Echte Email geht NICHT mehr an den PDS 
+[x] Auth-Logs (Email) gescrubbt — `mask_email()` → 
+
+[x] Posting-Limite: Anzahl Argument Proposals + Anzahl Kommentare pro Tag und pro Monat/Abstimmug
+[x] Auswertungsplots. (erste version.)
+[x] Argument-Aggregation (topic groupings etc.) => noisy-or
+[x] Taxonomy snapshot.
+[x] Layout Der Argument View (Taxonomy)
+[x] Email-Magic-Link: Text und Layout (Vorbild Tamedia: Verifzierungscode zum Beispiel) 
+[x] Randomisierung von argumenten und kommentaren auf gleicher stufe: user-konstante randomisierung. 
+[x] Scroll-positioning . springt immer noch zur top position, wenn man auf feed zurückkehrt.
+[x] Anzahl Kommentare bei Argumenten einblenden. 
+[x] Ballot creation endpoint: wire up `create_ballot_account()` in AppView (currently only DB + community_pds.py ready)
+[x] Per-ballot community accounts: each ballot gets its own PDS account (`ballot-{rkey}.id.poltr.ch`), credentials in
+ [x] `community_accounts` table, removed 
+[x] `PDS_COMMUNITY_ACCOUNT_DID`/`PDS_COMMUNITY_PASSWORD` env vars
+[x] Consolidate cross-posting from indexer to appview (revoke indexer auth.auth_creds access)
+[x] Design and implement user profile pages on bluesky
+[x] Create pseudonym system: Swiss mountain names table (Bergnamen)
+[x] Server-side auth: httpOnly cookies, XRPC proxy, no token in localStorage
+[x] RichText XSS hardening (heading tag whitelist, link href validation)
+[x] Repo restructure: `infra/` (kube, cert, deployer, scripts), cleaned root
+[x] Frontend restructured: auth pages under `/auth/`, API routes under `/api/`
 - Dockerfile cleanup: build args from CI, no hardcoded env defaults
-- CMS integration (Payload CMS, embedded in frontend via catch-all route)
-- Ozone moderation setup
-- Bluesky interoperability: login with app-password (with birthDate workaround)
-- eID verification (eidproto + swiyu verifier)
-- Magic link authentication
-- Backfill cronjob (hourly)
-- GitHub Actions CI/CD workflow
-- Load balancer removal (hostPort setup for dev/test)
-- Interoperability: Content on Bluesky
-- Interoperability: Bluesky content in the app
+[x] CMS integration (Payload CMS, embedded in frontend via catch-all route)
+[x] Ozone moderation setup
+[x] Bluesky interoperability: login with app-password (with birthDate workaround)
+[x] eID verification (eidproto + swiyu verifier)
+[x] Magic link authentication
+[x] Backfill cronjob (hourly)
+[x] GitHub Actions CI/CD workflow
+[x] Load balancer removal (hostPort setup for dev/test)
+[x] Interoperability: Content on Bluesky
+[x] Interoperability: Bluesky content in the app

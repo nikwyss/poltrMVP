@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from tests.conftest import FakePool, make_creds_row
+from src.auth.email_hmac import email_digest
 
 
 # ── check_email_availability ─────────────────────────────────────────────
@@ -21,7 +22,7 @@ async def test_email_available():
     with patch("src.core.db.pool", pool):
         from src.auth.login import check_email_availability
 
-        result = await check_email_availability("free@test.com")
+        result = await check_email_availability(email_digest("free@test.com"))
         assert result is True
 
 
@@ -33,7 +34,7 @@ async def test_email_taken():
     with patch("src.core.db.pool", pool):
         from src.auth.login import check_email_availability
 
-        result = await check_email_availability("taken@test.com")
+        result = await check_email_availability(email_digest("taken@test.com"))
         assert result is False
 
 
@@ -48,7 +49,7 @@ async def test_login_user_not_found():
     with patch("src.core.db.pool", pool):
         from src.auth.login import login_account
 
-        resp = await login_account("nobody@test.com")
+        resp = await login_account(email_digest("nobody@test.com"))
 
         assert resp.status_code == 404
         body = json.loads(resp.body)
@@ -64,7 +65,7 @@ async def test_login_success():
     with patch("src.core.db.pool", pool):
         from src.auth.login import login_account
 
-        resp = await login_account("user@test.com")
+        resp = await login_account(email_digest("user@test.com"))
 
         assert resp.status_code == 200
         # Should have inserted a session row

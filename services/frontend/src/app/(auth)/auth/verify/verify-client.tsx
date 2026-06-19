@@ -22,7 +22,16 @@ function VerifyContent() {
 
   const [phase, setPhase] = useState<Phase>('checking');
   const [purpose, setPurpose] = useState<Purpose>('login');
-  const [email, setEmail] = useState('');
+  // For a LOGIN the backend returns the pseudonym (Bergname + Profil-Infos)
+  // instead of the email — we never store the plaintext address. For a
+  // REGISTRATION there is no account yet, so this stays null.
+  const [profile, setProfile] = useState<{
+    displayName?: string;
+    mountainFullname?: string;
+    canton?: string;
+    height?: number | null;
+    color?: string;
+  } | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const hasChecked = useRef(false);
@@ -56,7 +65,7 @@ function VerifyContent() {
         }
 
         setPurpose(data.purpose === 'registration' ? 'registration' : 'login');
-        setEmail(data.email || '');
+        setProfile(data.profile ?? null);
         if (data.status === 'same') {
           setPhase('same');
         } else {
@@ -118,6 +127,24 @@ function VerifyContent() {
     }
   };
 
+  // Identity shown on the same/different screens: the Bergname + mountain info
+  // (login only — registration has no profile yet).
+  const identity = profile ? (
+    <div className="space-y-0.5">
+      <p className="font-medium">{profile.displayName || profile.mountainFullname}</p>
+      {(profile.mountainFullname || profile.height != null) && (
+        <p className="text-xs text-muted-foreground">
+          {[
+            profile.mountainFullname,
+            profile.height != null ? `${Math.round(profile.height)} m` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div className="flex min-h-screen items-center justify-center p-5">
       <Card className="w-full max-w-md text-center">
@@ -134,7 +161,7 @@ function VerifyContent() {
               <h2 className="font-serif text-2xl font-semibold">
                 {purpose === 'registration' ? t('sameHeadingRegister') : t('sameHeadingLogin')}
               </h2>
-              {email && <p className="text-sm text-muted-foreground">{email}</p>}
+              {identity}
               <Button
                 className="h-11 w-full"
                 onClick={completeLogin}
@@ -152,8 +179,9 @@ function VerifyContent() {
           {phase === 'different' && (
             <>
               <h2 className="font-serif text-2xl font-semibold">{t('diffHeading')}</h2>
+              {identity}
               <p className="text-sm text-muted-foreground">
-                {t('diffBody', { email: email || '' })}
+                {t('diffBody')}
               </p>
               <p className="select-all rounded-lg bg-muted py-4 font-mono text-4xl font-bold tracking-[0.4em]">
                 {code}

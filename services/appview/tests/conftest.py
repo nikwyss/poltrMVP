@@ -167,8 +167,9 @@ def make_pending_login_row(
     short_code="ABC234", initiator_id=None,
 ):
     exp = datetime.utcnow() + (timedelta(minutes=-1) if expired else timedelta(minutes=15))
+    # Pending tables store only the peppered HMAC; handlers query/return that.
     return {
-        "id": 1, "email": email, "expires_at": exp, "token": token,
+        "id": 1, "email_hmac": email_digest(email), "expires_at": exp, "token": token,
         "return_url": None, "short_code": short_code,
         "failed_attempts": 0, "initiator_id": initiator_id,
     }
@@ -180,7 +181,7 @@ def make_pending_registration_row(
 ):
     exp = datetime.utcnow() + (timedelta(minutes=-1) if expired else timedelta(minutes=30))
     return {
-        "id": 1, "email": email, "expires_at": exp, "token": token,
+        "id": 1, "email_hmac": email_digest(email), "expires_at": exp, "token": token,
         "return_url": None, "short_code": short_code,
         "failed_attempts": 0, "initiator_id": initiator_id,
     }

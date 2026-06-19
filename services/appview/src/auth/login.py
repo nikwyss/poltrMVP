@@ -15,16 +15,17 @@ from fastapi.responses import JSONResponse
 
 import src.core.db as db
 from src.auth.middleware import hash_token
-from src.auth.email_hmac import email_digest
 
 APPVIEW_SESSION_LIFETIME_DAYS = int(os.getenv("APPVIEW_SESSION_LIFETIME_DAYS", "7"))
 
 logger = logging.getLogger(__name__)
 
 
-async def login_account(user_email: str, return_url: str | None = None) -> JSONResponse:
-    """Log in an existing user. Pure AppView operation — no PDS call needed.
+async def login_account(email_hmac: str, return_url: str | None = None) -> JSONResponse:
+    """Log in an existing user by email HMAC. Pure AppView operation — no PDS call.
 
+    `email_hmac` is the peppered digest (the pending-login row stores only the
+    HMAC, never the plaintext), so we look up auth_creds by it directly.
     `return_url` (if set) is echoed back so the frontend can redirect the user to
     the deep link they originally requested — works across devices because it is
     read from the pending-login row, not browser storage.
@@ -44,7 +45,7 @@ async def login_account(user_email: str, return_url: str | None = None) -> JSONR
             LEFT JOIN app_profiles p ON p.did = c.did
             WHERE c.email_hmac = $1
             """,
-            email_digest(user_email),
+            email_hmac,
         )
 
     if not row:
@@ -137,14 +138,15 @@ async def create_session_cookie(
     return response
 
 
-async def check_email_availability(email: str) -> bool:
-    """Check if an email is not yet registered. True = available."""
+async def check_email_availability(email_hmac: str) -> bool:
+    """Check if an email (given as its peppered HMAC) is not yet registered.
+    True = available."""
     if db.pool is None:
         await db.init_pool()
 
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow(
             "SELECT 1 FROM auth_creds WHERE email_hmac = $1",
-            email_digest(email),
+            email_hmac,
         )
         return row is None

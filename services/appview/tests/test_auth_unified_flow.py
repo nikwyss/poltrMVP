@@ -16,6 +16,7 @@ from tests.conftest import (
     make_pending_login_row,
     make_pending_registration_row,
 )
+from src.auth.email_hmac import email_digest
 from src.auth.magic_link_handler import (
     StartData,
     start_handler,
@@ -137,7 +138,7 @@ async def test_verify_short_code_login_purpose():
         result = await verify_short_code_handler(
             VerifyShortCodeData(email="user@test.com", code="ABC234")
         )
-        assert result == ("user@test.com", None, "login")
+        assert result == (email_digest("user@test.com"), None, "login")
 
 
 @pytest.mark.asyncio
@@ -148,7 +149,7 @@ async def test_verify_short_code_registration_purpose():
         result = await verify_short_code_handler(
             VerifyShortCodeData(email="new@test.com", code="ABC234")
         )
-        assert result == ("new@test.com", None, "registration")
+        assert result == (email_digest("new@test.com"), None, "registration")
 
 
 @pytest.mark.asyncio
@@ -179,7 +180,7 @@ async def test_verify_short_code_same_device_ok():
         result = await verify_short_code_handler(
             VerifyShortCodeData(email="user@test.com", code="ABC234", initiatorSecret=secret)
         )
-        assert result == ("user@test.com", None, "login")
+        assert result == (email_digest("user@test.com"), None, "login")
 
 
 # ── verify_login device binding ──────────────────────────────────────────
@@ -209,7 +210,7 @@ async def test_verify_login_same_device_ok():
         result = await verify_login_magic_link_handler(
             VerifyLoginMagicLinkData(token="tok", initiatorSecret=secret)
         )
-        assert result == ("user@test.com", None)
+        assert result == (email_digest("user@test.com"), None)
 
 
 @pytest.mark.asyncio

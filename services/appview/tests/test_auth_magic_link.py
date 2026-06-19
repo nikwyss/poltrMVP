@@ -14,6 +14,7 @@ from tests.conftest import (
     make_pending_registration_row,
     make_creds_row,
 )
+from src.auth.email_hmac import email_digest
 
 # Pre-import so patch targets are resolvable
 from src.auth.magic_link_handler import (  # noqa: E402
@@ -126,7 +127,7 @@ async def test_verify_login_valid_token():
         )
 
         # Returns (email, return_url) so the route can echo the deep link back.
-        assert result == ("user@test.com", None)
+        assert result == (email_digest("user@test.com"), None)
 
         # Should have issued a DELETE
         conn = pool.last_conn
@@ -196,7 +197,7 @@ async def test_verify_registration_valid_token():
             VerifyRegistrationMagicLinkData(token="reg-token")
         )
 
-        assert result == ("new@test.com", None)
+        assert result == (email_digest("new@test.com"), None)
 
         conn = pool.last_conn
         deletes = [q for q in conn.executed if q[0] == "execute" and "DELETE" in q[1]]

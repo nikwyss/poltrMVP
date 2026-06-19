@@ -12,7 +12,6 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 import src.core.db as db
 from src.auth.login import create_session_cookie
-from src.auth.email_hmac import email_digest, mask_email
 from src.auth.pseudonym_generator import generate_pseudonym
 from src.config import MAX_PDS_ACCOUNTS
 from src.atproto.pds_creds import encrypt_app_password
@@ -48,13 +47,16 @@ def _synthetic_pds_email(handle: str) -> str:
 
 
 async def create_account(
-    user_email: str, return_url: str | None = None
+    email_hmac: str, return_url: str | None = None
 ) -> JSONResponse | RedirectResponse:
     """Register a new user. Three phases:
     1. Prepare: generate handle, password, pseudonym
     2. PDS provisioning: create account, write profile, relay sync
     3. AppView registration: store credentials + pseudonym in DB, create session
 
+    `email_hmac` is the peppered digest (the pending-registration row stored only
+    the HMAC); the plaintext address is never needed here — the PDS gets a
+    synthetic address, and auth_creds stores the digest as-is.
     `return_url` (if set) is echoed back in the response so the frontend can send
     the new user to the deep link they originally requested.
     """
@@ -81,7 +83,7 @@ async def create_account(
     ciphertext, nonce = encrypt_app_password(password)
     pseudonym = await generate_pseudonym()
 
-    logger.debug(f"Registering {mask_email(user_email)}: handle={handle}, pseudonym={pseudonym['displayName']}")
+    logger.debug(f"Registering new account: handle={handle}, pseudonym={pseudonym['displayName']}")
 
     # Phase 2: PDS provisioning.
     # The PDS gets a synthetic email, NOT the user's real address — see
@@ -106,7 +108,7 @@ async def create_account(
             INSERT INTO auth_creds (did, handle, email_hmac, pds_url, app_pw_ciphertext, app_pw_nonce, pseudonym_template_id)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             """,
-            did, handle, email_digest(user_email), os.getenv("PDS_HOSTNAME"),
+            did, handle, email_hmac, os.getenv("PDS_HOSTNAME"),
             ciphertext, nonce, pseudonym["templateId"],
         )
         await conn.execute(

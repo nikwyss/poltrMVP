@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 from src.auth.login import check_email_availability, login_account
 from src.auth.register import create_account
+from src.auth.email_hmac import email_digest
 from src.auth.middleware import TSession, verify_session_token
 import src.core.db as db
 from src.core.db import get_pool
@@ -121,8 +122,8 @@ async def verify_magic_link_get(request: Request, data: VerifyLoginMagicLinkData
             content={"error": "invalid_token", "message": "Invalid token"},
         )
 
-    email, return_url = response
-    return await login_account(user_email=email, return_url=return_url)
+    email_hmac, return_url = response
+    return await login_account(email_hmac=email_hmac, return_url=return_url)
 
 
 # Neutral response returned by register for ALL non-error outcomes (sent,
@@ -150,7 +151,8 @@ async def register(request: Request):
     email = body.get("email")
     if not email:
         return JSONResponse(status_code=400, content={"message": "email required"})
-    email = email.lower()
+    email = email.lower()                # plaintext — only to send the mail
+    email_h = email_digest(email)        # peppered HMAC — stored/queried
 
     return_url = safe_return_url(body.get("returnUrl"))
 
@@ -168,7 +170,7 @@ async def register(request: Request):
         return _neutral_register_response()
 
     # Email already registered → neutral response, send nothing (no enumeration).
-    if not await check_email_availability(email=email):
+    if not await check_email_availability(email_hmac=email_h):
         return _neutral_register_response()
 
     try:
@@ -184,9 +186,9 @@ async def register(request: Request):
             send_count = await conn.fetchval(
                 """
                 INSERT INTO auth_pending_registrations
-                    (email, token, short_code, return_url, expires_at)
+                    (email_hmac, token, short_code, return_url, expires_at)
                 VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (email) DO UPDATE SET
+                ON CONFLICT (email_hmac) DO UPDATE SET
                     token = EXCLUDED.token,
                     short_code = EXCLUDED.short_code,
                     return_url = EXCLUDED.return_url,
@@ -204,7 +206,7 @@ async def register(request: Request):
                         ELSE now() END
                 RETURNING send_count
                 """,
-                email,
+                email_h,
                 token,
                 short_code,
                 return_url,
@@ -259,9 +261,9 @@ async def confirm_registration(request: Request, data: VerifyRegistrationMagicLi
             content={"error": "invalid_token", "message": "Invalid token"},
         )
 
-    email, return_url = response
+    email_hmac, return_url = response
 
-    if not await check_email_availability(email=email):
+    if not await check_email_availability(email_hmac=email_hmac):
         return JSONResponse(
             status_code=400,
             content={
@@ -270,7 +272,7 @@ async def confirm_registration(request: Request, data: VerifyRegistrationMagicLi
             },
         )
 
-    return await create_account(user_email=email, return_url=return_url)
+    return await create_account(email_hmac=email_hmac, return_url=return_url)
 
 
 @router.post("/ch.poltr.auth.verifyShortCode")
@@ -290,10 +292,10 @@ async def verify_short_code(request: Request, data: VerifyShortCodeData):
             content={"error": "invalid_code", "message": "Invalid code"},
         )
 
-    email, return_url, purpose = response
+    email_hmac, return_url, purpose = response
 
     if purpose == "registration":
-        if not await check_email_availability(email=email):
+        if not await check_email_availability(email_hmac=email_hmac):
             return JSONResponse(
                 status_code=400,
                 content={
@@ -301,9 +303,9 @@ async def verify_short_code(request: Request, data: VerifyShortCodeData):
                     "message": "An account with this email already exists",
                 },
             )
-        return await create_account(user_email=email, return_url=return_url)
+        return await create_account(email_hmac=email_hmac, return_url=return_url)
     else:
-        return await login_account(user_email=email, return_url=return_url)
+        return await login_account(email_hmac=email_hmac, return_url=return_url)
 
 
 @router.get("/ch.poltr.auth.session")

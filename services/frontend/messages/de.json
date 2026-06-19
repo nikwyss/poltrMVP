@@ -370,7 +370,7 @@
     "loginHere": "Hier einloggen",
     "activateHere": "Account aktivieren & anmelden",
     "diffHeading": "Anderer Browser erkannt",
-    "diffBody": "Gib diesen Code auf dem Gerät ein, auf dem du gestartet hast ({email}):",
+    "diffBody": "Gib diesen Code auf dem Gerät ein, auf dem du gestartet hast:",
     "diffWarning": "Wenn du nicht selbst gerade woanders eine Anmeldung gestartet hast, gib diesen Code niemandem und schliess diese Seite. POLTR fragt dich nie nach diesem Code.",
     "invalidToken": "Ungültiger oder fehlender Link",
     "expired": "Dieser Link ist abgelaufen",

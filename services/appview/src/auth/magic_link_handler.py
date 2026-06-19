@@ -139,7 +139,8 @@ async def send_magic_link_handler(data: SendMagicLinkData, locale: str = "de"):
             await db.init_pool()
             print("Pool initialized successfully")
 
-        email = data.email.lower()
+        email = data.email.lower()          # plaintext — used ONLY to send the mail
+        email_h = email_digest(email)       # peppered HMAC — everything stored/queried
 
         # Global hourly circuit breaker. Checked first and returns the neutral
         # response so it reveals nothing. See doc/SECURITY_AUTH.md #4.
@@ -153,9 +154,9 @@ async def send_magic_link_handler(data: SendMagicLinkData, locale: str = "de"):
             recent_sends = await conn.fetchval(
                 """
                 SELECT count(*) FROM auth_pending_logins
-                WHERE email = $1 AND created_at > now() - ($2 || ' minutes')::interval
+                WHERE email_hmac = $1 AND created_at > now() - ($2 || ' minutes')::interval
                 """,
-                email,
+                email_h,
                 str(SEND_WINDOW_MINUTES),
             )
             if recent_sends >= MAX_SENDS_PER_EMAIL:
@@ -164,7 +165,7 @@ async def send_magic_link_handler(data: SendMagicLinkData, locale: str = "de"):
             # Only send to a real account, but return the SAME neutral response
             # either way so the endpoint never reveals whether one exists (#3).
             account = await conn.fetchrow(
-                "SELECT 1 FROM auth_creds WHERE email_hmac = $1", email_digest(email)
+                "SELECT 1 FROM auth_creds WHERE email_hmac = $1", email_h
             )
             if not account:
                 return _neutral_send_response()
@@ -177,10 +178,10 @@ async def send_magic_link_handler(data: SendMagicLinkData, locale: str = "de"):
 
             await conn.execute(
                 """
-                INSERT INTO auth_pending_logins (email, token, short_code, return_url, expires_at)
+                INSERT INTO auth_pending_logins (email_hmac, token, short_code, return_url, expires_at)
                 VALUES ($1, $2, $3, $4, $5)
                 """,
-                email,
+                email_h,
                 token,
                 short_code,
                 return_url,
@@ -236,7 +237,8 @@ async def start_handler(
         if db.pool is None:
             await db.init_pool()
 
-        email = data.email.lower()
+        email = data.email.lower()          # plaintext — used ONLY to send the mail
+        email_h = email_digest(email)       # peppered HMAC — everything stored/queried
         return_url = safe_return_url(data.returnUrl)
         secret = initiator_secret or secrets.token_urlsafe(32)
         initiator_id = hash_token(secret)
@@ -251,7 +253,7 @@ async def start_handler(
 
         async with db.pool.acquire() as conn:
             account = await conn.fetchrow(
-                "SELECT 1 FROM auth_creds WHERE email_hmac = $1", email_digest(email)
+                "SELECT 1 FROM auth_creds WHERE email_hmac = $1", email_h
             )
             is_login = account is not None
 
@@ -260,9 +262,9 @@ async def start_handler(
                 recent_sends = await conn.fetchval(
                     """
                     SELECT count(*) FROM auth_pending_logins
-                    WHERE email = $1 AND created_at > now() - ($2 || ' minutes')::interval
+                    WHERE email_hmac = $1 AND created_at > now() - ($2 || ' minutes')::interval
                     """,
-                    email,
+                    email_h,
                     str(SEND_WINDOW_MINUTES),
                 )
                 if recent_sends >= MAX_SENDS_PER_EMAIL:
@@ -274,26 +276,26 @@ async def start_handler(
                 # throttle above still bounds how often that can happen.
                 # See doc/SECURITY_AUTH.md.
                 await conn.execute(
-                    "DELETE FROM auth_pending_logins WHERE email = $1", email
+                    "DELETE FROM auth_pending_logins WHERE email_hmac = $1", email_h
                 )
                 await conn.execute(
                     """
                     INSERT INTO auth_pending_logins
-                        (email, token, short_code, return_url, expires_at, initiator_id)
+                        (email_hmac, token, short_code, return_url, expires_at, initiator_id)
                     VALUES ($1, $2, $3, $4, $5, $6)
                     """,
-                    email, token, short_code, return_url, expires_at, initiator_id,
+                    email_h, token, short_code, return_url, expires_at, initiator_id,
                 )
                 purpose = "login"
             else:
-                # Registration table is UNIQUE(email) + upsert, so it is already a
-                # single live row; maintain the per-email window counter atomically.
+                # Registration table is UNIQUE(email_hmac) + upsert, so it is already
+                # a single live row; maintain the per-email window counter atomically.
                 send_count = await conn.fetchval(
                     """
                     INSERT INTO auth_pending_registrations
-                        (email, token, short_code, return_url, expires_at, initiator_id)
+                        (email_hmac, token, short_code, return_url, expires_at, initiator_id)
                     VALUES ($1, $2, $3, $4, $5, $6)
-                    ON CONFLICT (email) DO UPDATE SET
+                    ON CONFLICT (email_hmac) DO UPDATE SET
                         token = EXCLUDED.token,
                         short_code = EXCLUDED.short_code,
                         return_url = EXCLUDED.return_url,
@@ -312,7 +314,7 @@ async def start_handler(
                             ELSE now() END
                     RETURNING send_count
                     """,
-                    email, token, short_code, return_url, expires_at, initiator_id,
+                    email_h, token, short_code, return_url, expires_at, initiator_id,
                     str(SEND_WINDOW_MINUTES),
                 )
                 if send_count > MAX_SENDS_PER_EMAIL:
@@ -357,7 +359,7 @@ async def check_link_handler(data: CheckLinkData) -> JSONResponse:
         ):
             row = await conn.fetchrow(
                 f"""
-                SELECT email, short_code, expires_at, initiator_id
+                SELECT email_hmac, short_code, expires_at, initiator_id
                 FROM {table} WHERE token = $1
                 """,
                 token,
@@ -383,10 +385,34 @@ async def check_link_handler(data: CheckLinkData) -> JSONResponse:
             and hmac.compare_digest(hash_token(data.initiatorSecret), row["initiator_id"])
         )
 
+        # Identity for the cross-device screen. We no longer store the plaintext
+        # email, so for a LOGIN we show the pseudonym (Bergname + Profil-Infos)
+        # looked up via the email HMAC. For a REGISTRATION no profile exists yet
+        # → null (the frontend shows a generic, name-less message).
+        profile = None
+        if purpose == "login":
+            prow = await conn.fetchrow(
+                """
+                SELECT p.display_name, p.mountain_fullname, p.canton, p.height, p.color
+                FROM auth_creds c
+                JOIN app_profiles p ON p.did = c.did
+                WHERE c.email_hmac = $1
+                """,
+                row["email_hmac"],
+            )
+            if prow:
+                profile = {
+                    "displayName": prow["display_name"],
+                    "mountainFullname": prow["mountain_fullname"],
+                    "canton": prow["canton"],
+                    "height": float(prow["height"]) if prow["height"] is not None else None,
+                    "color": prow["color"],
+                }
+
         result = {
             "status": "same" if same_browser else "different",
             "purpose": purpose,
-            "email": row["email"],
+            "profile": profile,
         }
         if not same_browser:
             # Revealed only to whoever holds the link (= controls the inbox). Shown
@@ -463,7 +489,7 @@ async def verify_login_magic_link_handler(
         # Find token
         row = await conn.fetchrow(
             """
-            SELECT id, email, return_url, expires_at, initiator_id
+            SELECT id, email_hmac, return_url, expires_at, initiator_id
             FROM auth_pending_logins
             WHERE token = $1
             """,
@@ -497,12 +523,12 @@ async def verify_login_magic_link_handler(
         if not _initiator_matches(data.initiatorSecret, row["initiator_id"]):
             return _different_browser_response()
 
-        email = row["email"]
+        email_hmac = row["email_hmac"]
 
         # Delete pending login
         await conn.execute("DELETE FROM auth_pending_logins WHERE id = $1", row["id"])
 
-        return email, row["return_url"]
+        return email_hmac, row["return_url"]
 
 
 async def verify_registration_magic_link_handler(
@@ -521,7 +547,7 @@ async def verify_registration_magic_link_handler(
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, email, return_url, expires_at, initiator_id
+            SELECT id, email_hmac, return_url, expires_at, initiator_id
             FROM auth_pending_registrations
             WHERE token = $1
             """,
@@ -539,12 +565,12 @@ async def verify_registration_magic_link_handler(
         if not _initiator_matches(data.initiatorSecret, row["initiator_id"]):
             return _different_browser_response()
 
-        email = row["email"]
+        email_hmac = row["email_hmac"]
 
         # delete pending registration
         await conn.execute("DELETE FROM auth_pending_registrations WHERE id = $1", row["id"])
 
-        return email, row["return_url"]
+        return email_hmac, row["return_url"]
 
 
 async def verify_short_code_handler(
@@ -561,7 +587,7 @@ async def verify_short_code_handler(
         await db.init_pool()
 
     code = data.code.upper().strip()
-    email = data.email.lower()
+    email_h = email_digest(data.email)  # the typed email, hashed for the lookup
 
     async with db.pool.acquire() as conn:
         # Find the most recent valid pending row across both tables (the login
@@ -579,11 +605,11 @@ async def verify_short_code_handler(
                 f"""
                 SELECT id, short_code, failed_attempts, initiator_id
                 FROM {tbl}
-                WHERE email = $1 AND short_code IS NOT NULL AND expires_at > now()
+                WHERE email_hmac = $1 AND short_code IS NOT NULL AND expires_at > now()
                 ORDER BY created_at DESC, id DESC
                 LIMIT 1
                 """,
-                email,
+                email_h,
             )
             if candidate:
                 found, table, purpose = candidate, tbl, p
@@ -643,6 +669,6 @@ async def verify_short_code_handler(
 
         # Success — delete row (invalidates both magic link and short code)
         result = await conn.fetchrow(
-            f"DELETE FROM {table} WHERE id = $1 RETURNING email, return_url", found["id"]
+            f"DELETE FROM {table} WHERE id = $1 RETURNING email_hmac, return_url", found["id"]
         )
-        return (result["email"], result["return_url"], purpose) if result else None
+        return (result["email_hmac"], result["return_url"], purpose) if result else None
