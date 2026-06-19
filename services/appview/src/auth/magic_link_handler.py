@@ -10,6 +10,7 @@ import src.core.db as db
 from src.core.email_service import email_service
 from src.auth.auth_email_guard import auth_email_capped, record_auth_email_sent
 from src.auth.middleware import hash_token
+from src.auth.email_hmac import email_digest
 
 # Short code config: no ambiguous chars (0/O, 1/I/L)
 SHORT_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
@@ -163,7 +164,7 @@ async def send_magic_link_handler(data: SendMagicLinkData, locale: str = "de"):
             # Only send to a real account, but return the SAME neutral response
             # either way so the endpoint never reveals whether one exists (#3).
             account = await conn.fetchrow(
-                "SELECT 1 FROM auth_creds WHERE email = $1", email
+                "SELECT 1 FROM auth_creds WHERE email_hmac = $1", email_digest(email)
             )
             if not account:
                 return _neutral_send_response()
@@ -250,7 +251,7 @@ async def start_handler(
 
         async with db.pool.acquire() as conn:
             account = await conn.fetchrow(
-                "SELECT 1 FROM auth_creds WHERE email = $1", email
+                "SELECT 1 FROM auth_creds WHERE email_hmac = $1", email_digest(email)
             )
             is_login = account is not None
 

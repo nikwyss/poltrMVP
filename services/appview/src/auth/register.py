@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 import src.core.db as db
 from src.auth.login import create_session_cookie
+from src.auth.email_hmac import email_digest, mask_email
 from src.auth.pseudonym_generator import generate_pseudonym
 from src.config import MAX_PDS_ACCOUNTS
 from src.atproto.pds_creds import encrypt_app_password
@@ -32,6 +33,18 @@ def _gen_handle() -> str:
 def _gen_password() -> str:
     alphabet = string.ascii_letters + string.digits + string.punctuation
     return "".join(secrets.choice(alphabet) for _ in range(64))
+
+
+def _synthetic_pds_email(handle: str) -> str:
+    """Email handed to the PDS at account creation. We deliberately send a
+    synthetic, non-PII address — the user's REAL email never reaches the PDS
+    (it lives only transiently in the appview pending tables for the magic-link
+    send, and as an HMAC in auth_creds). Mirrors the per-ballot community
+    accounts (cms/src/lib/atproto-publish.ts). Unique because the handle is
+    unique on the PDS; domain is configurable via PDS_ACCOUNT_EMAIL_DOMAIN."""
+    slug = handle.split(".")[0]
+    domain = os.getenv("PDS_ACCOUNT_EMAIL_DOMAIN", "poltr.ch")
+    return f"{slug}@{domain}"
 
 
 async def create_account(
@@ -68,25 +81,32 @@ async def create_account(
     ciphertext, nonce = encrypt_app_password(password)
     pseudonym = await generate_pseudonym()
 
-    logger.debug(f"Registering {user_email}: handle={handle}, pseudonym={pseudonym['displayName']}")
+    logger.debug(f"Registering {mask_email(user_email)}: handle={handle}, pseudonym={pseudonym['displayName']}")
 
-    # Phase 2: PDS provisioning
+    # Phase 2: PDS provisioning.
+    # The PDS gets a synthetic email, NOT the user's real address — see
+    # _synthetic_pds_email. The real email is used only for the HMAC in Phase 3.
     try:
-        did, access_token = await provision_pds_account(handle, password, user_email, pseudonym)
+        did, access_token = await provision_pds_account(
+            handle, password, _synthetic_pds_email(handle), pseudonym
+        )
     except ProvisioningError as e:
         return JSONResponse(
             status_code=e.status_code,
             content={"error": e.error_code, "message": e.message},
         )
 
-    # Phase 3: AppView registration
+    # Phase 3: AppView registration.
+    # We store only the peppered HMAC of the email, never the plaintext — the
+    # plaintext was needed transiently for the PDS createAccount call above and
+    # for the magic-link send, but is not persisted here. See email_hmac.py.
     async with db.pool.acquire() as conn:
         await conn.execute(
             """
-            INSERT INTO auth_creds (did, handle, email, pds_url, app_pw_ciphertext, app_pw_nonce, pseudonym_template_id)
+            INSERT INTO auth_creds (did, handle, email_hmac, pds_url, app_pw_ciphertext, app_pw_nonce, pseudonym_template_id)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             """,
-            did, handle, user_email, os.getenv("PDS_HOSTNAME"),
+            did, handle, email_digest(user_email), os.getenv("PDS_HOSTNAME"),
             ciphertext, nonce, pseudonym["templateId"],
         )
         await conn.execute(
@@ -107,5 +127,5 @@ async def create_account(
         return_url=return_url,
     )
 
-    logger.debug(f"Registration complete for {user_email}")
+    logger.debug(f"Registration complete for did={did}")
     return response

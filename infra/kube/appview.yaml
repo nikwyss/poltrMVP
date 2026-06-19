@@ -45,6 +45,11 @@ spec:
                 secretKeyRef:
                   name: pds-secrets
                   key: PDS_PUBLIC_HANDLE
+            - name: PDS_ACCOUNT_EMAIL_DOMAIN
+              valueFrom:
+                secretKeyRef:
+                  name: pds-secrets
+                  key: PDS_ACCOUNT_EMAIL_DOMAIN
             - name: PDS_INTERNAL_URL
               valueFrom:
                 secretKeyRef:

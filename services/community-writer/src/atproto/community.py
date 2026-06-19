@@ -9,13 +9,11 @@ key used for user app passwords).
 import asyncio
 import logging
 import os
-import secrets
-import string
 
 import httpx
 
 from src.shared import db
-from src.shared.pds_creds import decrypt_community_password, encrypt_community_password
+from src.shared.pds_creds import decrypt_community_password
 from src.shared.errors import from_network_error, from_response
 
 logger = logging.getLogger("community_pds")
@@ -203,54 +201,6 @@ def compose_review_rkey(argument_uri: str, did: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _generate_password(length: int = 32) -> str:
-    """Generate a random password for a community account."""
-    alphabet = string.ascii_letters + string.digits
-    return "".join(secrets.choice(alphabet) for _ in range(length))
-
-
-async def create_ballot_account(ballot_rkey: str) -> str:
-    """Create a new PDS account for a ballot. Returns the DID.
-
-    1. Generates handle: ballot-{rkey}.id.poltr.ch
-    2. Creates PDS account via admin API
-    3. Stores encrypted credentials in community_accounts
-    4. Waits for PLC resolution
-    """
-    from src.atproto.atproto_api import pds_admin_create_account, wait_for_plc_resolution
-
-    # Dots in the rkey (e.g. counter-proposals "133.3") would create multi-label
-    # handles that break the *.id.poltr.ch wildcard and ATProto handle rules.
-    handle_slug = ballot_rkey.replace(".", "-")
-    handle = f"ballot-{handle_slug}.id.poltr.ch"
-    password = _generate_password()
-    email = f"ballot-{handle_slug}@poltr.ch"
-
-    # Create PDS account
-    result = await pds_admin_create_account(handle, password, email)
-    did = result.did
-
-    logger.info(f"Created ballot community account: {handle} ({did})")
-
-    # Encrypt and store credentials
-    pw_ct, pw_nonce = encrypt_community_password(password)
-
-    pool = await db.get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            INSERT INTO auth.community_accounts (did, handle, ballot_rkey, pw_ciphertext, pw_nonce)
-            VALUES ($1, $2, $3, $4, $5)
-            """,
-            did, handle, ballot_rkey, pw_ct, pw_nonce,
-        )
-
-    # Wait for PLC directory to resolve the DID
-    await wait_for_plc_resolution(did)
-
-    return did
-
-
 async def get_did_for_ballot(ballot_rkey: str) -> str | None:
     """Look up the community DID for a ballot rkey."""
     pool = await db.get_pool()
@@ -258,24 +208,4 @@ async def get_did_for_ballot(ballot_rkey: str) -> str | None:
         return await conn.fetchval(
             "SELECT did FROM auth.community_accounts WHERE ballot_rkey = $1",
             ballot_rkey,
-        )
-
-
-async def get_did_for_ballot_uri(ballot_uri: str) -> str | None:
-    """Look up the community DID for a ballot AT URI."""
-    pool = await db.get_pool()
-    async with pool.acquire() as conn:
-        return await conn.fetchval(
-            "SELECT did FROM auth.community_accounts WHERE ballot_uri = $1",
-            ballot_uri,
-        )
-
-
-async def is_community_did(did: str) -> bool:
-    """Check if a DID belongs to a community account."""
-    pool = await db.get_pool()
-    async with pool.acquire() as conn:
-        return await conn.fetchval(
-            "SELECT EXISTS(SELECT 1 FROM auth.community_accounts WHERE did = $1)",
-            did,
         )

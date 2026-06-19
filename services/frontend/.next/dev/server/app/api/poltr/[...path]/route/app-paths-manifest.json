@@ -1,3 +1,0 @@
-{
-  "/api/poltr/[...path]/route": "app/api/poltr/[...path]/route.js"
-}

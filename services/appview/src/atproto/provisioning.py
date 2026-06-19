@@ -7,6 +7,7 @@ Called by register.py after Phase 1 (prepare) succeeds.
 
 import logging
 
+from src.auth.email_hmac import mask_email
 from src.config import PROFILE_BIO_TEMPLATE
 from src.atproto.atproto_api import (
     TCreateAccountResponse,
@@ -49,7 +50,7 @@ async def provision_pds_account(
         )
     except RuntimeError as e:
         error_msg = str(e)
-        logger.error(f"PDS account creation failed for {email}: {error_msg}")
+        logger.error(f"PDS account creation failed for {mask_email(email)}: {error_msg}")
         if "Email already taken" in error_msg:
             raise ProvisioningError("This email is already registered on the PDS", "email_taken", 409)
         if "Handle already taken" in error_msg:
@@ -87,7 +88,7 @@ async def provision_pds_account(
         logger.debug(f"PDS provisioning complete for {did}")
 
     except Exception as e:
-        logger.error(f"PDS provisioning failed for {email}: {e}")
+        logger.error(f"PDS provisioning failed for {mask_email(email)}: {e}")
         try:
             await pds_admin_delete_account(did)
         except Exception as delete_err:

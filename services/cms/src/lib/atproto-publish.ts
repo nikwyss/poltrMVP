@@ -180,7 +180,7 @@ export async function publishCommunityAccount(
   const handleSlug = ballotId.replace(/\./g, '-')
   const handle = `ballot-${handleSlug}.${domain}`
   const password = generatePassword()
-  const email = `ballot-${handleSlug}@poltr.ch`
+  const email = `ballot-${handleSlug}@${env('PDS_ACCOUNT_EMAIL_DOMAIN', 'poltr.ch')}`
 
   // Create PDS account
   const { did } = await pdsCreateAccount(handle, password, email)

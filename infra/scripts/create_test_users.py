@@ -40,6 +40,10 @@ import requests
 from nacl import secret as nacl_secret
 from nacl import utils as nacl_utils
 
+# Reuse the appview's exact email-HMAC (needs APPVIEW_EMAIL_HMAC_PEPPER_B64).
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "services", "appview"))
+from src.auth.email_hmac import email_digest  # noqa: E402
+
 
 PDS_HOST = os.getenv("PDS_HOST", "http://localhost:2583")
 PDS_ADMIN_PASSWORD = os.getenv("PDS_ADMIN_PASSWORD", "")
@@ -162,10 +166,10 @@ def store_user(conn, did: str, handle: str, email: str, pw_ct: bytes, pw_nonce: 
         cur.execute(
             """
             INSERT INTO auth.auth_creds
-                (did, handle, email, pds_url, app_pw_ciphertext, app_pw_nonce, pseudonym_template_id)
+                (did, handle, email_hmac, pds_url, app_pw_ciphertext, app_pw_nonce, pseudonym_template_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
-            (did, handle, email, PDS_HOST, pw_ct, pw_nonce, template["templateId"]),
+            (did, handle, email_digest(email), PDS_HOST, pw_ct, pw_nonce, template["templateId"]),
         )
         cur.execute(
             """
@@ -208,6 +212,7 @@ def main():
     _require("PDS_ADMIN_PASSWORD", PDS_ADMIN_PASSWORD)
     _require("DB_URL", DB_URL)
     _require("MASTER_KEY_B64", MASTER_KEY_B64)
+    _require("APPVIEW_EMAIL_HMAC_PEPPER_B64", os.getenv("APPVIEW_EMAIL_HMAC_PEPPER_B64", ""))
     if N < 1:
         print("ERROR: N must be >= 1")
         sys.exit(1)

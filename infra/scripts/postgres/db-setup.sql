@@ -491,14 +491,20 @@ CREATE TABLE auth.community_accounts (
 CREATE TABLE auth.auth_creds (
   did                    text PRIMARY KEY,
   handle                 text NOT NULL,
-  email                  varchar(255) NOT NULL UNIQUE,
+  -- Peppered HMAC-SHA256 of the normalized email (hex, 64 chars), NOT plaintext.
+  -- Pepper = APPVIEW_EMAIL_HMAC_PEPPER_B64, held only in the appview process.
+  -- A leaked DB cannot brute-force these without the pepper. UNIQUE so one email
+  -- = one account; deterministic so login can look up by digest. The plaintext
+  -- address lives only transiently in the auth_pending_* tables (to send mail)
+  -- and in the PDS. See services/appview/src/auth/email_hmac.py.
+  email_hmac             varchar(255) NOT NULL UNIQUE,
   pds_url                text,
   app_pw_ciphertext      bytea NOT NULL,
   app_pw_nonce           bytea NOT NULL,
   pseudonym_template_id  integer REFERENCES auth.mountain_templates(id)
 );
 
-CREATE INDEX idx_auth_creds_email ON auth.auth_creds (email);
+CREATE INDEX idx_auth_creds_email_hmac ON auth.auth_creds (email_hmac);
 
 CREATE TABLE auth.auth_sessions (
   id               serial PRIMARY KEY,

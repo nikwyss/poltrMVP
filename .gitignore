@@ -1,5 +1,7 @@
 infra/kube/secrets.yaml
 
+
+
 *.env
 **/.env.*
 !**/.env.example
@@ -14,10 +16,13 @@ tmp
 KUBECONFIG
 
 */.env
+
+# Next.js build output — matches .next/ in any service at any depth.
+# (*/.next did NOT match services/frontend/.next, which is two levels deep.)
+.next/
+
 services/appview/dist
 services/indexer/dist
-services/front/.next
-services/eidproto/.next
 services/appview/node_modules
 services/indexer/node_modules
 services/appview/.env
@@ -25,7 +30,6 @@ services/indexer/.env
 */.env
 
 # services/pds
-
 
 node_modules
 .DS_Store

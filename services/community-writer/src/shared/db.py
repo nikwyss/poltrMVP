@@ -1,6 +1,5 @@
 import os
 import asyncpg
-from typing import Any, List
 
 
 pool: asyncpg.Pool = None
@@ -20,19 +19,17 @@ async def init_pool():
 
 async def get_pool():
     """Ensure a pool exists before returning it."""
-    global pool
     if pool is None:
         await init_pool()
     return pool
 
 
 async def check_db_connection():
-    global pool
     try:
         if pool is None:
             print("Initializing database pool...")
             await init_pool()
-            print(f"Database pool created successfully")
+            print("Database pool created successfully")
         async with pool.acquire() as conn:
             result = await conn.fetchval("SELECT 1")
             print(f"DB connection test result: {result}")
@@ -47,13 +44,5 @@ async def check_db_connection():
 
 
 async def close_pool():
-    global pool
     if pool:
         await pool.close()
-
-
-async def db_query(query: str, params: List[Any] = None):
-    if pool is None:
-        raise Exception("No DB pool initialized")
-    async with pool.acquire() as conn:
-        return await conn.fetch(query, *(params or []))

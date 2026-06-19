@@ -37,7 +37,6 @@ from src.shared.db import get_pool
 from src.shared.languages import (
     DEFAULT_LANGUAGE,
     SUPPORTED_LANGUAGES,
-    SUPPORTED_LANGUAGES_SET,
     normalize_lang,
 )
 

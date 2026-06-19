@@ -167,7 +167,7 @@ class EmailService:
                 # For development: just log the link
                 print(f"\n{'='*60}")
                 print(f"EMAIL LINK (dev mode - localhost or no SMTP configured):")
-                print(f"Email: {to_email}")
+                print(f"Email: ****")  # never log the plaintext address (even in dev)
                 print(f"Purpose: {purpose}")
                 print(f"Link: {link}")
                 print(f"{'='*60}\n")

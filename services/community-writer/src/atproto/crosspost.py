@@ -21,10 +21,6 @@ from src.atproto.community import get_community_token, _pds_internal_url
 logger = logging.getLogger("crosspost")
 
 
-def _frontend_url() -> str:
-    return os.getenv("APPVIEW_FRONTEND_URL", "https://poltr.ch")
-
-
 # ---------------------------------------------------------------------------
 # Cross-post: arguments
 # ---------------------------------------------------------------------------

@@ -6,12 +6,21 @@ configurable rows, plus an HTTPX AsyncClient wired to the FastAPI app.
 """
 
 import asyncio
+import base64
+import os
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+
+# Deterministic test pepper so email_digest() works without a real secret. Must
+# be set before the appview modules compute any digest. See src/auth/email_hmac.py.
+os.environ.setdefault(
+    "APPVIEW_EMAIL_HMAC_PEPPER_B64", base64.b64encode(b"test-pepper" + b"\x00" * 21).decode()
+)
+from src.auth.email_hmac import email_digest  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +190,9 @@ def make_creds_row(email="user@test.com", did="did:plc:abc123", handle="user123.
     return {
         "did": did,
         "handle": handle,
-        "email": email,
+        # auth_creds stores only the peppered HMAC; lookups pass email_digest(...),
+        # so the fake row must key on the digest to match. See email_hmac.py.
+        "email_hmac": email_digest(email),
         "app_pw_ciphertext": b"fake-ct",
         "app_pw_nonce": b"fake-nonce-24-bytes!",
         # Profile fields read by login_account's auth_creds⋈app_profiles SELECT.

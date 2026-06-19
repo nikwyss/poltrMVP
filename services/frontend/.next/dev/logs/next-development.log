@@ -1,8 +1,0 @@
-[00:00:07.616] Server  LOG     ✓ Ready in 5.1s
-[00:00:11.740] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:00:13.665] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
-[00:00:14.336] Server  ERROR   Error fetching page: TypeError: fetch failed
-[00:00:14.351] Server  ERROR   Error fetching page: TypeError: fetch failed
-[00:00:14.369] Server  ERROR   Error fetching page: TypeError: fetch failed
-[00:00:14.393] Server  ERROR   Error fetching page: TypeError: fetch failed
-[01:18:37.136] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold

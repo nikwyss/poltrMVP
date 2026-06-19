@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 
 import src.core.db as db
 from src.auth.middleware import hash_token
+from src.auth.email_hmac import email_digest
 
 APPVIEW_SESSION_LIFETIME_DAYS = int(os.getenv("APPVIEW_SESSION_LIFETIME_DAYS", "7"))
 
@@ -31,7 +32,7 @@ async def login_account(user_email: str, return_url: str | None = None) -> JSONR
     if db.pool is None:
         await db.init_pool()
 
-    logger.debug(f"Attempting to log in user with email: {user_email}")
+    logger.debug("Attempting to log in user by email digest")
 
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -41,9 +42,9 @@ async def login_account(user_email: str, return_url: str | None = None) -> JSONR
                    p.mountain_fullname, p.height
             FROM auth_creds c
             LEFT JOIN app_profiles p ON p.did = c.did
-            WHERE c.email = $1
+            WHERE c.email_hmac = $1
             """,
-            user_email,
+            email_digest(user_email),
         )
 
     if not row:
@@ -67,7 +68,7 @@ async def login_account(user_email: str, return_url: str | None = None) -> JSONR
         },
         return_url=return_url,
     )
-    logger.debug(f"Login successful for {user_email}")
+    logger.debug(f"Login successful for did={row['did']}")
     return response
 
 
@@ -143,7 +144,7 @@ async def check_email_availability(email: str) -> bool:
 
     async with db.pool.acquire() as conn:
         row = await conn.fetchrow(
-            "SELECT email FROM auth_creds WHERE email = $1",
-            email,
+            "SELECT 1 FROM auth_creds WHERE email_hmac = $1",
+            email_digest(email),
         )
         return row is None

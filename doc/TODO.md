@@ -104,7 +104,19 @@ Kontext: Diskussion 2026-06-16 (localhost+deployed gegen geteilte DB/PDS).
    gepfefferter `HMAC(pepper, email)` statt Klartext, Login-Lookup per `HMAC(eingabe)`.
    Plaintext nur transient in den Pending-Tabellen (Versand). Keine Funktion geht verl>
    Hängt davon ab, wie bestehende VAA Konten verknüpft werden.
-   [ ] besser: email nur gehashed speichern?
+   [x] **IMPLEMENTIERT** — Spalte `auth_creds.email` → `email_hmac`
+       (`HMAC-SHA256(pepper, lower(trim(email)))`, hex). Pepper
+       `APPVIEW_EMAIL_HMAC_PEPPER_B64` nur im appview-Prozess. Login/Lookup/Dedup
+       gehen über `email_digest()`. Pending-Tabellen + PDS behalten Klartext
+       (Versand bzw. createAccount). Module: `services/appview/src/auth/email_hmac.py`;
+       Migration `services/appview/migrations/009_email_to_hmac.sql`;
+       Backfill `infra/scripts/backfill_email_hmac.py` (idempotent, '@'-Diskriminator).
+   - **Offen — VAA-Konten:** Wenn bestehende VAA-Konten je per Email gematcht werden,
+     müssen deren Emails beim Import mit DEMSELBEN Pepper HMAC't werden (kein Code).
+   - **Restkosten:** PDS hält weiterhin eine Klartext-Kopie (createAccount); Hashen von
+     `auth_creds` entfernt den Langzeit-Speicher, nicht jede Kopie im System.
+     Pepper NICHT rotierbar ohne Klartext (Rotation = Nutzer müssen Email neu verifizieren).
+     Auth-Logs drucken noch Klartext-Email (separat, Punkt 2 unten / Log-Scrubbing).
 
 2. **DID-Genesis von Verify-Zeit entkoppeln (Nutzer will später weiterverfolgen, aktue>
    nicht prioritär):** atproto-DID-Genesis ist öffentlich sekundengenau zeitgestempelt;
