@@ -230,7 +230,8 @@
   "viewToggle": {
     "feed": "Feed",
     "booklet": "Büchlein",
-    "taxonomy": "Tassonomia"
+    "taxonomy": "Tassonomia",
+    "gutachten": "Pareri"
   },
   "booklet": {
     "argumentsLabel": "Argumente",
@@ -380,5 +381,27 @@
     "diffFooter": "Danach kannst du diese Seite schliessen.",
     "wrongDevice": "Bitte schliesse die Anmeldung auf dem Gerät ab, auf dem du gestartet hast.",
     "diffStartOver": "Stattdessen auf diesem Gerät anmelden"
+  },
+  "gutachten": {
+    "intro": "Qui vedi i pareri in corso e conclusi sugli argomenti di questa votazione. In un parere la comunità valuta la qualità di un argomento. Per impostazione predefinita vedi i pareri a cui partecipi – passa a «Tutti» per vedere tutti i pareri della votazione.",
+    "scopeMine": "I miei",
+    "scopeAll": "Tutti",
+    "sectionCurrent": "In corso",
+    "sectionClosed": "Conclusi",
+    "empty": "Nessun parere per questa votazione.",
+    "emptyMine": "Al momento non partecipi a nessun parere.",
+    "showAll": "Mostra tutti",
+    "statusOpen": "Aperto",
+    "statusGrace": "In chiusura",
+    "statusApproved": "Approvato",
+    "statusRejected": "Respinto",
+    "votes": "voti",
+    "detailTodo": "La vista dettagliata del parere sarà disponibile a breve.",
+    "roleToReview": "Da valutare",
+    "roleReviewed": "Valutato",
+    "roleAuthor": "Il tuo argomento",
+    "metaReviews": "pareri",
+    "metaOpen": "aperti",
+    "metaOwn": "tuoi"
   }
 }

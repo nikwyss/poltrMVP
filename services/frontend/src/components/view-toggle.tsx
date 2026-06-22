@@ -3,15 +3,16 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { List, BookOpen, Network } from "lucide-react";
+import { List, BookOpen, Network, ClipboardCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type ArgumentsView = "feed" | "booklet" | "taxonomy";
+export type ArgumentsView = "feed" | "booklet" | "taxonomy" | "gutachten";
 
 export const ARGUMENTS_VIEWS: readonly ArgumentsView[] = [
   "feed",
   "booklet",
   "taxonomy",
+  "gutachten",
 ] as const;
 
 export const DEFAULT_ARGUMENTS_VIEW: ArgumentsView = "taxonomy";
@@ -39,6 +40,12 @@ const viewDefs: {
   { key: "taxonomy", icon: Network, labelKey: "taxonomy", segment: "taxonomy" },
   { key: "booklet", icon: BookOpen, labelKey: "booklet", segment: "booklet" },
   { key: "feed", icon: List, labelKey: "feed", segment: "feed" },
+  {
+    key: "gutachten",
+    icon: ClipboardCheck,
+    labelKey: "gutachten",
+    segment: "gutachten",
+  },
 ];
 
 export function ViewToggle({

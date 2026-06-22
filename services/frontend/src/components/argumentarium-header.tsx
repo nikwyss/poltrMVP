@@ -17,10 +17,19 @@ export function ArgumentariumHeader({
   // Optionaler Controls-Slot (z. B. ViewToggle) — sitzt rechts auf der
   // Überschriftenzeile, gekoppelt an den Inhalt, den er umschaltet.
   actions,
+  // Optionaler Intro-Override: per Default steht hier der Argumentarium-Text;
+  // Views mit anderem Fokus (z. B. Gutachten) reichen ihren eigenen Text durch.
+  intro,
+  // Optionaler Meta-Zeilen-Override: ersetzt die Standard-Zähler (Themen ·
+  // Argumente · Kommentare) durch view-spezifische (z. B. «120 Gutachten · 3
+  // offen»). Wenn gesetzt, gewinnt es vollständig.
+  metaItems,
 }: {
   ballot: Ballot;
   topicCount?: number;
   actions?: React.ReactNode;
+  intro?: string;
+  metaItems?: { value: number; label: string }[];
 }) {
   const t = useTranslations("argumentarium");
   const tbk = useTranslations("booklet");
@@ -28,18 +37,20 @@ export function ArgumentariumHeader({
   // Ruhige Meta-Zeile statt grosser Zähler-Spalten: «5 Themen · 111 Argumente
   // · 999 Kommentare». Zahlen in Ink, Wörter muted (in einer Sakkade scanbar).
   // Themen nur, wenn die Taxonomy-View es liefert.
-  const metaParts = [
-    (topicCount ?? 0) > 0
-      ? { value: topicCount as number, label: tbk("topicsLabel") }
-      : null,
-    (ballot.argumentCount ?? 0) > 0
-      ? { value: ballot.argumentCount as number, label: tbk("argumentsLabel") }
-      : null,
-    // Kommentare nur ab mehr als einem (sonst „1 Kommentare" + wenig Aussage).
-    (ballot.commentCount ?? 0) > 0
-      ? { value: ballot.commentCount as number, label: tbk("commentsLabel") }
-      : null,
-  ].filter((p): p is { value: number; label: string } => p !== null);
+  const metaParts =
+    metaItems ??
+    [
+      (topicCount ?? 0) > 0
+        ? { value: topicCount as number, label: tbk("topicsLabel") }
+        : null,
+      (ballot.argumentCount ?? 0) > 0
+        ? { value: ballot.argumentCount as number, label: tbk("argumentsLabel") }
+        : null,
+      // Kommentare nur ab mehr als einem (sonst „1 Kommentare" + wenig Aussage).
+      (ballot.commentCount ?? 0) > 0
+        ? { value: ballot.commentCount as number, label: tbk("commentsLabel") }
+        : null,
+    ].filter((p): p is { value: number; label: string } => p !== null);
 
   return (
     <div className="px-1 pt-2">
@@ -66,7 +77,7 @@ export function ArgumentariumHeader({
         {actions && <div className="shrink-0">{actions}</div>}
       </div>
       <p className="mt-4 max-w-[65ch] text-base text-[var(--text-mid)] leading-relaxed">
-        {t("intro")}
+        {intro ?? t("intro")}
       </p>
     </div>
   );

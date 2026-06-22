@@ -230,7 +230,8 @@
   "viewToggle": {
     "feed": "Feed",
     "booklet": "Büchlein",
-    "taxonomy": "Taxonomie"
+    "taxonomy": "Taxonomie",
+    "gutachten": "Expertises"
   },
   "booklet": {
     "argumentsLabel": "Argumente",
@@ -380,5 +381,27 @@
     "diffFooter": "Danach kannst du diese Seite schliessen.",
     "wrongDevice": "Bitte schliesse die Anmeldung auf dem Gerät ab, auf dem du gestartet hast.",
     "diffStartOver": "Stattdessen auf diesem Gerät anmelden"
+  },
+  "gutachten": {
+    "intro": "Vous voyez ici les expertises en cours et terminées des arguments de cet objet. Dans une expertise, la communauté évalue la qualité d’un argument. Par défaut, vous voyez les expertises auxquelles vous participez – passez à « Toutes » pour voir l’ensemble des expertises de l’objet.",
+    "scopeMine": "Les miennes",
+    "scopeAll": "Toutes",
+    "sectionCurrent": "En cours",
+    "sectionClosed": "Terminées",
+    "empty": "Aucune expertise pour cet objet.",
+    "emptyMine": "Vous ne participez à aucune expertise pour l'instant.",
+    "showAll": "Tout afficher",
+    "statusOpen": "Ouverte",
+    "statusGrace": "Bientôt close",
+    "statusApproved": "Validé",
+    "statusRejected": "Rejeté",
+    "votes": "voix",
+    "detailTodo": "La vue détaillée de l'expertise arrive bientôt.",
+    "roleToReview": "À expertiser",
+    "roleReviewed": "Expertisé",
+    "roleAuthor": "Votre argument",
+    "metaReviews": "expertises",
+    "metaOpen": "ouvertes",
+    "metaOwn": "les vôtres"
   }
 }

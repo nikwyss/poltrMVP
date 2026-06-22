@@ -9,6 +9,7 @@ import {
 import { ArgumentDetail } from "@/components/argument-detail";
 import { CommentDetail } from "@/components/comment-detail";
 import { TaxonomyDetail } from "@/components/taxonomy-detail";
+import { PeerReviewDetail } from "@/components/peer-review-detail";
 
 // Single, content-aware overlay surface for the entire app. Mount once at the
 // (app) layout level; pages just call `useOverlay().navigate(entry)` to open.
@@ -101,8 +102,15 @@ function renderEntry(entry: OverlayEntry, ctx: OverlayRenderCtx) {
       // Placeholder — profile component not yet implemented.
       return null;
     case "peerreview":
-      // Placeholder — peer-review overlay arrives later. Stack/back/scroll
-      // already work; only the visible body is missing.
-      return null;
+      // Stub detail view — id is the argument's AT-URI. Full criteria/reviews
+      // breakdown arrives later (see PeerReviewDetail TODO).
+      return (
+        <PeerReviewDetail
+          argumentUri={entry.id}
+          onClose={ctx.back}
+          backLabel={ctx.backLabel}
+          registerScrollContainer={ctx.registerScrollContainer}
+        />
+      );
   }
 }

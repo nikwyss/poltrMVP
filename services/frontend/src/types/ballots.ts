@@ -223,6 +223,33 @@ export interface PeerreviewStatus {
   reviews?: PeerreviewResponse[];
 }
 
+export type PeerreviewState = 'open' | 'provisional_closed' | 'closed';
+
+// One row of the per-ballot Gutachten list (app.ch.poltr.peerreview.list).
+// A list item = one argument under (or past) peer review.
+export interface PeerreviewListItem {
+  argumentUri: string;
+  title: string;
+  body: string;
+  type: 'PRO' | 'CONTRA';
+  authorDid: string;
+  state: PeerreviewState;
+  peerreviewStatus: 'preliminary' | 'approved' | 'rejected';
+  quorum: number;
+  approvals: number;
+  rejections: number;
+  totalReviews: number;
+  invitationCount: number;
+  openedAt: string | null;
+  provisionalClosedAt: string | null;
+  graceUntil: string | null;
+  closedAt: string | null;
+  viewerInvited: boolean;
+  viewerCheckedInAt: string | null;
+  viewerResponded: boolean;
+  viewerIsAuthor: boolean;
+}
+
 // BallotWithMetadata removed — Ballots are now CMS REST content (flat shape),
 // not ATProto records. Use `Ballot` directly.
 

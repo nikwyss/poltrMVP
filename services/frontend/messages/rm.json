@@ -230,7 +230,8 @@
   "viewToggle": {
     "feed": "Feed",
     "booklet": "Büchlein",
-    "taxonomy": "Taxonomia"
+    "taxonomy": "Taxonomia",
+    "gutachten": "Gutachten"
   },
   "booklet": {
     "argumentsLabel": "Argumente",
@@ -380,5 +381,27 @@
     "diffFooter": "Danach kannst du diese Seite schliessen.",
     "wrongDevice": "Bitte schliesse die Anmeldung auf dem Gerät ab, auf dem du gestartet hast.",
     "diffStartOver": "Stattdessen auf diesem Gerät anmelden"
+  },
+  "gutachten": {
+    "intro": "Hier siehst du die laufenden und abgeschlossenen Gutachten zu den Argumenten dieser Vorlage. In einem Gutachten prüft die Community ein Argument auf seine Qualität. Standardmässig erscheinen die Gutachten, an denen du beteiligt bist – über «Alle» siehst du sämtliche Gutachten der Vorlage.",
+    "scopeMine": "Meine",
+    "scopeAll": "Alle",
+    "sectionCurrent": "Aktuell",
+    "sectionClosed": "Abgeschlossen",
+    "empty": "Keine Gutachten zu dieser Vorlage.",
+    "emptyMine": "Du bist aktuell an keinem Gutachten beteiligt.",
+    "showAll": "Alle anzeigen",
+    "statusOpen": "Offen",
+    "statusGrace": "Schliesst bald",
+    "statusApproved": "Bestätigt",
+    "statusRejected": "Verworfen",
+    "votes": "Stimmen",
+    "detailTodo": "Die Detailansicht des Gutachtens folgt.",
+    "roleToReview": "Zu begutachten",
+    "roleReviewed": "Begutachtet",
+    "roleAuthor": "Dein Argument",
+    "metaReviews": "Gutachten",
+    "metaOpen": "offen",
+    "metaOwn": "eigene"
   }
 }

@@ -9,6 +9,7 @@ Endpoints
 =========
 - GET  app.ch.poltr.peerreview.criteria   configurable criteria list
 - GET  app.ch.poltr.peerreview.pending    invitations the user can still take
+- GET  app.ch.poltr.peerreview.list       peer reviews of a ballot (open + closed)
 - POST app.ch.poltr.peerreview.checkIn    grant submit-rights for the grace window
 - POST app.ch.poltr.peerreview.activity   slide grace_until forward on real typing
 - POST app.ch.poltr.peerreview.submit     final submission (writes response to PDS)
@@ -134,6 +135,124 @@ async def get_pending_reviews(
     ]
 
     return JSONResponse(status_code=200, content={"invitations": invitations})
+
+
+# -----------------------------------------------------------------------------
+# GET /xrpc/app.ch.poltr.peerreview.list
+# -----------------------------------------------------------------------------
+
+
+@router.get("/app.ch.poltr.peerreview.list")
+async def list_ballot_peerreviews(
+    request: Request,
+    ballot_rkey: str = Query(..., alias="ballotRkey"),
+    scope: str = Query("mine"),
+    session: TSession = Depends(verify_session_token),
+):
+    """List the peer reviews (Gutachten) of a single ballot.
+
+    Unlike `.pending` (the user's own open invitations) or `.status` (one
+    argument), this returns every peer-review row whose argument belongs to the
+    given ballot, with vote counts and per-viewer flags.
+
+    `scope`:
+      * 'mine' (default) — only reviews the viewer is involved in: invited,
+        already responded, or author of the reviewed argument.
+      * 'all' — every peer review of the ballot (transparency view).
+
+    Sorted server-side: open + provisional_closed first (the "current" ones),
+    then closed; newest first within each group. The frontend just splits on
+    `state == 'closed'`.
+    """
+    scope = scope if scope in ("mine", "all") else "mine"
+
+    # viewer_inv / viewer_resp are LEFT-JOINed on the viewer DID (each at most
+    # one row thanks to the (argument, did) unique constraints), so referencing
+    # them in the WHERE clause is safe and avoids a separate lookup.
+    mine_filter = (
+        "AND (viewer_inv.invitee_did IS NOT NULL "
+        "OR viewer_resp.uri IS NOT NULL "
+        "OR a.author_did = $2)"
+        if scope == "mine"
+        else ""
+    )
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""
+            SELECT
+              pr.argument_uri,
+              a.title, a.body, a.type, a.author_did,
+              pr.state, a.peerreview_status, pr.quorum,
+              pr.opened_at, pr.provisional_closed_at, pr.grace_until, pr.closed_at,
+              rc.approvals, rc.rejections, rc.total,
+              ic.invitation_count,
+              (viewer_inv.invitee_did IS NOT NULL) AS viewer_invited,
+              viewer_inv.checked_in_at            AS viewer_checked_in_at,
+              (viewer_resp.uri IS NOT NULL)        AS viewer_responded,
+              (a.author_did = $2)                  AS viewer_is_author
+            FROM app_peerreviews pr
+            JOIN app_arguments a
+              ON a.uri = pr.argument_uri AND NOT a.deleted AND a.ballot_rkey = $1
+            -- LATERAL count subqueries keep responses/invitations from
+            -- fanning out against each other (cartesian inflation).
+            LEFT JOIN LATERAL (
+              SELECT
+                COUNT(*) FILTER (WHERE vote = 'APPROVE') AS approvals,
+                COUNT(*) FILTER (WHERE vote = 'REJECT')  AS rejections,
+                COUNT(*)                                  AS total
+              FROM app_peerreview_responses
+              WHERE argument_uri = pr.argument_uri
+            ) rc ON true
+            LEFT JOIN LATERAL (
+              SELECT COUNT(*) AS invitation_count
+              FROM app_peerreview_invitations
+              WHERE argument_uri = pr.argument_uri AND invited = true
+            ) ic ON true
+            LEFT JOIN app_peerreview_invitations viewer_inv
+              ON viewer_inv.argument_uri = pr.argument_uri
+             AND viewer_inv.invitee_did = $2
+             AND viewer_inv.invited = true
+            LEFT JOIN app_peerreview_responses viewer_resp
+              ON viewer_resp.argument_uri = pr.argument_uri
+             AND viewer_resp.reviewer_did = $2
+            WHERE true
+              {mine_filter}
+            ORDER BY (pr.state = 'closed') ASC,
+                     COALESCE(pr.closed_at, pr.opened_at) DESC
+            """,
+            ballot_rkey,
+            session.did,
+        )
+
+    reviews = [
+        {
+            "argumentUri": r["argument_uri"],
+            "title": r["title"],
+            "body": r["body"],
+            "type": r["type"],
+            "authorDid": r["author_did"],
+            "state": r["state"],
+            "peerreviewStatus": r["peerreview_status"],
+            "quorum": r["quorum"],
+            "approvals": r["approvals"],
+            "rejections": r["rejections"],
+            "totalReviews": r["total"],
+            "invitationCount": r["invitation_count"],
+            "openedAt": _iso(r["opened_at"]),
+            "provisionalClosedAt": _iso(r["provisional_closed_at"]),
+            "graceUntil": _iso(r["grace_until"]),
+            "closedAt": _iso(r["closed_at"]),
+            "viewerInvited": r["viewer_invited"],
+            "viewerCheckedInAt": _iso(r["viewer_checked_in_at"]),
+            "viewerResponded": r["viewer_responded"],
+            "viewerIsAuthor": r["viewer_is_author"],
+        }
+        for r in rows
+    ]
+
+    return JSONResponse(status_code=200, content={"reviews": reviews})
 
 
 # -----------------------------------------------------------------------------

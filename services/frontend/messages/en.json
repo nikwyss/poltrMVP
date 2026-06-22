@@ -230,7 +230,8 @@
   "viewToggle": {
     "feed": "Feed",
     "booklet": "Booklet",
-    "taxonomy": "Taxonomy"
+    "taxonomy": "Taxonomy",
+    "gutachten": "Reviews"
   },
   "booklet": {
     "argumentsLabel": "Arguments",
@@ -380,5 +381,27 @@
     "diffFooter": "You can close this page afterwards.",
     "wrongDevice": "Please complete the sign-in on the device where you started.",
     "diffStartOver": "Sign in on this device instead"
+  },
+  "gutachten": {
+    "intro": "Here you can see the ongoing and completed reviews of this ballot’s arguments. In a review, the community assesses the quality of an argument. By default you see the reviews you are involved in – switch to “All” to see every review of the ballot.",
+    "scopeMine": "Mine",
+    "scopeAll": "All",
+    "sectionCurrent": "Current",
+    "sectionClosed": "Completed",
+    "empty": "No reviews for this ballot.",
+    "emptyMine": "You're not involved in any reviews yet.",
+    "showAll": "Show all",
+    "statusOpen": "Open",
+    "statusGrace": "Closing soon",
+    "statusApproved": "Approved",
+    "statusRejected": "Rejected",
+    "votes": "votes",
+    "detailTodo": "The review detail view is coming soon.",
+    "roleToReview": "To review",
+    "roleReviewed": "Reviewed",
+    "roleAuthor": "Your argument",
+    "metaReviews": "reviews",
+    "metaOpen": "open",
+    "metaOwn": "yours"
   }
 }

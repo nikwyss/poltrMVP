@@ -1,4 +1,4 @@
-import type { Ballot, ArgumentWithMetadata, CommentWithMetadata, ActivityItem, PeerreviewCriterion, PeerreviewInvitation, PeerreviewStatus, PeerreviewCriterionRating, TaxonomyTree } from '../types/ballots';
+import type { Ballot, ArgumentWithMetadata, CommentWithMetadata, ActivityItem, PeerreviewCriterion, PeerreviewInvitation, PeerreviewStatus, PeerreviewCriterionRating, PeerreviewListItem, TaxonomyTree } from '../types/ballots';
 import { toPdsError } from './pdsError';
 
 /**
@@ -268,6 +268,21 @@ export async function getPeerreviewStatus(argumentUri: string): Promise<Peerrevi
   );
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+
+// Per-ballot Gutachten list. scope='mine' (default) = reviews the viewer is
+// involved in; scope='all' = every peer review of the ballot.
+export async function listPeerreviews(
+  ballotRkey: string,
+  scope: 'mine' | 'all' = 'mine',
+): Promise<PeerreviewListItem[]> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  const res = await authenticatedFetch(
+    `/api/xrpc/app.ch.poltr.peerreview.list?ballotRkey=${encodeURIComponent(ballotRkey)}&scope=${scope}`
+  );
+  if (!res.ok) throw new Error(await res.text());
+  const content = await res.json();
+  return content.reviews;
 }
 
 // ---------------------------------------------------------------------------

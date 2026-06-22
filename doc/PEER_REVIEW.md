@@ -339,6 +339,30 @@ Reads `review_status` on every argument and renders:
 
 Both milestone variants share `MilestoneActivityCard` in [services/frontend/src/app/(app)/ballot/[id]/arguments/feed/page.tsx](../services/frontend/src/app/(app)/ballot/[id]/arguments/feed/page.tsx). Rejected arguments are visible to everyone.
 
+### Gutachten view (per-ballot list)
+
+The arguments page has a fourth view (`ClipboardCheck` icon in the
+[ViewToggle](../services/frontend/src/components/view-toggle.tsx)) that lists the
+peer reviews of one ballot:
+[services/frontend/src/app/(app)/ballot/[id]/arguments/gutachten/page.tsx](../services/frontend/src/app/(app)/ballot/[id]/arguments/gutachten/page.tsx).
+
+Backed by **`GET app.ch.poltr.peerreview.list`** (in
+[reviews.py](../services/appview/src/routes/deliberation/reviews.py)):
+
+- Query: `ballotRkey` (= CMS ballot id / route `[id]`), `scope` = `mine` (default) | `all`.
+- `scope=mine` → reviews the viewer is involved in (invited, responded, or author
+  of the reviewed argument); `scope=all` → every peer review of the ballot.
+- One list item = one argument under (or past) review, with vote counts and
+  per-viewer flags (`viewerInvited`, `viewerCheckedInAt`, `viewerResponded`).
+- Sorted server-side: current first (`state` `open` + `provisional_closed`), then
+  `closed`; newest first within each group. The page just splits on `state === 'closed'`
+  into the **Aktuell** / **Abgeschlossen** sections.
+
+Clicking a row opens the `peerreview` overlay entry (id = argument AT-URI), rendered
+by [PeerReviewDetail](../services/frontend/src/components/peer-review-detail.tsx) —
+currently a **stub** (state + vote counts) wired through the shared overlay host;
+the full criteria/reviews breakdown + check-in/submit flow lands in a follow-up.
+
 ### Review form
 
 - On review-page open: call `checkIn`. If it returns `409 too_late` or `409 closed`, show "this review just closed" and skip the form.
