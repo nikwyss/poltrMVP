@@ -1,4 +1,5 @@
 import type { Ballot, ArgumentWithMetadata, CommentWithMetadata, ActivityItem, PeerreviewCriterion, PeerreviewInvitation, PeerreviewStatus, PeerreviewCriterionRating, PeerreviewListItem, TaxonomyTree } from '../types/ballots';
+import type { BallotSearchResponse } from '../types/search';
 import { toPdsError } from './pdsError';
 
 /**
@@ -193,6 +194,30 @@ export async function createComment(
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw await toPdsError(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Search API
+// ---------------------------------------------------------------------------
+
+// Ballot-wide search over taxonomy nodes, arguments and comments, restricted to
+// the given ballot and language. `lang` should be passed explicitly so it stays
+// in sync with the query key (the proxy would otherwise fall back to the cookie).
+export async function searchBallot(
+  ballotRkey: string,
+  q: string,
+  lang?: string,
+  type?: 'taxonomy' | 'argument' | 'comment',
+): Promise<BallotSearchResponse> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  const params = new URLSearchParams({ ballot_rkey: ballotRkey, q });
+  if (lang) params.set('lang', lang);
+  if (type) params.set('type', type);
+  const res = await authenticatedFetch(
+    `/api/xrpc/app.ch.poltr.ballot.search?${params.toString()}`,
+  );
+  if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 

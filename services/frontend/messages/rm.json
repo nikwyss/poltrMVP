@@ -3,6 +3,17 @@
     "title": "Abstimmungsdossier-Plattform",
     "description": "ATProto-basierte Civic-Tech-Plattform für Schweizer Abstimmungen"
   },
+  "search": {
+    "placeholder": "Tschertgar en questa votaziun …",
+    "groupThemen": "Temas",
+    "groupArgumente": "Arguments",
+    "groupKommentare": "Commentaris",
+    "loading": "Tschertgar …",
+    "noResults": "Nagins resultats per «{q}»",
+    "hint": "Endatescha almain 2 caracters",
+    "clear": "Stizzar la tschertga",
+    "close": "Serrar"
+  },
   "common": {
     "error": "Fehler",
     "retry": "Erneut versuchen",

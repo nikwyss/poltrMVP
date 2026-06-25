@@ -14,6 +14,7 @@ from src.routes.deliberation.activity import router as activity_router
 from src.routes.deliberation.reviews import router as reviews_router
 from src.routes.deliberation.taxonomy import router as taxonomy_router
 from src.routes.deliberation.quota import router as quota_router
+from src.routes.deliberation.search import router as search_router
 
 routers = [
     arguments_router,
@@ -23,4 +24,5 @@ routers = [
     reviews_router,
     taxonomy_router,  # calculator-abgeleiteter Themenbaum + Argumente (nicht ATProto)
     quota_router,     # per-user creation quotas (arguments + comments)
+    search_router,    # ballot-weite Suche über Themen + Argumente + Kommentare
 ]

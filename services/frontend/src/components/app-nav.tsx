@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LocaleSwitcher } from "@/components/locale-switcher";
+import { BallotSearch } from "@/components/ballot-search";
 
 const navKeys = [{ key: "home" as const, href: "/home" }];
 
@@ -59,6 +60,8 @@ export function AppNav() {
               {t("dossier")}
             </span>
           </Link>
+          {/* Center: ballot-wide search (self-gates: renders only on /ballot/[id]/*) */}
+          <BallotSearch />
           {/* Right side: locale switcher + user pill + mobile toggle */}
           <div className="flex items-center gap-2">
             <LocaleSwitcher />

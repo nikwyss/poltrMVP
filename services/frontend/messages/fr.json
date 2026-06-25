@@ -3,6 +3,17 @@
     "title": "Abstimmungsdossier-Plattform",
     "description": "ATProto-basierte Civic-Tech-Plattform für Schweizer Abstimmungen"
   },
+  "search": {
+    "placeholder": "Rechercher dans cet objet …",
+    "groupThemen": "Thèmes",
+    "groupArgumente": "Arguments",
+    "groupKommentare": "Commentaires",
+    "loading": "Recherche …",
+    "noResults": "Aucun résultat pour « {q} »",
+    "hint": "Saisissez au moins 2 caractères",
+    "clear": "Effacer la recherche",
+    "close": "Fermer"
+  },
   "common": {
     "error": "Fehler",
     "retry": "Erneut versuchen",

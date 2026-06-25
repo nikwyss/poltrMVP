@@ -3,6 +3,17 @@
     "title": "Abstimmungsdossier Platform",
     "description": "ATProto-based civic-tech platform for Swiss referenda"
   },
+  "search": {
+    "placeholder": "Search this ballot …",
+    "groupThemen": "Topics",
+    "groupArgumente": "Arguments",
+    "groupKommentare": "Comments",
+    "loading": "Searching …",
+    "noResults": "No results for “{q}”",
+    "hint": "Type at least 2 characters",
+    "clear": "Clear search",
+    "close": "Close"
+  },
   "common": {
     "error": "Error",
     "retry": "Retry",
