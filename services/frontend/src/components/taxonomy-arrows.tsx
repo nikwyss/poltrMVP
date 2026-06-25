@@ -267,10 +267,15 @@ function scaleLines(): ReactNode {
 // passt dann nicht mehr. Deshalb rendern wir Hilfslinien + Mittelachse pro Zeile
 // DIREKT ins Zeilen-SVG (viewBox-Höhe VH) und blenden sie via `sm:hidden` ab dem
 // sm-Breakpoint wieder aus (dort übernimmt wieder das globale Overlay).
+// Mobile reduziert auf wenige, blasse Marken (50 % + 100 %) für mehr „Ruhe":
+// die pro Zeile wiederholten Linien sollen nicht zum Zaun werden. Die volle
+// 0/50/100-Skala dokumentiert die Mobile-Legende unten einmalig.
+const SCALE_TICKS_MOBILE = [0.5, 1] as const;
+
 function inSvgScale(): ReactNode {
   return (
     <g className="sm:hidden">
-      {SCALE_TICKS.flatMap((f) =>
+      {SCALE_TICKS_MOBILE.flatMap((f) =>
         ([1, -1] as const).map((dir) => {
           const x = XC + dir * f * ARM_SPAN;
           return (
@@ -285,7 +290,7 @@ function inSvgScale(): ReactNode {
               strokeDasharray="1.5 4"
               strokeLinecap="round"
               vectorEffect="non-scaling-stroke"
-              opacity={f === 1 ? 0.6 : 0.42}
+              opacity={f === 1 ? 0.38 : 0.26}
             />
           );
         }),
@@ -439,7 +444,7 @@ export function TaxonomyArrows({
             <span />
           </div>
 
-          <div className="relative flex flex-col gap-2">
+          <div className="relative flex flex-col gap-5 sm:gap-2">
             {rows.map(({ node, n, P, K, tendency }) => {
               const kind = classifyKind(P, K, n);
               // Nur eine klare Richtung färbt das Badge; ambivalent/ausgeglichen neutral.
