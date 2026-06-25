@@ -8,12 +8,13 @@
  *   ◄── korallener Pfeil nach LINKS  = „spricht für ein Nein" (Kontra, Länge K)
  *       navy Pfeil nach RECHTS  ──►  = „spricht für ein Ja"  (Pro,   Länge P)
  *
- * Version A „Kräftefeld" (Ziel: Ambivalenz maximal sichtbar):
+ * „Kräftefeld" (Ziel: Ambivalenz maximal sichtbar):
  * Die rohen Kräfte P (Pro) und K (Kontra) liegen als zwei sehr blasse, gleich
  * breite Hintergrundpfeile (gegenläufig) auf der 0-Achse — die Kräfteebene.
- * Darüber schwebt der EINZIGE dunkle, gesättigte Netto-Pfeil (P − K), etwas
- * schmaler und leicht über dem Zentrum: das Resultat. Zwei lange Hintergrund-
- * pfeile + kurzer Netto ⇒ umstritten.
+ * Statt eines Netto-Pfeils sitzt an der Netto-Position (Schwerpunkt der beiden
+ * Vektoren, XC + (P − K)·ARM_SPAN) ein dunkles Bubble-Zeichen gleicher Höhe wie
+ * die Roh-Vektoren. Zwei lange Hintergrundpfeile + Bubble nahe der Mitte ⇒
+ * umstritten.
  *
  * Aggregierung + Farben kommen aus der geteilten Logik/Palette (aggregate.ts,
  * chart-palette.ts) — identisch zu Likert/Sunburst/Topo/Radial.
@@ -22,7 +23,10 @@ import { useMemo, type ReactNode } from "react";
 import type { TaxonomyNode } from "@/types/ballots";
 import { Card, CardContent } from "@/components/ui/card";
 import { collectLeaningContribs, noisyOr } from "@/lib/aggregate";
-import { ARM_NO_CSS as ARM_NO, ARM_YES_CSS as ARM_YES } from "@/lib/chart-palette";
+import {
+  ARM_NO_CSS as ARM_NO,
+  ARM_YES_CSS as ARM_YES,
+} from "@/lib/chart-palette";
 
 type T = (key: string) => string;
 
@@ -35,10 +39,10 @@ const POS = { bg: "rgba(60, 90, 143, 0.12)", fg: "rgb(56, 84, 134)" };
 const NEG = { bg: "rgba(202, 112, 88, 0.16)", fg: "rgb(166, 78, 54)" };
 const ZERO = { bg: "rgba(0,0,0,0.05)", fg: "var(--muted-foreground)" };
 
-// Netto-Pfeil einen Tick dunkler/satter als die Pol-/Rohpfeil-Farbe, damit er
-// sich auch auf dem gleichfarbigen blassen Rohpfeil klar abhebt (statt Halo).
-const NET_YES = "rgb(38, 60, 104)"; // tieferes Navy (Ja)
-const NET_NO = "rgb(158, 70, 46)"; // tieferes Terrakotta (Nein)
+// Bubble-Farben: nah an den Roh-Pfeil-Grundtönen (nur voll deckend statt blass)
+// ⇒ harmoniert mit dem eigenen Hintergrundpfeil, weniger harter Kontrast.
+const NET_YES = "rgb(70, 98, 144)"; // gedämpftes Navy (Ja)
+const NET_NO = "rgb(190, 102, 78)"; // gedämpftes Terrakotta (Nein)
 
 /* ---------- Achsen-Geometrie (viewBox-Breite 600) ---------- */
 const VW = 600;
@@ -64,30 +68,23 @@ const MIN_LEN = 6; // ab hier wird ein Pfeil überhaupt gezeichnet
 const PAPER = "rgb(252, 250, 246)"; // Halo-/Hintergrundton
 const HALO_W = 1.6; // Breite des hellen Rands um den Netto-Pfeil (px nach aussen)
 
-// Version A „Kräftefeld": RAW = zwei sehr blasse, gleich breite Hintergrund-
-// pfeile (die rohen Gegenkräfte P/K) als Kräfteebene; NET = der EINZIGE dunkle,
-// gesättigte Pfeil (Resultierende P − K), etwas schmaler als die Hintergrund-
-// kräfte und leicht ÜBER deren Zentrum (dy < 0) ⇒ schwebt als „Resultat" über
-// dem Kräftefeld.
+// „Kräftefeld": RAW = zwei sehr blasse, gleich breite Hintergrundpfeile (die
+// rohen Gegenkräfte P/K) als Kräfteebene. Die Resultierende wird NICHT mehr als
+// Pfeil gezeichnet, sondern als dunkles Bubble-Zeichen (siehe renderBubble).
 type ArrowDims = {
   shaft: number; // Schaftstärke
   headLen: number; // Länge der Pfeilspitze
   headHalf: number; // halbe Höhe der Pfeilspitze
   opacity: number;
-  dy?: number; // vertikaler Versatz vom Zentrum (negativ = nach oben)
   halo?: string; // optionaler heller Rand
   filter?: string; // optionaler SVG-Filter (z. B. Bleistift-Optik)
 };
-const NET_ARROW: ArrowDims = {
-  shaft: 12, // etwas schmaler als die Hintergrundkräfte (16)
-  headLen: 13,
-  headHalf: 12,
-  opacity: 1,
-  dy: -4, // leicht über dem Zentrum der Kräfteebene schweben
-  // filter: "url(#net-pencil)", // Bleistift-Optik aus ⇒ satte, gesättigte Fläche
+const RAW_ARROW: ArrowDims = {
+  shaft: 16,
+  headLen: 18,
+  headHalf: 13,
+  opacity: 0.13,
 };
-const RAW_ARROW: ArrowDims = { shaft: 16, headLen: 18, headHalf: 13, opacity: 0.13 };
-const NET_INSET = 0; // Netto-Pfeil zeigt die volle Resultierende |P − K|
 
 // −/+ mit echtem Minuszeichen, z. B. „+46", „−28". v ∈ [−1,1] → Prozentpunkte.
 // Nur noch für aria-label / Tooltip (präzise), nicht mehr im sichtbaren Badge.
@@ -178,7 +175,7 @@ function renderArrow(
   const tipX = innerX + dir * len;
   const baseX = innerX + dir * Math.max(0, len - d.headLen); // Übergang Schaft→Spitze
   return (
-    <g opacity={d.opacity} transform={d.dy ? `translate(0 ${d.dy})` : undefined}>
+    <g opacity={d.opacity}>
       <path
         d={arrowPath(innerX, tipX, baseX, dir, d.shaft / 2, d.headHalf)}
         fill={color}
@@ -189,6 +186,51 @@ function renderArrow(
         filter={d.filter}
       />
     </g>
+  );
+}
+
+// Netto-Zeichen statt Netto-Pfeil: ein dunkles Badge/Bubble (Pille) an der
+// Netto-Position auf der Achse — dem Schwerpunkt der beiden Gegenkräfte
+// (XC + (P − K)·ARM_SPAN). GLEICHE HÖHE wie die Roh-Vektoren. Farbe nach
+// Richtung; ausgeglichen/ambivalent ⇒ neutral-dunkel. Intuitiver als ein Pfeil:
+// die Bubble sitzt schlicht dort, wohin die beiden Kräfte das Thema per Saldo
+// ziehen.
+const BUBBLE_H = RAW_ARROW.shaft; // gleiche Höhe wie die Roh-Vektoren
+const BUBBLE_W = 16; // Breite der Pille (rein als Zeichen, ohne Skalen-Bedeutung)
+const BUBBLE_NEUTRAL = "rgb(124, 130, 138)"; // neutral, gedämpft bei ausgeglichen/ambivalent
+
+function renderBubble(
+  tendency: number,
+  winForce: number, // = max(P, K) ∈ [0,1]: Länge des gewinnenden Roh-Pfeils
+  kind: Kind,
+): ReactNode {
+  const half = BUBBLE_W / 2;
+  const s = BUBBLE_H / 2;
+  const dir: 1 | -1 = tendency >= 0 ? 1 : -1;
+  const winLen = winForce * ARM_SPAN; // Länge des gewinnenden Roh-Pfeils
+  const fill =
+    kind === "yes" ? NET_YES : kind === "no" ? NET_NO : BUBBLE_NEUTRAL;
+
+  // Position als Auslenkung nach AUSSEN (Richtung der gewinnenden Spitze).
+  const netOut = Math.abs(tendency) * ARM_SPAN; // Schwerpunkt = |P − K|·ARM_SPAN
+  // Deckel „etwas dazwischen": die Bubble-Außenkante darf bis zur MITTE der
+  // Spitze ragen (halbe Spitzenlänge hinein), also winLen − headLen/2 ⇒ die
+  // äußere Hälfte der Spitze bleibt frei. cx_out + half ≤ winLen − headLen/2.
+  const limitOut = Math.max(0, winLen - RAW_ARROW.headLen / 2 - half);
+  const out = Math.min(netOut, limitOut);
+
+  let cx = XC + dir * out;
+  cx = Math.max(X0 + half, Math.min(X1 - half, cx)); // im Plot halten
+
+  return (
+    <rect
+      x={cx - half}
+      y={CY - s}
+      width={BUBBLE_W}
+      height={BUBBLE_H}
+      rx={s}
+      fill={fill}
+    />
   );
 }
 
@@ -349,76 +391,74 @@ export function TaxonomyArrows({
           </div>
 
           <div className="relative flex flex-col gap-2">
-          {rows.map(({ node, n, P, K, tendency }) => {
-            const kind = classifyKind(P, K, n);
-            // Nur eine klare Richtung färbt das Badge; ambivalent/ausgeglichen neutral.
-            const badge = kind === "yes" ? POS : kind === "no" ? NEG : ZERO;
-            const clickable = !!node.key && !!onSelect;
-            return (
-              <div
-                key={node.id}
-                className={`${rowGrid}${clickable ? " group -mx-2 cursor-pointer rounded-lg px-2 transition hover:bg-foreground/[0.035] focus-visible:bg-foreground/[0.035] focus-visible:outline-none" : ""}`}
-                role={clickable ? "button" : undefined}
-                tabIndex={clickable ? 0 : undefined}
-                aria-label={clickable ? node.name : undefined}
-                onClick={clickable ? () => onSelect!(node.key!) : undefined}
-                onKeyDown={
-                  clickable
-                    ? (e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onSelect!(node.key!);
+            {rows.map(({ node, n, P, K, tendency }) => {
+              const kind = classifyKind(P, K, n);
+              // Nur eine klare Richtung färbt das Badge; ambivalent/ausgeglichen neutral.
+              const badge = kind === "yes" ? POS : kind === "no" ? NEG : ZERO;
+              const clickable = !!node.key && !!onSelect;
+              return (
+                <div
+                  key={node.id}
+                  className={`${rowGrid}${clickable ? " group -mx-2 cursor-pointer rounded-lg px-2 transition hover:bg-foreground/[0.035] focus-visible:bg-foreground/[0.035] focus-visible:outline-none" : ""}`}
+                  role={clickable ? "button" : undefined}
+                  tabIndex={clickable ? 0 : undefined}
+                  aria-label={clickable ? node.name : undefined}
+                  onClick={clickable ? () => onSelect!(node.key!) : undefined}
+                  onKeyDown={
+                    clickable
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onSelect!(node.key!);
+                          }
                         }
-                      }
-                    : undefined
-                }
-              >
-                <span
-                  className={`text-right text-[15px] leading-snug text-foreground/85${clickable ? " underline-offset-2 group-hover:text-foreground group-hover:underline" : ""}`}
-                  style={SERIF}
-                  title={node.name}
+                      : undefined
+                  }
                 >
-                  {node.name}
-                </span>
+                  <span
+                    className={`text-right text-[15px] leading-snug text-foreground/85${clickable ? " underline-offset-2 group-hover:text-foreground group-hover:underline" : ""}`}
+                    style={SERIF}
+                    title={node.name}
+                  >
+                    {node.name}
+                  </span>
 
-                <svg
-                  viewBox={`0 0 ${VW} ${VH}`}
-                  className="block h-auto w-full"
-                  role="img"
-                  aria-label={`${node.name} · für Ja ${Math.round(P * 100)} · für Nein ${Math.round(K * 100)} · ${signed(tendency)}`}
-                >
-                  {/* Kräfteebene: zwei sehr blasse, gleich breite Hintergrund-
+                  <svg
+                    viewBox={`0 0 ${VW} ${VH}`}
+                    className="block h-auto w-full"
+                    role="img"
+                    aria-label={`${node.name} · für Ja ${Math.round(P * 100)} · für Nein ${Math.round(K * 100)} · ${signed(tendency)}`}
+                  >
+                    {/* Kräfteebene: zwei sehr blasse, gleich breite Hintergrund-
                       pfeile — Kontra (links, korallen, Länge K) + Pro (rechts,
                       navy, Länge P). Gegenläufig ⇒ Ambivalenz wird sichtbar. */}
-                  {n > 0 && renderArrow(K * ARM_SPAN, -1, ARM_NO, RAW_ARROW)}
-                  {n > 0 && renderArrow(P * ARM_SPAN, 1, ARM_YES, RAW_ARROW)}
+                    {n > 0 && renderArrow(K * ARM_SPAN, -1, ARM_NO, RAW_ARROW)}
+                    {n > 0 && renderArrow(P * ARM_SPAN, 1, ARM_YES, RAW_ARROW)}
 
-                  {/* Resultat: der EINZIGE dunkle, gesättigte Netto-Pfeil
-                      (P − K), schmaler und leicht über dem Zentrum schwebend. */}
-                  {n > 0 &&
-                    renderArrow(
-                      Math.abs(tendency) * ARM_SPAN - NET_INSET,
-                      tendency >= 0 ? 1 : -1,
-                      tendency >= 0 ? NET_YES : NET_NO,
-                      NET_ARROW,
-                    )}
-                </svg>
+                    {/* Netto-Zeichen: dunkle Bubble an der Netto-Position
+                      (Schwerpunkt der beiden Vektoren) — kein Netto-Pfeil/-Balken
+                      mehr. */}
+                    {n > 0 && renderBubble(tendency, Math.max(P, K), kind)}
+                  </svg>
 
-                <span
-                  className="justify-self-end text-right text-[11px] font-semibold uppercase leading-tight tracking-[0.04em]"
-                  style={{ color: badge.fg }}
-                  title={n === 0 ? t("unrated") : signed(tendency)}
-                >
-                  {n === 0 ? "—" : kindLabel(t, kind, tendency)}
-                </span>
-              </div>
-            );
-          })}
+                  <span
+                    className="justify-self-end text-right text-[11px] font-semibold uppercase leading-tight tracking-[0.04em]"
+                    style={{ color: badge.fg }}
+                    title={n === 0 ? t("unrated") : signed(tendency)}
+                  >
+                    {n === 0 ? "—" : kindLabel(t, kind, tendency)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
 
           {/* durchgehende 0-Achse über alle Zeilen — exakt in der Mitte der
               1fr-Spalte (deckt sich mit XC der Zeilen-SVGs). */}
-          <div className={`${rowGrid} pointer-events-none absolute inset-0`} aria-hidden>
+          <div
+            className={`${rowGrid} pointer-events-none absolute inset-0`}
+            aria-hidden
+          >
             <span />
             <span className="mx-auto h-full w-px bg-[var(--line-mid,rgba(0,0,0,0.18))]" />
             <span />
