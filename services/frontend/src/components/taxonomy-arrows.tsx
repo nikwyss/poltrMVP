@@ -8,10 +8,12 @@
  *   ◄── korallener Pfeil nach LINKS  = „spricht für ein Nein" (Kontra, Länge K)
  *       navy Pfeil nach RECHTS  ──►  = „spricht für ein Ja"  (Pro,   Länge P)
  *
- * Die rohen Kräfte P (Pro) und K (Kontra) liegen als fette, halbtransparente
- * Hintergrundpfeile (gegenläufig) auf der 0-Achse. Darüber zeigt EIN scharfer
- * Netto-Pfeil die Resultierende (P − K) — wohin die beiden Kräfte das Thema per
- * Saldo ziehen. Lange Hintergrundpfeile + kurzer Netto-Pfeil ⇒ umstritten.
+ * Version A „Kräftefeld" (Ziel: Ambivalenz maximal sichtbar):
+ * Die rohen Kräfte P (Pro) und K (Kontra) liegen als zwei sehr blasse, gleich
+ * breite Hintergrundpfeile (gegenläufig) auf der 0-Achse — die Kräfteebene.
+ * Darüber schwebt der EINZIGE dunkle, gesättigte Netto-Pfeil (P − K), etwas
+ * schmaler und leicht über dem Zentrum: das Resultat. Zwei lange Hintergrund-
+ * pfeile + kurzer Netto ⇒ umstritten.
  *
  * Aggregierung + Farben kommen aus der geteilten Logik/Palette (aggregate.ts,
  * chart-palette.ts) — identisch zu Likert/Sunburst/Topo/Radial.
@@ -62,27 +64,30 @@ const MIN_LEN = 6; // ab hier wird ein Pfeil überhaupt gezeichnet
 const PAPER = "rgb(252, 250, 246)"; // Halo-/Hintergrundton
 const HALO_W = 1.6; // Breite des hellen Rands um den Netto-Pfeil (px nach aussen)
 
-// Pfeil-Maße. NET = der scharfe Netto-Pfeil (Resultierende, Vordergrund) mit
-// hellem Halo, damit er sich vom gleichfarbigen blassen Hintergrundpfeil abhebt;
-// RAW = die fetten, halbtransparenten Hintergrundpfeile der rohen Kräfte P/K.
+// Version A „Kräftefeld": RAW = zwei sehr blasse, gleich breite Hintergrund-
+// pfeile (die rohen Gegenkräfte P/K) als Kräfteebene; NET = der EINZIGE dunkle,
+// gesättigte Pfeil (Resultierende P − K), etwas schmaler als die Hintergrund-
+// kräfte und leicht ÜBER deren Zentrum (dy < 0) ⇒ schwebt als „Resultat" über
+// dem Kräftefeld.
 type ArrowDims = {
   shaft: number; // Schaftstärke
   headLen: number; // Länge der Pfeilspitze
   headHalf: number; // halbe Höhe der Pfeilspitze
   opacity: number;
-  halo?: string; // optionaler heller Rand (nur Netto-Pfeil)
-  filter?: string; // optionaler SVG-Filter (Netto-Pfeil: Bleistift-Optik)
+  dy?: number; // vertikaler Versatz vom Zentrum (negativ = nach oben)
+  halo?: string; // optionaler heller Rand
+  filter?: string; // optionaler SVG-Filter (z. B. Bleistift-Optik)
 };
 const NET_ARROW: ArrowDims = {
-  shaft: 2.5,
-  headLen: 9,
-  headHalf: 4.5,
+  shaft: 12, // etwas schmaler als die Hintergrundkräfte (16)
+  headLen: 13,
+  headHalf: 12,
   opacity: 1,
-  // halo: PAPER,  // heller Rand bewusst aus (kein „Shiny"-Effekt)
-  filter: "url(#net-pencil)", // wie mit Bleistift gezeichnet (raue Kante + Grain)
+  dy: -4, // leicht über dem Zentrum der Kräfteebene schweben
+  // filter: "url(#net-pencil)", // Bleistift-Optik aus ⇒ satte, gesättigte Fläche
 };
-const RAW_ARROW: ArrowDims = { shaft: 16, headLen: 18, headHalf: 13, opacity: 0.2 };
-const NET_INSET = 8; // Netto-Pfeil kürzen ⇒ Spitze bleibt klar im Rohpfeil
+const RAW_ARROW: ArrowDims = { shaft: 16, headLen: 18, headHalf: 13, opacity: 0.13 };
+const NET_INSET = 0; // Netto-Pfeil zeigt die volle Resultierende |P − K|
 
 // −/+ mit echtem Minuszeichen, z. B. „+46", „−28". v ∈ [−1,1] → Prozentpunkte.
 // Nur noch für aria-label / Tooltip (präzise), nicht mehr im sichtbaren Badge.
@@ -173,7 +178,7 @@ function renderArrow(
   const tipX = innerX + dir * len;
   const baseX = innerX + dir * Math.max(0, len - d.headLen); // Übergang Schaft→Spitze
   return (
-    <g opacity={d.opacity}>
+    <g opacity={d.opacity} transform={d.dy ? `translate(0 ${d.dy})` : undefined}>
       <path
         d={arrowPath(innerX, tipX, baseX, dir, d.shaft / 2, d.headHalf)}
         fill={color}
@@ -382,17 +387,16 @@ export function TaxonomyArrows({
                   role="img"
                   aria-label={`${node.name} · für Ja ${Math.round(P * 100)} · für Nein ${Math.round(K * 100)} · ${signed(tendency)}`}
                 >
-                  {/* Rohe Kräfte als fette, halbtransparente Hintergrundpfeile:
-                      Kontra (links, korallen) + Pro (rechts, navy). */}
+                  {/* Kräfteebene: zwei sehr blasse, gleich breite Hintergrund-
+                      pfeile — Kontra (links, korallen, Länge K) + Pro (rechts,
+                      navy, Länge P). Gegenläufig ⇒ Ambivalenz wird sichtbar. */}
                   {n > 0 && renderArrow(K * ARM_SPAN, -1, ARM_NO, RAW_ARROW)}
                   {n > 0 && renderArrow(P * ARM_SPAN, 1, ARM_YES, RAW_ARROW)}
 
-                  {/* Netto-Pfeil (Resultierende P − K) scharf im Vordergrund —
-                      zeigt, wohin die beiden Kräfte das Thema per Saldo ziehen. */}
+                  {/* Resultat: der EINZIGE dunkle, gesättigte Netto-Pfeil
+                      (P − K), schmaler und leicht über dem Zentrum schwebend. */}
                   {n > 0 &&
                     renderArrow(
-                      // etwas kürzer, damit die Spitze innerhalb des grösseren
-                      // Rohpfeils bleibt (nicht über dessen Spitze hinausragt).
                       Math.abs(tendency) * ARM_SPAN - NET_INSET,
                       tendency >= 0 ? 1 : -1,
                       tendency >= 0 ? NET_YES : NET_NO,
