@@ -19,7 +19,7 @@
  * Aggregierung + Farben kommen aus der geteilten Logik/Palette (aggregate.ts,
  * chart-palette.ts) — identisch zu Likert/Sunburst/Topo/Radial.
  */
-import { useMemo, type ReactNode } from "react";
+import { useMemo, type CSSProperties, type ReactNode } from "react";
 import type { TaxonomyNode } from "@/types/ballots";
 import { Card, CardContent } from "@/components/ui/card";
 import { collectLeaningContribs, noisyOr } from "@/lib/aggregate";
@@ -56,12 +56,9 @@ const CY = VH / 2; // vertikale Mitte
 const CGAP = 2; // minimale Lücke je Seite zur Mittellinie (Achse liegt oben drüber)
 const ARM_SPAN = HALF - CGAP; // px-Länge eines Pfeils bei Score = 1
 
-// „Stille Skala": feine gepunktete Hilfslinien bei Anteilen der Armlänge, damit
-// Pfeillängen (rohe Kräfte & Netto) ablesbar werden — man sieht, wie viel
-// „klar" > „leicht" ist. Nur 50/100 % tragen eine kleine Zahl.
-const SCALE_TICKS = [0.25, 0.5, 0.75, 1] as const;
-const SCALE_LABELED = [0.5, 1] as const;
-const SCALE_LINE = "var(--line-mid, rgba(0,0,0,0.18))";
+// Skalen-Ticks (gepunktete Linien + Zahlen) wurden zugunsten von Ruhe komplett
+// entfernt — einzige Referenz bleibt die solide 0-Mittelachse.
+const AXIS_LINE = "var(--line-mid, rgba(0,0,0,0.18))";
 
 const MIN_LEN = 6; // ab hier wird ein Pfeil überhaupt gezeichnet
 
@@ -199,18 +196,13 @@ const BUBBLE_H = RAW_ARROW.shaft; // gleiche Höhe wie die Roh-Vektoren
 const BUBBLE_W = 16; // Breite der Pille (rein als Zeichen, ohne Skalen-Bedeutung)
 const BUBBLE_NEUTRAL = "rgb(124, 130, 138)"; // neutral, gedämpft bei ausgeglichen/ambivalent
 
-function renderBubble(
-  tendency: number,
-  winForce: number, // = max(P, K) ∈ [0,1]: Länge des gewinnenden Roh-Pfeils
-  kind: Kind,
-): ReactNode {
+// x-Position (viewBox-Einheiten) der Netto-Bubble — Schwerpunkt der beiden
+// Gegenkräfte, nach aussen begrenzt. Separat, damit auch das Urteil-Badge (HTML,
+// ausserhalb des SVG) horizontal darunter ausgerichtet werden kann.
+function bubbleCx(tendency: number, winForce: number): number {
   const half = BUBBLE_W / 2;
-  const s = BUBBLE_H / 2;
   const dir: 1 | -1 = tendency >= 0 ? 1 : -1;
   const winLen = winForce * ARM_SPAN; // Länge des gewinnenden Roh-Pfeils
-  const fill =
-    kind === "yes" ? NET_YES : kind === "no" ? NET_NO : BUBBLE_NEUTRAL;
-
   // Position als Auslenkung nach AUSSEN (Richtung der gewinnenden Spitze).
   const netOut = Math.abs(tendency) * ARM_SPAN; // Schwerpunkt = |P − K|·ARM_SPAN
   // Deckel „etwas dazwischen": die Bubble-Außenkante darf bis zur MITTE der
@@ -218,9 +210,20 @@ function renderBubble(
   // äußere Hälfte der Spitze bleibt frei. cx_out + half ≤ winLen − headLen/2.
   const limitOut = Math.max(0, winLen - RAW_ARROW.headLen / 2 - half);
   const out = Math.min(netOut, limitOut);
+  const cx = XC + dir * out;
+  return Math.max(X0 + half, Math.min(X1 - half, cx)); // im Plot halten
+}
 
-  let cx = XC + dir * out;
-  cx = Math.max(X0 + half, Math.min(X1 - half, cx)); // im Plot halten
+function renderBubble(
+  tendency: number,
+  winForce: number, // = max(P, K) ∈ [0,1]: Länge des gewinnenden Roh-Pfeils
+  kind: Kind,
+): ReactNode {
+  const half = BUBBLE_W / 2;
+  const s = BUBBLE_H / 2;
+  const fill =
+    kind === "yes" ? NET_YES : kind === "no" ? NET_NO : BUBBLE_NEUTRAL;
+  const cx = bubbleCx(tendency, winForce);
 
   return (
     <rect
@@ -234,77 +237,23 @@ function renderBubble(
   );
 }
 
-// Vertikale Skalenlinien für die durchgängige Hintergrund-Ebene. y in viewBox-
-// Höhe 0..100, per preserveAspectRatio="none" auf die volle Plot-Höhe gestreckt
-// ⇒ EINE durchgehende Linie über alle Zeilen (statt pro Zeile unterbrochen).
-// Strichmuster/Breite via non-scaling-stroke in Screen-px (streckungs-unabhängig).
-// Die volle Armlänge (100 %) etwas kräftiger als die Zwischenstriche.
-function scaleLines(): ReactNode {
-  return SCALE_TICKS.flatMap((f) =>
-    ([1, -1] as const).map((dir) => {
-      const x = XC + dir * f * ARM_SPAN;
-      return (
-        <line
-          key={`grid-${f}-${dir}`}
-          x1={x}
-          y1={0}
-          x2={x}
-          y2={100}
-          stroke={SCALE_LINE}
-          strokeWidth={1.2}
-          strokeDasharray="1.5 4"
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-          opacity={f === 1 ? 0.6 : 0.42}
-        />
-      );
-    }),
-  );
-}
-
-// Mobile-Variante der „stillen Skala" + 0-Achse: auf kleinen Viewports liegt der
-// Chart als volle Breite über/unter Label+Badge, das globale durchgehende Overlay
-// passt dann nicht mehr. Deshalb rendern wir Hilfslinien + Mittelachse pro Zeile
-// DIREKT ins Zeilen-SVG (viewBox-Höhe VH) und blenden sie via `sm:hidden` ab dem
-// sm-Breakpoint wieder aus (dort übernimmt wieder das globale Overlay).
-// Mobile reduziert auf wenige, blasse Marken (50 % + 100 %) für mehr „Ruhe":
-// die pro Zeile wiederholten Linien sollen nicht zum Zaun werden. Die volle
-// 0/50/100-Skala dokumentiert die Mobile-Legende unten einmalig.
-const SCALE_TICKS_MOBILE = [0.5, 1] as const;
-
-function inSvgScale(): ReactNode {
+// 0-Mittelachse pro Zeile, direkt ins Zeilen-SVG (viewBox-Höhe VH). Im gestapelten
+// Layout (schmaler Container) liegt der Chart über die volle Breite, das globale
+// durchgehende Achsen-Overlay passt dann nicht — deshalb zeichnet jede Zeile ihre
+// eigene Mittelachse. Ab `@2xl` (breiter Container = 3-Spalten-Leaderboard)
+// ausgeblendet; dort übernimmt das globale, durchgehende Achsen-Overlay.
+function inSvgAxis(): ReactNode {
   return (
-    <g className="sm:hidden">
-      {SCALE_TICKS_MOBILE.flatMap((f) =>
-        ([1, -1] as const).map((dir) => {
-          const x = XC + dir * f * ARM_SPAN;
-          return (
-            <line
-              key={`m-grid-${f}-${dir}`}
-              x1={x}
-              y1={0}
-              x2={x}
-              y2={VH}
-              stroke={SCALE_LINE}
-              strokeWidth={1.2}
-              strokeDasharray="1.5 4"
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-              opacity={f === 1 ? 0.38 : 0.26}
-            />
-          );
-        }),
-      )}
-      <line
-        x1={XC}
-        y1={0}
-        x2={XC}
-        y2={VH}
-        stroke="var(--line-mid, rgba(0,0,0,0.18))"
-        strokeWidth={1}
-        vectorEffect="non-scaling-stroke"
-      />
-    </g>
+    <line
+      className="@2xl:hidden"
+      x1={XC}
+      y1={0}
+      x2={XC}
+      y2={VH}
+      stroke={AXIS_LINE}
+      strokeWidth={1}
+      vectorEffect="non-scaling-stroke"
+    />
   );
 }
 
@@ -342,24 +291,28 @@ export function TaxonomyArrows({
 
   if (!nodes.length) return null;
 
-  // Feste Label-/Badge-Spalten — gleiche Spaltenbreiten in JEDER Zeile (und in
-  // der durchgehenden 0-Achse + Pol-Zeile), damit die mittlere 1fr-Spalte überall
-  // exakt gleich liegt. Badge-Spalte breiter als bei DivergingLikert, weil hier
-  // ein qualitatives Wort-Label statt einer Rohzahl steht.
-  // Gemeinsame Spalten-/Abstands-Definition. MOBILE (Basis): 2 Spalten
-  // [Label 1fr | Badge auto] in Zeile 1, der Chart spannt darunter über beide
-  // Spalten (Stacked). Ab `sm`: klassisches 3-Spalten-Leaderboard in EINER Zeile.
+  // Gemeinsame Spalten-/Abstands-Definition. Gesteuert per CONTAINER-Query (`@2xl`
+  // ≈ 672px der KARTEN-Breite, nicht des Viewports — die Karte sitzt in einer
+  // schmalen Spalte, ein Viewport-Breakpoint würde das 3-Spalten-Layout zu früh
+  // erzwingen und den Titel in die enge Spalte quetschen).
+  //
+  // SCHMAL (Basis): EINE volle Spalte — Titel (Überschrift) in Zeile 1 über die
+  // ganze Breite, darunter in Zeile 2 in DERSELBEN Zelle gestapelt: Chart (Skala)
+  // füllt die volle Breite, das Urteil-Badge liegt per justify/self-end rechts
+  // darüber. Badge hat damit NULL Einfluss auf die Chart-Breite ⇒ Skalen aller
+  // Zeilen exakt deckungsgleich (Overlap ist gewollt).
+  // BREIT (`@2xl`): klassisches 3-Spalten-Leaderboard [Titel | Chart | Urteil].
   const gridCols =
-    "grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[clamp(140px,32%,230px)_1fr_6.75rem] sm:gap-4";
+    "grid-cols-1 items-center gap-y-1.5 @2xl:grid-cols-[clamp(140px,32%,230px)_1fr_6.75rem] @2xl:gap-4";
   const rowGrid = `grid ${gridCols}`;
-  // Overlays/Legenden-Zeilen, die das 3-Spalten-Raster brauchen, gibt es nur ab
-  // `sm` — auf Mobile übernehmen die per-Zeile-SVGs (inSvgScale) bzw. die eigene
-  // Mobile-Legende. Kein Basis-`grid`, damit `hidden`→`sm:grid` sauber greift.
-  const overlayGrid = `hidden sm:grid ${gridCols}`;
+  // Overlays/Legenden-Zeilen brauchen das 3-Spalten-Raster — nur ab `@2xl`. Schmal
+  // übernehmen die per-Zeile-Achse (inSvgAxis) bzw. die eigene Schmal-Legende.
+  // Kein Basis-`grid`, damit `hidden`→`@2xl:grid` sauber greift.
+  const overlayGrid = `hidden @2xl:grid ${gridCols}`;
 
   return (
     <Card className="border-black/5 py-6">
-      <CardContent className="px-6">
+      <CardContent className="@container px-6">
         {/* Bleistift-Filter für den Netto-Pfeil: leicht wackelige Kante
             (Displacement) + feine Grafit-Körnung (Deckkraft-Rauschen). Einmal
             definiert, von allen Zeilen-SVGs via filter="url(#net-pencil)"
@@ -422,33 +375,19 @@ export function TaxonomyArrows({
           {t("arrowsSubtitle")}
         </p>
 
-        {/* relative Hülle: die 0-Achse liegt als EINE durchgehende Linie über
-            allen Zeilen (statt pro Zeile unterbrochen). */}
+        {/* relative Hülle: im breiten Layout (`@2xl`) liegt die 0-Achse als EINE
+            durchgehende Linie über allen Zeilen (Overlay unten); schmal zeichnet
+            jede Zeile ihre eigene Achse (inSvgAxis). */}
         <div className="relative">
-          {/* Stille Skala: durchgängige gepunktete Hilfslinien als Ebene HINTER
-              allen Zeilen (Zeilen-SVGs sind transparent ⇒ Linien bleiben hinter
-              den Pfeilen sichtbar). preserveAspectRatio="none" streckt die feste
-              viewBox-Höhe 100 auf die volle Plot-Höhe. */}
-          <div
-            className={`${overlayGrid} pointer-events-none absolute inset-0`}
-            aria-hidden
-          >
-            <span />
-            <svg
-              viewBox={`0 0 ${VW} 100`}
-              preserveAspectRatio="none"
-              className="h-full w-full"
-            >
-              {scaleLines()}
-            </svg>
-            <span />
-          </div>
-
-          <div className="relative flex flex-col gap-5 sm:gap-2">
+          <div className="relative flex flex-col gap-5 @2xl:gap-2">
             {rows.map(({ node, n, P, K, tendency }) => {
               const kind = classifyKind(P, K, n);
               // Nur eine klare Richtung färbt das Badge; ambivalent/ausgeglichen neutral.
               const badge = kind === "yes" ? POS : kind === "no" ? NEG : ZERO;
+              // Horizontale Position der Netto-Bubble (% der Chart-Breite) — auf
+              // Mobile wird das Urteil-Badge darunter zentriert; unbewertet ⇒ Mitte.
+              const bubblePct =
+                ((n > 0 ? bubbleCx(tendency, Math.max(P, K)) : XC) / VW) * 100;
               const clickable = !!node.key && !!onSelect;
               return (
                 <div
@@ -470,7 +409,7 @@ export function TaxonomyArrows({
                   }
                 >
                   <span
-                    className={`col-start-1 row-start-1 text-left text-[15px] leading-snug text-foreground/85 sm:col-auto sm:row-auto sm:text-right${clickable ? " underline-offset-2 group-hover:text-foreground group-hover:underline" : ""}`}
+                    className={`col-start-1 row-start-1 text-left text-[15px] leading-snug text-foreground/85 @2xl:col-auto @2xl:row-auto @2xl:text-right${clickable ? " underline-offset-2 group-hover:text-foreground group-hover:underline" : ""}`}
                     style={SERIF}
                     title={node.name}
                   >
@@ -479,13 +418,13 @@ export function TaxonomyArrows({
 
                   <svg
                     viewBox={`0 0 ${VW} ${VH}`}
-                    className="col-span-2 row-start-2 block h-auto w-full sm:col-span-1 sm:row-auto"
+                    className="col-start-1 row-start-2 block h-auto w-full @2xl:col-auto @2xl:row-auto"
                     role="img"
                     aria-label={`${node.name} · für Ja ${Math.round(P * 100)} · für Nein ${Math.round(K * 100)} · ${signed(tendency)}`}
                   >
-                    {/* Mobile: stille Skala + 0-Achse pro Zeile (ab `sm` ausgeblendet,
-                      dort übernimmt das globale durchgehende Overlay). */}
-                    {inSvgScale()}
+                    {/* Schmal: 0-Mittelachse pro Zeile (ab `@2xl` ausgeblendet,
+                      dort übernimmt das globale durchgehende Achsen-Overlay). */}
+                    {inSvgAxis()}
 
                     {/* Kräfteebene: zwei sehr blasse, gleich breite Hintergrund-
                       pfeile — Kontra (links, korallen, Länge K) + Pro (rechts,
@@ -500,8 +439,8 @@ export function TaxonomyArrows({
                   </svg>
 
                   <span
-                    className="col-start-2 row-start-1 justify-self-end text-right text-[11px] font-semibold uppercase leading-tight tracking-[0.04em] sm:col-auto sm:row-auto"
-                    style={{ color: badge.fg }}
+                    className="col-start-1 row-start-2 ml-[var(--bx)] -translate-x-1/2 translate-y-2.5 justify-self-start self-end whitespace-nowrap text-center text-[10px] font-semibold uppercase leading-tight tracking-[0.04em] @2xl:ml-0 @2xl:translate-x-0 @2xl:translate-y-0 @2xl:col-auto @2xl:row-auto @2xl:justify-self-end @2xl:self-center @2xl:text-right @2xl:text-[11px] @2xl:whitespace-normal"
+                    style={{ color: badge.fg, "--bx": `${bubblePct}%` } as CSSProperties}
                     title={n === 0 ? t("unrated") : signed(tendency)}
                   >
                     {n === 0 ? "—" : kindLabel(t, kind, tendency)}
@@ -523,45 +462,9 @@ export function TaxonomyArrows({
           </div>
         </div>
 
-        {/* Stille Zahlenskala — Prozent der Armlänge, beidseitig (0/50/100). */}
-        <div className={`${overlayGrid} mt-1.5`} aria-hidden>
-          <span />
-          <svg
-            viewBox={`0 0 ${VW} 12`}
-            className="block h-auto w-full overflow-visible"
-          >
-            <text
-              x={XC}
-              y={9}
-              textAnchor="middle"
-              fontSize={8.5}
-              fill="var(--muted-foreground)"
-              className="tabular-nums"
-            >
-              0
-            </text>
-            {SCALE_LABELED.flatMap((f) =>
-              ([1, -1] as const).map((dir) => (
-                <text
-                  key={`num-${f}-${dir}`}
-                  x={XC + dir * f * ARM_SPAN}
-                  y={9}
-                  textAnchor="middle"
-                  fontSize={8.5}
-                  fill="var(--muted-foreground)"
-                  className="tabular-nums"
-                >
-                  {Math.round(f * 100)}
-                </text>
-              )),
-            )}
-          </svg>
-          <span />
-        </div>
-
         {/* Pol-Beschriftung an der 0-Achse: ← spricht für ein Nein | für ein Ja →
             Desktop: in der mittleren 1fr-Spalte (deckt sich mit XC). */}
-        <div className={`${overlayGrid} mt-2`}>
+        <div className={`${overlayGrid} mt-3`}>
           <span />
           <div className="flex text-[11px] font-semibold uppercase tracking-[0.1em]">
             <span className="flex-1 pr-2 text-right" style={{ color: NEG.fg }}>
@@ -574,48 +477,16 @@ export function TaxonomyArrows({
           <span />
         </div>
 
-        {/* Mobile-Legende: auf kleinen Viewports liegen die Charts über die volle
-            Breite — Zahlenskala + Pol-Beschriftung darum ebenfalls full-width und
-            zentriert (statt im 3-Spalten-Raster). Ab `sm` ausgeblendet. */}
-        <div className="mt-3 sm:hidden" aria-hidden>
-          <svg
-            viewBox={`0 0 ${VW} 12`}
-            className="block h-auto w-full overflow-visible"
-          >
-            <text
-              x={XC}
-              y={9}
-              textAnchor="middle"
-              fontSize={8.5}
-              fill="var(--muted-foreground)"
-              className="tabular-nums"
-            >
-              0
-            </text>
-            {SCALE_LABELED.flatMap((f) =>
-              ([1, -1] as const).map((dir) => (
-                <text
-                  key={`mnum-${f}-${dir}`}
-                  x={XC + dir * f * ARM_SPAN}
-                  y={9}
-                  textAnchor="middle"
-                  fontSize={8.5}
-                  fill="var(--muted-foreground)"
-                  className="tabular-nums"
-                >
-                  {Math.round(f * 100)}
-                </text>
-              )),
-            )}
-          </svg>
-          <div className="mt-1 flex text-[11px] font-semibold uppercase tracking-[0.1em]">
-            <span className="flex-1 pr-2 text-right" style={{ color: NEG.fg }}>
-              ← {t("cloudArmNo")}
-            </span>
-            <span className="flex-1 pl-2 text-left" style={{ color: POS.fg }}>
-              {t("cloudArmYes")} →
-            </span>
-          </div>
+        {/* Schmal-Legende: hier liegen die Charts über die volle Breite — die
+            Pol-Beschriftung steht full-width und zentriert (statt im 3-Spalten-
+            Raster). Ab `@2xl` ausgeblendet. */}
+        <div className="mt-6 flex text-[11px] font-semibold uppercase tracking-[0.1em] @2xl:hidden">
+          <span className="flex-1 pr-2 text-right" style={{ color: NEG.fg }}>
+            ← {t("cloudArmNo")}
+          </span>
+          <span className="flex-1 pl-2 text-left" style={{ color: POS.fg }}>
+            {t("cloudArmYes")} →
+          </span>
         </div>
       </CardContent>
     </Card>
