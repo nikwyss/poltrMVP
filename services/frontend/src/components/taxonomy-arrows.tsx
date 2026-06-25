@@ -262,6 +262,47 @@ function scaleLines(): ReactNode {
   );
 }
 
+// Mobile-Variante der „stillen Skala" + 0-Achse: auf kleinen Viewports liegt der
+// Chart als volle Breite über/unter Label+Badge, das globale durchgehende Overlay
+// passt dann nicht mehr. Deshalb rendern wir Hilfslinien + Mittelachse pro Zeile
+// DIREKT ins Zeilen-SVG (viewBox-Höhe VH) und blenden sie via `sm:hidden` ab dem
+// sm-Breakpoint wieder aus (dort übernimmt wieder das globale Overlay).
+function inSvgScale(): ReactNode {
+  return (
+    <g className="sm:hidden">
+      {SCALE_TICKS.flatMap((f) =>
+        ([1, -1] as const).map((dir) => {
+          const x = XC + dir * f * ARM_SPAN;
+          return (
+            <line
+              key={`m-grid-${f}-${dir}`}
+              x1={x}
+              y1={0}
+              x2={x}
+              y2={VH}
+              stroke={SCALE_LINE}
+              strokeWidth={1.2}
+              strokeDasharray="1.5 4"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+              opacity={f === 1 ? 0.6 : 0.42}
+            />
+          );
+        }),
+      )}
+      <line
+        x1={XC}
+        y1={0}
+        x2={XC}
+        y2={VH}
+        stroke="var(--line-mid, rgba(0,0,0,0.18))"
+        strokeWidth={1}
+        vectorEffect="non-scaling-stroke"
+      />
+    </g>
+  );
+}
+
 type Row = {
   node: TaxonomyNode;
   n: number;
@@ -300,8 +341,16 @@ export function TaxonomyArrows({
   // der durchgehenden 0-Achse + Pol-Zeile), damit die mittlere 1fr-Spalte überall
   // exakt gleich liegt. Badge-Spalte breiter als bei DivergingLikert, weil hier
   // ein qualitatives Wort-Label statt einer Rohzahl steht.
-  const rowGrid =
-    "grid grid-cols-[clamp(140px,32%,230px)_1fr_6.75rem] items-center gap-4";
+  // Gemeinsame Spalten-/Abstands-Definition. MOBILE (Basis): 2 Spalten
+  // [Label 1fr | Badge auto] in Zeile 1, der Chart spannt darunter über beide
+  // Spalten (Stacked). Ab `sm`: klassisches 3-Spalten-Leaderboard in EINER Zeile.
+  const gridCols =
+    "grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[clamp(140px,32%,230px)_1fr_6.75rem] sm:gap-4";
+  const rowGrid = `grid ${gridCols}`;
+  // Overlays/Legenden-Zeilen, die das 3-Spalten-Raster brauchen, gibt es nur ab
+  // `sm` — auf Mobile übernehmen die per-Zeile-SVGs (inSvgScale) bzw. die eigene
+  // Mobile-Legende. Kein Basis-`grid`, damit `hidden`→`sm:grid` sauber greift.
+  const overlayGrid = `hidden sm:grid ${gridCols}`;
 
   return (
     <Card className="border-black/5 py-6">
@@ -376,7 +425,7 @@ export function TaxonomyArrows({
               den Pfeilen sichtbar). preserveAspectRatio="none" streckt die feste
               viewBox-Höhe 100 auf die volle Plot-Höhe. */}
           <div
-            className={`${rowGrid} pointer-events-none absolute inset-0`}
+            className={`${overlayGrid} pointer-events-none absolute inset-0`}
             aria-hidden
           >
             <span />
@@ -416,7 +465,7 @@ export function TaxonomyArrows({
                   }
                 >
                   <span
-                    className={`text-right text-[15px] leading-snug text-foreground/85${clickable ? " underline-offset-2 group-hover:text-foreground group-hover:underline" : ""}`}
+                    className={`col-start-1 row-start-1 text-left text-[15px] leading-snug text-foreground/85 sm:col-auto sm:row-auto sm:text-right${clickable ? " underline-offset-2 group-hover:text-foreground group-hover:underline" : ""}`}
                     style={SERIF}
                     title={node.name}
                   >
@@ -425,10 +474,14 @@ export function TaxonomyArrows({
 
                   <svg
                     viewBox={`0 0 ${VW} ${VH}`}
-                    className="block h-auto w-full"
+                    className="col-span-2 row-start-2 block h-auto w-full sm:col-span-1 sm:row-auto"
                     role="img"
                     aria-label={`${node.name} · für Ja ${Math.round(P * 100)} · für Nein ${Math.round(K * 100)} · ${signed(tendency)}`}
                   >
+                    {/* Mobile: stille Skala + 0-Achse pro Zeile (ab `sm` ausgeblendet,
+                      dort übernimmt das globale durchgehende Overlay). */}
+                    {inSvgScale()}
+
                     {/* Kräfteebene: zwei sehr blasse, gleich breite Hintergrund-
                       pfeile — Kontra (links, korallen, Länge K) + Pro (rechts,
                       navy, Länge P). Gegenläufig ⇒ Ambivalenz wird sichtbar. */}
@@ -442,7 +495,7 @@ export function TaxonomyArrows({
                   </svg>
 
                   <span
-                    className="justify-self-end text-right text-[11px] font-semibold uppercase leading-tight tracking-[0.04em]"
+                    className="col-start-2 row-start-1 justify-self-end text-right text-[11px] font-semibold uppercase leading-tight tracking-[0.04em] sm:col-auto sm:row-auto"
                     style={{ color: badge.fg }}
                     title={n === 0 ? t("unrated") : signed(tendency)}
                   >
@@ -456,7 +509,7 @@ export function TaxonomyArrows({
           {/* durchgehende 0-Achse über alle Zeilen — exakt in der Mitte der
               1fr-Spalte (deckt sich mit XC der Zeilen-SVGs). */}
           <div
-            className={`${rowGrid} pointer-events-none absolute inset-0`}
+            className={`${overlayGrid} pointer-events-none absolute inset-0`}
             aria-hidden
           >
             <span />
@@ -466,7 +519,7 @@ export function TaxonomyArrows({
         </div>
 
         {/* Stille Zahlenskala — Prozent der Armlänge, beidseitig (0/50/100). */}
-        <div className={`${rowGrid} mt-1.5`} aria-hidden>
+        <div className={`${overlayGrid} mt-1.5`} aria-hidden>
           <span />
           <svg
             viewBox={`0 0 ${VW} 12`}
@@ -501,8 +554,9 @@ export function TaxonomyArrows({
           <span />
         </div>
 
-        {/* Pol-Beschriftung an der 0-Achse: ← spricht für ein Nein | für ein Ja → */}
-        <div className={`${rowGrid} mt-2`}>
+        {/* Pol-Beschriftung an der 0-Achse: ← spricht für ein Nein | für ein Ja →
+            Desktop: in der mittleren 1fr-Spalte (deckt sich mit XC). */}
+        <div className={`${overlayGrid} mt-2`}>
           <span />
           <div className="flex text-[11px] font-semibold uppercase tracking-[0.1em]">
             <span className="flex-1 pr-2 text-right" style={{ color: NEG.fg }}>
@@ -513,6 +567,50 @@ export function TaxonomyArrows({
             </span>
           </div>
           <span />
+        </div>
+
+        {/* Mobile-Legende: auf kleinen Viewports liegen die Charts über die volle
+            Breite — Zahlenskala + Pol-Beschriftung darum ebenfalls full-width und
+            zentriert (statt im 3-Spalten-Raster). Ab `sm` ausgeblendet. */}
+        <div className="mt-3 sm:hidden" aria-hidden>
+          <svg
+            viewBox={`0 0 ${VW} 12`}
+            className="block h-auto w-full overflow-visible"
+          >
+            <text
+              x={XC}
+              y={9}
+              textAnchor="middle"
+              fontSize={8.5}
+              fill="var(--muted-foreground)"
+              className="tabular-nums"
+            >
+              0
+            </text>
+            {SCALE_LABELED.flatMap((f) =>
+              ([1, -1] as const).map((dir) => (
+                <text
+                  key={`mnum-${f}-${dir}`}
+                  x={XC + dir * f * ARM_SPAN}
+                  y={9}
+                  textAnchor="middle"
+                  fontSize={8.5}
+                  fill="var(--muted-foreground)"
+                  className="tabular-nums"
+                >
+                  {Math.round(f * 100)}
+                </text>
+              )),
+            )}
+          </svg>
+          <div className="mt-1 flex text-[11px] font-semibold uppercase tracking-[0.1em]">
+            <span className="flex-1 pr-2 text-right" style={{ color: NEG.fg }}>
+              ← {t("cloudArmNo")}
+            </span>
+            <span className="flex-1 pl-2 text-left" style={{ color: POS.fg }}>
+              {t("cloudArmYes")} →
+            </span>
+          </div>
         </div>
       </CardContent>
     </Card>
