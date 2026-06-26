@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-06-25
+
+### Ballot-weite Suche über Themen, Argumente & Kommentare (`services/appview`, `services/frontend`)
+
+Suchfeld im Header-Zentrum (neben dem „Abstimmungsdossier"-Logo), das **innerhalb der aktuellen Vorlage** und **nur in der aktuellen UI-Sprache** über drei Inhaltstypen sucht: Themen (Taxonomy-Nodes), Argumente und Kommentare. Klick auf einen Treffer öffnet das jeweilige Overlay (Taxonomy / Argument / Kommentar).
+
+- **Backend:** neuer Endpoint `GET /xrpc/app.ch.poltr.ballot.search` ([search.py](services/appview/src/routes/deliberation/search.py), registriert in [__init__.py](services/appview/src/routes/deliberation/__init__.py)). Drei ILIKE-Queries über `app_arguments` (title/body), `app_taxonomy_node` (name/introduction, `description` bewusst NICHT durchsucht; Root via `parent_id IS NOT NULL` ausgeschlossen) und `app_comments` (title/text + Sidecar `app_comment_translations`). Alle per `ballot_rkey` gescoped. Liefert gruppierte Treffer mit genau den Feldern, die das Overlay zum Öffnen braucht (`rkey` / `uri` / `topic`), plus Plaintext-Snippet (Highlighting im Frontend). Escaping von `%`/`_`/`\`; JSONB-Scans via `COALESCE(…,'[]'::jsonb)`. Kein FTS-/trgm-Index — eine Vorlage = wenige tausend `ballot_rkey`-gefilterte Rows, sequenzieller Scan vernachlässigbar.
+- **Strikt aktuelle Sprache:** ein Treffer zählt nur, wenn `requested_lang ∈ langs` (Original) ODER ein passender `translations`-Eintrag (Argumente/Themen) bzw. eine Sidecar-Übersetzung (Kommentare) existiert. Fallback-Inhalte (im Booklet auf Default zurückfallend) werden bewusst NICHT gefunden. Lokalisierter Anzeige-Titel via `pick_translation` / `pick_node_translation`.
+- **Frontend:** neue Komponente [ballot-search.tsx](services/frontend/src/components/ballot-search.tsx), gemountet im Header-Zentrum ([app-nav.tsx](services/frontend/src/components/app-nav.tsx)) — self-gating auf `/ballot/[id]/*` via `useParams().id`. Debounced Live-Dropdown, gruppiert nach Themen/Argumente/Kommentare, Highlighting, Tastatur-Navigation (↑↓/Enter/Esc/Cmd+K), Click-outside. Mobile: Lupen-Icon, das ein Vollbild-Such-Overlay expandiert. Suchbegriff bleibt nach Klick im Feld; X-Button zum Leeren (Desktop + Mobile).
+- **Overlay-Öffnung via URL:** der Header liegt ausserhalb des `OverlayProvider` (auf `/ballot/[id]` gescoped), daher öffnet die Suche Overlays per `router.push("?ov=…")` statt `useOverlay()` — der Provider liest den `?ov=`-Stack reaktiv aus der URL.
+- **Datenschicht:** Typen [search.ts](services/frontend/src/types/search.ts), Agent-Call `searchBallot` ([agent.ts](services/frontend/src/lib/agent.ts)), TanStack-Hook `useBallotSearch` ([queries/search.ts](services/frontend/src/lib/queries/search.ts), `keepPreviousData`, Locale im QueryKey → Sprachwechsel re-queryt). i18n-`search`-Namespace in allen fünf [messages/*.json](services/frontend/messages/) (de/en/fr/it/rm).
+
 ## 2026-06-19
 
 ### Email-Privacy: HMAC statt Klartext in `auth_creds`, synthetische PDS-Emails, Log-Scrubbing (`services/appview`, `services/cms`, `services/community-writer`, `infra`)
