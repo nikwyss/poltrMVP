@@ -15,6 +15,10 @@ spec:
       labels:
         app: allforone-postgres
     spec:
+      # privates ghcr-Image → Pull-Secret nötig (anders als das öffentliche
+      # postgres:15-alpine vorher).
+      imagePullSecrets:
+        - name: ghcr-registry
       containers:
         - name: postgres
           # pgvector via custom alpine-Image (postgres:15-alpine + vector-Extension),
@@ -23,7 +27,7 @@ spec:
           # (CrashLoop, mkdir Permission denied) und brächte zudem eine Collation-
           # Migration (musl→glibc REINDEX). Das Alpine-Image bleibt drop-in.
           # Build: infra/docker/postgres-pgvector/Dockerfile. Siehe doc/LM_PEER_REVIEW.md.
-          image: postgres:15-alpine
+          image: ghcr.io/nikwyss/poltr-postgres-pgvector:pg15
           envFrom:
             - secretRef:
                 name: allforone-postgres-secret
