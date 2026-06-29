@@ -9,26 +9,23 @@
 # entfällt beides: gleiche libc, gleiche uid → echtes Drop-in, nur die
 # `vector`-Extension kommt dazu.
 #
-# Build & Push (Beispiel — an euren ghcr-Namespace anpassen):
-#   docker build -t ghcr.io/nikwyss/poltr-postgres-pgvector:pg15 infra/docker/postgres-pgvector
-#   docker push  ghcr.io/nikwyss/poltr-postgres-pgvector:pg15
+# Gebaut via GitHub Actions: .github/workflows/build-postgres-pgvector.yml
+# → ghcr.io/<owner>/poltr-postgres-pgvector:pg15
 # Danach in infra/kube/postgres.yaml das Image auf dieses Tag setzen.
 
 FROM postgres:15-alpine
 
 ARG PGVECTOR_VERSION=v0.8.0
 
-# clang/llvm werden für die JIT-Bitcode-Erzeugung von pgvector gebraucht. Die
-# Versionsnummern müssen zur alpine-Version des postgres:15-alpine-Basisimages
-# passen (aktuell alpine 3.21 → clang19/llvm19). Bei einem Basis-Update ggf.
-# anpassen (Fehlermeldung nennt die fehlenden Pakete).
+# Bewusst OHNE clang/llvm: `with_llvm=no` überspringt die JIT-Bitcode-Erzeugung
+# von pgvector (optionale Optimierung). So hängt der Build nicht an der
+# clang/llvm-Version der Alpine-Basis (3.23) — nur build-base + git nötig.
 RUN set -eux; \
-    apk add --no-cache --virtual .build-deps \
-        build-base git clang19 llvm19; \
+    apk add --no-cache --virtual .build-deps build-base git; \
     git clone --branch "${PGVECTOR_VERSION}" --depth 1 \
         https://github.com/pgvector/pgvector.git /tmp/pgvector; \
     cd /tmp/pgvector; \
-    make; \
-    make install; \
+    make with_llvm=no; \
+    make with_llvm=no install; \
     apk del .build-deps; \
     rm -rf /tmp/pgvector

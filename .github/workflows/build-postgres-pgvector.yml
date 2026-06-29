@@ -1,0 +1,38 @@
+name: Build postgres-pgvector image
+
+# Eigener Workflow (getrennt von build-and-push-services.yml), weil das Image
+# unter infra/docker/ liegt und nicht in der services-Matrix. Triggert nur bei
+# Änderungen am Dockerfile oder manuell (Run workflow). Siehe doc/LM_PEER_REVIEW.md.
+
+on:
+  push:
+    paths:
+      - 'infra/docker/postgres-pgvector/**'
+      - '.github/workflows/build-postgres-pgvector.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build and push
+        run: |
+          IMAGE=ghcr.io/${{ github.repository_owner }}/poltr-postgres-pgvector
+          TAG=pg15
+          docker build -t "${IMAGE}:${TAG}" infra/docker/postgres-pgvector
+          # Retry: ghcr.io liefert sporadisch transiente "unknown blob".
+          for attempt in 1 2 3; do
+            if docker push "${IMAGE}:${TAG}"; then exit 0; fi
+            echo "push failed (attempt $attempt), retry in 10s..."; sleep 10
+          done
+          echo "ERROR: push gave up after 3 attempts"; exit 1
