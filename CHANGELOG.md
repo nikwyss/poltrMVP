@@ -2,6 +2,34 @@
 
 ## 2026-06-26
 
+### Peer-Review-Zuteilung: beide Limiten jetzt pro Vorlage (`services/community-writer`, `infra`)
+
+Bisher begrenzte nur `PEER_REVIEW_DAILY_LIMIT` (=3, **global**) die *Rate* neuer Einladungen, aber nichts den *Bestand*: Wer sich täglich einloggte, ohne Reviews abzuarbeiten, sammelte unbegrenzt offene Einladungen an (beobachtet: 38 für eine Vorlage). Neu wird **pro Nutzer und Vorlage** gedeckelt — sowohl die Rate als auch der Bestand:
+
+- **Daily-Cap `PEER_REVIEW_DAILY_LIMIT` (=3) jetzt pro Ballot** statt global: max. 3 neue Einladungen / 24h *je Vorlage*. Verhindert, dass eine Vorlage das Tagesbudget aufbraucht und andere aushungert.
+- **Neue Standing-Limite `PEER_REVIEW_OPEN_LIMIT` (=4) pro Ballot**: max. 4 gleichzeitig offene Einladungen *je Vorlage*. Erreicht der Nutzer das, bekommt er für diese Vorlage keine neuen mehr, bis er welche abarbeitet — Akkumulation unmöglich.
+- [peer_review_assign.py](services/community-writer/src/arguments/peer_review_assign.py): beide Zählungen laden jetzt `GROUP BY ballot_rkey` in Dicts (`recent_by_ballot`, `open_by_ballot`); der Kandidaten-Scan liefert `a.ballot_rkey` mit. Im Loop wird ein Kandidat übersprungen (kein Lottery-Roll → bleibt eligible), wenn sein Ballot eine der beiden Limiten erreicht; bei Vergabe werden beide Ballot-Zähler live hochgezählt, sodass die Caps auch innerhalb eines Durchlaufs halten. „Offen" = `invited=true`, Review `state='open'`, noch nicht beantwortet, Argument nicht gelöscht (identisch zu `peerreview.pending`/Banner). Der frühere globale Per-Pass-Slot-Budget (`slots_left`) entfällt.
+- Config: `PEER_REVIEW_OPEN_LIMIT="4"` in [secrets.yaml](infra/kube/secrets.yaml) + [secrets.yaml.dist](infra/kube/secrets.yaml.dist) + [.env.dist](services/community-writer/.env.dist) (default 4, writer-eigen wie die übrigen `PEER_REVIEW_*`).
+
+### Analyse-Sektion erst nach erledigten Gutachten (`services/frontend`)
+
+Die „Analyse deiner Bewertungen" ([taxonomy/page.tsx](services/frontend/src/app/(app)/ballot/[id]/arguments/taxonomy/page.tsx)) ist jetzt zusätzlich zum bestehenden Bewertungs-Gate hinter einem **Peer-Review-Gate**: solange dem Nutzer Gutachten zugeteilt und noch offen sind, zeigt die Sektion statt der Charts eine Aufforderungs-Karte mit „Jetzt begutachten"-Button. So müssen alle (nicht nur die Hyperaktiven) ihre zugeteilten Begutachtungen erledigen, bevor die eigene Auswertung sichtbar wird — demokratische Legitimation des Ergebnisses.
+
+- Zwei gestaffelte Gates via `LockedSection`: erst Bewertungs-Gate (in jedem Thema genug bewertet), dann Peer-Review-Gate (keine offenen Gutachten). Quelle: `usePeerReviewNotifications`.
+- [locked-section.tsx](services/frontend/src/components/locked-section.tsx): `GatePlaceholder` um `action` (CTA) und `dashed`-Flag (solide Karte statt gestrichelt) erweitert.
+- [peer-review-notifications.ts](services/frontend/src/lib/queries/peer-review-notifications.ts): gibt zusätzlich `loading` zurück — das Gate bleibt gesperrt, bis das Ergebnis da ist (kein Aufblitzen der Analyse auf kaltem Cache).
+- i18n: `taxonomy.analysisReviewLockedTitle` / `analysisReviewLockedDesc` in allen fünf [messages/*.json](services/frontend/messages/); CTA-Label aus `peerReview.banner.cta`.
+
+### Peer-Review-Banner: drei Dringlichkeitsstufen mit Wellen-Deckel, neues Wording (`services/frontend`)
+
+Der unten fixierte Peer-Review-Banner ([peer-review-banner.tsx](services/frontend/src/components/peer-review-banner.tsx)) bekommt einen wellenförmigen oberen Rand und ein abgestuftes Design/Wording, das mit der Verweildauer eskaliert:
+
+- **minimal** („lebendige Welle"): hohe, schwingende Welle, freundlicher Ton — „Dir wurde ein Argument zur Begutachtung zugeteilt".
+- **medium** („ruhigere Welle"): flachere Welle, dringlicher + Meta-Zeile (Warteschlangen-Position „1 von N" via `queue`, Zeitschätzung „~2 Min" via `estimate`) — „Ein Gutachten wartet auf dich".
+- **maximum** („fast flach"): fast gerade Kante, dunkler Vollton (`--pro`), entschlossen — Eyebrow „Ausstehendes Gutachten", grosser Titel, Solo-Hinweis „Nur du kannst dieses Gutachten abgeben".
+- **Welle:** ein einziger SVG-Pfad, der via `preserveAspectRatio="none"` auf die je Stufe gewählte Höhe (26 → 14 → 5 px) gestaucht wird; Fill = Bannerfarbe, `-1px`-Überlappung schliesst die Naht zum Body. Farbpalette durchgängig blau (`--pro` / `--pro-dim` / `--pro-border`).
+- **i18n:** `peerReview.banner` in allen fünf [messages/*.json](services/frontend/messages/) umstrukturiert (neue Keys `maximum.eyebrow`, `maximum.soloNote`, `ctaSubmit`, `queue`, `estimate`; `more` entfernt).
+
 ### Peer-Review-Gate zählt alle Bewertungen, nicht nur die der aktuellen Session (`services/frontend`)
 
 Das Familiaritäts-Gate, ab dem der Peer-Review-Banner erscheint (≥ 2 bewertete Argumente einer Vorlage), basierte bisher auf einem localStorage-Zähler, der nur während der laufenden Session/auf dem aktuellen Gerät hochgezählt wurde — frühere Bewertungen (gestern, anderes Gerät) zählten nicht. Jetzt wird der Zähler aus der serverseitigen Argumentliste abgeleitet (`viewer.preference != null`), also unabhängig davon, *wann* bewertet wurde.

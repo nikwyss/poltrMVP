@@ -28,19 +28,6 @@ MAGIC_LINK_TTL_MINUTES = 10
 MAX_SENDS_PER_EMAIL = 10
 SEND_WINDOW_MINUTES = 15
 
-# Neutral response returned by sendMagicLink for ALL non-error outcomes (sent,
-# throttled, or no such account) so the endpoint never reveals whether an
-# account exists. See doc/SECURITY_AUTH.md #3.
-def _neutral_send_response() -> JSONResponse:
-    return JSONResponse(
-        status_code=200,
-        content={
-            "success": True,
-            "message": "If an account exists for this email, a sign-in link has been sent.",
-        },
-    )
-
-
 def generate_short_code() -> str:
     return "".join(secrets.choice(SHORT_CODE_ALPHABET) for _ in range(SHORT_CODE_LENGTH))
 
@@ -59,11 +46,6 @@ def safe_return_url(url: str | None) -> str | None:
     if url == "/" or url.startswith("/auth/"):
         return None
     return url
-
-
-class SendMagicLinkData(BaseModel):
-    email: EmailStr
-    returnUrl: str | None = None
 
 
 class StartData(BaseModel):
@@ -111,8 +93,8 @@ class VerifyShortCodeData(BaseModel):
 def _initiator_matches(secret: str | None, stored_id: str | None) -> bool:
     """Device binding: the login is only completable in the browser that started
     it. True iff the request's initiator cookie hashes to the pending row's
-    `initiator_id`. Rows without an `initiator_id` (legacy rows, or the deprecated
-    sendMagicLink/register endpoints) are NOT bound and pass through.
+    `initiator_id`. Rows without an `initiator_id` (legacy rows predating the
+    unified start flow) are NOT bound and pass through.
     See doc/SECURITY_AUTH.md."""
     if stored_id is None:
         return True
@@ -131,84 +113,6 @@ def _different_browser_response() -> JSONResponse:
     )
 
 
-async def send_magic_link_handler(data: SendMagicLinkData, locale: str = "de"):
-    """Generate and send magic link to user's email"""
-    try:
-        if db.pool is None:
-            print("Pool is None, initializing now...")
-            await db.init_pool()
-            print("Pool initialized successfully")
-
-        email = data.email.lower()          # plaintext — used ONLY to send the mail
-        email_h = email_digest(email)       # peppered HMAC — everything stored/queried
-
-        # Global hourly circuit breaker. Checked first and returns the neutral
-        # response so it reveals nothing. See doc/SECURITY_AUTH.md #4.
-        if await auth_email_capped():
-            return _neutral_send_response()
-
-        async with db.pool.acquire() as conn:
-            # Per-email throttle: cap emails to one address per window. Checked
-            # FIRST and returns the neutral response so it leaks nothing about
-            # account existence. See doc/SECURITY_AUTH.md #2.
-            recent_sends = await conn.fetchval(
-                """
-                SELECT count(*) FROM auth_pending_logins
-                WHERE email_hmac = $1 AND created_at > now() - ($2 || ' minutes')::interval
-                """,
-                email_h,
-                str(SEND_WINDOW_MINUTES),
-            )
-            if recent_sends >= MAX_SENDS_PER_EMAIL:
-                return _neutral_send_response()
-
-            # Only send to a real account, but return the SAME neutral response
-            # either way so the endpoint never reveals whether one exists (#3).
-            account = await conn.fetchrow(
-                "SELECT 1 FROM auth_creds WHERE email_hmac = $1", email_h
-            )
-            if not account:
-                return _neutral_send_response()
-
-            # Generate secure random token and short code
-            token = secrets.token_urlsafe(32)
-            short_code = generate_short_code()
-            return_url = safe_return_url(data.returnUrl)
-            expires_at = datetime.utcnow() + timedelta(minutes=10)
-
-            await conn.execute(
-                """
-                INSERT INTO auth_pending_logins (email_hmac, token, short_code, return_url, expires_at)
-                VALUES ($1, $2, $3, $4, $5)
-                """,
-                email_h,
-                token,
-                short_code,
-                return_url,
-                expires_at,
-            )
-
-        # Send email with magic link and short code
-        success = email_service.send_confirmation_link(
-            email, token, purpose="login", short_code=short_code, locale=locale
-        )
-
-        if not success:
-            return JSONResponse(
-                status_code=500,
-                content={"error": "email_failed", "message": "Failed to send email"},
-            )
-
-        await record_auth_email_sent("login")
-        return _neutral_send_response()
-
-    except Exception as e:
-        print(f"Send magic link error: {e}")
-        return JSONResponse(
-            status_code=500, content={"error": "internal_error", "message": str(e)}
-        )
-
-
 # ─── Unified flow (ch.poltr.auth.start / checkLink / waitStatus) ──────────────
 
 def _neutral_start_response(initiator_secret: str) -> JSONResponse:
@@ -223,6 +127,53 @@ def _neutral_start_response(initiator_secret: str) -> JSONResponse:
             "message": "If this email can sign in, a link has been sent.",
             "initiatorSecret": initiator_secret,
         },
+    )
+
+
+# Both pending tables are UNIQUE(email_hmac) and share the identical per-email
+# throttle upsert; only the table name differs. `table` is an internal literal
+# (one of two constants below, never user input), so interpolating it is
+# injection-safe. Centralising it keeps the two branches from drifting — the
+# must-match throttle predicate lives in exactly one place. See doc/SECURITY_AUTH.md #2.
+async def _upsert_pending_send(
+    conn,
+    table: str,
+    *,
+    email_hmac: str,
+    token: str,
+    short_code: str,
+    return_url: str | None,
+    expires_at: datetime,
+    initiator_id: str,
+) -> int:
+    """Collapse to ONE live token/code for this email AND advance the per-email
+    window counter atomically. The upsert rotates the token (resetting
+    failed_attempts → the 5-attempt brute-force cap can't be multiplied by
+    re-requesting) and increments send_count within the window. NB: counting rows
+    instead would be a no-op — one live row pins the count at 1. Returns the new
+    send_count."""
+    return await conn.fetchval(
+        f"""
+        INSERT INTO {table}
+            (email_hmac, token, short_code, return_url, expires_at, initiator_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (email_hmac) DO UPDATE SET
+            token = EXCLUDED.token,
+            short_code = EXCLUDED.short_code,
+            return_url = EXCLUDED.return_url,
+            initiator_id = EXCLUDED.initiator_id,
+            failed_attempts = 0,
+            expires_at = EXCLUDED.expires_at,
+            send_count = CASE
+                WHEN {table}.window_started_at > now() - ($7 || ' minutes')::interval
+                THEN {table}.send_count + 1 ELSE 1 END,
+            window_started_at = CASE
+                WHEN {table}.window_started_at > now() - ($7 || ' minutes')::interval
+                THEN {table}.window_started_at ELSE now() END
+        RETURNING send_count
+        """,
+        email_hmac, token, short_code, return_url, expires_at, initiator_id,
+        str(SEND_WINDOW_MINUTES),
     )
 
 
@@ -257,69 +208,22 @@ async def start_handler(
             )
             is_login = account is not None
 
-            if is_login:
-                # Per-email throttle: count rows in the window (neutral on cap).
-                recent_sends = await conn.fetchval(
-                    """
-                    SELECT count(*) FROM auth_pending_logins
-                    WHERE email_hmac = $1 AND created_at > now() - ($2 || ' minutes')::interval
-                    """,
-                    email_h,
-                    str(SEND_WINDOW_MINUTES),
-                )
-                if recent_sends >= MAX_SENDS_PER_EMAIL:
-                    return _neutral_start_response(secret)
-
-                # Security: collapse to ONE live code per email. Without this, the
-                # 5-attempt brute-force cap would be per-row and re-requesting a
-                # link would hand out a fresh code+counter each time. The window
-                # throttle above still bounds how often that can happen.
-                # See doc/SECURITY_AUTH.md.
-                await conn.execute(
-                    "DELETE FROM auth_pending_logins WHERE email_hmac = $1", email_h
-                )
-                await conn.execute(
-                    """
-                    INSERT INTO auth_pending_logins
-                        (email_hmac, token, short_code, return_url, expires_at, initiator_id)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                    """,
-                    email_h, token, short_code, return_url, expires_at, initiator_id,
-                )
-                purpose = "login"
-            else:
-                # Registration table is UNIQUE(email_hmac) + upsert, so it is already
-                # a single live row; maintain the per-email window counter atomically.
-                send_count = await conn.fetchval(
-                    """
-                    INSERT INTO auth_pending_registrations
-                        (email_hmac, token, short_code, return_url, expires_at, initiator_id)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                    ON CONFLICT (email_hmac) DO UPDATE SET
-                        token = EXCLUDED.token,
-                        short_code = EXCLUDED.short_code,
-                        return_url = EXCLUDED.return_url,
-                        initiator_id = EXCLUDED.initiator_id,
-                        failed_attempts = 0,
-                        expires_at = EXCLUDED.expires_at,
-                        send_count = CASE
-                            WHEN auth_pending_registrations.window_started_at
-                                 > now() - ($7 || ' minutes')::interval
-                            THEN auth_pending_registrations.send_count + 1
-                            ELSE 1 END,
-                        window_started_at = CASE
-                            WHEN auth_pending_registrations.window_started_at
-                                 > now() - ($7 || ' minutes')::interval
-                            THEN auth_pending_registrations.window_started_at
-                            ELSE now() END
-                    RETURNING send_count
-                    """,
-                    email_h, token, short_code, return_url, expires_at, initiator_id,
-                    str(SEND_WINDOW_MINUTES),
-                )
-                if send_count > MAX_SENDS_PER_EMAIL:
-                    return _neutral_start_response(secret)
-                purpose = "registration"
+            # One live code per email + per-email window throttle, identical for
+            # both branches (only the target table differs). See _upsert_pending_send.
+            table = "auth_pending_logins" if is_login else "auth_pending_registrations"
+            send_count = await _upsert_pending_send(
+                conn,
+                table,
+                email_hmac=email_h,
+                token=token,
+                short_code=short_code,
+                return_url=return_url,
+                expires_at=expires_at,
+                initiator_id=initiator_id,
+            )
+            if send_count > MAX_SENDS_PER_EMAIL:
+                return _neutral_start_response(secret)
+            purpose = "login" if is_login else "registration"
 
         # Email carries ONLY the magic link now — no short code (the code is shown
         # in-browser only when the link opens in a different browser).

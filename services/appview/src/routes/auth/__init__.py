@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 from src.auth.login import check_email_availability, login_account
 from src.auth.register import create_account
-from src.auth.email_hmac import email_digest
 from src.auth.middleware import TSession, verify_session_token
 import src.core.db as db
 from src.core.db import get_pool
@@ -27,19 +26,14 @@ from src.auth.magic_link_handler import (
     StartData,
     CheckLinkData,
     WaitStatusData,
-    send_magic_link_handler,
     verify_login_magic_link_handler,
-    SendMagicLinkData,
     verify_registration_magic_link_handler,
     verify_short_code_handler,
     start_handler,
     check_link_handler,
     wait_status_handler,
-    generate_short_code,
-    safe_return_url,
 )
 from src.atproto.atproto_api import pds_create_app_password, pds_set_birthdate
-from src.auth.auth_email_guard import auth_email_capped, record_auth_email_sent
 from src.core.fastapi import limiter
 
 EIDPROTO_URL = os.getenv("EIDPROTO_URL", "https://eidproto.poltr.info")
@@ -70,21 +64,6 @@ async def start(request: Request, data: StartData):
     """
     locale = request.cookies.get("locale", "de")
     return await start_handler(data, locale=locale)
-
-
-@router.post("/ch.poltr.auth.sendMagicLink")
-# Mirror ch.poltr.auth.start so this deprecated path isn't a looser bypass.
-@limiter.limit("3/minute")
-@limiter.limit("25/hour")
-@limiter.limit("40/day")
-@limiter.limit("100 per 7 days")
-async def send_magic_link(request: Request, data: SendMagicLinkData):
-    """DEPRECATED: ersetzt durch ch.poltr.auth.start. Funktional unverändert."""
-    logger.warning(
-        "DEPRECATED ch.poltr.auth.sendMagicLink called — use ch.poltr.auth.start"
-    )
-    locale = request.cookies.get("locale", "de")
-    return await send_magic_link_handler(data, locale=locale)
 
 
 @router.post("/ch.poltr.auth.checkLink")
@@ -124,125 +103,6 @@ async def verify_magic_link_get(request: Request, data: VerifyLoginMagicLinkData
 
     email_hmac, return_url = response
     return await login_account(email_hmac=email_hmac, return_url=return_url)
-
-
-# Neutral response returned by register for ALL non-error outcomes (sent,
-# throttled, or email already taken) so the endpoint never reveals whether an
-# account exists. See doc/SECURITY_AUTH.md #3.
-def _neutral_register_response() -> JSONResponse:
-    return JSONResponse(status_code=200, content={"message": "Confirmation email sent"})
-
-
-# Per-email send throttle for registration; see auth.magic_link_handler.
-REGISTER_MAX_SENDS_PER_EMAIL = 10
-REGISTER_SEND_WINDOW_MINUTES = 15
-
-
-@router.post("/ch.poltr.auth.register")
-# Mirror ch.poltr.auth.start (deprecated path must not be a looser bypass).
-@limiter.limit("3/minute")
-@limiter.limit("25/hour")
-@limiter.limit("40/day")
-@limiter.limit("100 per 7 days")
-async def register(request: Request):
-    """DEPRECATED: ersetzt durch ch.poltr.auth.start. Funktional unverändert."""
-    logger.warning("DEPRECATED ch.poltr.auth.register called — use ch.poltr.auth.start")
-    body = await request.json()
-    email = body.get("email")
-    if not email:
-        return JSONResponse(status_code=400, content={"message": "email required"})
-    email = email.lower()                # plaintext — only to send the mail
-    email_h = email_digest(email)        # peppered HMAC — stored/queried
-
-    return_url = safe_return_url(body.get("returnUrl"))
-
-    import secrets
-    from datetime import datetime, timedelta
-
-    token = secrets.token_urlsafe(32)
-    short_code = generate_short_code()
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
-
-    # Global hourly circuit breaker — refuse early (before the upsert) so a
-    # capped request neither rotates the pending token nor inflates the per-email
-    # counter. Neutral response reveals nothing. See doc/SECURITY_AUTH.md #4.
-    if await auth_email_capped():
-        return _neutral_register_response()
-
-    # Email already registered → neutral response, send nothing (no enumeration).
-    if not await check_email_availability(email_hmac=email_h):
-        return _neutral_register_response()
-
-    try:
-        if db.pool is None:
-            ok = await db.check_db_connection()
-            if not ok:
-                return JSONResponse(
-                    status_code=500, content={"message": "DB connection failed"}
-                )
-        async with db.pool.acquire() as conn:
-            # Upsert and maintain the per-email window counter atomically. The
-            # window resets once it has elapsed; otherwise send_count climbs.
-            send_count = await conn.fetchval(
-                """
-                INSERT INTO auth_pending_registrations
-                    (email_hmac, token, short_code, return_url, expires_at)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (email_hmac) DO UPDATE SET
-                    token = EXCLUDED.token,
-                    short_code = EXCLUDED.short_code,
-                    return_url = EXCLUDED.return_url,
-                    failed_attempts = 0,
-                    expires_at = EXCLUDED.expires_at,
-                    send_count = CASE
-                        WHEN auth_pending_registrations.window_started_at
-                             > now() - ($6 || ' minutes')::interval
-                        THEN auth_pending_registrations.send_count + 1
-                        ELSE 1 END,
-                    window_started_at = CASE
-                        WHEN auth_pending_registrations.window_started_at
-                             > now() - ($6 || ' minutes')::interval
-                        THEN auth_pending_registrations.window_started_at
-                        ELSE now() END
-                RETURNING send_count
-                """,
-                email_h,
-                token,
-                short_code,
-                return_url,
-                expires_at,
-                str(REGISTER_SEND_WINDOW_MINUTES),
-            )
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"message": f"Failed to store pending registration: {e}"},
-        )
-
-    # Over the per-email cap → neutral response, send nothing (anti email-bombing).
-    if send_count > REGISTER_MAX_SENDS_PER_EMAIL:
-        return _neutral_register_response()
-
-    try:
-        from src.core.email_service import email_service
-
-        locale = request.cookies.get("locale", "de")
-        success = email_service.send_confirmation_link(
-            email, token, purpose="registration", short_code=short_code, locale=locale
-        )
-        if not success:
-            return JSONResponse(
-                status_code=500,
-                content={"message": "Failed to send confirmation email"},
-            )
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"message": f"Failed to send confirmation email: {e}"},
-        )
-
-    await record_auth_email_sent("registration")
-    return _neutral_register_response()
 
 
 @router.post("/ch.poltr.auth.verifyRegistration")

@@ -369,6 +369,8 @@
     "analysisLockedTitle": "Analysis of your ratings",
     "analysisLockedDesc": "Rate at least two arguments in each topic to unlock your personal analysis.",
     "analysisLockedProgress": "{met} of {total} topics rated",
+    "analysisReviewLockedTitle": "Review first, then analyse",
+    "analysisReviewLockedDesc": "You've been assigned arguments to review. Once you've completed them, the analysis of your ratings unlocks. Each assessment is assigned exactly once – so the outcome is carried by everyone, not just the most active.",
     "sunburstTitle": "Your topic wheel",
     "sunburstEyebrow": "Your ratings by topic",
     "sunburstSubtitle": "Colour and position result from your argument ratings.",
@@ -437,19 +439,23 @@
   "peerReview": {
     "banner": {
       "minimal": {
-        "title": "You've been selected for a peer review",
-        "body": "Please review the assigned argument when you have a moment."
+        "title": "You've been assigned an argument to review",
+        "body": "You were selected at random."
       },
       "medium": {
-        "title": "A peer review is waiting for you",
-        "body": "Your review is needed – it only takes a few minutes."
+        "title": "A review is waiting for you",
+        "body": "You're among the few selected today. Without these assessments, the process doesn't work."
       },
       "maximum": {
-        "title": "Your peer review is still pending",
-        "body": "This review is mandatory. Please complete it now."
+        "eyebrow": "Pending review",
+        "title": "The process is waiting for your assessment",
+        "body": "You were selected to review an argument. Each assessment is assigned exactly once – without yours, this argument stays unreviewed.",
+        "soloNote": "Only you can submit this review"
       },
       "cta": "Review now",
-      "more": "+{count} more"
+      "ctaSubmit": "Submit review",
+      "queue": "{current} of {total}",
+      "estimate": "~2 min"
     }
   }
 }

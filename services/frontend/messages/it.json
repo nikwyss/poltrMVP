@@ -369,6 +369,8 @@
     "analysisLockedTitle": "Analisi delle tue valutazioni",
     "analysisLockedDesc": "Valuta almeno due argomenti in ogni tema per sbloccare la tua analisi personale.",
     "analysisLockedProgress": "{met} di {total} temi valutati",
+    "analysisReviewLockedTitle": "Prima valuta, poi analizza",
+    "analysisReviewLockedDesc": "Ti sono stati assegnati argomenti da valutare. Una volta completati, l'analisi delle tue valutazioni si sblocca. Ogni valutazione viene assegnata una sola volta – così il risultato è sostenuto da tutti, non solo dai più attivi.",
     "sunburstTitle": "La tua ruota dei temi",
     "sunburstEyebrow": "Le tue valutazioni per tema",
     "sunburstSubtitle": "Colore e posizione derivano dalle tue valutazioni degli argomenti.",
@@ -437,19 +439,23 @@
   "peerReview": {
     "banner": {
       "minimal": {
-        "title": "Sei stato selezionato per una revisione",
-        "body": "Valuta l'argomento assegnato quando hai un momento."
+        "title": "Ti è stato assegnato un argomento da valutare",
+        "body": "Sei stato selezionato in modo casuale."
       },
       "medium": {
-        "title": "Una revisione tra pari ti aspetta",
-        "body": "La tua valutazione è necessaria – bastano pochi minuti."
+        "title": "Una valutazione ti aspetta",
+        "body": "Sei tra le poche persone selezionate oggi. Senza queste valutazioni, la procedura non funziona."
       },
       "maximum": {
-        "title": "La tua revisione è ancora in sospeso",
-        "body": "La revisione è obbligatoria. Completala ora, per favore."
+        "eyebrow": "Valutazione in sospeso",
+        "title": "La procedura attende la tua valutazione",
+        "body": "Sei stato selezionato per valutare un argomento. Ogni valutazione viene assegnata una sola volta – senza la tua, questo argomento resta non valutato.",
+        "soloNote": "Solo tu puoi inviare questa valutazione"
       },
       "cta": "Valuta ora",
-      "more": "+{count} altri"
+      "ctaSubmit": "Invia valutazione",
+      "queue": "{current} di {total}",
+      "estimate": "~2 min"
     }
   }
 }

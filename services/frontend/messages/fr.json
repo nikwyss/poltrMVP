@@ -369,6 +369,8 @@
     "analysisLockedTitle": "Analyse de tes évaluations",
     "analysisLockedDesc": "Évalue au moins deux arguments dans chaque thème pour débloquer ton analyse personnelle.",
     "analysisLockedProgress": "{met} sur {total} thèmes évalués",
+    "analysisReviewLockedTitle": "D'abord évaluer, ensuite analyser",
+    "analysisReviewLockedDesc": "Des arguments vous ont été attribués pour évaluation. Une fois ceux-ci terminés, l'analyse de vos appréciations se débloque. Chaque appréciation n'est attribuée qu'une seule fois – ainsi le résultat est porté par toutes et tous, pas seulement par les plus actifs.",
     "sunburstTitle": "Ta roue des thèmes",
     "sunburstEyebrow": "Tes évaluations par thème",
     "sunburstSubtitle": "La couleur et la position découlent de tes évaluations des arguments.",
@@ -437,19 +439,23 @@
   "peerReview": {
     "banner": {
       "minimal": {
-        "title": "Vous avez été sélectionné·e pour une évaluation",
-        "body": "Merci d'évaluer l'argument qui vous a été attribué dès que possible."
+        "title": "Un argument vous a été attribué pour évaluation",
+        "body": "Vous avez été sélectionné·e au hasard."
       },
       "medium": {
-        "title": "Une évaluation par les pairs vous attend",
-        "body": "Votre évaluation est requise – cela ne prend que quelques minutes."
+        "title": "Une évaluation vous attend",
+        "body": "Vous faites partie des rares personnes sélectionnées aujourd'hui. Sans ces appréciations, la procédure ne fonctionne pas."
       },
       "maximum": {
-        "title": "Votre évaluation est toujours en attente",
-        "body": "Cette évaluation est obligatoire. Merci de la compléter maintenant."
+        "eyebrow": "Évaluation en attente",
+        "title": "La procédure attend votre appréciation",
+        "body": "Vous avez été sélectionné·e pour évaluer un argument. Chaque appréciation n'est attribuée qu'une seule fois – sans la vôtre, cet argument reste non évalué.",
+        "soloNote": "Vous seul·e pouvez rendre cette évaluation"
       },
       "cta": "Évaluer maintenant",
-      "more": "+{count} autre(s)"
+      "ctaSubmit": "Rendre l'évaluation",
+      "queue": "{current} sur {total}",
+      "estimate": "~2 min"
     }
   }
 }

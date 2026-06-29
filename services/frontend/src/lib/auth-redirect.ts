@@ -43,7 +43,7 @@ export function stashReturnTo(path: string): void {
 
 /**
  * Liest den gemerkten Zielpfad, OHNE ihn zu löschen — zum Mitschicken an den
- * Server (sendMagicLink/register), damit der Cross-Device-Fall über `return_url`
+ * Server (ch.poltr.auth.start), damit der Cross-Device-Fall über `return_url`
  * funktioniert. Liefert `null`, wenn nichts Brauchbares gespeichert ist.
  */
 export function peekReturnTo(): string | null {

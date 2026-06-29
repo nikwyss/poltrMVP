@@ -5,19 +5,21 @@ waitStatus and the purpose-agnostic short-code verification.
 
 import json
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
 
 from src.auth.middleware import hash_token
 from tests.conftest import (
     FakePool,
+    FakeConnection,
     make_creds_row,
     make_pending_login_row,
     make_pending_registration_row,
 )
 from src.auth.email_hmac import email_digest
 from src.auth.magic_link_handler import (
+    MAX_SENDS_PER_EMAIL,
     StartData,
     start_handler,
     CheckLinkData,
@@ -54,9 +56,11 @@ async def test_start_registration_branch():
 
 
 @pytest.mark.asyncio
-async def test_start_login_branch_collapses_to_one_code():
-    """Existing email → login email, and prior login rows are deleted first so
-    only ONE live code exists per email (brute-force cap can't be multiplied)."""
+async def test_start_login_branch_upserts_one_code():
+    """Existing email → login email via an upsert on auth_pending_logins
+    (UNIQUE email_hmac), so exactly ONE live code exists per email and the
+    per-email send_count is tracked on the row. The old DELETE-then-INSERT (which
+    defeated the per-email row-count throttle) must be gone."""
     pool = FakePool({"auth_creds": [make_creds_row(email="user@test.com")]})
     with (
         patch("src.core.db.pool", pool),
@@ -68,11 +72,35 @@ async def test_start_login_branch_collapses_to_one_code():
 
         assert resp.status_code == 200
         assert mock_email.send_confirmation_link.call_args[1]["purpose"] == "login"
-        deletes = [
+        upserts = [
+            q for q in pool.all_executed
+            if "auth_pending_logins" in q[1] and "ON CONFLICT" in q[1]
+        ]
+        assert upserts, "login must upsert on auth_pending_logins (one live code per email)"
+        assert not [
             q for q in pool.all_executed
             if q[0] == "execute" and "DELETE" in q[1] and "auth_pending_logins" in q[1]
-        ]
-        assert deletes, "start must delete prior pending-login rows before inserting"
+        ], "DELETE-then-INSERT defeats the per-email throttle and must not be used"
+
+
+@pytest.mark.asyncio
+async def test_start_login_over_per_email_cap_sends_nothing():
+    """Per-email send cap: once send_count exceeds MAX_SENDS_PER_EMAIL the login
+    branch returns the neutral response and sends NO email (regression: the cap
+    used to be a no-op because the one-live-code collapse pinned the row count)."""
+    pool = FakePool({"auth_creds": [make_creds_row(email="user@test.com")]})
+    over_cap = AsyncMock(return_value=MAX_SENDS_PER_EMAIL + 1)
+    with (
+        patch("src.core.db.pool", pool),
+        patch("src.auth.magic_link_handler.email_service") as mock_email,
+        patch.object(FakeConnection, "fetchval", over_cap),
+    ):
+        mock_email.send_confirmation_link = MagicMock(return_value=True)
+
+        resp = await start_handler(StartData(email="user@test.com"))
+
+        assert resp.status_code == 200  # neutral, enumeration-safe
+        mock_email.send_confirmation_link.assert_not_called()
 
 
 @pytest.mark.asyncio

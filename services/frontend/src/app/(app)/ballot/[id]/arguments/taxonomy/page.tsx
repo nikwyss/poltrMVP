@@ -7,7 +7,9 @@ import { useQuery } from "@tanstack/react-query";
 import { getBallot } from "@/lib/agent";
 import { useTaxonomyBase, useTaxonomyFull } from "@/lib/queries/taxonomy";
 import { useRatingGate } from "@/lib/queries/rating-gate";
+import { usePeerReviewNotifications } from "@/lib/queries/peer-review-notifications";
 import { useOverlay } from "@/lib/overlay";
+import { ClipboardCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,7 @@ export default function TaxonomyPage() {
   const locale = useLocale();
   const t = useTranslations("taxonomy") as T;
   const tc = useTranslations("common");
+  const tpr = useTranslations("peerReview.banner");
   const { navigate } = useOverlay();
 
   const [addOpen, setAddOpen] = useState(false);
@@ -78,6 +81,17 @@ export default function TaxonomyPage() {
   // freigeschaltet, wenn der Nutzer in jedem Top-Thema genügend bewertet hat.
   // Leitet sich live aus demselben Taxonomie-Cache ab (kein Refetch nötig).
   const gate = useRatingGate(id, locale, enabled);
+
+  // Peer-Review-Gate: nach dem Bewertungs-Gate wird die Analyse zusätzlich
+  // gesperrt, solange noch Gutachten offen sind — so muss jede·r (nicht nur die
+  // Hyperaktiven) die zugeteilten Begutachtungen erledigen, bevor die eigene
+  // Auswertung sichtbar wird. Demokratische Legitimation > Bequemlichkeit.
+  const { invitations: openReviews, loading: reviewsLoading } =
+    usePeerReviewNotifications(id);
+  const firstReview = openReviews[0];
+  // Bis das Ergebnis da ist, bleibt gesperrt — nie kurz die Analyse zeigen und
+  // dann wieder verbergen.
+  const reviewsCleared = !reviewsLoading && openReviews.length === 0;
 
   const loading = ballotPending || taxPending;
   const queryError = ballotError ?? taxError;
@@ -164,8 +178,10 @@ export default function TaxonomyPage() {
           )}
 
           {/* Abschnittswechsel: von der Argument-Einsicht zur Analyse der
-              eigenen Bewertungen. Gesperrt, bis in jedem Top-Thema genügend
-              bewertet wurde — sonst zeigt die Sektion einen Platzhalter. */}
+              eigenen Bewertungen. Zwei gestaffelte Gates:
+                1. Bewertungs-Gate — in jedem Top-Thema genügend bewertet.
+                2. Peer-Review-Gate — keine zugeteilten Gutachten mehr offen.
+              Reihenfolge: erst bewerten, dann begutachten, dann Analyse. */}
           <LockedSection
             unlocked={gate.unlocked}
             placeholder={
@@ -183,31 +199,54 @@ export default function TaxonomyPage() {
               />
             }
           >
-            {/* Bewusst ohne Karte — markiert nur den Themenwechsel. */}
-            <header className="mt-6 mb-1 px-1">
-              <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                {t("analysisTitle")}
-              </h2>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                {t("analysisSubtitle")}
-              </p>
-            </header>
+            <LockedSection
+              unlocked={reviewsCleared}
+              placeholder={
+                <GatePlaceholder
+                  dashed={false}
+                  icon={<ClipboardCheck className="h-5 w-5" />}
+                  title={t("analysisReviewLockedTitle")}
+                  description={t("analysisReviewLockedDesc")}
+                  action={
+                    firstReview && (
+                      <Button
+                        onClick={() =>
+                          navigate({ type: "peerreview", id: firstReview.argumentUri })
+                        }
+                      >
+                        {tpr("cta")}
+                      </Button>
+                    )
+                  }
+                />
+              }
+            >
+              {/* Bewusst ohne Karte — markiert nur den Themenwechsel. */}
+              <header className="mt-6 mb-1 px-1">
+                <h2 className="text-lg font-semibold tracking-tight text-foreground">
+                  {t("analysisTitle")}
+                </h2>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {t("analysisSubtitle")}
+                </p>
+              </header>
 
-            {/* Meinungsrad (radial). Desktop: voll (alle Ringe beschriftet).
-                Mobile: compact (nur Ring 1 beschriftet, Ring 2 & 3 als Bänder). */}
-            {fullTree?.tree && (
-              <>
-                <div className="hidden md:block">
-                  <TaxonomySunburst root={fullTree.tree} t={t} onSelect={openTopicDetail} />
-                </div>
-                <div className="-mx-2 md:hidden">
-                  <TaxonomySunburst root={fullTree.tree} t={t} onSelect={openTopicDetail} compact />
-                </div>
-              </>
-            )}
+              {/* Meinungsrad (radial). Desktop: voll (alle Ringe beschriftet).
+                  Mobile: compact (nur Ring 1 beschriftet, Ring 2 & 3 als Bänder). */}
+              {fullTree?.tree && (
+                <>
+                  <div className="hidden md:block">
+                    <TaxonomySunburst root={fullTree.tree} t={t} onSelect={openTopicDetail} />
+                  </div>
+                  <div className="-mx-2 md:hidden">
+                    <TaxonomySunburst root={fullTree.tree} t={t} onSelect={openTopicDetail} compact />
+                  </div>
+                </>
+              )}
 
-            {/* Kräfte-Pfeile — zwei gegenläufige Pfeile je Thema, Schwerpunkt als Tick */}
-            <TaxonomyArrows nodes={root.children} t={t} onSelect={openTopicDetail} />
+              {/* Kräfte-Pfeile — zwei gegenläufige Pfeile je Thema, Schwerpunkt als Tick */}
+              <TaxonomyArrows nodes={root.children} t={t} onSelect={openTopicDetail} />
+            </LockedSection>
           </LockedSection>
         </div>
       )}

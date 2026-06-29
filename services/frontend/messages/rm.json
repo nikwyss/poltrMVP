@@ -369,6 +369,8 @@
     "analysisLockedTitle": "Analisa da tias evaluaziuns",
     "analysisLockedDesc": "Evaluescha almain dus arguments en mintga tema per debloccar tia analisa persunala.",
     "analysisLockedProgress": "{met} da {total} temas evaluads",
+    "analysisReviewLockedTitle": "Erst begutachten, dann auswerten",
+    "analysisReviewLockedDesc": "Dir wurden Argumente zur Begutachtung zugeteilt. Sobald du diese erledigt hast, wird die Analyse deiner Bewertungen frei. Jede Beurteilung wird genau einmal vergeben – so trägt das Ergebnis die ganze Gemeinschaft, nicht nur die Aktivsten.",
     "sunburstTitle": "Tia roda dals temas",
     "sunburstEyebrow": "Tias evaluaziuns tenor temas",
     "sunburstSubtitle": "La colur e la posiziun resultan da tias evaluaziuns dals arguments.",
@@ -437,19 +439,23 @@
   "peerReview": {
     "banner": {
       "minimal": {
-        "title": "Du wurdest für ein Peer-Review ausgewählt",
-        "body": "Bitte begutachte das zugewiesene Argument, wenn du einen Moment Zeit hast."
+        "title": "Dir wurde ein Argument zur Begutachtung zugeteilt",
+        "body": "Du wurdest zufällig ausgewählt."
       },
       "medium": {
-        "title": "Ein Peer-Review wartet auf dich",
-        "body": "Deine Begutachtung wird benötigt – sie dauert nur wenige Minuten."
+        "title": "Ein Gutachten wartet auf dich",
+        "body": "Du gehörst zu den wenigen, die heute ausgewählt wurden. Ohne diese Einschätzungen funktioniert das Verfahren nicht."
       },
       "maximum": {
-        "title": "Dein Peer-Review steht noch aus",
-        "body": "Die Begutachtung ist verbindlich. Bitte schliesse sie jetzt ab."
+        "eyebrow": "Ausstehendes Gutachten",
+        "title": "Das Verfahren wartet auf deine Einschätzung",
+        "body": "Du wurdest ausgewählt, ein Argument zu begutachten. Jede Beurteilung wird genau einmal vergeben – fehlt deine, bleibt dieses Argument unbewertet.",
+        "soloNote": "Nur du kannst dieses Gutachten abgeben"
       },
       "cta": "Jetzt begutachten",
-      "more": "+{count} weitere"
+      "ctaSubmit": "Gutachten abgeben",
+      "queue": "{current} von {total}",
+      "estimate": "~2 Min"
     }
   }
 }

@@ -11,7 +11,6 @@ account enumeration, and cross-device code phishing. Keep current as controls ch
 | `checkLink` | no (non-consuming preflight) | 20/min |
 | `waitStatus` | no (polling) | 60/min |
 | `verifyLogin` / `verifyRegistration` / `verifyShortCode` | no (consume token) | 10/min |
-| `sendMagicLink`, `register` | ✅ **DEPRECATED** — replaced by `start`, mirror its limits (no looser bypass) | 3/min + 25/hour + 40/day + 100/7days |
 
 ⚠️ All four windows are keyed on the **real client IP**. Behind a shared NAT
 (mobile CGNAT, corporate/school proxy, public Wi-Fi) many users share one IP, so
@@ -44,8 +43,8 @@ the one that entered the email:
   therefore **cannot sign in on a stranger's device** — it only reveals a code to
   carry back to the originating device (which holds the cookie). The short-code
   check verifies the cookie **before** counting an attempt, so a wrong-device
-  caller can't burn the code's 5-attempt budget. Rows without `initiator_id`
-  (deprecated `sendMagicLink`/`register`) are unbound. **Scope:** this closes
+  caller can't burn the code's 5-attempt budget. Legacy rows without
+  `initiator_id` (predating the unified flow) are unbound. **Scope:** this closes
   link-leakage/forwarding, **not** full inbox compromise (an attacker who reads
   the inbox can initiate *and* complete on their own browser).
 - **Anti-phishing:** the code page (`verify-client.tsx`) shows the target email +
@@ -75,15 +74,22 @@ Secret lives once in `appview-secrets`; frontend inherits it via `secretKeyRef`
 in `frontend.yaml`.
 
 **Per-email send cap** ✅ — `MAX_SENDS_PER_EMAIL = 10` per 15 min, checked before
-sending. Login counts `auth_pending_logins` rows in-window; registration tracks
-`send_count`/`window_started_at` on its (unique) row (migration `003`). Over the
-cap → neutral response, no send. In addition to (not instead of) the per-IP limit.
+sending. **Both** branches track `send_count`/`window_started_at` on their
+(unique) row: registration since migration `003`, login since migration `011`.
+Over the cap → neutral response, no send. In addition to (not instead of) the
+per-IP limit. ⚠️ *Login originally counted `auth_pending_logins` rows in-window,
+but the "one live code" collapse (below) deletes exactly those rows → the count
+was pinned at ≤1 and the cap never fired. Fixed by moving login to the same
+on-row counter as registration (migration `011`).*
 
-**One live code per email** ✅ — `start` **deletes prior `auth_pending_logins`
-rows for the email** before inserting (registration is already `UNIQUE(email)`
-upsert). So the 5-attempt brute-force cap can't be multiplied by re-requesting a
-link (which would otherwise mint a fresh code + counter each time); the per-email
-window cap above bounds how often a new code can be requested at all.
+**One live code per email** ✅ — both pending tables are `UNIQUE(email_hmac)` and
+`start` **upserts** (`ON CONFLICT DO UPDATE`), so there is always exactly one live
+row per email and the token/short-code rotate in place (resetting
+`failed_attempts`). The 5-attempt brute-force cap therefore can't be multiplied by
+re-requesting a link (which would otherwise mint a fresh code + counter each
+time); the per-email window cap above bounds how often a new code can be requested
+at all. (The login branch previously used DELETE-then-INSERT, which defeated the
+row-count throttle — see the per-email cap note above.)
 
 **No account enumeration** ✅ — `start` returns the **identical** neutral `200`
 (plus the random `initiatorSecret`) whether the email is new or existing; the only
@@ -94,7 +100,7 @@ only to the real mailbox owner. The waiting screen wording is neutral
 
 **Global hourly circuit breaker** ✅ — platform-wide cap on outbound auth emails
 ([`auth/auth_email_guard.py`](../services/appview/src/auth/auth_email_guard.py)),
-the main defense against `register` being used as a distributed email-amplifier.
+the main defense against `start` being used as a distributed email-amplifier.
 DB-backed tally (`auth_email_sends`, migration `004`; PII-free `id/purpose/created_at`,
 pruned to 2h). Fails **open** on DB error.
 
@@ -181,12 +187,12 @@ Vote-Payload-Validierung (kein DB-State) und reine AppView-UX (Rate-Limit, `acce
 
 **CAPTCHA (Cloudflare Turnstile)** ⬜ — deferred; circuit breaker is the
 compensating control. Plan: `verify_turnstile()` before DB work on
-`sendMagicLink`/`register` + widget on the login/register forms. Decision pending
+`start` + widget on the login/register form. Decision pending
 (Turnstile vs Friendly Captcha). Tokens are farmable → never replaces rate limiting.
 
 **Per-IP contribution cap on the global budget** ⬜ — the breaker is a shared
 bucket: enough coordinated IPs can fill it and lock all users out of *new* auth
-for the hour (existing sessions unaffected; self-resets). The 3/min `register`
+for the hour (existing sessions unaffected; self-resets). The 3/min `start`
 limit means one IP can't trip it alone, but a per-IP/subnet contribution cap would
 fully close it.
 
