@@ -28,3 +28,20 @@ POSTGRES_URL = os.getenv("CALCULATOR_POSTGRES_URL") or os.getenv("APPVIEW_POSTGR
 # Beschreibung als Zusatzkontext für die Wurzelthemen zu lesen
 # (db.fetch_ballot_description). Ohne URL entfällt dieser Kontext.
 CMS_POSTGRES_URL = os.getenv("CALCULATOR_CMS_POSTGRES_URL") or os.getenv("CMS_DATABASE_URL")
+
+# -----------------------------------------------------------------------------
+# Embeddings (Infomaniak AI Tools, OpenAI-kompatibel) — siehe doc/infomaniak.md.
+# Token + Product ID teilen sich Chat & Embeddings (gleiches Infomaniak-Produkt).
+# -----------------------------------------------------------------------------
+EMBEDDING_BASE_URL = os.getenv("CALCULATOR_EMBEDDING_BASE_URL", "https://api.infomaniak.com")
+EMBEDDING_PRODUCT_ID = os.getenv("CALCULATOR_EMBEDDING_PRODUCT_ID", "").strip()
+EMBEDDING_API_KEY = os.getenv("CALCULATOR_EMBEDDING_API_KEY", "").strip()
+EMBEDDING_MODEL = os.getenv("CALCULATOR_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-8B")
+# 0 = Modell-Default (4096). Wir kürzen via MRL auf 1024 — MUSS zur vector(N)-
+# Spalte in app_embeddings passen (Änderung = Migration + Re-Embed).
+EMBEDDING_DIMENSIONS = int(os.getenv("CALCULATOR_EMBEDDING_DIMENSIONS", "1024") or 0)
+
+# Backfill-Drosselung + Dedup-Schwelle.
+EMBEDDING_RUN_LIMIT = int(os.getenv("CALCULATOR_EMBEDDING_RUN_LIMIT", "200"))   # Kandidaten je Quelle/Lauf
+EMBEDDING_BATCH_SIZE = int(os.getenv("CALCULATOR_EMBEDDING_BATCH_SIZE", "64"))  # Texte je API-Call (<100)
+DEDUP_SIM_THRESHOLD = float(os.getenv("CALCULATOR_DEDUP_SIM_THRESHOLD", "0.85"))

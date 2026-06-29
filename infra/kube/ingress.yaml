@@ -55,7 +55,10 @@ spec:
     - host: calculator.poltr.info
       http:
         paths:
-          - path: /
+          # Nur /api/topdown öffentlich: das CMS-Taxonomie-Panel ruft browser-
+          # seitig. /api/embeddings/* (Compute + Infomaniak-Kosten) bleibt damit
+          # clusterintern. Siehe doc/CALCULATOR_EXPOSURE.md.
+          - path: /api/topdown
             pathType: Prefix
             backend:
               service:

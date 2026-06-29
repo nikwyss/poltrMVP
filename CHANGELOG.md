@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-06-29
+
+### LM-assisted Peer Review — Phase 1: Embeddings (Duplikatscheck + semantische Suche)
+
+Grundlage für den LLM-gestützten Peer-Review: pro Inhalt ein Embedding-Vektor, der den Duplikatscheck (Composer/Peer-Review) und eine spätere semantische Suche bedient. Provider: **Infomaniak AI** (`Qwen/Qwen3-Embedding-8B`, `dimensions=1024`), Compute im **Calculator**, Storage in **pgvector**. Plan + Begründungen: [doc/LM_PEER_REVIEW.md](doc/LM_PEER_REVIEW.md).
+
+- **Schema:** neue, generische Tabelle `app_embeddings` (`subject_type`/`subject_ref`/`lang`, ein Vektor pro `(Subjekt, Sprache)`) für Argumente *und* Taxonomie-Nodes (später Kommentare/Vorlagen). Regenerierbarer Cache → kein FK/CASCADE. Migration [012_create_app_embeddings.sql](services/appview/migrations/012_create_app_embeddings.sql) + [db-setup.sql](infra/scripts/postgres/db-setup.sql) (`CREATE EXTENSION vector`, Tabelle, Grants).
+- **Mehrsprachig:** ein Vektor je `SUPPORTED_LANGUAGE` (heute de-CH + en-GB, getrieben von `POLTR_LANGUAGES`), Text aus `langs`/`translations` wie der Übersetzungs-Worker → gleichsprachige Dedup/Suche, selbstskalierend bei neuen Sprachen.
+- **Calculator:** neues `src/embedding/`-Paket — Infomaniak-Client (httpx, Chunking ≤64, Sort-by-`index`, Retry 1/2/4s wie der Translator), `backfill.py` (Args + Topics je Sprache, idempotent via `content_hash`), `similarity.py` (Dedup + Suche), `router.py` (`/api/embeddings/backfill|duplicates|search`). Erster DB-Write des Calculators (enges Grant auf die eigene Tabelle; `app_arguments` bleibt read-only).
+- **Cron:** `embeddings-backfill` alle 2 Min (clusterintern), zwei Drossel-Ebenen (`RUN_LIMIT` Kandidaten/Lauf, `BATCH_SIZE` Texte/API-Call).
+- **Infra:** Postgres-Image → custom `postgres:15-alpine` + pgvector ([infra/docker/postgres-pgvector/Dockerfile](infra/docker/postgres-pgvector/Dockerfile)); das Debian-`pgvector/pgvector` ist mit dem bestehenden alpine-Volume inkompatibel (CrashLoop) und brächte eine Collation-Migration. Calculator-Ingress von `path: /` auf `/api/topdown` verengt → `/api/embeddings/*` bleibt intern (Kosten-/DoS-Schutz; [doc/CALCULATOR_EXPOSURE.md](doc/CALCULATOR_EXPOSURE.md)).
+- **Config/Secrets:** `CALCULATOR_EMBEDDING_*` + `POLTR_LANGUAGES` in `calculator-secrets` / `.env.dist`.
+
 ## 2026-06-26
 
 ### Peer-Review-Zuteilung: beide Limiten jetzt pro Vorlage (`services/community-writer`, `infra`)

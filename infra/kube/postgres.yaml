@@ -17,6 +17,12 @@ spec:
     spec:
       containers:
         - name: postgres
+          # pgvector via custom alpine-Image (postgres:15-alpine + vector-Extension),
+          # NICHT pgvector/pgvector:pg15 (Debian): der Debian-Wechsel scheitert am
+          # bestehenden, von alpine (musl, uid 70) angelegten Cinder/ext4-Volume
+          # (CrashLoop, mkdir Permission denied) und brächte zudem eine Collation-
+          # Migration (musl→glibc REINDEX). Das Alpine-Image bleibt drop-in.
+          # Build: infra/docker/postgres-pgvector/Dockerfile. Siehe doc/LM_PEER_REVIEW.md.
           image: postgres:15-alpine
           envFrom:
             - secretRef:

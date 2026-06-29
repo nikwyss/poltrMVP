@@ -24,6 +24,20 @@ spec:
           envFrom:
             - secretRef:
                 name: calculator-secrets
+          env:
+            # Sprach-Config: appview-secrets ist die Single Source of Truth
+            # (wie indexer + community-writer). Der Embedding-Backfill MUSS denselben
+            # Sprachsatz nutzen wie appview/translator, sonst embeddet er andere Sprachen.
+            - name: POLTR_LANGUAGES
+              valueFrom:
+                secretKeyRef:
+                  name: appview-secrets
+                  key: POLTR_LANGUAGES
+            - name: POLTR_DEFAULT_LANGUAGE
+              valueFrom:
+                secretKeyRef:
+                  name: appview-secrets
+                  key: POLTR_DEFAULT_LANGUAGE
           ports:
             - name: http
               containerPort: 3000

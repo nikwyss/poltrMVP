@@ -63,3 +63,36 @@ spec:
                       "http://indexer.poltr.svc.cluster.local/peerreview-finalize" \
                       || exit 1
           restartPolicy: Never
+---
+# Embedding backfill: every 2 minutes, compute missing/stale embeddings for
+# arguments + taxonomy nodes (Infomaniak Qwen3-Embedding-8B → app_embeddings).
+# Cheap when there's nothing to do (content_hash skip). CLUSTER-INTERNAL only
+# (the calculator ingress is restricted to /api/topdown). See doc/LM_PEER_REVIEW.md.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: embeddings-backfill
+  namespace: poltr
+spec:
+  schedule: "*/2 * * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 50
+      ttlSecondsAfterFinished: 3600
+      template:
+        spec:
+          containers:
+            - name: embeddings-backfill-trigger
+              image: curlimages/curl:8.2.1
+              command: ["sh", "-c"]
+              args:
+                  - |
+                    curl -X POST --fail --show-error \
+                      --connect-timeout 5 --max-time 30 \
+                      --retry 1 --retry-delay 5 \
+                      "http://calculator.poltr.svc.cluster.local/api/embeddings/backfill" \
+                      || exit 1
+          restartPolicy: Never

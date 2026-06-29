@@ -2,7 +2,6 @@
 
 ## Next
 
-[ ] Check: per-email rate limit on code requests
 [ ] email änderungs mechanismus im profil. Notwendig? Sicher? (email wird ja nicht gespeichert) 
 [ ] Comment-Tree: immer nur auswahl der comments zeigen, und dann mit "Zeige mehr" links expandierbar machen. 
 [ ] @tanstack/vue-virtual beim feed view?
@@ -12,6 +11,10 @@
 
 **Peerreviews**
 [ ] Peerreview Kritierien / LLM-Support / Dito bei Argument Submit
+[ ] AI Redundanz checks (peerreview und composer)
+[ ] Formulierungstipps.
+
+
 [ ] Retention für `app_acceptance_queue`: erledigte Zeilen werden nie gelöscht (Processor setzt nur `status`, kein Cleanup/Cron) → Tabelle wächst unbegrenzt (~1 Request-Zeile pro aktivem User/Tag + Argumente/Responses). Cronjob ergänzen:
     ```sql
     DELETE FROM app_acceptance_queue
@@ -19,8 +22,6 @@
     ```
 
 **AI**
-[ ] AI Redundanz checks (peerreview und composer)
-[ ] Formulierungstipps.
 [ ] Moderation
 [ ] Firehose-Security: Appview Check: nur records von meinen appview werden commonized.
 [ ] Auto-Import von Vorlagen: llm. basierend auf BK und Swissvotes.
@@ -50,6 +51,15 @@ Zusammen: ein appview-Only-Push baut künftig **nur appview, mit warmem Cache**
 statt alle fünf `--no-cache`. Offen: bleibt `max-parallel:1` (sicher, langsamer)
 oder gegen die Blob-Race anders absichern (z.B. separate `cache-to`-Keys je
 Service)?
+
+## [ ] Calculator: öffentliche Exposition härten
+
+Calculator hängt heute komplett + unauthentifiziert am Ingress (`calculator.poltr.info`, `path: /`).
+Vor dem Ausrollen der neuen `/api/embeddings/*`-Endpoints (LLM-/Embedding-Kosten) absichern:
+Ingress-`path` auf `/api/topdown` verengen (Admin-Taxonomie-Panel ruft browser-seitig,
+muss public bleiben; Embeddings-Pfade nur clusterintern). Details + größerer Folge-Punkt
+(topdown selbst unauthentifiziert) in [doc/CALCULATOR_EXPOSURE.md](CALCULATOR_EXPOSURE.md).
+Verwandt: [LM_PEER_REVIEW.md](LM_PEER_REVIEW.md).
 
 ## [ ] Writer-Loops nebenläufigkeitssicher machen (Crosspost + Translation)
 
@@ -156,6 +166,8 @@ umgehen. Das ist das echte, aktuell offene Loch in dieser Klasse von Bedenken.
 
 
 ## Done
+[x] Check: per-email rate limit on code requests
+
 [x] AI Übersetzungen im App view
 
 [x] Neue Analyse: Gegenüberstellungen umd Ambivalenz auzuzeigen. => Ja, aber. => "Es ist ihre Entscheidung, ob sie diesen Nachteil in Kauf nehmen würden" 

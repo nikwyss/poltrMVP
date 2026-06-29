@@ -731,4 +731,31 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO wr
 GRANT USAGE ON SCHEMA auth TO writer;
 GRANT SELECT ON auth.community_accounts TO writer;        -- inkl. pw_* → Community-Sessions
 GRANT SELECT ON auth.v_eligible_participants TO writer;     -- Eligibility-Gate
+
+-- =============================================================================
+-- app_embeddings — pgvector embeddings für Argumente + Taxonomie-Nodes (LM-
+-- assisted Duplikatscheck + semantische Suche). Vom Calculator geschrieben
+-- (sein erster DB-Write); regenerierbarer Cache, daher kein FK → kein CASCADE.
+-- Siehe doc/LM_PEER_REVIEW.md. Voraussetzung: pgvector-fähiges Postgres-Image
+-- (custom postgres:15-alpine + pgvector, infra/docker/postgres-pgvector/).
+-- (Spiegelt services/appview/migrations/012_create_app_embeddings.sql.)
+-- =============================================================================
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS app_embeddings (
+    subject_type  text NOT NULL,              -- 'argument' | 'taxonomy_node' (später 'comment','ballot')
+    subject_ref   text NOT NULL,              -- app_arguments.uri  bzw.  app_taxonomy_node.id::text
+    lang          text NOT NULL,              -- kanonischer POLTR_LANGUAGES-Code: 'de-CH','en-GB',…
+    scope_rkey    text,                       -- ballot_rkey für Vorlagen-Filter (Dedup)
+    model         text NOT NULL,
+    embedding     vector(1024) NOT NULL,      -- dimensions=1024 (MRL)
+    content_hash  text NOT NULL,              -- sha256(model || dim || text) je Sprache
+    generated_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (subject_type, subject_ref, lang)
+);
+CREATE INDEX IF NOT EXISTS app_embeddings_scope_idx
+    ON app_embeddings (subject_type, scope_rkey, lang);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON app_embeddings TO calculator;
+GRANT SELECT ON app_embeddings TO appview;
 -- ALTER ROLE writer WITH PASSWORD 'CHANGE_ME';
