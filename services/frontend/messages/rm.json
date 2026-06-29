@@ -433,5 +433,23 @@
     "metaReviews": "Gutachten",
     "metaOpen": "offen",
     "metaOwn": "eigene"
+  },
+  "peerReview": {
+    "banner": {
+      "minimal": {
+        "title": "Du wurdest für ein Peer-Review ausgewählt",
+        "body": "Bitte begutachte das zugewiesene Argument, wenn du einen Moment Zeit hast."
+      },
+      "medium": {
+        "title": "Ein Peer-Review wartet auf dich",
+        "body": "Deine Begutachtung wird benötigt – sie dauert nur wenige Minuten."
+      },
+      "maximum": {
+        "title": "Dein Peer-Review steht noch aus",
+        "body": "Die Begutachtung ist verbindlich. Bitte schliesse sie jetzt ab."
+      },
+      "cta": "Jetzt begutachten",
+      "more": "+{count} weitere"
+    }
   }
 }

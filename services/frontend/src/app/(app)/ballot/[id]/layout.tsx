@@ -9,6 +9,7 @@ import { getBallot } from "@/lib/agent";
 import { ArrowLeft } from "lucide-react";
 import { OverlayProvider } from "@/lib/overlay";
 import { OverlayContentHost } from "@/lib/overlay-content";
+import { PeerReviewBanner } from "@/components/peer-review-banner";
 
 const tabs = [
   { key: "info" as const, segment: "info" },
@@ -134,6 +135,7 @@ export default function VorlageLayout({
           {children}
         </div>
       </div>
+      <PeerReviewBanner ballotId={id} />
       <OverlayContentHost />
     </OverlayProvider>
   );

@@ -433,5 +433,23 @@
     "metaReviews": "pareri",
     "metaOpen": "aperti",
     "metaOwn": "tuoi"
+  },
+  "peerReview": {
+    "banner": {
+      "minimal": {
+        "title": "Sei stato selezionato per una revisione",
+        "body": "Valuta l'argomento assegnato quando hai un momento."
+      },
+      "medium": {
+        "title": "Una revisione tra pari ti aspetta",
+        "body": "La tua valutazione è necessaria – bastano pochi minuti."
+      },
+      "maximum": {
+        "title": "La tua revisione è ancora in sospeso",
+        "body": "La revisione è obbligatoria. Completala ora, per favore."
+      },
+      "cta": "Valuta ora",
+      "more": "+{count} altri"
+    }
   }
 }

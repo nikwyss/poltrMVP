@@ -2,31 +2,34 @@
 
 ## Next
 
-- [ ] Missing: per-email rate limit on code requests
-- [ ] email änderungs mechanismus im profil 
-- [ ] Comment-Tree: immer nur auswahl der comments zeigen, und dann mit "Zeige mehr" links expandierbar machen. 
-- [ ] @tanstack/vue-virtual beim feed view?
-- [ ] Posting_limit:  Das Frontend-Display (Restkontingent im Composer, Deaktivieren bei Cap, 429-Handling/i18n) war laut doc/SECURITY_AUTH.md als „pending" markiert — die Durchsetzung im Backend steht, die UI-Anzeige evtl. noch nicht vollständig.
+[ ] Check: per-email rate limit on code requests
+[ ] email änderungs mechanismus im profil. Notwendig? Sicher? (email wird ja nicht gespeichert) 
+[ ] Comment-Tree: immer nur auswahl der comments zeigen, und dann mit "Zeige mehr" links expandierbar machen. 
+[ ] @tanstack/vue-virtual beim feed view?
+[ ] Posting_limit:  Das Frontend-Display (Restkontingent im Composer, Deaktivieren bei Cap, 429-Handling/i18n) war laut doc/SECURITY_AUTH.md als „pending" markiert — die Durchsetzung im Backend steht, die UI-Anzeige evtl. noch nicht vollständig.
   
-- [ ] Neue Analyse: Gegenüberstellungen umd Ambivalenz auzuzeigen. => Ja, aber. => "Es ist ihre Entscheidung, ob sie diesen Nachteil in Kauf nehmen würden" 
-- [ ] Wohin kommen neue argumente. Bleiben die vorerst unzugeordnet? Oder einfach dem hauptthema angehängt.??
-
+[ ] Wohin kommen neue argumente. Bleiben die vorerst unzugeordnet? Oder einfach dem hauptthema angehängt.??
 
 **Peerreviews**
-- [ ] Layout für offnee Peerreview Notifcation: schön nervig muss es sein.. 
-- [ ] Peerreview Kritierien
+[ ] Peerreview Kritierien / LLM-Support / Dito bei Argument Submit
+[ ] Retention für `app_acceptance_queue`: erledigte Zeilen werden nie gelöscht (Processor setzt nur `status`, kein Cleanup/Cron) → Tabelle wächst unbegrenzt (~1 Request-Zeile pro aktivem User/Tag + Argumente/Responses). Cronjob ergänzen:
+    ```sql
+    DELETE FROM app_acceptance_queue
+    WHERE status IN ('done','rejected') AND updated_at < now() - interval '30 days';
+    ```
 
 **AI**
-- [x] AI Übersetzungen im App view
-- [ ] AI Redundanz checks (peerreview und composer)
-- [ ] Formulierungstipps.
+[ ] AI Redundanz checks (peerreview und composer)
+[ ] Formulierungstipps.
+[ ] Moderation
+[ ] Firehose-Security: Appview Check: nur records von meinen appview werden commonized.
+[ ] Auto-Import von Vorlagen: llm. basierend auf BK und Swissvotes.
+
+**ATProto**
+[ ] Finalize lexicon setup: Poltr-specific version + Bluesky fallback (embedded entries)
 
 
-- Moderation
-
-
-
-## CI / Build-Pipeline beschleunigen (build-and-push-services.yml)
+## [ ] CI / Build-Pipeline beschleunigen (build-and-push-services.yml)
 
 Problem heute: jeder `services/**`-Push baut **alle fünf** Services, jeweils mit
 `docker build --no-cache` (CMS = voller Payload/Next-Build von Null) und seriell
@@ -48,7 +51,7 @@ statt alle fünf `--no-cache`. Offen: bleibt `max-parallel:1` (sicher, langsamer
 oder gegen die Blob-Race anders absichern (z.B. separate `cache-to`-Keys je
 Service)?
 
-## Writer-Loops nebenläufigkeitssicher machen (Crosspost + Translation)
+## [ ] Writer-Loops nebenläufigkeitssicher machen (Crosspost + Translation)
 
 Heute durch `writer.yaml` `replicas: 1` (Recreate) **verdeckt**, aber latent: der
 Crosspost- und der Translation-Loop **claimen ihre Arbeit nicht atomar**.
@@ -72,18 +75,17 @@ Kontext: Diskussion 2026-06-16 (localhost+deployed gegen geteilte DB/PDS).
 ## Security-Review des Auth-Umbaus (2026-06-11)
 
 
-2. **DID-Genesis von Verify-Zeit entkoppeln (Nutzer will später weiterverfolgen, aktue>
+[ ] **DID-Genesis von Verify-Zeit entkoppeln (Nutzer will später weiterverfolgen, aktue>
    nicht prioritär):** atproto-DID-Genesis ist öffentlich sekundengenau zeitgestempelt;
    deferred creation beim Verify koppelt Verify-Zeit ≈ Genesis-Zeit → Timing-Korrelati>
    gegen die Firehose (greift im Registrierungs-Moment). Lever: **Pool vor-erzeugter D>
    zuteilen. Begleitend Auth-Logs scrubben (Token-in-URL + IP-Chain + Zeitstempel =
    Korrelations-Korpus; die „client ip chain" bringt IPs in den Auth-Pfad).
 
-3. **Sybil-Resistenz der öffentlichen Aggregat-Zahlen und Peerreviews :** Rate-Limits drosseln Mailversand, nicht die Account-Zahl → Wegwer>
+[ ] **Sybil-Resistenz der öffentlichen Aggregat-Zahlen und Peerreviews :** Rate-Limits drosseln Mailversand, nicht die Account-Zahl → Wegwer>
    Mailer = günstiger Sybil. Hängt allein an der eID-Frage: Werden die angezeigten
    Prozentzahlen **pro eID-verifizierter Identität** (Swiyu-Verifier) statt pro Account
    gewichtet? Wenn nicht eID-gegated, ist der Vektor offen.
-
 
 Siehe Plan-Datei mit Detail-Mitigations. Verwandt: [[project_architecture_layers]].
 
@@ -91,7 +93,7 @@ Siehe Plan-Datei mit Detail-Mitigations. Verwandt: [[project_architecture_layers
 
 
 
-  > **Wichtige Subtilität — `community_accounts` gehört zum Content-Pool, nicht zum Auth-Pool.**
+  > [ ] **Wichtige Subtilität — `community_accounts` gehört zum Content-Pool, nicht zum Auth-Pool.**
   > Die Tabelle liegt zwar im `auth`-Schema, ist aber funktional eine *Content-Pfad*-Credential
   > (PDS-Passwörter der Per-Ballot-Community-Konten), kein User-Identitäts-Datum wie `auth_creds`.
   > Der **gesamte** Deliberations-Schreibpfad braucht sie (nicht nur Peerreviews): Argument-
@@ -110,12 +112,7 @@ Siehe Plan-Datei mit Detail-Mitigations. Verwandt: [[project_architecture_layers
 
 
 
-Verwandt: die Email↔DID-Linkage (Klartext-Email in `auth_creds`) ist ein Daten-/Krypto-
-Change, kein Grant-Change → Punkt 1 im „Security-Review des Auth-Umbaus" oben
-(Email-as-HMAC). [[project_auth_privacy_workstream]] · [[project_architecture_layers]].
-
-
-## ATProto-native Deliberation — Härtung der Akzeptanz-Pipeline vor Prod (2026-06-16)
+## [ ] ATProto-native Deliberation — Härtung der Akzeptanz-Pipeline vor Prod (2026-06-16)
 
 Die Akzeptanz-Pipeline ([services/community-writer/src/atproto/acceptance.py](services/community-writer/src/atproto/acceptance.py))
 ist Dev-tauglich, aber vor dem Einsatz über Dev hinaus zu härten:
@@ -132,8 +129,7 @@ ist Dev-tauglich, aber vor dem Einsatz über Dev hinaus zu härten:
   `state != closed`, Vote-Validität). Schliesst den Direkt-PDS-Bypass für Argumente/Responses.
 Plan: `typed-kindling-flask`. [[project_architecture_layers]].
 
-## Wo es heute wirklich offen ist: Comments & Likes (Direkt-PDS-Quota-Bypass)
-
+## [ ] Wo es heute wirklich offen ist: Comments & Likes (Direkt-PDS-Quota-Bypass)
 Comments und Likes leben per Design im User-Repo und werden **direkt projiziert**, nur
 gegated durch die (permissive) Eligibility-View — [record_handler.js:171](services/indexer/src/record_handler.js#L171)
 und [:211](services/indexer/src/record_handler.js#L211):
@@ -156,16 +152,14 @@ umgehen. Das ist das echte, aktuell offene Loch in dieser Klasse von Bedenken.
 
 
 
-## CHECK LATER
-
-- Finalize lexicon setup: Poltr-specific version + Bluesky fallback (embedded entries)
-
-
 
 
 
 ## Done
+[x] AI Übersetzungen im App view
 
+[x] Neue Analyse: Gegenüberstellungen umd Ambivalenz auzuzeigen. => Ja, aber. => "Es ist ihre Entscheidung, ob sie diesen Nachteil in Kauf nehmen würden" 
+[x] Layout für offnee Peerreview Notifcation: schön nervig muss es sein.. 
 
 
 [x] Email-as-HMAC hash
@@ -203,3 +197,4 @@ umgehen. Das ist das echte, aktuell offene Loch in dieser Klasse von Bedenken.
 [x] Load balancer removal (hostPort setup for dev/test)
 [x] Interoperability: Content on Bluesky
 [x] Interoperability: Bluesky content in the app
+[x] die Email↔DID-Linkage (Klartext-Email in `auth_creds`) ist ein Daten-/Krypto- Change, kein Grant-Change → Punkt 1 im „Security-Review des Auth-Umbaus" oben(Email-as-HMAC). [[project_auth_privacy_workstream]] · [[project_architecture_layers]].

@@ -31,12 +31,19 @@ export function GatePlaceholder({
   title,
   description,
   progress,
+  action,
+  dashed = true,
   className,
 }: {
   icon?: React.ReactNode;
   title: string;
   description?: string;
   progress?: { value: number; total: number; label?: string };
+  // Optionaler Call-to-Action unter der Beschreibung (z. B. „Jetzt begutachten").
+  action?: React.ReactNode;
+  // Gestrichelter Rand (Default) signalisiert „noch gesperrt"; solid wirkt eher
+  // wie eine aktive Aufforderungs-Karte.
+  dashed?: boolean;
   className?: string;
 }) {
   const pct =
@@ -45,7 +52,7 @@ export function GatePlaceholder({
       : 0;
 
   return (
-    <Card className={cn("border-dashed", className)}>
+    <Card className={cn(dashed && "border-dashed", className)}>
       <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
         <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
           {icon ?? <Lock className="h-5 w-5" />}
@@ -73,6 +80,7 @@ export function GatePlaceholder({
             )}
           </div>
         )}
+        {action && <div className="mt-2">{action}</div>}
       </CardContent>
     </Card>
   );

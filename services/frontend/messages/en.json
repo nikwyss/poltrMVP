@@ -433,5 +433,23 @@
     "metaReviews": "reviews",
     "metaOpen": "open",
     "metaOwn": "yours"
+  },
+  "peerReview": {
+    "banner": {
+      "minimal": {
+        "title": "You've been selected for a peer review",
+        "body": "Please review the assigned argument when you have a moment."
+      },
+      "medium": {
+        "title": "A peer review is waiting for you",
+        "body": "Your review is needed – it only takes a few minutes."
+      },
+      "maximum": {
+        "title": "Your peer review is still pending",
+        "body": "This review is mandatory. Please complete it now."
+      },
+      "cta": "Review now",
+      "more": "+{count} more"
+    }
   }
 }

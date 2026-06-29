@@ -248,6 +248,8 @@ export function ArgumentDetail({
     setRelevance(value); // sofortiges optimistisches UI (Slider/Score im Overlay)
     patchRating(uri, value); // sofortiges Update der Booklet-Karte via Cache
     debouncedRate(uri, argument.cid, value); // gebündelter Netzwerk-Write
+    // Das Familiaritäts-Gate fürs Peer-Review-Polling liest jetzt direkt aus der
+    // (hier optimistisch gepatchten) Argumentliste — kein separates Mitführen mehr.
   };
 
   const handleSubmitComment = () => {

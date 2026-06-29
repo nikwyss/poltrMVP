@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-06-26
+
+### Peer-Review-Gate zählt alle Bewertungen, nicht nur die der aktuellen Session (`services/frontend`)
+
+Das Familiaritäts-Gate, ab dem der Peer-Review-Banner erscheint (≥ 2 bewertete Argumente einer Vorlage), basierte bisher auf einem localStorage-Zähler, der nur während der laufenden Session/auf dem aktuellen Gerät hochgezählt wurde — frühere Bewertungen (gestern, anderes Gerät) zählten nicht. Jetzt wird der Zähler aus der serverseitigen Argumentliste abgeleitet (`viewer.preference != null`), also unabhängig davon, *wann* bewertet wurde.
+
+- [rating-progress.ts](services/frontend/src/lib/rating-progress.ts): `useRatedArgCount` liest nun via `useQuery` aus der Argumentliste (geteilter Cache-Key mit der Booklet-Seite, `argumentKeys.list`) statt aus localStorage. Eine Bewertung im Overlay patcht denselben Cache optimistisch → Zähler zieht ohne Refetch nach. localStorage-Logik (`recordArgumentRated`, `RATING_RECORDED_EVENT`, `getRatedArgCount`) entfernt.
+- [argument-detail.tsx](services/frontend/src/components/argument-detail.tsx): `recordArgumentRated`-Aufruf beim Bewerten entfernt (nicht mehr nötig).
+
 ## 2026-06-25
 
 ### Ballot-weite Suche über Themen, Argumente & Kommentare (`services/appview`, `services/frontend`)

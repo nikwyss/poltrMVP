@@ -433,5 +433,23 @@
     "metaReviews": "expertises",
     "metaOpen": "ouvertes",
     "metaOwn": "les vôtres"
+  },
+  "peerReview": {
+    "banner": {
+      "minimal": {
+        "title": "Vous avez été sélectionné·e pour une évaluation",
+        "body": "Merci d'évaluer l'argument qui vous a été attribué dès que possible."
+      },
+      "medium": {
+        "title": "Une évaluation par les pairs vous attend",
+        "body": "Votre évaluation est requise – cela ne prend que quelques minutes."
+      },
+      "maximum": {
+        "title": "Votre évaluation est toujours en attente",
+        "body": "Cette évaluation est obligatoire. Merci de la compléter maintenant."
+      },
+      "cta": "Évaluer maintenant",
+      "more": "+{count} autre(s)"
+    }
   }
 }

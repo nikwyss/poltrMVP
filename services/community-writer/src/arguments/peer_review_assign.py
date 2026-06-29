@@ -9,8 +9,22 @@ active users to fill.
 
 Constraints (peer-review config is writer-owned → PEER_REVIEW_* in writer-secrets;
 only the master switch APPVIEW_PEER_REVIEW_ENABLED is shared with the appview):
-  - PEER_REVIEW_DAILY_LIMIT              max new active invitations per user
-                                         in a sliding 24h window (default 3)
+  - PEER_REVIEW_DAILY_LIMIT              max new active invitations per user PER
+                                         BALLOT in a sliding 24h window
+                                         (default 3). Bounds the *rate* of new
+                                         invitations on each Vorlage independently.
+  - PEER_REVIEW_OPEN_LIMIT              max *standing* open invitations a user may
+                                         hold PER BALLOT at once (default 4).
+                                         Bounds the *backlog*: a user who logs in
+                                         daily but never reviews stops getting new
+                                         ones for a Vorlage once this many are
+                                         pending there, so invitations can no
+                                         longer accumulate unboundedly. Per-ballot
+                                         (not global) so one Vorlage's backlog
+                                         can't starve another. "Open" = invited,
+                                         review still open, not yet answered,
+                                         argument not deleted — identical to the
+                                         set the peerreview.pending banner shows.
   - PEER_REVIEW_INVITE_PROBABILITY       anti-collusion lottery: even when a
                                          slot is free, a candidate argument is
                                          only assigned with this probability
@@ -49,6 +63,10 @@ def _daily_limit() -> int:
     return int(os.getenv("PEER_REVIEW_DAILY_LIMIT", "3"))
 
 
+def _open_limit() -> int:
+    return int(os.getenv("PEER_REVIEW_OPEN_LIMIT", "4"))
+
+
 def _invite_probability() -> float:
     return float(os.getenv("PEER_REVIEW_INVITE_PROBABILITY", "0.35"))
 
@@ -85,23 +103,59 @@ async def maybe_assign_reviews_for_user(did: str) -> None:
 
 async def _assign(did: str) -> None:
     daily_limit = _daily_limit()
+    open_limit = _open_limit()
     probability = _invite_probability()
 
     pool = await get_pool()
 
     async with pool.acquire() as conn:
-        recent_active = await conn.fetchval(
+        # Daily rate cap (PER BALLOT): new active invitations issued in the last
+        # 24h, grouped by ballot. Bounds how fast a user gets new work on each
+        # Vorlage independently.
+        recent_rows = await conn.fetch(
             """
-            SELECT COUNT(*) FROM app_peerreview_invitations
-            WHERE invitee_did = $1
-              AND invited = true
-              AND created_at > NOW() - INTERVAL '24 hours'
+            SELECT a.ballot_rkey, COUNT(*) AS recent_count
+            FROM app_peerreview_invitations ri
+            JOIN app_arguments a ON a.uri = ri.argument_uri
+            WHERE ri.invitee_did = $1
+              AND ri.invited = true
+              AND ri.created_at > NOW() - INTERVAL '24 hours'
+            GROUP BY a.ballot_rkey
             """,
             did,
         )
-    slots_left = daily_limit - int(recent_active or 0)
-    if slots_left <= 0:
-        return
+        # Standing backlog cap (PER BALLOT): invitations the user still has to
+        # act on, grouped by ballot. Same definition as peerreview.pending (the
+        # banner): invited, review still open, not yet answered, argument not
+        # deleted. Per-ballot (not global) so a backlog on one Vorlage can't
+        # starve invitations for another. Without this, the daily cap alone lets
+        # a daily-login-but-never-review user accumulate invitations unboundedly.
+        open_rows = await conn.fetch(
+            """
+            SELECT a.ballot_rkey, COUNT(*) AS open_count
+            FROM app_peerreview_invitations ri
+            JOIN app_arguments a    ON a.uri = ri.argument_uri AND NOT a.deleted
+            JOIN app_peerreviews pr ON pr.argument_uri = ri.argument_uri
+            WHERE ri.invitee_did = $1
+              AND ri.invited = true
+              AND pr.state = 'open'
+              AND NOT EXISTS (
+                SELECT 1 FROM app_peerreview_responses rr
+                WHERE rr.argument_uri = ri.argument_uri
+                  AND rr.reviewer_did = $1
+              )
+            GROUP BY a.ballot_rkey
+            """,
+            did,
+        )
+    # Running per-ballot counters; incremented as we assign below so both caps
+    # hold within a single assignment pass too.
+    recent_by_ballot: dict[str, int] = {
+        r["ballot_rkey"]: int(r["recent_count"]) for r in recent_rows
+    }
+    open_by_ballot: dict[str, int] = {
+        r["ballot_rkey"]: int(r["open_count"]) for r in open_rows
+    }
 
     # Candidate filter:
     #   * pr.state='open'   — review still accepts reviewers; implicitly limits
@@ -110,12 +164,12 @@ async def _assign(did: str) -> None:
     #   * author_did != me  — not your own argument
     #   * NOT EXISTS (...)  — you haven't been rolled for this arg before
     # Quorum is intentionally NOT a per-argument invitation cap: it only gates
-    # the closure trigger. The per-user DAILY_LIMIT above + the probability roll
-    # below are what bound the invitation rate.
+    # the closure trigger. The per-user DAILY_LIMIT above + the per-ballot
+    # OPEN_LIMIT below + the probability roll are what bound the invitation rate.
     async with pool.acquire() as conn:
         candidates = await conn.fetch(
             """
-            SELECT a.uri, a.did AS community_did
+            SELECT a.uri, a.did AS community_did, a.ballot_rkey
             FROM app_peerreviews pr
             JOIN app_arguments a ON a.uri = pr.argument_uri
             WHERE pr.state = 'open'
@@ -136,8 +190,14 @@ async def _assign(did: str) -> None:
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         for arg in candidates:
-            if slots_left == 0:
-                break
+            ballot_rkey = arg["ballot_rkey"]
+            # Per-ballot caps: skip — don't even roll the lottery, so the
+            # candidate stays eligible once that Vorlage frees up — if the user
+            # has either hit today's rate or the standing backlog for it.
+            if recent_by_ballot.get(ballot_rkey, 0) >= daily_limit:
+                continue
+            if open_by_ballot.get(ballot_rkey, 0) >= open_limit:
+                continue
 
             selected = random.random() <= probability
             argument_uri = arg["uri"]
@@ -179,9 +239,17 @@ async def _assign(did: str) -> None:
                         created_at,
                     )
                 if selected:
-                    slots_left -= 1
+                    recent_by_ballot[ballot_rkey] = (
+                        recent_by_ballot.get(ballot_rkey, 0) + 1
+                    )
+                    open_by_ballot[ballot_rkey] = (
+                        open_by_ballot.get(ballot_rkey, 0) + 1
+                    )
                     logger.info(
-                        f"Assigned review: {did} → {argument_uri} (slots_left={slots_left})"
+                        f"Assigned review: {did} → {argument_uri} "
+                        f"(ballot={ballot_rkey}, "
+                        f"today={recent_by_ballot[ballot_rkey]}/{daily_limit}, "
+                        f"open={open_by_ballot[ballot_rkey]}/{open_limit})"
                     )
             except Exception as err:
                 logger.warning(
