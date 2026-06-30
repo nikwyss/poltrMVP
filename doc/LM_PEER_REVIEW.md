@@ -153,8 +153,12 @@ Query-Text → Embedding (ein Live-Call) → Cosine gegen `subject_type='argumen
 
 > **Latenz (kritisch):** Suche läuft im Nutzerpfad AppView → Calculator → Infomaniak (externer Call). Anders als die Übersetzung (Hintergrund) ist das latenzsensitiv. Mitigation: kurzes Timeout + Debounce; ggf. Query-Embeddings cachen. Im Plan als Punkt offen.
 
-### 6. Anbindung an Peer-Review / Composer (neu)
-`/duplicates` aufrufen, wenn ein Nutzer ein Argument verfasst/einreicht (Composer) bzw. im Peer-Review als Reviewer-Kontext. Heute existiert dafür **kein** Hook — Integrationspunkt in [PEER_REVIEW.md](PEER_REVIEW.md) bzw. dem Composer-Flow ist noch zu designen (eigener Schritt).
+### 6. Anbindung an Peer-Review / Composer
+Die Composer-Prüfstufe (`app.ch.poltr.argument.precheck`, Bündel) hat zwei Checks:
+- **Check #1 — Duplikat-Check: IMPLEMENTIERT** (Calculator `/api/embeddings/similar`, zweistufiger Composer, same-stance + same-ballot + same-lang, Schwelle 0.66, Top-1, weicher Hinweis). Doku: [DUPLICATE_CHECK.md](DUPLICATE_CHECK.md).
+- **Check #2 — Stance-/Kohärenz-Check (LLM): IMPLEMENTIERT** (Calculator `/api/review/stance`, Infomaniak Gemma JSON-Prompt, konservativ; im selben Bündel als `stance`; Ein-Klick-Positionswechsel bei Mismatch). Details: CHANGELOG 2026-06-29.
+
+Offen: Reviewer-Kontext im Peer-Review selbst ([PEER_REVIEW.md](PEER_REVIEW.md)); weitere Checks (Verständlichkeit/Formulierungstipps, Thematik) als zusätzliche Bündel-Felder.
 
 ---
 
@@ -212,7 +216,7 @@ Kein Migrations-Runner im Projekt; Konvention = nummerierte, **idempotente** SQL
 ## Offene Punkte / spätere Phasen
 - **Operatives:** pgvector-Image-Swap auf der geteilten Prod-DB als separater, verifizierter Wartungsschritt (Backup + REINDEX).
 - **Such-Latenz:** externer Embedding-Call im Nutzerpfad — Timeout/Debounce/Cache.
-- **Konsumenten-Integration:** Dedup-Hook in Composer + Peer-Review ist noch zu designen (TODO „AI Redundanz checks").
+- **Konsumenten-Integration:** Composer-Dedup erledigt ([DUPLICATE_CHECK.md](DUPLICATE_CHECK.md)); offen: Reviewer-Kontext im Peer-Review, optional Reranker/LLM als Stage-2.
 - **Translations-Kopplung:** en-Embedding entsteht erst nach der en-Übersetzung; der Translator-Loop hat einen Circuit-Breaker (HALT bei Fehler) → bei gestoppter Übersetzung bleibt die en-Suche/Dedup still degradiert. Monitoring sinnvoll.
 - **Taxonomie-Backfill** ist ein zweiter Extraktor (anderer Text: name+introduction), gleiche Tabelle/Mechanik.
 - **Verwaiste Embeddings** (kein CASCADE): Lazy-Cleanup im Backfill oder kleiner Cron.

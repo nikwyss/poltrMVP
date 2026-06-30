@@ -13,6 +13,22 @@ Grundlage für den LLM-gestützten Peer-Review: pro Inhalt ein Embedding-Vektor,
 - **Infra:** Postgres-Image → custom `postgres:15-alpine` + pgvector ([infra/docker/postgres-pgvector/Dockerfile](infra/docker/postgres-pgvector/Dockerfile)); das Debian-`pgvector/pgvector` ist mit dem bestehenden alpine-Volume inkompatibel (CrashLoop) und brächte eine Collation-Migration. Calculator-Ingress von `path: /` auf `/api/topdown` verengt → `/api/embeddings/*` bleibt intern (Kosten-/DoS-Schutz; [doc/CALCULATOR_EXPOSURE.md](doc/CALCULATOR_EXPOSURE.md)).
 - **Config/Secrets:** `CALCULATOR_EMBEDDING_*` + `POLTR_LANGUAGES` in `calculator-secrets` / `.env.dist`.
 
+### Argument-Prüfstufe (Composer) — erster Check: Duplikate
+
+Erster Embedding-Konsument: Beim Verfassen eines Arguments wird der Composer zweistufig (*Schreiben → Prüfung → Einreichen*); die Prüfung zeigt die ähnlichsten bestehenden Argumente, damit der Nutzer selbst über Duplikate entscheidet (weicher, nicht-blockierender Hinweis). Bewusst **ohne LLM** — Embedding + Schwelle reichen; die Position (PRO/CONTRA) wird mitangezeigt. Als erweiterbare Prüfstufe angelegt (späterer PRO/CONTRA-/Verständlichkeits-/Thematik-Check docken additiv an).
+
+- **Calculator:** neuer `POST /api/embeddings/similar` ([similarity.py](services/calculator/src/embedding/similarity.py) `similar_arguments`, [router.py](services/calculator/src/embedding/router.py)) — embeddet `title+body` live, Cosine gegen Argumente der Vorlage+Sprache, liefert `{uri,title,body,type,similarity}` über `CALCULATOR_DEDUP_SIM_THRESHOLD` (Default 0.70).
+- **AppView:** neuer XRPC `app.ch.poltr.argument.precheck` ([precheck.py](services/appview/src/routes/deliberation/precheck.py)) — liefert ein **erweiterbares Check-Bündel** (MVP `{duplicates:[…]}`), proxyt zum Calculator (`CALCULATOR_INTERNAL_URL`), graceful `[]` bei Fehler (blockiert nie).
+- **Frontend:** Zwei-Schritt-Composer ([add-argument-modal.tsx](services/frontend/src/components/add-argument-modal.tsx)) mit Karten-Container; `precheckArgument` ([agent.ts](services/frontend/src/lib/agent.ts)); Duplikate via `ArgumentSummary`; i18n in allen `messages/*.json`.
+
+### Argument-Prüfstufe — Check #2: Stance-/Kohärenz-Check (LLM)
+
+Zweiter Check der Composer-Prüfstufe: ein LLM (**Infomaniak Gemma**, JSON-Prompt — Infomaniak kennt kein forced tool-use) beurteilt **konservativ**, ob der Text als gewählte Position (PRO/CONTRA) zur Vorlage lesbar ist, ein nachvollziehbares Argument ist und zum Thema gehört, und gibt kurzes Feedback. Weich/nicht-blockierend; bei Stance-Mismatch **Ein-Klick-Positionswechsel**. Kein Inhalts-/Meinungsurteil (Civic-Speech).
+
+- **Calculator:** neues `src/review/` (Infomaniak-Chat-Client [infomaniak_chat.py](services/calculator/src/review/infomaniak_chat.py), [stance.py](services/calculator/src/review/stance.py), `POST /api/review/stance`); `CALCULATOR_REVIEW_MODEL` (Default google/gemma-4-31B-it); nutzt Vorlagen-Kontext via `fetch_ballot_description`. Severity (`ok`/`hint`/`warn`) deterministisch im Code abgeleitet, nicht vom LLM.
+- **AppView:** [precheck.py](services/appview/src/routes/deliberation/precheck.py) ruft Dedup + Stance **parallel** (`asyncio.gather`) → Bündel `{duplicates, stance}`.
+- **Frontend:** Stance-Karte im Review-Schritt (warn/hint/ok), Ein-Klick „Position wechseln"; i18n in allen `messages/*.json`.
+
 ## 2026-06-26
 
 ### Peer-Review-Zuteilung: beide Limiten jetzt pro Vorlage (`services/community-writer`, `infra`)

@@ -141,6 +141,76 @@ export async function createArgument(
   return res.json();
 }
 
+export type SimilarArgument = {
+  uri: string;
+  title: string;
+  body: string;
+  type: 'PRO' | 'CONTRA';
+  similarity: number;
+};
+
+// Pro Check ein Status, damit „wirklich kein Befund" (ok) von
+// „Prüfung fehlgeschlagen/nicht erreichbar" (unavailable) unterscheidbar ist.
+export type DuplicatesCheck = {
+  status: 'ok' | 'unavailable';
+  items: SimilarArgument[];
+};
+
+// Stance-/Kohärenz-Check (LLM, konservativ). severity: 'ok' (stimmig) |
+// 'hint' (kleiner Hinweis) | 'warn' (klarer Stance-Mismatch).
+export type StanceCheck = {
+  status: 'ok' | 'unavailable';
+  severity?: 'ok' | 'hint' | 'warn';
+  reads_as?: 'pro' | 'contra' | 'unclear';
+  matches_selected?: boolean;
+  is_argument?: boolean;
+  on_topic?: boolean;
+  feedback?: string;
+};
+
+export type ArgumentPrecheck = { duplicates: DuplicatesCheck; stance: StanceCheck };
+
+const DUP_UNAVAILABLE: DuplicatesCheck = { status: 'unavailable', items: [] };
+const STANCE_UNAVAILABLE: StanceCheck = { status: 'unavailable' };
+
+/**
+ * Prüfstufe vor dem Erstellen: liefert ein erweiterbares Bündel von Checks
+ * (Duplikate via Embeddings + Stance/Kohärenz via LLM). Nicht-blockierend —
+ * schlägt ein Check fehl, kommt `status:'unavailable'`, damit das UI ehrlich
+ * „nicht verfügbar" zeigt statt eines falschen „alles ok".
+ */
+export async function precheckArgument(
+  ballotRkey: string,
+  title: string,
+  body: string,
+  type: 'PRO' | 'CONTRA',
+): Promise<ArgumentPrecheck> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  try {
+    const res = await authenticatedFetch('/api/xrpc/app.ch.poltr.argument.precheck', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ballot: ballotRkey, title, body, type }),
+    });
+    if (!res.ok) return { duplicates: DUP_UNAVAILABLE, stance: STANCE_UNAVAILABLE };
+    const content = await res.json();
+    const dup = content?.duplicates;
+    const st = content?.stance;
+    return {
+      duplicates:
+        dup && typeof dup === 'object' && 'status' in dup
+          ? { status: dup.status, items: dup.items ?? [] }
+          : DUP_UNAVAILABLE,
+      stance:
+        st && typeof st === 'object' && 'status' in st
+          ? (st as StanceCheck)
+          : STANCE_UNAVAILABLE,
+    };
+  } catch {
+    return { duplicates: DUP_UNAVAILABLE, stance: STANCE_UNAVAILABLE };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Comment API
 // ---------------------------------------------------------------------------

@@ -11,7 +11,7 @@
 
 **Peerreviews**
 [ ] Peerreview Kritierien / LLM-Support / Dito bei Argument Submit
-[ ] AI Redundanz checks (peerreview und composer)
+[ ] AI Redundanz checks (peerreview und composer) — Composer-Duplikat-Check erledigt (Embedding-basiert, same-stance, Top-1; siehe doc/DUPLICATE_CHECK.md). Offen: Reviewer-Kontext im Peer-Review; optional Reranker/LLM als Stage-2.
 [ ] Formulierungstipps.
 
 

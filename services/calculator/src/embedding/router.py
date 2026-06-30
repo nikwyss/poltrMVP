@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from src.embedding import backfill as bf
 from src.embedding import similarity as sim
@@ -22,6 +23,15 @@ from src.embedding import similarity as sim
 logger = logging.getLogger("calculator.embedding.router")
 
 router = APIRouter(prefix="/api/embeddings", tags=["embeddings"])
+
+
+class SimilarRequest(BaseModel):
+    ballot_rkey: str
+    title: str = ""
+    body: str = ""
+    lang: str | None = None
+    type: str | None = None  # 'PRO' | 'CONTRA' — nur gleichgesinnte vergleichen
+    limit: int = 1
 
 
 @router.post("/backfill")
@@ -44,6 +54,20 @@ async def duplicates_endpoint(
         "argument_uri": argument_uri,
         "duplicates": await sim.find_duplicates(argument_uri, lang=lang, limit=limit),
     }
+
+
+@router.post("/similar")
+async def similar_endpoint(req: SimilarRequest):
+    """Duplikat-Check beim Verfassen: ähnlichste Argumente der Vorlage (POST, da
+    title+body lang sein können). Liefert {results:[{uri,title,body,type,similarity}]}."""
+    try:
+        results = await sim.similar_arguments(
+            req.ballot_rkey, req.title, req.body,
+            lang=req.lang, stance=req.type, limit=req.limit)
+        return {"results": results}
+    except Exception as err:
+        logger.error("embedding similar failed: %s", err)
+        raise HTTPException(status_code=502, detail=f"similar fehlgeschlagen: {err}") from err
 
 
 @router.get("/search")

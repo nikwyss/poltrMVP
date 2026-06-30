@@ -42,6 +42,15 @@ EMBEDDING_MODEL = os.getenv("CALCULATOR_EMBEDDING_MODEL", "Qwen/Qwen3-Embedding-
 EMBEDDING_DIMENSIONS = int(os.getenv("CALCULATOR_EMBEDDING_DIMENSIONS", "1024") or 0)
 
 # Backfill-Drosselung + Dedup-Schwelle.
+# Chat-Modell (Infomaniak Gemma, JSON-Prompt) für LLM-Checks beim Verfassen
+# (Stance-/Kohärenz-Check). Token + Product ID teilen sich Chat & Embeddings.
+REVIEW_MODEL = os.getenv("CALCULATOR_REVIEW_MODEL", "google/gemma-4-31B-it")
+
 EMBEDDING_RUN_LIMIT = int(os.getenv("CALCULATOR_EMBEDDING_RUN_LIMIT", "200"))   # Kandidaten je Quelle/Lauf
 EMBEDDING_BATCH_SIZE = int(os.getenv("CALCULATOR_EMBEDDING_BATCH_SIZE", "64"))  # Texte je API-Call (<100)
-DEDUP_SIM_THRESHOLD = float(os.getenv("CALCULATOR_DEDUP_SIM_THRESHOLD", "0.85"))
+# Anzeige-Schwelle für den Duplikat-Check (kein LLM): nur Treffer >= Schwelle
+# werden dem Nutzer gezeigt. Empirisch kalibriert an Ballot 663.1: echte
+# Near-Dupes liegen bei ~0.66–0.82, Rauschen darunter; 0.66 fängt auch die
+# knappen Fälle ("Weniger ist mehr", "ÖV") — Recall-orientiert, da der Hinweis
+# weich ist und Fehltreffer ein Klick sind.
+DEDUP_SIM_THRESHOLD = float(os.getenv("CALCULATOR_DEDUP_SIM_THRESHOLD", "0.66"))
