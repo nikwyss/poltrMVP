@@ -222,7 +222,6 @@ export interface PeerreviewResponse {
   reviewerDid: string;
   criteria: PeerreviewCriterionRating[];
   vote: 'APPROVE' | 'REJECT';
-  justification?: string;
   createdAt: string;
 }
 
@@ -238,6 +237,7 @@ export interface PeerreviewCriterionBreakdown {
 export interface PeerreviewStatus {
   argumentUri: string;
   peerreviewStatus: 'preliminary' | 'approved' | 'rejected';
+  state?: PeerreviewState;
   criteriaBreakdown?: PeerreviewCriterionBreakdown[];
   communityUri?: string;
   quorum: number;

@@ -83,7 +83,6 @@ BODY = {
     "argumentUri": "at://did:plc:community/app.ch.poltr.ballot.argument/x",
     "criteria": [{"key": "coherence", "label": "Stimmigkeit", "assessment": "ok"}],
     "vote": "APPROVE",
-    "justification": "",
 }
 
 
@@ -145,17 +144,16 @@ async def test_submit_already_reviewed_is_endpoint_local():
 
 
 @pytest.mark.asyncio
-async def test_submit_allows_empty_criteria():
-    # Kriterien sind optional (Default: nichts gewählt) → leere Liste ist gültig,
-    # solange ein valides Gesamturteil vorliegt.
-    resp, pds = await _call(FakeConn(gate_reason=None), body={**BODY, "criteria": []})
-    assert resp.status_code == 200
-    pds.assert_awaited_once()
+async def test_submit_empty_criteria_400():
+    # Kriterien sind Pflicht (der UI-Default ist nur leer) → leere Liste ist ungültig.
+    resp, pds = await _call(FakeConn(), body={**BODY, "criteria": []})
+    assert resp.status_code == 400
+    pds.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_submit_missing_criteria_400():
-    # Feld muss vorhanden & eine Liste sein (None/fehlend → 400).
+    # Feld muss vorhanden, eine Liste und nicht leer sein (None/fehlend → 400).
     resp, pds = await _call(FakeConn(), body={**BODY, "criteria": None})
     assert resp.status_code == 400
     pds.assert_not_awaited()
@@ -169,7 +167,10 @@ async def test_submit_invalid_vote_400():
 
 
 @pytest.mark.asyncio
-async def test_submit_reject_requires_justification_400():
-    resp, pds = await _call(FakeConn(), body={**BODY, "vote": "REJECT", "justification": ""})
-    assert resp.status_code == 400
-    pds.assert_not_awaited()
+async def test_submit_reject_needs_no_justification():
+    # Begründung/Freitext gibt es nicht mehr → ein REJECT ist auch ohne Text gültig.
+    resp, pds = await _call(FakeConn(gate_reason=None), body={**BODY, "vote": "REJECT"})
+    assert resp.status_code == 200
+    pds.assert_awaited_once()
+    # Kein justification-Feld im geschriebenen Record.
+    assert "justification" not in pds.await_args.args[2]

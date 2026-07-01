@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-07-02
+
+### Peer-Review-Status-Ansicht (nach dem Einreichen) überarbeitet
+
+[peer-review-detail.tsx](services/frontend/src/components/peer-review-detail.tsx):
+- **Schlankes Erfolgs-Banner** mit Icon statt des langen „Danke"-Kastens.
+- **Meta als drei kompakte Kacheln** nebeneinander: Status / Phase / Fortschritt (spart Höhe, klarer strukturiert). Neuer `state`-Feldzugriff im `PeerreviewStatus`-Typ; Labels `tileStatus/tilePhase/tileProgress`, `statusPreliminary`, `phaseClosed`.
+- **Argument-Kontext im Overlay:** das begutachtete Argument wird jetzt direkt gezeigt (Ja/Nein-Badge + Titel + Kurztext, `line-clamp-3`) — kein Zurückspringen nötig.
+- **Stimmen-Zeile mit farbigen Pfeilen** (grün ↑ / rot ↓), auf einen Blick lesbar.
+- **Kriterien-Statistik verbessert:** je Kriterium ok/beanstandet-Zähler **plus Verhältnis-Balken** (grün/rot) — sichtbar, wie viele Gutachter jedes Kriterium wie bewertet haben.
+
+## 2026-07-01 (Reviewer-Formular: Begründung entfernt, Ja-Argument-Labels)
+
+### Peer-Review: Freitext-Begründung komplett entfernt
+
+Das Gutachten kennt **kein Begründungs-/Freitextfeld** mehr — verbindlich ist allein das Gesamturteil (+ optionale Kriterien-Flags). Betrifft die ganze Kette:
+- **Frontend:** Textarea + State + „Begründung (erforderlich)"-Validierung raus ([review-form.tsx](services/frontend/src/components/review-form.tsx)); `submitPeerreview` ohne `justification` ([agent.ts](services/frontend/src/lib/agent.ts)); Feld aus `PeerreviewResponse`-Typ + i18n-Keys entfernt.
+- **AppView:** „Justification required for REJECT"-Guard entfernt; `justification` nicht mehr im Record/Status/acceptedDraft ([reviews.py](services/appview/src/routes/deliberation/reviews.py)).
+- **Community-Writer:** `missing_justification`-Gate entfernt ([acceptance.py](services/community-writer/src/atproto/acceptance.py)) — ein REJECT ist auch ohne Text gültig.
+- **Lexikon:** `justification` aus [peerreview/response.json](lexicons/app/ch/poltr/peerreview/response.json) gestrichen; zugleich `criteria.minLength:1` entfernt (passt jetzt zur optionalen Kriterien-Regel).
+- Tests angepasst (appview + community-writer), Docs (ARGUMENT_CRITERIA, PEER_REVIEW, LEXICONS).
+
+### „Ja-Argument"/„Nein-Argument" im Reviewer-Overlay
+
+Das begutachtete Argument (und der Duplikat-Kandidat) tragen jetzt „Ja-Argument"/„Nein-Argument" statt nur „Ja"/„Nein" — konsistent mit dem Composer. `ProContraBadge` um ein optionales `label` erweitert.
+
 ## 2026-07-01 (Reviewer-Formular überarbeitet)
 
 ### Peer-Review-Overlay: Toggles (Default leer), zweispaltig, hervorgehobenes Gesamturteil
@@ -10,6 +36,14 @@ UX-Überarbeitung von [review-form.tsx](services/frontend/src/components/review-
 - **Gesamturteil hervorgehoben:** die „aufnehmen ja/nein?"-Entscheidung sitzt in einer abgesetzten Karte mit grösseren Buttons + Untertitel („massgebliche Gesamtentscheidung") — visuell klar übergeordnet gegenüber den (optionalen) Kriterien.
 - **Backend:** Submit-Guard akzeptiert jetzt eine **leere** `criteria`-Liste (muss vorhanden & Liste sein, darf leer sein) — verbindlich ist das `vote`. Neue Tests: leere Liste → 200, `null`/fehlend → 400 ([test_reviews_submit.py](services/appview/tests/test_reviews_submit.py)).
 - i18n: `criteriaHint`, `admitSubtitle` (de/en/fr/it/rm).
+
+### Kompaktere Kriterien + Kopplung Kriterien → Entscheidung (Folge-Iteration)
+
+- **Kompakte Einzeilen:** je Kriterium eine Zeile — Label + **ⓘ-Tooltip** (Details, radix-Tooltip) links, **✓/✗-Icon-Toggle** (grün/rot, schneller scannbar) rechts. Spart deutlich vertikale Höhe (ausgeschriebene Fliesstext-Erklärungen entfallen).
+- **Argument prominenter:** das begutachtete Argument als hervorgehobene Karte (Overline „Zu begutachten", grösserer Titel, mehr Abstand/Schatten) — klar als das Bewertete erkennbar.
+- **Antwortabhängige Empfehlung:** in der Entscheidungs-Karte erscheint aus den Kriterien-Antworten ein Hinweis — „{n} Kriterium beanstandet – Ablehnung naheliegend" (rot) bzw. „Alle Kriterien erfüllt – Annahme naheliegend" (grün). Weich (kein Zwang), koppelt Kriterien und Endentscheidung sichtbar. i18n: `underReview`, `recReject` (Plural), `recApprove`.
+- **Gate:** das Gesamturteil (Ja/Nein) ist erst wählbar, wenn **alle** sichtbaren Kriterien beurteilt sind (sonst Hinweis „Bitte beurteile zuerst alle Kriterien."); Vote- und Submit-Buttons sind bis dahin deaktiviert. i18n: `assessAllFirst`.
+- **One-Liner je Kriterium:** unter dem Label steht eine kurze Hauptaussage (z.B. „Nachvollziehbar & passt zur Position"), die volle Erklärung bleibt im ⓘ-Tooltip. i18n: `critShort*`.
 
 ## 2026-07-01
 

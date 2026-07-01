@@ -550,33 +550,25 @@ async def submit_review(
     argument_uri = body.get("argumentUri")
     criteria = body.get("criteria")
     vote = body.get("vote")
-    justification = body.get("justification", "")
 
     # Vote-payload validity (not DB state, so deliberately NOT in app_response_gate):
     # the same check lives in the community-writer's _accept_response. writer-first
     # rule — see "Guard-Parität" in doc/SECURITY_AUTH.md.
-    # Kriterien sind ein OPTIONALes Signal (Default: nichts gewählt) — die
-    # Liste muss vorhanden, darf aber leer sein. Verbindlich ist das Gesamturteil
-    # (vote). Siehe doc/ARGUMENT_CRITERIA.md „Bewertungs-Modus".
+    # Kriterien sind PFLICHT (der UI-Default ist nur „nichts gewählt" — der Reviewer
+    # muss vor dem Votum jedes Kriterium beurteilen): die Liste muss vorhanden und
+    # nicht leer sein. Ein Freitext/Begründung gibt es bewusst NICHT mehr. Siehe
+    # doc/ARGUMENT_CRITERIA.md „Bewertungs-Modus".
     if (
         not argument_uri
         or not isinstance(criteria, list)
+        or len(criteria) == 0
         or vote not in ("APPROVE", "REJECT")
     ):
         return JSONResponse(
             status_code=400,
             content={
                 "error": "invalid_request",
-                "message": "argumentUri, criteria (list), and valid vote required",
-            },
-        )
-
-    if vote == "REJECT" and not justification:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "invalid_request",
-                "message": "Justification required for REJECT vote",
+                "message": "argumentUri, non-empty criteria, and valid vote required",
             },
         )
 
@@ -625,7 +617,6 @@ async def submit_review(
                             "argumentUri": argument_uri,
                             "criteria": criteria,
                             "vote": vote,
-                            "justification": justification,
                         },
                     },
                 )
@@ -675,10 +666,8 @@ async def submit_review(
         "reviewer": session.did,
         "criteria": criteria,
         "vote": vote,
-        "justification": justification or None,
         "createdAt": datetime.now(timezone.utc).isoformat(),
     }
-    review_record = {k: v for k, v in review_record.items() if v is not None}
 
     # ATProto-native: write the self-signed response into the reviewer's OWN repo.
     # The internal write-side (writer) picks it up off the firehose, gates it, and
@@ -785,7 +774,7 @@ async def get_peerreview_status(
         if session.did == arg["author_did"]:
             review_rows = await conn.fetch(
                 """
-                SELECT reviewer_did, criteria, vote, justification, created_at
+                SELECT reviewer_did, criteria, vote, created_at
                 FROM app_peerreview_responses
                 WHERE argument_uri = $1
                 ORDER BY created_at ASC
@@ -798,7 +787,6 @@ async def get_peerreview_status(
                         "reviewerDid": r["reviewer_did"],
                         "criteria": r["criteria"],
                         "vote": r["vote"],
-                        "justification": r["justification"],
                         "createdAt": _iso(r["created_at"]),
                     }
                 )

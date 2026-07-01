@@ -278,13 +278,16 @@ async def test_accept_response_rejects_invalid_vote():
 
 
 @pytest.mark.asyncio
-async def test_accept_response_rejects_reject_without_justification():
+async def test_accept_response_reject_without_justification_ok():
+    # Begründung/Freitext gibt es nicht mehr → ein REJECT (ohne Text) wird akzeptiert.
     conn = _resp_conn()
-    row = {**RESP_ROW, "record": {**RESP_RECORD, "vote": "REJECT"}}  # no justification
-    with patch.object(acceptance, "create_community_record", AsyncMock()) as create:
+    row = {**RESP_ROW, "record": {**RESP_RECORD, "vote": "REJECT"}}
+    with patch.object(acceptance, "get_community_record", AsyncMock(return_value=None)), \
+         patch.object(acceptance, "create_community_record",
+                      AsyncMock(return_value={"uri": "x"})) as create:
         status, reason = await acceptance._accept_response(AsyncMock(), conn, row)
-    assert (status, reason) == ("rejected", "missing_justification")
-    create.assert_not_awaited()
+    assert (status, reason) == ("done", None)
+    create.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

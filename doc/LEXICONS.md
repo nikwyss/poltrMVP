@@ -143,9 +143,8 @@ A reviewer's verdict on an argument. Written self-signed into the **reviewer's o
 |-------|------|----------|-------------|
 | argument | string (at-uri) | yes | AT-URI of the community argument under review |
 | reviewer | string (did) | yes | DID of the reviewer |
-| criteria | object/array | | Structured review criteria |
-| vote | string | yes | The verdict (e.g. APPROVE / REJECT) |
-| justification | string | | Free-text justification |
+| criteria | array | yes | Structured review criteria (non-empty; every criterion assessed — UI default is unselected) |
+| vote | string | yes | The verdict (APPROVE / REJECT) — the only binding signal |
 | createdAt | string (datetime) | yes | Timestamp |
 
 - **Key:** community record = `compose_review_rkey(argumentUri, reviewerDid)` (idempotent, one per pair → quorum dedup)

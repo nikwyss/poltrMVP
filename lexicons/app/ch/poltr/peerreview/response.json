@@ -29,12 +29,7 @@
             "type": "array",
             "minLength": 1,
             "items": { "type": "ref", "ref": "#criterion" },
-            "description": "Bewertung einzelner Kriterien. Die kanonische Liste der Kriterien wird vom AppView via app.ch.poltr.peerreview.criteria bereitgestellt."
-          },
-          "justification": {
-            "type": "string",
-            "maxLength": 2000,
-            "description": "Optionale Begründung in Freitext. Pflicht bei vote=REJECT (AppView-seitig validiert)."
+            "description": "PFLICHT-Bewertung jedes Kriteriums (nicht leer). Der UI-Default ist zwar „nichts gewählt\", aber der Reviewer muss vor dem Votum jedes Kriterium beurteilen. Verbindlich für die Aufnahme ist das Gesamt-Votum (vote); die Kriterien sind ein strukturiertes Begleitsignal. Die kanonische Liste wird vom AppView via app.ch.poltr.peerreview.criteria bereitgestellt."
           },
           "createdAt": {
             "type": "string",

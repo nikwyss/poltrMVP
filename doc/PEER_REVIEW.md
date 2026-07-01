@@ -147,8 +147,7 @@ Check-ins are unrestricted while `state='open'`; only `provisional_closed` refus
 
 | Check | Failure response |
 |---|---|
-| `argumentUri`, `criteria`, valid `vote` present | `400 invalid_request` |
-| `justification` present if `vote='REJECT'` | `400 invalid_request` |
+| `argumentUri`, `criteria` (nicht-leere Liste), valid `vote` present | `400 invalid_request` |
 | `app_peerreviews` row exists | `404 not_found` |
 | `state != 'closed'` | `409 review_closed` (with `closedAt` + `acceptedDraft` echo of the body) |
 | Invitation exists with `invited=true` | `403 not_invited` |
@@ -381,7 +380,7 @@ Implemented in [ReviewForm](../services/frontend/src/components/review-form.tsx)
 - On form mount: call `checkIn`. `409 too_late` / `409 closed` → show "this review is closed" and skip the form. Other errors don't hard-block (the submit endpoint is the authoritative gate). The `/review` dashboard mounts `ReviewForm` **lazily** — each invitation is a collapsed card with a "Begutachten" button, so check-in fires only for the review the user actually opens (not for every visible invitation on page load). The overlay mounts it eagerly (a single, deliberately opened review).
 - During typing/interaction: throttled `activity` ping (one per 30 s). The response refreshes `graceUntil` + `state` in component state.
 - When `state === 'provisional_closed'`: a client-side countdown derived from `graceUntil` via a 1 s `setInterval`; reset whenever an `activity` response moves the deadline. No polling.
-- localStorage backup (`poltr.review.draft.<argumentUri>`) of the in-progress draft (assessments + vote + justification), restored on mount and cleared on successful submit — so even an unhandled `409 review_closed` doesn't lose the user's text.
+- localStorage backup (`poltr.review.draft.<argumentUri>`) of the in-progress draft (assessments + vote), restored on mount and cleared on successful submit — so even an unhandled `409 review_closed` doesn't lose the user's selections.
 
 ## History
 

@@ -403,13 +403,12 @@ export async function submitPeerreview(
   argumentUri: string,
   criteria: PeerreviewCriterionRating[],
   vote: 'APPROVE' | 'REJECT',
-  justification?: string,
 ): Promise<{ uri: string }> {
   const authenticatedFetch = getAuthenticatedFetch();
   const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.peerreview.submit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ argumentUri, criteria, vote, justification }),
+    body: JSON.stringify({ argumentUri, criteria, vote }),
   });
   if (!res.ok) throw await toPdsError(res);
   return res.json();

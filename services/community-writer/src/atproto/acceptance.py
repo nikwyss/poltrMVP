@@ -193,14 +193,13 @@ async def _accept_response(client, conn, row) -> tuple[str, str | None]:
     if not argument_uri:
         return ("rejected", "no_argument_ref")
 
-    # Validate the vote (mirror appview submit_review): APPROVE/REJECT only, and a
-    # REJECT needs a justification. Payload check, not DB state → intentionally not
-    # in app_response_gate; writer-first rule (doc/SECURITY_AUTH.md "Guard-Parität").
+    # Validate the vote (mirror appview submit_review): APPROVE/REJECT only.
+    # Payload check, not DB state → intentionally not in app_response_gate;
+    # writer-first rule (doc/SECURITY_AUTH.md "Guard-Parität"). Ein Freitext/
+    # Begründung gibt es bewusst nicht mehr — es zählt nur das Votum.
     vote = user_record.get("vote")
     if vote not in ("APPROVE", "REJECT"):
         return ("rejected", "invalid_vote")
-    if vote == "REJECT" and not (user_record.get("justification") or "").strip():
-        return ("rejected", "missing_justification")
 
     gov = await conn.fetchrow(
         "SELECT did FROM app_arguments WHERE uri = $1", argument_uri
