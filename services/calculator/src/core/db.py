@@ -276,3 +276,20 @@ async def fetch_unplaced_detailed(ballot_rkey: str) -> list[dict]:
         out.append(e)
     out.sort(key=lambda e: not e["fully_missing"])  # ganz fehlende zuerst (stabil)
     return out
+
+
+async def fetch_top_level_topics(ballot_rkey: str) -> list[str]:
+    """Namen der HAUPTthemen (direkte Kinder der Wurzel) einer Vorlage, in
+    Anzeige-Reihenfolge. Leer, wenn (noch) keine Taxonomie existiert. Für den
+    Thematik-Check (Variante B) — der Stimmigkeits-LLM ordnet einem dieser
+    Themen zu oder „ANDERES"."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT n.name
+               FROM app_taxonomy_node n
+               JOIN app_taxonomy_node p ON p.id = n.parent_id
+               WHERE n.ballot_rkey = $1 AND p.parent_id IS NULL
+               ORDER BY n.node_order, n.id""",
+            ballot_rkey)
+    return [r["name"] for r in rows if r["name"]]

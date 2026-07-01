@@ -1,10 +1,20 @@
 import { useTranslations } from "next-intl"
 import { Badge } from "@/components/ui/badge"
 
-export function ProContraBadge({ type, variant = "solid" }: { type?: string; variant?: "solid" | "soft" }) {
+export function ProContraBadge({
+  type,
+  variant = "solid",
+  label,
+}: {
+  type?: string
+  variant?: "solid" | "soft"
+  /** Überschreibt den Standardtext (z.B. „Ja-Argument" statt „Ja"). */
+  label?: string
+}) {
   const tc = useTranslations('common')
   if (!type) return null
   const isPro = type === "pro"
+  const text = label ?? (isPro ? tc('pro') : tc('contra'))
 
   if (variant === "soft") {
     return (
@@ -15,7 +25,7 @@ export function ProContraBadge({ type, variant = "solid" }: { type?: string; var
           color: isPro ? 'var(--pro)' : 'var(--contra)',
         }}
       >
-        {isPro ? tc('pro') : tc('contra')}
+        {text}
       </Badge>
     )
   }
@@ -25,7 +35,7 @@ export function ProContraBadge({ type, variant = "solid" }: { type?: string; var
       className="text-xs font-bold text-white"
       style={{ backgroundColor: isPro ? 'var(--pro)' : 'var(--contra)' }}
     >
-      {isPro ? tc('pro') : tc('contra')}
+      {text}
     </Badge>
   )
 }

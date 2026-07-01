@@ -48,11 +48,16 @@ async def backfill_endpoint():
 async def duplicates_endpoint(
     argument_uri: str = Query(..., description="Argument, dessen Duplikate gesucht werden."),
     lang: str | None = Query(None, description="Sprache (Default: DEFAULT_LANGUAGE)."),
-    limit: int = Query(5, ge=1, le=50),
+    limit: int = Query(1, ge=1, le=50),
+    same_stance: bool = Query(True, description="Nur Argumente gleicher Position (PRO/CONTRA) vergleichen."),
 ):
+    """Review-Duplikat-Check für ein bestehendes (indexiertes) Argument: nächste
+    Argumente gleicher Position über der Anzeige-Schwelle, Argument selbst
+    ausgeschlossen. Liefert {duplicates:[{uri,title,body,type,similarity}]}."""
     return {
         "argument_uri": argument_uri,
-        "duplicates": await sim.find_duplicates(argument_uri, lang=lang, limit=limit),
+        "duplicates": await sim.find_duplicates(
+            argument_uri, lang=lang, limit=limit, same_stance=same_stance),
     }
 
 

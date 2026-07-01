@@ -10,9 +10,23 @@
 [ ] Wohin kommen neue argumente. Bleiben die vorerst unzugeordnet? Oder einfach dem hauptthema angehängt.??
 
 **Peerreviews**
+[x] **Reviewer-Overlay gebaut** (2026-06-30): [peer-review-detail.tsx](services/frontend/src/components/peer-review-detail.tsx) rendert die geteilte [review-form.tsx](services/frontend/src/components/review-form.tsx) (auch im `/review`-Dashboard); neuer Endpoint `app.ch.poltr.peerreview.duplicateCandidate`; voller Lifecycle-Flow verdrahtet (check-in beim Öffnen, throttled activity, Grace-Countdown, localStorage-Draft). Entscheid 2026-06-30 (siehe [ARGUMENT_CRITERIA.md](doc/ARGUMENT_CRITERIA.md) „Bewertungs-Modus"):
+  - Gesamturteil **ja/nein** („in den Argumentenkatalog aufnehmen?") = bestehendes `vote` APPROVE/REJECT.
+  - Pro Kriterium **ok/beanstandet** (Stimmigkeit/Umgangston/Thematik) — `criteria`-Payload-Shape von Rating→Flag (`PeerreviewCriterionRating`-Type anpassen; Backend speichert `criteria` opak).
+  - **Duplikat konditional:** beim Öffnen Live-Embedding-Check; nur bei Treffer eine Zeile mit Kandidaten-Link; Bestätigung → Vorauswahl „nein". Braucht eine Review-Variante des Dup-Checks (Argument selbst ausgeschlossen + same-stance — `find_duplicates` hat heute keinen Stance-Filter).
+  - Freitext (`justification`): Pflicht bei nein, optional bei ja (Backend-Regel steht bereits so).
+  - **Keine Stufe-1-LLM-Bewertung anzeigen** (frisches Urteil, kein Anchoring).
+[~] **Zwei alte Review-Kriterien neu abwägen** (beim Umstieg auf die vier offiziellen Kriterien rausgefallen). Idee: nach der Trennung „LLM macht das Formale, der Mensch das Wertende" zuteilen —
+  - [x] **Unity of Thought** (ein Gedanke pro Argument) — als **Fokus** wieder aufgenommen (2026-07-01): `single_thought` im Stimmigkeits-LLM ([stance.py](services/calculator/src/review/stance.py)) → `unity`-Check im Composer (Stufe 1, [precheck.py](services/appview/src/routes/deliberation/precheck.py) + [add-argument-modal.tsx](services/frontend/src/components/add-argument-modal.tsx)) **und** als Peer-Review-Kriterium (Stufe 2, `APPVIEW_PEER_REVIEW_CRITERIA`-Default + [review-form.tsx](services/frontend/src/components/review-form.tsx)). Docs auf fünf Kriterien aktualisiert.
+  - [ ] **Factual Accuracy** (faktische Richtigkeit) — wurde **bewusst** entfernt (Civic-Speech: siehe [ARGUMENT_CRITERIA.md](doc/ARGUMENT_CRITERIA.md)). Falls überhaupt wieder rein, dann **nur durch die Gutachter** (Stufe 2), **nicht** durchs LLM — die Maschine soll keine „Wahrheit" beurteilen. Wiederaufnahme = Grundsatz-Entscheid revidieren, bewusst tun.
+  - [ ] Wiki noch nachziehen (Docs im Repo sind aktualisiert).
 [ ] Peerreview Kritierien / LLM-Support / Dito bei Argument Submit
 [ ] AI Redundanz checks (peerreview und composer) — Composer-Duplikat-Check erledigt (Embedding-basiert, same-stance, Top-1; siehe doc/DUPLICATE_CHECK.md). Offen: Reviewer-Kontext im Peer-Review; optional Reranker/LLM als Stage-2.
 [ ] Formulierungstipps.
+
+**Composer (Argument einreichen)**
+[ ] Abklären: sollen User beim Einreichen mittels einer **Checkbox verifizieren** müssen, dass die angegebenen Fakten korrekt sind? (Selbst-Attestierung statt Maschinen-Faktencheck — vgl. „Factual Accuracy" oben: faktische Richtigkeit ist bewusst KEIN LLM-Kriterium.)
+[ ] Abklären: sollen User die Möglichkeit haben, **Quellen/URLs** zusätzlich anzugeben? (Feld im Composer + Persistierung im Argument-Record + Anzeige.)
 
 
 [ ] Retention für `app_acceptance_queue`: erledigte Zeilen werden nie gelöscht (Processor setzt nur `status`, kein Cleanup/Cron) → Tabelle wächst unbegrenzt (~1 Request-Zeile pro aktivem User/Tag + Argumente/Responses). Cronjob ergänzen:
@@ -22,6 +36,23 @@
     ```
 
 **AI**
+[ ] **LLM-/Precheck-Feedback persistieren (Audit-Log).** Heute ist die Vorprüfung
+    flüchtig: das LLM-Urteil je Argument (Stimmigkeit/Umgangston/Thematik:
+    `reads_as`, `is_argument`, `on_topic`, `topic`, `tone`, `feedback` aus
+    `app.ch.poltr.argument.precheck`) wird live berechnet, dem Verfasser gezeigt
+    und dann verworfen — nichts wird gespeichert. Ebenso die Duplikat-Treffer.
+    → Alle KI-Ausgaben loggen/persistieren (eigene Tabelle, z.B.
+    `app_argument_precheck` mit `argument_uri`/Draft-Ref, Modell, Prompt-Version,
+    Roh-JSON, Schwellen, Zeitstempel), damit: (a) nachvollziehbar ist, was die KI
+    geurteilt hat, (b) wir Drift/Qualität über die Zeit auswerten können (vgl. die
+    retrospektive [ARGUMENT_CRITERIA_ANALYSIS.md](ARGUMENT_CRITERIA_ANALYSIS.md),
+    die das mangels Log nachträglich neu berechnen musste), (c) Reviewer im
+    Peer-Review den KI-Befund als Kontext sehen könnten. Datenschutz beachten
+    (Feedback kann Argumenttext spiegeln). Gilt analog für künftige AI-Outputs
+    (Übersetzungen, Auto-Import, Moderation).
+    *Hinweis (2026-06-30): fürs Reviewer-Overlay NICHT nötig — der Gutachter sieht
+    bewusst keine Stufe-1-Bewertung, das Duplikat wird live neu berechnet. Dieser
+    Punkt ist damit reiner Audit-/Analytics-Zweck.*
 [ ] Moderation
 [ ] Firehose-Security: Appview Check: nur records von meinen appview werden commonized.
 [ ] Auto-Import von Vorlagen: llm. basierend auf BK und Swissvotes.

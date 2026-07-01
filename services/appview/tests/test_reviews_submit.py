@@ -81,7 +81,7 @@ def _session():
 
 BODY = {
     "argumentUri": "at://did:plc:community/app.ch.poltr.ballot.argument/x",
-    "criteria": {"factual_accuracy": "APPROVE"},
+    "criteria": [{"key": "coherence", "label": "Stimmigkeit", "assessment": "ok"}],
     "vote": "APPROVE",
     "justification": "",
 }
@@ -141,6 +141,23 @@ async def test_submit_already_reviewed_is_endpoint_local():
     resp, pds = await _call(FakeConn(gate_reason=None, existing="at://did:plc:reviewer/prev"))
     assert resp.status_code == 409
     assert json.loads(resp.body)["error"] == "already_reviewed"
+    pds.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_submit_allows_empty_criteria():
+    # Kriterien sind optional (Default: nichts gewählt) → leere Liste ist gültig,
+    # solange ein valides Gesamturteil vorliegt.
+    resp, pds = await _call(FakeConn(gate_reason=None), body={**BODY, "criteria": []})
+    assert resp.status_code == 200
+    pds.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_submit_missing_criteria_400():
+    # Feld muss vorhanden & eine Liste sein (None/fehlend → 400).
+    resp, pds = await _call(FakeConn(), body={**BODY, "criteria": None})
+    assert resp.status_code == 400
     pds.assert_not_awaited()
 
 

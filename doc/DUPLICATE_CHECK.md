@@ -2,6 +2,8 @@
 
 Erkennt beim Verfassen eines neuen Arguments, ob für **dieselbe Vorlage** bereits ein inhaltlich (nahezu) gleiches Argument **gleicher Position** existiert, und zeigt es dem Nutzer als **weichen Hinweis** an. Erster Konsument der Argument-Embeddings; Teil der erweiterbaren „Prüfstufe" des Composers (siehe [LM_PEER_REVIEW.md](LM_PEER_REVIEW.md)).
 
+> Dies ist **Kriterium 4 („Kein Duplikat")** der vier offiziellen Kriterien für neue Argumente → **[ARGUMENT_CRITERIA.md](ARGUMENT_CRITERIA.md)**. Dieses Dokument beschreibt nur das Duplikat-Detail.
+
 ## Prinzip
 
 - **Embedding + Schwelle, kein LLM.** Cosine-Ähnlichkeit über pgvector-Embeddings; nur Treffer ≥ Schwelle werden gezeigt. Das genügt für die Frage „gibt es ein ähnliches Argument?" — die letzte Entscheidung trifft der Nutzer.

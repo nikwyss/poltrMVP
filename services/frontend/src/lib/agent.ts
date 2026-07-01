@@ -1,4 +1,4 @@
-import type { Ballot, ArgumentWithMetadata, CommentWithMetadata, ActivityItem, PeerreviewCriterion, PeerreviewInvitation, PeerreviewStatus, PeerreviewCriterionRating, PeerreviewListItem, TaxonomyTree } from '../types/ballots';
+import type { Ballot, ArgumentWithMetadata, CommentWithMetadata, ActivityItem, PeerreviewCriterion, PeerreviewInvitation, PeerreviewStatus, PeerreviewCriterionRating, PeerreviewListItem, TaxonomyTree, DuplicateCandidate, PeerreviewState } from '../types/ballots';
 import type { BallotSearchResponse } from '../types/search';
 import { toPdsError } from './pdsError';
 
@@ -168,10 +168,41 @@ export type StanceCheck = {
   feedback?: string;
 };
 
-export type ArgumentPrecheck = { duplicates: DuplicatesCheck; stance: StanceCheck };
+// Thematik-Check (Variante B): On-Topic + zugeordnetes Hauptthema (LLM).
+// choice = Themenname | 'ANDERES' (kein passendes Thema) | null (keine Taxonomie).
+export type TopicCheck = {
+  status: 'ok' | 'unavailable';
+  severity?: 'ok' | 'warn';
+  on_topic?: boolean | null;
+  choice?: string | null;
+};
+
+// Umgangston (LLM, konservativ): 'warn' bei Beschimpfungen/Vulgaritäten.
+export type ToneCheck = {
+  status: 'ok' | 'unavailable';
+  severity?: 'ok' | 'warn';
+};
+
+// Fokus / Unity of Thought (LLM, konservativ): 'warn', wenn der Text mehrere
+// eigenständige Argumente bündelt (Sammelsurium) statt eines Gedankens.
+export type UnityCheck = {
+  status: 'ok' | 'unavailable';
+  severity?: 'ok' | 'warn';
+};
+
+export type ArgumentPrecheck = {
+  duplicates: DuplicatesCheck;
+  stance: StanceCheck;
+  topic: TopicCheck;
+  tone: ToneCheck;
+  unity: UnityCheck;
+};
 
 const DUP_UNAVAILABLE: DuplicatesCheck = { status: 'unavailable', items: [] };
 const STANCE_UNAVAILABLE: StanceCheck = { status: 'unavailable' };
+const TOPIC_UNAVAILABLE: TopicCheck = { status: 'unavailable' };
+const TONE_UNAVAILABLE: ToneCheck = { status: 'unavailable' };
+const UNITY_UNAVAILABLE: UnityCheck = { status: 'unavailable' };
 
 /**
  * Prüfstufe vor dem Erstellen: liefert ein erweiterbares Bündel von Checks
@@ -192,10 +223,20 @@ export async function precheckArgument(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ballot: ballotRkey, title, body, type }),
     });
-    if (!res.ok) return { duplicates: DUP_UNAVAILABLE, stance: STANCE_UNAVAILABLE };
+    if (!res.ok)
+      return {
+        duplicates: DUP_UNAVAILABLE,
+        stance: STANCE_UNAVAILABLE,
+        topic: TOPIC_UNAVAILABLE,
+        tone: TONE_UNAVAILABLE,
+        unity: UNITY_UNAVAILABLE,
+      };
     const content = await res.json();
     const dup = content?.duplicates;
     const st = content?.stance;
+    const tp = content?.topic;
+    const tn = content?.tone;
+    const un = content?.unity;
     return {
       duplicates:
         dup && typeof dup === 'object' && 'status' in dup
@@ -205,9 +246,27 @@ export async function precheckArgument(
         st && typeof st === 'object' && 'status' in st
           ? (st as StanceCheck)
           : STANCE_UNAVAILABLE,
+      topic:
+        tp && typeof tp === 'object' && 'status' in tp
+          ? (tp as TopicCheck)
+          : TOPIC_UNAVAILABLE,
+      tone:
+        tn && typeof tn === 'object' && 'status' in tn
+          ? (tn as ToneCheck)
+          : TONE_UNAVAILABLE,
+      unity:
+        un && typeof un === 'object' && 'status' in un
+          ? (un as UnityCheck)
+          : UNITY_UNAVAILABLE,
     };
   } catch {
-    return { duplicates: DUP_UNAVAILABLE, stance: STANCE_UNAVAILABLE };
+    return {
+      duplicates: DUP_UNAVAILABLE,
+      stance: STANCE_UNAVAILABLE,
+      topic: TOPIC_UNAVAILABLE,
+      tone: TONE_UNAVAILABLE,
+      unity: UNITY_UNAVAILABLE,
+    };
   }
 }
 
@@ -363,6 +422,70 @@ export async function getPeerreviewStatus(argumentUri: string): Promise<Peerrevi
   );
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+
+// Live-Duplikat-Check fürs Reviewer-Overlay (frisch berechnet, kein persistierter
+// Befund). Graceful: bei Calculator-Ausfall liefert der Server {status:'unavailable'}.
+export async function getDuplicateCandidate(
+  argumentUri: string,
+): Promise<{ status: 'ok' | 'unavailable'; items: DuplicateCandidate[] }> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  try {
+    const res = await authenticatedFetch(
+      `/api/xrpc/app.ch.poltr.peerreview.duplicateCandidate?argumentUri=${encodeURIComponent(argumentUri)}`
+    );
+    if (!res.ok) return { status: 'unavailable', items: [] };
+    const content = await res.json();
+    return { status: content.status ?? 'unavailable', items: content.items ?? [] };
+  } catch {
+    return { status: 'unavailable', items: [] };
+  }
+}
+
+// Check-in: claim a review slot (required before submit) and learn the lifecycle
+// state + grace deadline. Non-throwing → discriminated result for clean gating.
+export type CheckInResult =
+  | { ok: true; state: PeerreviewState; quorum: number; graceUntil: string | null }
+  | { ok: false; error: 'closed' | 'too_late' | 'not_invited' | 'not_found' | 'unknown' };
+
+export async function checkInPeerreview(argumentUri: string): Promise<CheckInResult> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  try {
+    const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.peerreview.checkIn`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ argumentUri }),
+    });
+    const content = await res.json().catch(() => ({}));
+    if (res.ok) {
+      return { ok: true, state: content.state, quorum: content.quorum, graceUntil: content.graceUntil ?? null };
+    }
+    const err = content.error;
+    return { ok: false, error: ['closed', 'too_late', 'not_invited', 'not_found'].includes(err) ? err : 'unknown' };
+  } catch {
+    return { ok: false, error: 'unknown' };
+  }
+}
+
+// Activity ping: slide the grace window forward while the reviewer is typing
+// (throttled by the caller). Returns the refreshed deadline, or null on any error
+// (never throws — a missed ping is harmless).
+export async function peerreviewActivity(
+  argumentUri: string,
+): Promise<{ state: PeerreviewState; graceUntil: string | null } | null> {
+  const authenticatedFetch = getAuthenticatedFetch();
+  try {
+    const res = await authenticatedFetch(`/api/xrpc/app.ch.poltr.peerreview.activity`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ argumentUri }),
+    });
+    if (!res.ok) return null;
+    const content = await res.json();
+    return { state: content.state, graceUntil: content.graceUntil ?? null };
+  } catch {
+    return null;
+  }
 }
 
 // Per-ballot Gutachten list. scope='mine' (default) = reviews the viewer is

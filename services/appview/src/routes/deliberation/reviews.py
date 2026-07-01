@@ -27,6 +27,7 @@ import os
 import logging
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import APIRouter, Query, Request, Depends
 from fastapi.responses import JSONResponse
 
@@ -38,19 +39,28 @@ logger = logging.getLogger("review")
 
 router = APIRouter(prefix="/xrpc", tags=["review"])
 
+# Calculator (clusterintern) für den Live-Duplikat-Check im Reviewer-Overlay.
+# Default = In-Cluster-DNS; lokal via .env überschreibbar (vgl. precheck.py).
+CALCULATOR_INTERNAL_URL = os.getenv(
+    "CALCULATOR_INTERNAL_URL", "http://calculator.poltr.svc.cluster.local")
+
 
 def _grace_seconds() -> int:
     return int(os.getenv("APPVIEW_PEER_REVIEW_GRACE_PERIOD_SECONDS", "600"))
 
 
 def _get_criteria() -> list[dict]:
+    # Die FÜNF offiziellen Kriterien für neue Argumente — identisch zur
+    # automatischen Vorprüfung im Composer (siehe doc/ARGUMENT_CRITERIA.md).
+    # Faktische Richtigkeit ist bewusst KEIN Kriterium (Civic-Speech: weder KI
+    # noch Reviewer bewerten die politische „Richtigkeit" einer Meinung).
     raw = os.getenv(
         "APPVIEW_PEER_REVIEW_CRITERIA",
-        '[{"key":"factual_accuracy","label":"Factual Accuracy"},'
-        '{"key":"relevance","label":"Relevance to Ballot"},'
-        '{"key":"clarity","label":"Clarity"},'
-        '{"key":"unity_of_thought","label":"Unity of Thought"},'
-        '{"key":"non_duplication","label":"Non-Duplication"}]',
+        '[{"key":"coherence","label":"Stimmigkeit"},'
+        '{"key":"tone","label":"Umgangston"},'
+        '{"key":"topic","label":"Thematik"},'
+        '{"key":"unity","label":"Fokus"},'
+        '{"key":"non_duplication","label":"Kein Duplikat"}]',
     )
     return json.loads(raw)
 
@@ -74,6 +84,61 @@ async def get_review_criteria(
         status_code=200,
         content={"criteria": _get_criteria()},
     )
+
+
+# -----------------------------------------------------------------------------
+# GET /xrpc/app.ch.poltr.peerreview.duplicateCandidate
+# -----------------------------------------------------------------------------
+
+
+@router.get("/app.ch.poltr.peerreview.duplicateCandidate")
+async def get_duplicate_candidate(
+    argumentUri: str = Query(..., description="Argument under review."),
+    session: TSession = Depends(verify_session_token),
+):
+    """Live-Duplikat-Check fürs Reviewer-Overlay: das ähnlichste *andere* Argument
+    GLEICHER Position derselben Vorlage (über der Anzeige-Schwelle). Frisch
+    berechnet (kein persistierter Stufe-1-Befund). Das „Kein Duplikat"-Kriterium
+    wird dem Gutachter nur gezeigt, wenn hier ein Kandidat zurückkommt.
+
+    Graceful: Calculator nicht erreichbar/fehlerhaft → {status:'unavailable'};
+    blockiert den Review nie.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT langs FROM app_arguments WHERE uri = $1 AND deleted = false",
+            argumentUri,
+        )
+    if not row:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "not_found", "message": "Argument not found"},
+        )
+    # Vergleich in der Originalsprache des Arguments (dort liegt das Embedding).
+    langs = row["langs"] or []
+    lang = langs[0] if langs else None
+
+    url = f"{CALCULATOR_INTERNAL_URL.rstrip('/')}/api/embeddings/duplicates"
+    params = {"argument_uri": argumentUri, "limit": 1, "same_stance": "true"}
+    if lang:
+        params["lang"] = lang
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.get(url, params=params)
+    except httpx.RequestError as err:
+        logger.warning("duplicateCandidate: calculator unreachable: %s", err)
+        return JSONResponse(status_code=200, content={"status": "unavailable"})
+    if resp.status_code != 200:
+        logger.warning("duplicateCandidate: calculator returned %s: %s",
+                       resp.status_code, resp.text[:200])
+        return JSONResponse(status_code=200, content={"status": "unavailable"})
+    try:
+        items = resp.json().get("duplicates", []) or []
+    except ValueError:
+        logger.warning("duplicateCandidate: calculator returned non-JSON")
+        return JSONResponse(status_code=200, content={"status": "unavailable"})
+    return JSONResponse(status_code=200, content={"status": "ok", "items": items})
 
 
 # -----------------------------------------------------------------------------
@@ -490,12 +555,19 @@ async def submit_review(
     # Vote-payload validity (not DB state, so deliberately NOT in app_response_gate):
     # the same check lives in the community-writer's _accept_response. writer-first
     # rule — see "Guard-Parität" in doc/SECURITY_AUTH.md.
-    if not argument_uri or not criteria or vote not in ("APPROVE", "REJECT"):
+    # Kriterien sind ein OPTIONALes Signal (Default: nichts gewählt) — die
+    # Liste muss vorhanden, darf aber leer sein. Verbindlich ist das Gesamturteil
+    # (vote). Siehe doc/ARGUMENT_CRITERIA.md „Bewertungs-Modus".
+    if (
+        not argument_uri
+        or not isinstance(criteria, list)
+        or vote not in ("APPROVE", "REJECT")
+    ):
         return JSONResponse(
             status_code=400,
             content={
                 "error": "invalid_request",
-                "message": "argumentUri, criteria, and valid vote required",
+                "message": "argumentUri, criteria (list), and valid vote required",
             },
         )
 
@@ -691,6 +763,24 @@ async def get_peerreview_status(
             session.did,
         )
 
+        # Aggregierte Kriterien-Auszählung (ok vs. beanstandet) über ALLE
+        # Antworten. Nur Summen — die einzelnen Stimmen bleiben autorenintern;
+        # das Aggregat ist so unkritisch wie die approvals/rejections-Zähler.
+        breakdown_rows = await conn.fetch(
+            """
+            SELECT c->>'key'                                          AS key,
+                   max(c->>'label')                                   AS label,
+                   count(*) FILTER (WHERE c->>'assessment' = 'ok')      AS ok,
+                   count(*) FILTER (WHERE c->>'assessment' = 'flagged') AS flagged
+            FROM app_peerreview_responses r
+            CROSS JOIN LATERAL jsonb_array_elements(r.criteria) AS c
+            WHERE r.argument_uri = $1
+              AND jsonb_typeof(r.criteria) = 'array'
+            GROUP BY c->>'key'
+            """,
+            argument_uri,
+        )
+
         reviews = []
         if session.did == arg["author_did"]:
             review_rows = await conn.fetch(
@@ -713,9 +803,20 @@ async def get_peerreview_status(
                     }
                 )
 
+    # Reihenfolge an der konfigurierten Kriterienliste ausrichten (unbekannte ans Ende).
+    crit_order = {c["key"]: i for i, c in enumerate(_get_criteria())}
+    criteria_breakdown = sorted(
+        (
+            {"key": b["key"], "label": b["label"], "ok": b["ok"], "flagged": b["flagged"]}
+            for b in breakdown_rows
+        ),
+        key=lambda b: crit_order.get(b["key"], len(crit_order)),
+    )
+
     status_data = {
         "argumentUri": argument_uri,
         "peerreviewStatus": arg["peerreview_status"],
+        "criteriaBreakdown": criteria_breakdown,
         "state": pr["state"] if pr else None,
         "quorum": pr["quorum"] if pr else None,
         "provisionalClosedAt": _iso(pr["provisional_closed_at"]) if pr else None,

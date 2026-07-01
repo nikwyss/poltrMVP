@@ -1,12 +1,19 @@
 "use client";
 
-import { useCallback } from "react";
-import { useLocale } from "next-intl";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getArgument } from "@/lib/agent";
 import { rateContent } from "@/lib/ballots";
 import { taxonomyKeys, patchTaxonomyPreference } from "@/lib/queries/taxonomy";
+import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
+import { isPdsError, type PdsError } from "@/lib/pdsError";
+import { notifyPdsError } from "@/lib/toast";
 import type { ArgumentWithMetadata, TaxonomyTree } from "@/types/ballots";
+
+// Bewertungen werden gebündelt: schnelle Reglerbewegungen / +–-Klicks lösen nur
+// EINEN Netzwerk-Write aus (letzter Wert), nach dieser Ruhephase in ms.
+const RATE_DEBOUNCE_MS = 1000;
 
 // ─── Query-Keys ──────────────────────────────────────────────────────────────
 // Eine Stelle für alle Argument-bezogenen Keys, damit Liste (Booklet) und
@@ -100,4 +107,69 @@ export function useRateArgumentMutation() {
     mutationFn: ({ uri, cid, preference }: RateVars) =>
       rateContent(uri, cid, preference),
   });
+}
+
+// ─── Persönliche Bewertung (Slider-Logik, geteilt) ───────────────────────────
+// Kapselt das komplette Verhalten der RelevanceRating: lokalen Slider-State aus
+// `argument.viewer.preference` seeden, optimistisch updaten + in den Cache
+// spiegeln (Booklet/Detail/Taxonomie), gebündelt schreiben (Debounce) und bei
+// Fehlern zurückrollen. Wird vom Argument-Overlay (argument-detail) UND vom
+// Gutachten-Overlay (peer-review-detail) genutzt — eine einzige Quelle.
+//
+// `argument` darf null sein (noch ladend); `commitRelevance` ist dann ein No-Op.
+export function useArgumentRating(
+  ballotRkey: string,
+  argument: ArgumentWithMetadata | null,
+) {
+  const te = useTranslations("errors");
+  const [relevance, setRelevance] = useState<number | null>(null);
+  // Letzter erfolgreich persistierter Wert — Rollback-Baseline bei Fehlern.
+  const committed = useRef<number | null>(null);
+  const patchRating = useArgumentRatingCache(ballotRkey);
+  const rateMutation = useRateArgumentMutation();
+
+  // Slider-State aus dem geladenen Argument seeden — nur bei Argumentwechsel
+  // (Key = uri), damit ein Cache-Patch durch die eigene Bewertung nicht zurücksetzt.
+  useEffect(() => {
+    const pref = argument?.viewer?.preference ?? null;
+    setRelevance(pref);
+    committed.current = pref;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [argument?.uri]);
+
+  // Gebündelter Netzwerk-Write: optimistik hat `commitRelevance` bereits angewandt;
+  // hier feuert nur der POST nach RATE_DEBOUNCE_MS Ruhe mit dem letzten Wert.
+  const { debounced: debouncedRate } = useDebouncedCallback(
+    (uri: string, cid: string, value: number) => {
+      const prev = committed.current;
+      rateMutation.mutate(
+        { uri, cid, preference: value },
+        {
+          onSuccess: () => {
+            committed.current = value;
+          },
+          onError: (err) => {
+            setRelevance(prev);
+            patchRating(uri, prev);
+            notifyPdsError(
+              te,
+              isPdsError(err) ? err : ({ code: "unknown", status: 0 } as PdsError),
+            );
+          },
+        },
+      );
+    },
+    RATE_DEBOUNCE_MS,
+  );
+
+  // Beim Loslassen des Reglers / +–-Buttons: optimistisches UI + Cache, dann Write.
+  const commitRelevance = (value: number) => {
+    if (!argument) return;
+    const uri = argument.uri;
+    setRelevance(value);
+    patchRating(uri, value);
+    debouncedRate(uri, argument.cid, value);
+  };
+
+  return { relevance, setRelevance, commitRelevance };
 }

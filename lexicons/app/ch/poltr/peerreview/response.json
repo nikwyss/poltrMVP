@@ -46,25 +46,24 @@
 
     "criterion": {
       "type": "object",
-      "description": "Bewertung eines einzelnen Kriteriums.",
-      "required": ["key", "rating"],
+      "description": "Bewertung eines einzelnen Kriteriums durch den Reviewer. Verbindlich ist das Gesamt-Votum (vote); die Kriterien-Bewertung ist ein strukturiertes Begleitsignal, kein eigener Stimmen-Zähler.",
+      "required": ["key", "assessment"],
       "properties": {
         "key": {
           "type": "string",
           "minLength": 1,
           "maxLength": 64,
-          "description": "Stabiler Slug des Kriteriums (z.B. 'factual_accuracy', 'relevance', 'clarity', 'unity_of_thought', 'non_duplication'). Definiert via AppView-Konfiguration."
+          "description": "Stabiler Slug des Kriteriums ('coherence', 'tone', 'topic', 'unity', 'non_duplication'). Definiert via AppView-Konfiguration (app.ch.poltr.peerreview.criteria). 'non_duplication' erscheint nur, wenn der Live-Duplikat-Check ein konkretes ähnliches Argument gleicher Position gefunden hat."
         },
         "label": {
           "type": "string",
           "maxLength": 200,
           "description": "Menschenlesbares Label zum Zeitpunkt der Bewertung."
         },
-        "rating": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 5,
-          "description": "Bewertung auf einer 1–5-Skala. 1 = ungenügend, 5 = ausgezeichnet."
+        "assessment": {
+          "type": "string",
+          "knownValues": ["ok", "flagged"],
+          "description": "Leichtes Flag: 'ok' = unauffällig, 'flagged' = beanstandet. Bewusst kein 1–5-Rating (Form/Qualität, kein Inhalts-/Meinungsurteil)."
         }
       }
     }

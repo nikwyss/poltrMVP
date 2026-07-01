@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAuth } from "@/lib/AuthContext";
@@ -19,13 +19,11 @@ import {
 import { CommentAvatar, CommentContent } from "@/components/comment-content";
 import { ReplyInput } from "@/components/reply-input";
 import { RelevanceRating } from "@/components/relevance-rating";
-import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import {
   useArgumentQuery,
-  useArgumentRatingCache,
-  useRateArgumentMutation,
+  useArgumentRating,
 } from "@/lib/queries/arguments";
-import { isPdsError, pdsErrorKey, type PdsError } from "@/lib/pdsError";
+import { pdsErrorKey } from "@/lib/pdsError";
 import { notifyPdsError } from "@/lib/toast";
 
 // ---------------------------------------------------------------------------
@@ -34,10 +32,6 @@ import { notifyPdsError } from "@/lib/toast";
 
 // Sentinel target for the top-level comment composer (vs. a comment uri reply).
 const ROOT_TARGET = "__root__";
-
-// Bewertungen werden gebündelt: schnelle Reglerbewegungen / +–-Klicks lösen nur
-// EINEN Netzwerk-Write aus (letzter Wert), nach dieser Ruhephase in ms.
-const RATE_DEBOUNCE_MS = 1000;
 
 function CommentNode({
   comment,
@@ -156,12 +150,6 @@ export function ArgumentDetail({
       : "Failed to load argument"
     : "";
 
-  // Relevanz-Bewertung des Users (1–100) oder null, wenn noch nicht bewertet.
-  // Lokaler State für den Slider (Live-Drag); aus dem geladenen Argument geseedet.
-  const [relevance, setRelevance] = useState<number | null>(null);
-  // Letzter erfolgreich persistierter Wert — Rollback-Baseline bei Fehlern.
-  const committedRelevance = useRef<number | null>(null);
-
   const {
     comments,
     commentsLoading,
@@ -187,16 +175,6 @@ export function ArgumentDetail({
     if (!isAuthenticated) router.push("/");
   }, [isAuthenticated, authLoading, router]);
 
-  // Slider-State aus dem geladenen Argument seeden — nur bei Argumentwechsel
-  // (Key = uri), damit ein Cache-Patch durch die eigene Bewertung den lokalen
-  // Wert nicht zurücksetzt.
-  useEffect(() => {
-    const pref = argument?.viewer?.preference ?? null;
-    setRelevance(pref);
-    committedRelevance.current = pref;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [argument?.uri]);
-
   // Composer NICHT automatisch öffnen — der Kommentarbereich startet stets
   // eingeklappt (Button „Kommentar verfassen"). Beim Argumentwechsel eine
   // ggf. offene Eingabe zurücksetzen, damit das Overlay nicht mit aktivem
@@ -206,51 +184,13 @@ export function ArgumentDetail({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [argument?.uri]);
 
-  // Bewertung in den zentralen Query-Cache spiegeln (Booklet-Liste + ggf.
-  // Detail). Das ersetzt den früheren `onRated`-Callback an die Host-Seite.
-  const patchRating = useArgumentRatingCache(ballotRkey);
-  const rateMutation = useRateArgumentMutation();
-
-  // Gebündelter Netzwerk-Write (idempotent serverseitig, deterministischer rkey).
-  // Das optimistische UI-Update hat `handleRateCommit` bereits angewandt; hier feuert
-  // nur noch der eigentliche POST — nach RATE_DEBOUNCE_MS Ruhe mit dem letzten Wert.
-  const { debounced: debouncedRate } = useDebouncedCallback(
-    (uri: string, cid: string, value: number) => {
-      // Rollback-Baseline = letzter erfolgreich persistierter Wert. Zwischenschritte
-      // berühren `committedRelevance` nicht, daher stimmt der Wert hier.
-      const prev = committedRelevance.current;
-      rateMutation.mutate(
-        { uri, cid, preference: value },
-        {
-          onSuccess: () => {
-            committedRelevance.current = value;
-          },
-          onError: (err) => {
-            setRelevance(prev); // lokalen Slider zurückrollen
-            patchRating(uri, prev); // Booklet-Karte zurückrollen
-            notifyPdsError(
-              te,
-              isPdsError(err)
-                ? err
-                : ({ code: "unknown", status: 0 } as PdsError),
-            );
-          },
-        },
-      );
-    },
-    RATE_DEBOUNCE_MS,
+  // Persönliche Bewertung (Slider) — geteilte Logik mit dem Gutachten-Overlay
+  // (peer-review-detail). Seeding, optimistik+Rollback, Cache-Patch und der
+  // gebündelte Write stecken in useArgumentRating.
+  const { relevance, setRelevance, commitRelevance } = useArgumentRating(
+    ballotRkey,
+    argument,
   );
-
-  // Bewertung persistieren (beim Loslassen des Reglers / +–-Buttons).
-  const handleRateCommit = (value: number) => {
-    if (!argument) return;
-    const uri = argument.uri;
-    setRelevance(value); // sofortiges optimistisches UI (Slider/Score im Overlay)
-    patchRating(uri, value); // sofortiges Update der Booklet-Karte via Cache
-    debouncedRate(uri, argument.cid, value); // gebündelter Netzwerk-Write
-    // Das Familiaritäts-Gate fürs Peer-Review-Polling liest jetzt direkt aus der
-    // (hier optimistisch gepatchten) Argumentliste — kein separates Mitführen mehr.
-  };
 
   const handleSubmitComment = () => {
     if (!argument) return;
@@ -496,7 +436,7 @@ export function ArgumentDetail({
               <RelevanceRating
                 value={relevance}
                 onChange={setRelevance}
-                onCommit={handleRateCommit}
+                onCommit={commitRelevance}
                 accent={isPro ? "pro" : "contra"}
               />
             </div>

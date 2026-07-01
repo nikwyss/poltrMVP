@@ -185,8 +185,23 @@ export interface PeerreviewCriterion {
   label: string;
 }
 
+// Pro-Kriterium ein leichtes Flag (kein 1–5-Rating): 'ok' = unauffällig,
+// 'flagged' = beanstandet. Entscheid 2026-06-30 (doc/ARGUMENT_CRITERIA.md).
+export type CriterionAssessment = 'ok' | 'flagged';
+
 export interface PeerreviewCriterionRating extends PeerreviewCriterion {
-  rating: number;
+  assessment: CriterionAssessment;
+}
+
+// Live-Duplikat-Kandidat fürs Reviewer-Overlay (ähnlichstes Argument gleicher
+// Position über der Schwelle). Das „Kein Duplikat"-Kriterium erscheint nur,
+// wenn hier ein Treffer zurückkommt.
+export interface DuplicateCandidate {
+  uri: string;
+  title: string;
+  body: string;
+  type: 'PRO' | 'CONTRA';
+  similarity: number;
 }
 
 export interface PeerreviewInvitation {
@@ -211,9 +226,19 @@ export interface PeerreviewResponse {
   createdAt: string;
 }
 
+// Aggregierte Kriterien-Auszählung (über alle Antworten) — nur Summen, keine
+// einzelnen Stimmen. Erscheint in der Gutachten-Statistik.
+export interface PeerreviewCriterionBreakdown {
+  key: string;
+  label: string;
+  ok: number;
+  flagged: number;
+}
+
 export interface PeerreviewStatus {
   argumentUri: string;
   peerreviewStatus: 'preliminary' | 'approved' | 'rejected';
+  criteriaBreakdown?: PeerreviewCriterionBreakdown[];
   communityUri?: string;
   quorum: number;
   approvals: number;

@@ -8,6 +8,10 @@ For each user-submitted argument, collect votes from a small panel of randomly-s
 
 The mechanism aims to make collusion expensive: even if a small clique tried to coordinate on pushing a specific argument through, the probability-based selection means roughly `1 / INVITE_PROBABILITY` times as many of them would need to act in concert to land on the panel.
 
+## Bewertungs-Kriterien
+
+Reviewer geben **ein Gesamturteil ja/nein** ab — *Soll dieses Argument in den Argumentenkatalog aufgenommen werden?* (= `vote` APPROVE/REJECT, Mehrheit entscheidet). Begleitend bewerten sie die **fünf offiziellen Kriterien** — **Stimmigkeit, Umgangston, Thematik, Fokus, Kein Duplikat** — pro Kriterium mit einem leichten Flag **ok/beanstandet** (kein 1–5-Rating). „Kein Duplikat" erscheint nur, wenn ein **Live-Duplikat-Check** (`app.ch.poltr.peerreview.duplicateCandidate`, frisch via Embedding) ein konkretes ähnliches Argument gleicher Position findet — bestätigtes Duplikat wählt „nein" vor (überschreibbar). Es sind **dieselben fünf**, die beim Verfassen bereits **automatisch** vorgeprüft werden (Composer „Einreichung vorbereiten"); die Stufe-1-LLM-Bewertung wird dem Reviewer bewusst **nicht** gezeigt (frisches Urteil, kein Anchoring). Definition + beide Stufen: **[ARGUMENT_CRITERIA.md](ARGUMENT_CRITERIA.md)**; konfigurierbar über `APPVIEW_PEER_REVIEW_CRITERIA` ([reviews.py](../services/appview/src/routes/deliberation/reviews.py)). Faktische Richtigkeit ist bewusst **kein** Kriterium (Civic-Speech).
+
 ## Lifecycle
 
 Two parallel state surfaces:
@@ -236,7 +240,7 @@ The cron is **not** a trigger because the transition is time-based, not event-ba
 | `APPVIEW_PEER_REVIEW_INVITE_PROBABILITY` | `0.35` | Per-candidate dice roll. Lower → more anti-collusion friction, slower quorum convergence |
 | `APPVIEW_PEER_REVIEW_HOOK_THROTTLE_SECONDS` | `30` | In-memory per-user throttle |
 | `APPVIEW_PEER_REVIEW_GRACE_PERIOD_SECONDS` | `600` (10 min) | Initial grace window on `provisional_close` and per-activity extension |
-| `APPVIEW_PEER_REVIEW_CRITERIA` | (5 defaults) | JSON array of review criteria. See [reviews.py:47](../services/appview/src/routes/deliberation/reviews.py#L47) |
+| `APPVIEW_PEER_REVIEW_CRITERIA` | (5 defaults) | Die fünf offiziellen Kriterien (Stimmigkeit, Umgangston, Thematik, Fokus, Kein Duplikat) — identisch zur automatischen Vorprüfung. Siehe [ARGUMENT_CRITERIA.md](ARGUMENT_CRITERIA.md), [reviews.py:46](../services/appview/src/routes/deliberation/reviews.py#L46) |
 
 Quorum is no longer a cross-service "must match" value — once captured per row it's authoritative, and both the per-response trigger and the candidate filter read it from the row. `APPVIEW_PEER_REVIEW_GRACE_PERIOD_SECONDS` is read by the indexer; the rest by AppView.
 
@@ -359,16 +363,25 @@ Backed by **`GET app.ch.poltr.peerreview.list`** (in
   into the **Aktuell** / **Abgeschlossen** sections.
 
 Clicking a row opens the `peerreview` overlay entry (id = argument AT-URI), rendered
-by [PeerReviewDetail](../services/frontend/src/components/peer-review-detail.tsx) —
-currently a **stub** (state + vote counts) wired through the shared overlay host;
-the full criteria/reviews breakdown + check-in/submit flow lands in a follow-up.
+by [PeerReviewDetail](../services/frontend/src/components/peer-review-detail.tsx). It
+loads status + the viewer's pending invitations + criteria in parallel: if the viewer
+has an **open invitation** for this argument it renders the shared
+[ReviewForm](../services/frontend/src/components/review-form.tsx) (criteria ok/beanstandet,
+conditional duplicate row, ja/nein verdict, free text); otherwise the read-only status
+view (state + vote counts). The status view (incl. right after submitting) also shows the
+viewer's **personal conviction rating** below the stats — the same `RelevanceRating`
+(0–100) as the argument overview, wired to the shared argument cache (`ballotRkey` from the
+route param, `argRkey` from the AT-URI). The same `ReviewForm` powers the `/review`
+dashboard, and implements the full lifecycle flow described next.
 
 ### Review form
 
-- On review-page open: call `checkIn`. If it returns `409 too_late` or `409 closed`, show "this review just closed" and skip the form.
-- During typing: throttle a call to `activity` (e.g. one per 30 s while typing). The response includes the refreshed `graceUntil`.
-- When `state === 'provisional_closed'`: show a discreet countdown derived client-side from `graceUntil`. No polling needed — the deadline is a fixed timestamp from the server; `setTimeout` against it and reset on each `activity` response.
-- localStorage backup of the in-progress draft so even an unhandled `409 review_closed` doesn't lose the user's text.
+Implemented in [ReviewForm](../services/frontend/src/components/review-form.tsx) (client fns in [agent.ts](../services/frontend/src/lib/agent.ts): `checkInPeerreview`, `peerreviewActivity`):
+
+- On form mount: call `checkIn`. `409 too_late` / `409 closed` → show "this review is closed" and skip the form. Other errors don't hard-block (the submit endpoint is the authoritative gate). The `/review` dashboard mounts `ReviewForm` **lazily** — each invitation is a collapsed card with a "Begutachten" button, so check-in fires only for the review the user actually opens (not for every visible invitation on page load). The overlay mounts it eagerly (a single, deliberately opened review).
+- During typing/interaction: throttled `activity` ping (one per 30 s). The response refreshes `graceUntil` + `state` in component state.
+- When `state === 'provisional_closed'`: a client-side countdown derived from `graceUntil` via a 1 s `setInterval`; reset whenever an `activity` response moves the deadline. No polling.
+- localStorage backup (`poltr.review.draft.<argumentUri>`) of the in-progress draft (assessments + vote + justification), restored on mount and cleared on successful submit — so even an unhandled `409 review_closed` doesn't lose the user's text.
 
 ## History
 

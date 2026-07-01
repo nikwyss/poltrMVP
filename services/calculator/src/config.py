@@ -54,3 +54,10 @@ EMBEDDING_BATCH_SIZE = int(os.getenv("CALCULATOR_EMBEDDING_BATCH_SIZE", "64"))  
 # knappen Fälle ("Weniger ist mehr", "ÖV") — Recall-orientiert, da der Hinweis
 # weich ist und Fehltreffer ein Klick sind.
 DEDUP_SIM_THRESHOLD = float(os.getenv("CALCULATOR_DEDUP_SIM_THRESHOLD", "0.66"))
+
+# Thematik-Check: das Stimmigkeits-LLM ordnet das Argument einem Hauptthema zu
+# oder „ANDERES". Bis TOPIC_MAX_INLINE Themen werden ALLE Namen an den Prompt
+# gegeben; bei mehr wählt das Embedding die nächsten TOPIC_PRESELECT_K vor
+# (der einzige Embedding-Call für Themen — und nur dann).
+TOPIC_MAX_INLINE = int(os.getenv("CALCULATOR_TOPIC_MAX_INLINE", "7"))
+TOPIC_PRESELECT_K = int(os.getenv("CALCULATOR_TOPIC_PRESELECT_K", "7"))

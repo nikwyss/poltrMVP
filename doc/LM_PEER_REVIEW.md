@@ -153,12 +153,14 @@ Query-Text → Embedding (ein Live-Call) → Cosine gegen `subject_type='argumen
 
 > **Latenz (kritisch):** Suche läuft im Nutzerpfad AppView → Calculator → Infomaniak (externer Call). Anders als die Übersetzung (Hintergrund) ist das latenzsensitiv. Mitigation: kurzes Timeout + Debounce; ggf. Query-Embeddings cachen. Im Plan als Punkt offen.
 
-### 6. Anbindung an Peer-Review / Composer
-Die Composer-Prüfstufe (`app.ch.poltr.argument.precheck`, Bündel) hat zwei Checks:
-- **Check #1 — Duplikat-Check: IMPLEMENTIERT** (Calculator `/api/embeddings/similar`, zweistufiger Composer, same-stance + same-ballot + same-lang, Schwelle 0.66, Top-1, weicher Hinweis). Doku: [DUPLICATE_CHECK.md](DUPLICATE_CHECK.md).
-- **Check #2 — Stance-/Kohärenz-Check (LLM): IMPLEMENTIERT** (Calculator `/api/review/stance`, Infomaniak Gemma JSON-Prompt, konservativ; im selben Bündel als `stance`; Ein-Klick-Positionswechsel bei Mismatch). Details: CHANGELOG 2026-06-29.
+### 6. Anbindung an Peer-Review / Composer — die VIER offiziellen Kriterien
+Die Composer-Prüfstufe (`app.ch.poltr.argument.precheck`, Bündel) prüft die **fünf offiziellen Kriterien für neue Argumente** automatisch — **dieselben fünf**, die danach das menschliche Peer-Review bewertet. Kanonische Definition + beide Stufen: **[ARGUMENT_CRITERIA.md](ARGUMENT_CRITERIA.md)**.
 
-Offen: Reviewer-Kontext im Peer-Review selbst ([PEER_REVIEW.md](PEER_REVIEW.md)); weitere Checks (Verständlichkeit/Formulierungstipps, Thematik) als zusätzliche Bündel-Felder.
+- **Stimmigkeit** (LLM) + **Umgangston** (LLM) + **Thematik** (LLM, ordnet Hauptthema zu / „Anderes") — ein Call, `/api/review/stance` ([stance.py](../services/calculator/src/review/stance.py)).
+- **Kein Duplikat** (Embedding) — `/api/embeddings/similar`, same-stance + same-ballot + same-lang, Schwelle 0.66, Top-1 → [DUPLICATE_CHECK.md](DUPLICATE_CHECK.md).
+- Alles als gleichberechtigte, weiche Kästchen; Beanstandungen werden beim Einreichen bestätigt; nicht-blockierend.
+
+Offen: Verständlichkeit/Formulierungstipps als 5. Kriterium; lokalisierte Themen-Namen.
 
 ---
 

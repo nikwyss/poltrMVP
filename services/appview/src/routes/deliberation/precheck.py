@@ -33,12 +33,7 @@ CALCULATOR_INTERNAL_URL = os.getenv(
 
 async def _fetch_similar(ballot_rkey: str, lang: str, title: str, body: str,
                          stance: str | None, limit: int) -> dict:
-    """Top-K ähnliche Argumente vom Calculator (nur gleiche Stance).
-
-    Gibt einen Check-Status zurück, damit „wirklich keine Duplikate"
-    ({status:'ok', items:[]}) von „Prüfung fehlgeschlagen"
-    ({status:'unavailable'}) unterscheidbar ist — beides nicht-blockierend.
-    """
+    """Duplikate vom Calculator (gleiche Stance). Graceful → {status:'unavailable'}."""
     url = f"{CALCULATOR_INTERNAL_URL.rstrip('/')}/api/embeddings/similar"
     payload = {
         "ballot_rkey": ballot_rkey, "lang": lang,
@@ -59,6 +54,39 @@ async def _fetch_similar(ballot_rkey: str, lang: str, title: str, body: str,
     except ValueError:
         logger.warning("precheck: calculator returned non-JSON")
         return {"status": "unavailable"}
+
+
+def _build_topic(stance_result: dict) -> dict:
+    """Thematik-Check aus dem Stance-LLM (Variante B): On-Topic + zugeordnetes
+    Hauptthema (`choice` = Themenname | 'ANDERES' | None). ⚠ nur bei off-topic."""
+    if stance_result.get("status") == "unavailable":
+        return {"status": "unavailable"}
+    on_topic = stance_result.get("on_topic", True)
+    choice = stance_result.get("topic")  # Themenname | 'ANDERES' | None
+    severity = "warn" if on_topic is False else "ok"
+    return {"status": "ok", "severity": severity, "on_topic": on_topic, "choice": choice}
+
+
+def _build_tone(stance_result: dict) -> dict:
+    """Umgangston aus dem Stance-LLM: ⚠ bei Beschimpfungen/Vulgaritäten ('harsh');
+    sachliche/harte Kritik bleibt ok. Beratend, nicht blockierend."""
+    if stance_result.get("status") == "unavailable":
+        return {"status": "unavailable"}
+    severity = "warn" if stance_result.get("tone") == "harsh" else "ok"
+    return {"status": "ok", "severity": severity}
+
+
+def _build_unity(stance_result: dict) -> dict:
+    """Fokus/Unity of Thought aus dem Stance-LLM: ⚠, wenn der Text mehrere
+    eigenständige Argumente bündelt (single_thought=false). Beratend.
+
+    single_thought=None (kein erkennbares Argument → Fokus unbeurteilbar) ⇒
+    severity 'ok', d.h. keine Empfehlung anzeigen; der Hinweis kommt dann über
+    die Stimmigkeit."""
+    if stance_result.get("status") == "unavailable":
+        return {"status": "unavailable"}
+    single = stance_result.get("single_thought", True)
+    return {"status": "ok", "severity": "warn" if single is False else "ok"}
 
 
 async def _fetch_stance(ballot_rkey: str, lang: str, title: str, body: str,
@@ -109,13 +137,21 @@ async def precheck_argument(
             "lang": lang,
             "duplicates": {"status": "ok", "items": []},
             "stance": {"status": "ok", "severity": "ok"},
+            "topic": {"status": "ok", "severity": "ok"},
+            "tone": {"status": "ok", "severity": "ok"},
+            "unity": {"status": "ok", "severity": "ok"},
         })
 
-    # Beide Checks parallel — Dedup (Embedding) + Stance (LLM).
+    # Duplikate (Embedding) und Stimmigkeit+Thematik (LLM) parallel.
     duplicates, stance_result = await asyncio.gather(
         _fetch_similar(ballot, lang, title, text, stance, limit),
         _fetch_stance(ballot, lang, title, text, stance),
     )
     return JSONResponse(status_code=200, content={
-        "lang": lang, "duplicates": duplicates, "stance": stance_result,
+        "lang": lang,
+        "duplicates": duplicates,
+        "stance": stance_result,
+        "topic": _build_topic(stance_result),
+        "tone": _build_tone(stance_result),
+        "unity": _build_unity(stance_result),
     })

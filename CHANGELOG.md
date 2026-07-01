@@ -1,5 +1,50 @@
 # Changelog
 
+## 2026-07-01 (Reviewer-Formular überarbeitet)
+
+### Peer-Review-Overlay: Toggles (Default leer), zweispaltig, hervorgehobenes Gesamturteil
+
+UX-Überarbeitung von [review-form.tsx](services/frontend/src/components/review-form.tsx):
+- **Kriterien optional & Default leer:** pro Kriterium ein Toggle ok/beanstandet, standardmässig **nichts gewählt** (erneuter Klick auf den aktiven Zustand deselektiert). Nur bewusst gesetzte Kriterien werden gesendet.
+- **Zweispaltig:** links der Toggle (Label + Buttons), rechts die Kriterien-Erklärung.
+- **Gesamturteil hervorgehoben:** die „aufnehmen ja/nein?"-Entscheidung sitzt in einer abgesetzten Karte mit grösseren Buttons + Untertitel („massgebliche Gesamtentscheidung") — visuell klar übergeordnet gegenüber den (optionalen) Kriterien.
+- **Backend:** Submit-Guard akzeptiert jetzt eine **leere** `criteria`-Liste (muss vorhanden & Liste sein, darf leer sein) — verbindlich ist das `vote`. Neue Tests: leere Liste → 200, `null`/fehlend → 400 ([test_reviews_submit.py](services/appview/tests/test_reviews_submit.py)).
+- i18n: `criteriaHint`, `admitSubtitle` (de/en/fr/it/rm).
+
+## 2026-07-01
+
+### Fünftes Kriterium „Fokus" (Unity of Thought) — Composer + Peer-Review
+
+Die Argument-Kriterien wachsen von vier auf **fünf**: **Fokus** prüft, ob ein Text **genau einen** zusammenhängenden Gedanken vorträgt (statt ein Sammelsurium mehrerer Argumente, die besser einzeln eingereicht würden). Formal/strukturell → LLM-Task, an beiden Stufen. Kanonische Definition: [doc/ARGUMENT_CRITERIA.md](doc/ARGUMENT_CRITERIA.md).
+
+- **Stufe 1 (Composer):** neues Feld `single_thought` im bestehenden Stimmigkeits-LLM-Call ([stance.py](services/calculator/src/review/stance.py)) — **kein Extra-Call**; AppView [precheck.py](services/appview/src/routes/deliberation/precheck.py) leitet daraus den `unity`-Check ab (⚠ nur bei mehreren Argumenten). Fünftes Kriterien-Kästchen „Fokus" im [add-argument-modal.tsx](services/frontend/src/components/add-argument-modal.tsx), konservativ + beratend (nicht-blockierend). Ist **kein Argument erkennbar** (`is_argument=false`), ist Fokus unbeurteilbar → `single_thought=null`, keine Fokus-Empfehlung (statt der irreführenden „bündelt mehrere Argumente" bei Kauderwelsch); die Meldung trägt die Stimmigkeit.
+- **Stufe 2 (Peer-Review):** `unity` (Label „Fokus") im `APPVIEW_PEER_REVIEW_CRITERIA`-Default ([reviews.py](services/appview/src/routes/deliberation/reviews.py), [secrets.yaml.dist](infra/kube/secrets.yaml.dist)) → erscheint als ok/beanstandet im [review-form.tsx](services/frontend/src/components/review-form.tsx) (frisches Urteil, keine Stufe-1-KI-Bewertung sichtbar).
+- i18n (de/en/fr/it/rm), Docs (ARGUMENT_CRITERIA.md, PEER_REVIEW.md, LM_PEER_REVIEW.md) + Lexicon-Beschreibung aktualisiert.
+
+### Composer-Prüfstufe als Empfehlung gerahmt + fokussierte Zusammenfassung
+
+Die „Einreichung vorbereiten"-Ansicht ist neu als **Empfehlung** formuliert (nicht als Prüfung/Test) — „unverbindliche Empfehlungen, du entscheidest; das letzte Wort haben die GutachterInnen". Statt fünf Dauer-Kästchen zeigt der Composer ([add-argument-modal.tsx](services/frontend/src/components/add-argument-modal.tsx)) eine **Zusammenfassung in drei Zuständen** und darunter **nur die beanstandeten** Kriterien:
+
+- nichts beanstandet & alle Checks gelaufen → ✓ „gute Chancen, von den GutachterInnen aufgenommen zu werden";
+- etwas beanstandet → 💡 „Empfehlungen könnten die Chancen erhöhen" + die betroffenen Kriterien;
+- nichts beanstandet, aber ein Check nicht verfügbar → neutrale Zeile (kein „gute Chancen"-Versprechen, wenn ein Check nicht laufen konnte).
+
+Wording „Prüfung/Check" → „Empfehlung" in Labels/Guide/Nicht-verfügbar-Texten (de/en/fr/it/rm); Themenvorschlag/„Anderes"-Hinweis in dieser fokussierten Ansicht weggelassen (rein informativ). Panel kompakter (engere Abstände, `rows=6`).
+
+Zusätzlich eine **Längen-Empfehlung** (nur Composer, rein clientseitiger Zeichen-Count, kein LLM): Texte unter `MIN_ARGUMENT_CHARS = 120` **oder** über `MAX_ARGUMENT_CHARS = 800` bekommen je einen eigenen Hinweis („mehr Begründung" bzw. „kürzen/aufteilen"). Schwellen datengestützt (99 Argumente 663.1, Median 334: kein akzeptiertes < 92 Zeichen, ~4 % < 120; p95 ≈ 819, ~6 % > 800). Bewusst **kein** Peer-Review-Kriterium (Stufe 2 sieht den ganzen Text).
+
+## 2026-06-30
+
+### Composer-Prüfstufe: 3. Check „Thematik" + UX-Konsolidierung
+
+Die Argument-Prüfstufe ist ein Ein-Screen-Dialog („Einreichung vorbereiten"): Form links, drei gleichberechtigte Kriterien-Kästchen rechts (✓ / ⚠).
+
+- **Neuer Check „Thematik" (LLM ordnet zu, Variante B):** Das Stimmigkeits-LLM ordnet das Argument **einem Hauptthema** zu oder „ANDERES" — **kein Extra-Call**: die Top-Themen werden dem bestehenden Call mitgegeben (bis `CALCULATOR_TOPIC_MAX_INLINE`=7 alle; bei mehr wählt ein Embedding die nächsten `CALCULATOR_TOPIC_PRESELECT_K` vor). „ANDERES" → Anzeige „kommt in die Sammlung Anderes"; das Argument bleibt **unplaced** (bestehendes CMS-Panel „Nicht zugeordnet"), **kein Membership-Write** — der Snapshot bleibt Source of Truth. On-Topic (ebenfalls vom LLM) → ⚠ wenn gar nicht zur Vorlage. Themen-Zuordnung rein informativ. (Kein fragiler absoluter Embedding-Schwellwert.)
+- **Stance-Check verkürzt** auf Position (PRO/CONTRA) + Kohärenz (Label „Stimmigkeit"); On-Topic wandert in die Thematik ([stance.py](services/calculator/src/review/stance.py)).
+- **Neuer Check „Umgangston":** eigene Karte, beurteilt Beschimpfungen/Vulgaritäten (harte Sachkritik bleibt ok) — als Zusatzfeld `tone` im bestehenden Stimmigkeits-LLM-Call (kein Extra-Call), konservativ + beratend. Ergänzt die autoritative Moderation via Ozone (vor- vs. nachgelagert).
+- **UX:** „Einreichung vorbereiten" → „Einreichen" erst nach dem Check; nach Inhaltsänderung erneut prüfen; Beanstandungen werden per Bestätigungsschritt beim Einreichen bestätigt (statt Inline-Checkbox); Duplikat-Volltext nur auf Klick; Dialog mit fixem Footer + einzelnem Scroll; nicht per Escape/Klick-daneben/X schliessbar (Abbrechen mit Verwerfen-Bestätigung).
+- AppView [precheck.py](services/appview/src/routes/deliberation/precheck.py): Bündel `{duplicates, stance, topic}`, Embedding- + Stance-LLM-Call parallel.
+
 ## 2026-06-29
 
 ### LM-assisted Peer Review — Phase 1: Embeddings (Duplikatscheck + semantische Suche)

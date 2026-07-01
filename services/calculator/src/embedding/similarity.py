@@ -20,19 +20,26 @@ from src.embedding.text import vec_to_pg
 logger = logging.getLogger("calculator.embedding.similarity")
 
 # Query vector = the stored embedding of the given argument in `lang`; compare
-# against all other arguments in the same ballot + language.
+# against all OTHER arguments in the same ballot + language. With same_stance the
+# candidate pool is restricted to the query argument's own position (PRO/CONTRA) —
+# the review-time duplicate check (a same-position duplicate is the only kind that
+# matters; the opposite position is the counter-argument, not a duplicate).
 _DUP_SQL = """
 WITH q AS (
-    SELECT embedding, scope_rkey, lang FROM app_embeddings
-    WHERE subject_type = 'argument' AND subject_ref = $1 AND lang = $2
+    SELECT e.embedding, e.scope_rkey, e.lang, a.type
+    FROM app_embeddings e
+    JOIN app_arguments a ON a.uri = e.subject_ref
+    WHERE e.subject_type = 'argument' AND e.subject_ref = $1 AND e.lang = $2
 )
-SELECT a.uri, a.title, 1 - (e.embedding <=> q.embedding) AS similarity
+SELECT a.uri, a.title, a.body, a.type,
+       1 - (e.embedding <=> q.embedding) AS similarity
 FROM app_embeddings e
 JOIN q ON e.scope_rkey = q.scope_rkey AND e.lang = q.lang
 JOIN app_arguments a ON a.uri = e.subject_ref
 WHERE e.subject_type = 'argument'
   AND e.subject_ref <> $1
   AND a.deleted = false
+  AND (NOT $4 OR a.type = q.type)
 ORDER BY e.embedding <=> q.embedding
 LIMIT $3
 """
@@ -51,14 +58,19 @@ LIMIT $4
 
 
 async def find_duplicates(argument_uri: str, *, lang: str | None = None,
-                          limit: int = 5, threshold: float | None = None) -> list[dict]:
+                          limit: int = 5, threshold: float | None = None,
+                          same_stance: bool = True) -> list[dict]:
+    """Nearest OTHER arguments to an existing (indexed) argument. Default
+    same_stance=True restricts to the argument's own position — the review-time
+    duplicate check. Returns title/body/type for display."""
     lang = normalize_lang(lang) or DEFAULT_LANGUAGE
     threshold = config.DEDUP_SIM_THRESHOLD if threshold is None else threshold
     pool = await get_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch(_DUP_SQL, argument_uri, lang, limit)
+        rows = await conn.fetch(_DUP_SQL, argument_uri, lang, limit, same_stance)
     return [
-        {"uri": r["uri"], "title": r["title"], "similarity": float(r["similarity"])}
+        {"uri": r["uri"], "title": r["title"], "body": r["body"],
+         "type": r["type"], "similarity": float(r["similarity"])}
         for r in rows if float(r["similarity"]) >= threshold
     ]
 
@@ -117,3 +129,35 @@ async def similar_arguments(ballot_rkey: str, title: str, body: str, *,
          "type": r["type"], "similarity": float(r["similarity"])}
         for r in rows if float(r["similarity"]) >= threshold
     ]
+
+
+# Themen-Vorauswahl (nur im >N-Themen-Fall): die k inhaltlich nächsten HAUPTthemen
+# (Top-Level-Taxonomieknoten = direkte Kinder der Wurzel) zum Draft. Die eigentliche
+# Themen-Zuordnung macht danach das Stimmigkeits-LLM (Variante B).
+_TOP_TOPICS_SQL = """
+SELECT n.name
+FROM app_embeddings e
+JOIN app_taxonomy_node n ON n.id::text = e.subject_ref
+JOIN app_taxonomy_node p ON p.id = n.parent_id
+WHERE e.subject_type = 'taxonomy_node'
+  AND e.scope_rkey = $2
+  AND e.lang = $3
+  AND p.parent_id IS NULL
+ORDER BY e.embedding <=> $1::vector
+LIMIT $4
+"""
+
+
+async def top_topic_names(ballot_rkey: str, title: str, body: str, *,
+                          lang: str | None = None, k: int = 7) -> list[str]:
+    """Die k inhaltlich nächsten Hauptthemen zum Draft (Vorauswahl, wenn eine
+    Vorlage viele Themen hat). Embeddet den Draft einmal."""
+    lang = normalize_lang(lang) or DEFAULT_LANGUAGE
+    text = f"{(title or '').strip()}\n\n{(body or '').strip()}".strip()
+    if not text:
+        return []
+    qvec = vec_to_pg((await ic.embed_texts([text]))[0])
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(_TOP_TOPICS_SQL, qvec, ballot_rkey, lang, k)
+    return [r["name"] for r in rows if r["name"]]
