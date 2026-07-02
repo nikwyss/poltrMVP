@@ -30,8 +30,14 @@
  * Reines SVG, keine Chart-Library.
  */
 import { useMemo, useState } from "react";
+import { Info } from "lucide-react";
 import type { TaxonomyNode } from "@/types/ballots";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { nodeLeaning, nodeDissent } from "@/lib/aggregate";
 import {
   ARM_NO,
@@ -494,8 +500,7 @@ export function TaxonomySunburst({
   compact?: boolean;
 }) {
   const [hover, setHover] = useState<TaxonomyNode | null>(null);
-  // Unterthemen (Ebene 2+) standardmässig EINGEBLENDET; per Checkbox abschaltbar.
-  const [showSub, setShowSub] = useState(true);
+  // Unterthemen (Ebene 2+) sind immer eingeblendet (keine Umschaltung mehr).
   // Unterebenen standardmässig KOMPAKT (wie mobil: Ebene 2/3 als dünne Bänder, keine
   // Labels) — auch auf dem Desktop. Die Checkbox klappt sie zur vollen Darstellung
   // auf (proportionale Ringe + Labels ab Ebene 2).
@@ -526,13 +531,13 @@ export function TaxonomySunburst({
   const subCompact = compact || !expandSub;
 
   const { segs, radii, maxLevel, centerR, blocks } = useMemo(() => {
-    const { segs, maxLevel, blocks } = layout(root, showSub ? MAX_LEVELS : 1, leanOf);
+    const { segs, maxLevel, blocks } = layout(root, MAX_LEVELS, leanOf);
     const centerR = centerRadius(maxLevel, subCompact);
     const radii = ringRadii(maxLevel, centerR, subCompact);
     return { segs, radii, maxLevel, centerR, blocks };
     // leanOf schliesst über leanMap (in den Deps); root-Wechsel ⇒ neuer leanMap.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [root, compact, showSub, subCompact, leanMap]);
+  }, [root, compact, subCompact, leanMap]);
 
   if (!segs.length) return null;
 
@@ -581,35 +586,38 @@ export function TaxonomySunburst({
         </p>
         <div className="mb-1.5 flex items-start justify-between gap-3">
           <p
-            className="text-[1.5rem] leading-tight tracking-tight text-foreground"
+            className="flex items-center gap-1.5 text-[1.5rem] leading-tight tracking-tight text-foreground"
             style={SERIF}
           >
             {t("sunburstTitle")}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={t("sunburstColorTooltip")}
+                  className="inline-flex cursor-help items-center text-muted-foreground/70 transition-colors hover:text-muted-foreground"
+                >
+                  <Info className="h-4 w-4" aria-hidden />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                {t("sunburstColorTooltip")}
+              </TooltipContent>
+            </Tooltip>
           </p>
-          {hasSub && (
+          {/* Labels ab Ebene 2 nur im Desktop steuerbar (compact zeigt nie tiefer
+              als Ring 1). Unterthemen selbst sind immer eingeblendet. */}
+          {hasSub && !compact && (
             <div className="flex shrink-0 flex-col items-end gap-1">
               <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-muted-foreground select-none">
                 <input
                   type="checkbox"
                   className="h-3.5 w-3.5 cursor-pointer accent-current"
-                  checked={showSub}
-                  onChange={(e) => setShowSub(e.target.checked)}
+                  checked={expandSub}
+                  onChange={(e) => setExpandSub(e.target.checked)}
                 />
-                {t("sunburstSubtopics")}
+                {t("sunburstSubLabels")}
               </label>
-              {/* Labels ab Ebene 2 nur im Desktop steuerbar (compact zeigt nie
-                  tiefer als Ring 1). Erscheint, sobald Unterthemen sichtbar sind. */}
-              {!compact && showSub && (
-                <label className="flex cursor-pointer items-center gap-1.5 text-[12.5px] text-muted-foreground select-none">
-                  <input
-                    type="checkbox"
-                    className="h-3.5 w-3.5 cursor-pointer accent-current"
-                    checked={expandSub}
-                    onChange={(e) => setExpandSub(e.target.checked)}
-                  />
-                  {t("sunburstSubLabels")}
-                </label>
-              )}
             </div>
           )}
         </div>

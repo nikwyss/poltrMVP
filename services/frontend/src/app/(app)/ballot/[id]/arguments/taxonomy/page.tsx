@@ -231,8 +231,12 @@ export default function TaxonomyPage() {
                 </p>
               </header>
 
-              {/* Meinungsrad (radial). Desktop: voll (alle Ringe beschriftet).
-                  Mobile: compact (nur Ring 1 beschriftet, Ring 2 & 3 als Bänder). */}
+              {/* Kräfte-Pfeile — zwei gegenläufige Pfeile je Thema, Schwerpunkt als Tick */}
+              <TaxonomyArrows nodes={root.children} t={t} onSelect={openTopicDetail} />
+
+              {/* Meinungsrad (radial) — unterhalb der Kräfte-Pfeile. Desktop: voll
+                  (alle Ringe beschriftet). Mobile: compact (nur Ring 1 beschriftet,
+                  Ring 2 & 3 als Bänder). */}
               {fullTree?.tree && (
                 <>
                   <div className="hidden md:block">
@@ -243,9 +247,6 @@ export default function TaxonomyPage() {
                   </div>
                 </>
               )}
-
-              {/* Kräfte-Pfeile — zwei gegenläufige Pfeile je Thema, Schwerpunkt als Tick */}
-              <TaxonomyArrows nodes={root.children} t={t} onSelect={openTopicDetail} />
             </LockedSection>
           </LockedSection>
         </div>

@@ -64,8 +64,38 @@ const balancedCap = (
 // Karte nach unten ausblendet — signalisiert „die Liste geht weiter" ohne dass
 // man die Restkarte vollständig zeigt. Höhe so gewählt, dass Badge + ein Hauch
 // Titel sichtbar bleiben (na-card: 16px Padding + Badge-Zeile).
-const PEEK_MASK =
-  "linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 55%, transparent 100%)";
+// „Faltkante / Stapel": zwei dünne, fixe Papierkanten hinter der letzten Karte
+// suggerieren, dass mehr dahinterliegt, plus ein Zähler „N weitere darunter".
+// Die Kanten sind höhenunabhängig (kein Anschnitt der nächsten Karte). Der Klick
+// öffnet dasselbe Ziel wie der Footer-Link (Overlay bzw. Inline-Expand).
+function MoreStack({
+  onClick,
+  label,
+  text,
+}: {
+  onClick: () => void;
+  label: string;
+  text: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className="group -mt-2 flex w-full flex-col items-center gap-1.5"
+    >
+      <div className="flex w-full flex-col items-center">
+        {/* obere (breitere) Kante — „vorderstes Blatt" */}
+        <div className="h-1.5 w-[90%] rounded-b-[10px] border border-t-0 border-[var(--line)] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform group-hover:translate-y-0.5" />
+        {/* untere (schmalere) Kante — liegt „weiter hinten" */}
+        <div className="h-1.5 w-[80%] rounded-b-[10px] border border-t-0 border-[var(--line)] bg-[var(--surface-up)]" />
+      </div>
+      <span className="text-xs font-medium text-muted-foreground transition-colors group-hover:text-foreground">
+        {text}
+      </span>
+    </button>
+  );
+}
 
 // Bottom-Aktion der ThemeCard — Material-„Text Button": farbiger Text + Icon,
 // keine Füllung/Rand. Beide Aktionen identisch (kein Emphasis-Unterschied).
@@ -264,33 +294,21 @@ export function ProContraArguments({
   // „Mehr anzeigen"-Button in beiden Layouts denselben Count zeigt.
   const visibleCount = visiblePro.length + visibleContra.length;
   const flatVisible = args.slice(0, visibleCount);
-  const flatPeek =
-    !expanded && args.length > visibleCount ? args[visibleCount] : null;
 
-  // Eine Spalte: sichtbare Karten + (falls noch welche ausgeblendet sind) der
-  // angeschnittene „Peek" der nächsten Karte als rein visueller Vorgeschmack.
+  // Eine Spalte: sichtbare Karten + (falls noch welche ausgeblendet sind) die
+  // dekorative Stapelkante mit Zähler.
   const renderColumn = (items: TaxonomyArgument[]) => {
     const visible = items.slice(0, cap);
-    const peek = !expanded && items.length > visible.length ? items[visible.length] : null;
+    const hidden = !expanded ? items.length - visible.length : 0;
     return (
       <div className="flex flex-col gap-4">
         {visible.map((a) => <ArgumentCard key={a.uri} arg={a} onOpen={onOpen} />)}
-        {peek && (
-          // Nur im Zweispalter (md+): schmaler, angeschnittener „Peek" der
-          // nächsten Karte als rein symbolischer Hinweis „hier gibt es mehr" —
-          // bewusst so niedrig, dass der Titel nicht lesbar ist. Klick öffnet
-          // dasselbe Ziel wie der Footer-Link (Overlay bzw. Inline-Expand).
-          <button
-            type="button"
+        {hidden > 0 && (
+          <MoreStack
             onClick={handleMore}
-            aria-label={t("showMore", { count: remaining })}
-            className="relative hidden h-[1.25rem] w-full cursor-pointer overflow-hidden md:block"
-            style={{ maskImage: PEEK_MASK, WebkitMaskImage: PEEK_MASK }}
-          >
-            <div aria-hidden className="pointer-events-none">
-              <ArgumentCard arg={peek} onOpen={() => {}} />
-            </div>
-          </button>
+            label={t("showMore", { count: hidden })}
+            text={t("moreBelow", { count: hidden })}
+          />
         )}
       </div>
     );
@@ -310,23 +328,17 @@ export function ProContraArguments({
         {renderColumn(pro)}
       </div>
       {/* Mobile: flache Liste in Backend-Reihenfolge (offiziell zuerst, dann
-          Community geseedet gemischt), ein Peek am echten Box-Ende. */}
+          Community geseedet gemischt), Stapelkante am echten Box-Ende. */}
       <div className="mt-3 flex flex-col gap-4 md:hidden">
         {flatVisible.map((a) => (
           <ArgumentCard key={a.uri} arg={a} onOpen={onOpen} />
         ))}
-        {flatPeek && (
-          <button
-            type="button"
+        {!expanded && remaining > 0 && (
+          <MoreStack
             onClick={handleMore}
-            aria-label={t("showMore", { count: remaining })}
-            className="relative h-[1.25rem] w-full cursor-pointer overflow-hidden"
-            style={{ maskImage: PEEK_MASK, WebkitMaskImage: PEEK_MASK }}
-          >
-            <div aria-hidden className="pointer-events-none">
-              <ArgumentCard arg={flatPeek} onOpen={() => {}} />
-            </div>
-          </button>
+            label={t("showMore", { count: remaining })}
+            text={t("moreBelow", { count: remaining })}
+          />
         )}
       </div>
       {hasMore && !hideShowMore && (
