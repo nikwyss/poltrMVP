@@ -47,6 +47,10 @@ Legend: `[ ]` offen · `[~]` in Arbeit · `[x]` erledigt
 
 ---
 
+## Auto-Ballot creation
+llm-agent auito workflow. based  bfs nummer oder datum, titel
+---
+
 ## ATProto
 
 - [ ] **Lexicon-Setup finalisieren:** Poltr-spezifische Version + Bluesky-Fallback (embedded entries).

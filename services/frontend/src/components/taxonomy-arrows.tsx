@@ -22,6 +22,12 @@
 import { useMemo, type CSSProperties, type ReactNode } from "react";
 import type { TaxonomyNode } from "@/types/ballots";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 import { collectLeaningContribs, noisyOr } from "@/lib/aggregate";
 import {
   ARM_NO_CSS as ARM_NO,
@@ -312,7 +318,7 @@ export function TaxonomyArrows({
 
   return (
     <Card className="border-black/5 py-6">
-      <CardContent className="@container px-6">
+      <CardContent className="@container relative px-6">
         {/* Bleistift-Filter für den Netto-Pfeil: leicht wackelige Kante
             (Displacement) + feine Grafit-Körnung (Deckkraft-Rauschen). Einmal
             definiert, von allen Zeilen-SVGs via filter="url(#net-pencil)"
@@ -360,19 +366,32 @@ export function TaxonomyArrows({
           </defs>
         </svg>
 
+        {/* Hilfe-Tooltip oben rechts am Card-Rand */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={t("arrowsFormulaTooltip")}
+              className="absolute right-4 top-0 inline-flex cursor-help items-center text-muted-foreground/70 transition-colors hover:text-muted-foreground"
+            >
+              <Info className="h-4 w-4" aria-hidden />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            {t("arrowsFormulaTooltip")}
+          </TooltipContent>
+        </Tooltip>
+
         {/* Eyebrow */}
         <p className="mb-1 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           {t("arrowsEyebrow")} · {rows.length} {t("cloudThemes")}
         </p>
         {/* Serifen-Titel */}
         <p
-          className="mb-1.5 text-[1.5rem] leading-tight tracking-tight text-foreground"
+          className="mb-4 text-[1.5rem] leading-tight tracking-tight text-foreground"
           style={SERIF}
         >
           {t("arrowsTitle")}
-        </p>
-        <p className="mb-4 text-[13.5px] leading-relaxed text-muted-foreground">
-          {t("arrowsSubtitle")}
         </p>
 
         {/* relative Hülle: im breiten Layout (`@2xl`) liegt die 0-Achse als EINE

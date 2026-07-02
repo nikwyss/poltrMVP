@@ -412,20 +412,15 @@ export function ArgumentDetail({
                 <p className="ov-arg-body">{argument.record.body}</p>
               )}
               <div className="ov-arg-meta">
-                {(argument.likeCount ?? 0) > 0 && (
-                  <span>
-                    {"♡"} {argument.likeCount}
-                  </span>
+                {isOfficial ? (
+                  <OfficialBadge />
+                ) : (
+                  <PeerreviewStatusBadge status={argument.peerreviewStatus} />
                 )}
                 {(argument.commentCount ?? 0) > 0 && (
                   <span>
                     {"💬"} {argument.commentCount}
                   </span>
-                )}
-                {isOfficial ? (
-                  <OfficialBadge />
-                ) : (
-                  <PeerreviewStatusBadge status={argument.peerreviewStatus} />
                 )}
               </div>
             </div>

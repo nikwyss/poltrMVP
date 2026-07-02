@@ -43,6 +43,23 @@ export type T = (key: string, values?: Record<string, string | number>) => strin
 // Initiales Anzeige-Limit je Spalte; danach „Mehr anzeigen".
 export const PAGE_LIMIT = 4;
 
+// Offizielle Argumente werden NIE ausgeblendet: der sichtbare Cap je Spalte ist
+// mindestens `limit`, steigt aber auf die Zahl der offiziellen Argumente, wenn
+// diese das Limit übersteigt (das Backend liefert offiziell zuerst, sie liegen
+// also innerhalb der Spalte vorne und fallen vollständig in den Slice).
+const officialCount = (items: TaxonomyArgument[]) =>
+  items.filter((a) => a.sourceType === "official").length;
+const columnCap = (items: TaxonomyArgument[], limit: number) =>
+  Math.max(limit, officialCount(items));
+// Pro und Contra zeigen IMMER gleich viele Argumente: beide Spalten teilen sich
+// denselben Cap = das Maximum beider Spalten-Bedarfe (so bleiben auf der Seite
+// mit mehr offiziellen alle sichtbar, und die andere Spalte zieht gleichauf).
+const balancedCap = (
+  pro: TaxonomyArgument[],
+  contra: TaxonomyArgument[],
+  limit: number,
+) => Math.max(columnCap(pro, limit), columnCap(contra, limit));
+
 // „Peek": Maske, die den angeschnittenen Kopf der nächsten (ausgeblendeten)
 // Karte nach unten ausblendet — signalisiert „die Liste geht weiter" ohne dass
 // man die Restkarte vollständig zeigt. Höhe so gewählt, dass Badge + ein Hauch
@@ -230,7 +247,9 @@ export function ProContraArguments({
   if (!args.length) return null;
   const pro = args.filter((a) => a.type === "PRO");
   const contra = args.filter((a) => a.type !== "PRO");
-  const cap = expanded ? Infinity : limit;
+  // Gemeinsamer Cap für beide Spalten: alle offiziellen bleiben sichtbar, und
+  // Pro/Contra zeigen stets gleich viele Argumente.
+  const cap = expanded ? Infinity : balancedCap(pro, contra, limit);
   const visiblePro = pro.slice(0, cap);
   const visibleContra = contra.slice(0, cap);
   // Verbleibende (ausgeblendete) Karten über beide Spalten.
@@ -257,17 +276,21 @@ export function ProContraArguments({
       <div className="flex flex-col gap-4">
         {visible.map((a) => <ArgumentCard key={a.uri} arg={a} onOpen={onOpen} />)}
         {peek && (
-          // Nur im Zweispalter (md+): Peek am unteren Rand jeder Spalte. Die
-          // mobile flache Liste hat ihren eigenen Peek (flatPeek).
-          <div
-            aria-hidden
-            className="relative hidden h-[3.25rem] overflow-hidden md:block"
+          // Nur im Zweispalter (md+): schmaler, angeschnittener „Peek" der
+          // nächsten Karte als rein symbolischer Hinweis „hier gibt es mehr" —
+          // bewusst so niedrig, dass der Titel nicht lesbar ist. Klick öffnet
+          // dasselbe Ziel wie der Footer-Link (Overlay bzw. Inline-Expand).
+          <button
+            type="button"
+            onClick={handleMore}
+            aria-label={t("showMore", { count: remaining })}
+            className="relative hidden h-[1.25rem] w-full cursor-pointer overflow-hidden md:block"
             style={{ maskImage: PEEK_MASK, WebkitMaskImage: PEEK_MASK }}
           >
-            <div className="pointer-events-none">
+            <div aria-hidden className="pointer-events-none">
               <ArgumentCard arg={peek} onOpen={() => {}} />
             </div>
-          </div>
+          </button>
         )}
       </div>
     );
@@ -293,15 +316,17 @@ export function ProContraArguments({
           <ArgumentCard key={a.uri} arg={a} onOpen={onOpen} />
         ))}
         {flatPeek && (
-          <div
-            aria-hidden
-            className="relative h-[3.25rem] overflow-hidden"
+          <button
+            type="button"
+            onClick={handleMore}
+            aria-label={t("showMore", { count: remaining })}
+            className="relative h-[1.25rem] w-full cursor-pointer overflow-hidden"
             style={{ maskImage: PEEK_MASK, WebkitMaskImage: PEEK_MASK }}
           >
-            <div className="pointer-events-none">
+            <div aria-hidden className="pointer-events-none">
               <ArgumentCard arg={flatPeek} onOpen={() => {}} />
             </div>
-          </div>
+          </button>
         )}
       </div>
       {hasMore && !hideShowMore && (
@@ -360,9 +385,14 @@ export function ThemeCard({
   // bewertet sein (sonst käme der Button bei 1 Argument fälschlich sofort).
   // 0 Argumente ⇒ kein Gate (man darf das erste Argument vorschlagen).
   const managed = !!onAddArgument;
-  const proCount = node.arguments.filter((a) => a.type === "PRO").length;
-  const contraCount = node.arguments.length - proCount;
-  const truncated = proCount > limit || contraCount > limit;
+  const proArgs = node.arguments.filter((a) => a.type === "PRO");
+  const contraArgs = node.arguments.filter((a) => a.type !== "PRO");
+  const proCount = proArgs.length;
+  const contraCount = contraArgs.length;
+  // „Gekürzt" nur, wenn nach dem gemeinsamen Cap noch Argumente ausgeblendet
+  // sind — sonst erschiene „Mehr anzeigen" trotz voller Sichtbarkeit.
+  const cap = balancedCap(proArgs, contraArgs, limit);
+  const truncated = proCount > cap || contraCount > cap;
   const ratedArgs = node.arguments.filter((a) => typeof a.viewerPreference === "number").length;
   const ratingTarget = Math.min(2, node.arguments.length);
   const needsRating = ratedArgs < ratingTarget;
@@ -400,7 +430,7 @@ export function ThemeCard({
             </p>
           )}
           <h3
-            className="truncate text-[1.0625rem] font-bold tracking-tight leading-snug"
+            className="text-[1.0625rem] font-bold tracking-tight leading-snug [overflow-wrap:anywhere]"
             style={{
               fontFamily:
                 'var(--font-serif), Georgia, "Times New Roman", serif',
@@ -425,9 +455,11 @@ export function ThemeCard({
             <ProContraArguments
               args={node.arguments}
               onOpen={onOpen}
-              // Bei Footer-Drilldown („overlay") übernimmt der Link unten das
-              // Weiterblättern → inline „Mehr anzeigen" unterdrücken.
-              onShowMore={footer === "overlay" ? undefined : onShowMore}
+              // `onShowMore` immer durchreichen, damit der angeschnittene Peek am
+              // Spaltenende dasselbe Ziel öffnet wie der Footer-Link. Der inline
+              // „Mehr anzeigen"-Button wird bei Footer-Drilldown per hideShowMore
+              // unterdrückt (der Footer-Link übernimmt das Weiterblättern).
+              onShowMore={onShowMore}
               limit={limit}
               hideShowMore={managed || footer === "overlay"}
             />

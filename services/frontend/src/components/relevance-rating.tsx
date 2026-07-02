@@ -120,6 +120,7 @@ export function RelevanceRating({
         .na-rating-status.is-rated {
           color: var(--rng-accent);
           font-weight: 700;
+          font-size: 1.0625rem;
         }
         .na-rating-sep {
           opacity: 0.45;
@@ -144,20 +145,25 @@ export function RelevanceRating({
           color: var(--text-mid, #555);
         }
 
-        /* Slider-Optik an das Dossier angleichen: heller Track, Akzentfüllung */
+        /* Slider-Optik an das Dossier angleichen: kräftige Bahn (volle Breite,
+           14px hoch, Pill-Form), sichtbarer Akzent-Füllbalken. */
         :global(.na-rating-slider [data-slot="slider-track"]) {
           background: var(--surface-up, #ece9e3);
-          height: 8px;
-          border-radius: 8px;
+          height: 14px;
+          border-radius: 999px;
         }
         :global(.na-rating-slider [data-slot="slider-range"]) {
           background: var(--rng-accent);
         }
+        /* Grosser, gut greifbarer Daumen (26px, weiss mit kräftigem Akzent-Ring)
+           — deutlich sichtbar, besonders auf Touch. */
         :global(.na-rating-slider [data-slot="slider-thumb"]) {
-          width: 20px;
-          height: 20px;
+          width: 26px;
+          height: 26px;
+          border-width: 3px;
           border-color: var(--rng-accent);
-          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+          background: #fff;
+          box-shadow: 0 1px 5px rgba(0, 0, 0, 0.22);
           cursor: grab;
         }
         :global(.na-rating-slider [data-slot="slider-thumb"]:active) {
