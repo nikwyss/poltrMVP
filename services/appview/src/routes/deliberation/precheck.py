@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import JSONResponse
 
 from src.auth.middleware import TSession, verify_session_token
-from src.core.fastapi import logger
+from src.core.fastapi import logger, limiter
 from src.routes.deliberation._lang import resolve_requested_lang
 
 router = APIRouter(prefix="/xrpc", tags=["poltr-deliberation"])
@@ -115,6 +115,10 @@ async def _fetch_stance(ballot_rkey: str, lang: str, title: str, body: str,
 
 
 @router.post("/app.ch.poltr.argument.precheck")
+# LLM-Trigger (Gemma/stance) + Embedding pro Aufruf → rate-limited. Tiefe Limits,
+# kurze Wartezeit: ein Mensch prüft ~1–8×/Argument, ein Skript wird geblockt.
+@limiter.limit("10/minute")
+@limiter.limit("120/hour")
 async def precheck_argument(
     request: Request,
     accept_language: Optional[str] = Header(None),

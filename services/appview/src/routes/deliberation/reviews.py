@@ -33,6 +33,7 @@ from fastapi.responses import JSONResponse
 
 from src.auth.middleware import TSession, verify_session_token
 from src.core.db import get_pool
+from src.core.fastapi import limiter
 from src.atproto.atproto_api import pds_create_record
 
 logger = logging.getLogger("review")
@@ -92,7 +93,11 @@ async def get_review_criteria(
 
 
 @router.get("/app.ch.poltr.peerreview.duplicateCandidate")
+# Embedding-Duplikatscheck (kein LLM) pro Form-Öffnung → rate-limited. Höheres
+# Limit als precheck, da günstiger.
+@limiter.limit("20/minute")
 async def get_duplicate_candidate(
+    request: Request,
     argumentUri: str = Query(..., description="Argument under review."),
     session: TSession = Depends(verify_session_token),
 ):

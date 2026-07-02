@@ -136,6 +136,13 @@ count-then-insert before the PDS write; the slot is `release()`d if the write
 fails. Over a cap → **`429 {error:"quota_exceeded", kind, scope, limit}`**.
 Both creates also carry a per-IP `@limiter.limit` (6/min args, 20/min comments).
 
+**LLM-/Compute-Trigger rate-limited too** (per-IP, low limits + short wait — the
+calculator hits paid LLM/embedding APIs): the composer precheck
+`app.ch.poltr.argument.precheck` (LLM stance + embedding) is **10/min + 120/h**;
+the reviewer duplicate check `app.ch.poltr.peerreview.duplicateCandidate`
+(embedding only) is **20/min**. The argument `create` LLM translation is async
+via the writer and thus already covered by the 6/min create limit.
+
 **Counts exposed**: DB (the ledger), API
 (`GET app.ch.poltr.quota.get?ballot=<id>` → daily/ballot used+limit per kind),
 and the frontend composer (pending — see below).

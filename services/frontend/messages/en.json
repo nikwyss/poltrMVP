@@ -525,7 +525,7 @@
     "outcomeApproved": "Accepted",
     "outcomeRejected": "Rejected",
     "outcomeReview": "Under review",
-    "showFullArgument": "Show full argument",
+    "toArgument": "Go to argument",
     "votes": "votes",
     "detailTodo": "The review detail view is coming soon.",
     "roleToReview": "To review",

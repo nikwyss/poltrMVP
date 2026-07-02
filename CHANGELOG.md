@@ -2,6 +2,13 @@
 
 ## 2026-07-02
 
+### Rate-Limits für LLM-/Compute-Trigger
+
+Öffentliche AppView-Endpoints, die den Calculator (bezahlte LLM-/Embedding-APIs) auslösen, sind jetzt per-IP rate-limited (tiefe Limits, kurze Wartezeit):
+- `app.ch.poltr.argument.precheck` (Composer, **LLM** stance + Embedding) → **10/min + 120/h** ([precheck.py](services/appview/src/routes/deliberation/precheck.py)).
+- `app.ch.poltr.peerreview.duplicateCandidate` (Reviewer-Form, Embedding) → **20/min** — dafür `request: Request` ergänzt ([reviews.py](services/appview/src/routes/deliberation/reviews.py)).
+- Die async LLM-Übersetzung beim Argument-`create` bleibt durch das bestehende 6/min-Limit gedeckt. Doku: [SECURITY_AUTH.md](doc/SECURITY_AUTH.md).
+
 ### Peer-Review-Status-Ansicht (nach dem Einreichen) überarbeitet
 
 [peer-review-detail.tsx](services/frontend/src/components/peer-review-detail.tsx):
@@ -10,6 +17,13 @@
 - **Argument-Kontext im Overlay:** das begutachtete Argument wird jetzt direkt gezeigt (Ja/Nein-Badge + Titel + Kurztext, `line-clamp-3`) — kein Zurückspringen nötig.
 - **Stimmen-Zeile mit farbigen Pfeilen** (grün ↑ / rot ↓), auf einen Blick lesbar.
 - **Kriterien-Statistik verbessert:** je Kriterium ok/beanstandet-Zähler **plus Verhältnis-Balken** (grün/rot) — sichtbar, wie viele Gutachter jedes Kriterium wie bewertet haben.
+- **„Volles Argument anzeigen"** öffnet das Argument-Overlay (`useOverlay().navigate({type:"argument"})`); der Bewertungs-Regler wurde hier entfernt. Über-Status statt Status+Phase (Angenommen/Abgelehnt/Unter Begutachtung), „Fortschritt" → „Anzahl Gutachten".
+
+### Optimistisches Update nach Gutachten-Einreichen
+
+Die async Pipeline (Reviewer-Repo → Queue → community-writer → Indexer → DB) projiziert einen Response erst verzögert; bis dahin zeigten Overlay-Statistik und Footer den alten Stand (erst nach Reload aktuell). Jetzt aktualisiert der Submit **optimistisch**:
+- **Footer-Badge:** [review-form.tsx](services/frontend/src/components/review-form.tsx) entfernt das Argument via `queryClient.setQueryData(["peerreview-pending"], …)` sofort aus der Pending-Liste.
+- **Overlay-Statistik:** `onSubmitted` liefert `{argumentUri, vote, criteria}`; [peer-review-detail.tsx](services/frontend/src/components/peer-review-detail.tsx) rechnet den eigenen Response sofort in Zähler + Kriterien-Breakdown ein (`applyOwnResponse`). Der 60-s-Poll bzw. ein Reopen gleichen später mit der DB ab.
 
 ## 2026-07-01 (Reviewer-Formular: Begründung entfernt, Ja-Argument-Labels)
 

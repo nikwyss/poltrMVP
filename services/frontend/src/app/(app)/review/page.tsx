@@ -59,7 +59,7 @@ export default function ReviewDashboard() {
     setExpanded(prev => new Set(prev).add(argumentUri));
   };
 
-  const handleSubmitted = (argumentUri: string) => {
+  const handleSubmitted = ({ argumentUri }: { argumentUri: string }) => {
     setInvitations(prev => prev.filter(inv => inv.argumentUri !== argumentUri));
     setExpanded(prev => {
       const next = new Set(prev);

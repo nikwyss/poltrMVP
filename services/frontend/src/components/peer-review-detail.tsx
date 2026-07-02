@@ -15,8 +15,9 @@ import type {
 } from "@/types/ballots";
 import { useArgumentQuery } from "@/lib/queries/arguments";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/spinner";
-import { ReviewForm } from "@/components/review-form";
+import { ReviewForm, type ReviewSubmitResult } from "@/components/review-form";
 import { ProContraBadge } from "@/components/pro-contra-badge";
 import { useOverlay } from "@/lib/overlay";
 import { CheckCircle2, ArrowUp, ArrowDown } from "lucide-react";
@@ -43,6 +44,7 @@ export function PeerReviewDetail({
 }) {
   const t = useTranslations("gutachten");
   const tc = useTranslations("common");
+  const { navigate } = useOverlay();
   const params = useParams();
   const ballotRkey = (params?.id as string) || "";
   const argRkey = argumentUri.split("/").pop() || "";
@@ -124,7 +126,15 @@ export function PeerReviewDetail({
               ballotRkey: invitation.argument.ballotRkey,
             }}
             criteriaTemplate={criteria}
-            onSubmitted={() => setSubmitted(true)}
+            onSubmitted={(result) => {
+              setSubmitted(true);
+              // Optimistisch: den eigenen, gerade eingereichten Response sofort in
+              // die Statistik übernehmen (die async Pipeline liefert ihn erst
+              // später in die DB). Beim nächsten Laden ist alles konsistent.
+              setStatus((prev) =>
+                prev ? applyOwnResponse(prev, result) : prev,
+              );
+            }}
           />
         )}
 
@@ -211,6 +221,25 @@ export function PeerReviewDetail({
                 </ul>
               </div>
             )}
+
+            {/* Navigation: zum vollen Argument-Overlay oder schliessen. */}
+            <div className="flex gap-3 border-t pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={onClose}
+              >
+                {tc("close")}
+              </Button>
+              <Button
+                type="button"
+                className="flex-1"
+                onClick={() => navigate({ type: "argument", rkey: argRkey })}
+              >
+                {t("toArgument")}
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -219,6 +248,36 @@ export function PeerReviewDetail({
 }
 
 type TFn = (key: string) => string;
+
+// Den eigenen, gerade eingereichten Response optimistisch in die Statistik
+// einrechnen (Zähler + Kriterien-Breakdown), bis die async Pipeline ihn liefert.
+function applyOwnResponse(
+  status: PeerreviewStatus,
+  result: ReviewSubmitResult,
+): PeerreviewStatus {
+  const breakdown = [...(status.criteriaBreakdown ?? [])];
+  for (const c of result.criteria) {
+    const i = breakdown.findIndex((b) => b.key === c.key);
+    const ok = c.assessment === "ok" ? 1 : 0;
+    const flagged = c.assessment === "flagged" ? 1 : 0;
+    if (i >= 0) {
+      breakdown[i] = {
+        ...breakdown[i],
+        ok: breakdown[i].ok + ok,
+        flagged: breakdown[i].flagged + flagged,
+      };
+    } else {
+      breakdown.push({ key: c.key, label: c.label, ok, flagged });
+    }
+  }
+  return {
+    ...status,
+    totalReviews: status.totalReviews + 1,
+    approvals: status.approvals + (result.vote === "APPROVE" ? 1 : 0),
+    rejections: status.rejections + (result.vote === "REJECT" ? 1 : 0),
+    criteriaBreakdown: breakdown,
+  };
+}
 
 // Ein einziger Über-Status: Angenommen / Abgelehnt / Unter Begutachtung.
 function statusLabel(t: TFn, s: PeerreviewStatus["peerreviewStatus"]): string {
@@ -262,8 +321,6 @@ function ArgumentContextInline({
   const { data: argument = null } = useArgumentQuery(ballotRkey, argRkey, true);
   const tc = useTranslations("common");
   const tf = useTranslations("feed");
-  const tg = useTranslations("gutachten");
-  const { navigate } = useOverlay();
   if (!argument) return null;
   const type = argument.record.type;
   const isPro = type === "PRO";
@@ -280,14 +337,6 @@ function ArgumentContextInline({
       <p className="m-0 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground line-clamp-3">
         {argument.record.body}
       </p>
-      {/* Öffnet das volle Argument-Overlay (auf dem Overlay-Stack). */}
-      <button
-        type="button"
-        onClick={() => navigate({ type: "argument", rkey: argRkey })}
-        className="mt-2 text-xs font-medium text-primary hover:underline"
-      >
-        {tg("showFullArgument")}
-      </button>
     </div>
   );
 }

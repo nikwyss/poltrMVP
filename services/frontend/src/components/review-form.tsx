@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   getDuplicateCandidate,
   submitPeerreview,
@@ -14,6 +15,7 @@ import type {
   CriterionAssessment,
   DuplicateCandidate,
   PeerreviewState,
+  PeerreviewInvitation,
 } from "@/types/ballots";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -32,6 +34,14 @@ const ACTIVITY_THROTTLE_MS = 30_000;
 const DRAFT_PREFIX = "poltr.review.draft.";
 
 type CheckGate = "checking" | "ready" | "closed" | "too_late";
+
+// Was der Submit optimistisch nach oben meldet, damit Consumer sofort (ohne auf
+// die async Pipeline zu warten) Zähler/Listen aktualisieren können.
+export interface ReviewSubmitResult {
+  argumentUri: string;
+  vote: "APPROVE" | "REJECT";
+  criteria: PeerreviewCriterionRating[];
+}
 
 export interface ReviewableArgument {
   argumentUri: string;
@@ -61,11 +71,12 @@ export function ReviewForm({
 }: {
   arg: ReviewableArgument;
   criteriaTemplate: PeerreviewCriterion[];
-  onSubmitted: (argumentUri: string) => void;
+  onSubmitted: (result: ReviewSubmitResult) => void;
 }) {
   const t = useTranslations("review");
   const tc = useTranslations("common");
   const tf = useTranslations("feed");
+  const qc = useQueryClient();
   const draftKey = DRAFT_PREFIX + arg.argumentUri;
 
   // „Ja-Argument" / „Nein-Argument" (wie im Composer) statt nur „Ja"/„Nein".
@@ -246,8 +257,15 @@ export function ReviewForm({
       } catch {
         /* ignore */
       }
+      // Optimistisch: dieses Argument aus der Pending-Liste entfernen, damit der
+      // Footer-Badge sofort stimmt (die async Pipeline projiziert den Response
+      // erst später in die DB — ein sofortiges Refetch würde ihn noch als offen
+      // zurückgeben). Der 60-s-Poll gleicht danach ab.
+      qc.setQueryData<PeerreviewInvitation[]>(["peerreview-pending"], (old) =>
+        (old ?? []).filter((inv) => inv.argumentUri !== arg.argumentUri),
+      );
       setDone(true);
-      onSubmitted(arg.argumentUri);
+      onSubmitted({ argumentUri: arg.argumentUri, vote, criteria });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit review");
     } finally {
