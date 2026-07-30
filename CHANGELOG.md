@@ -1,5 +1,31 @@
 # Changelog
 
+## 2026-07-30
+
+### PDS-Image digest-gepinnt (Outage-Fix) + Infra-Runbook
+
+Der einzige Prod-Node (Infomaniak `a4-ram8-disk20-perf1`, ~20 GB Disk) lief voll
+→ Disk-Pressure-Eviction-Storm → **ingress-nginx** getötet (Port 443 tot,
+poltr.ch nicht erreichbar) und der **PDS**-Image-Cache per Image-GC verworfen.
+Beim Neu-Pull zog `ghcr.io/bluesky-social/pds:latest` ein umstrukturiertes
+Upstream-Image (Node 24, Entry `/app/index.ts` statt `/app/index.js`) → der
+hartkodierte Start `node /app/index.js` crash-loopte.
+
+- **[pds.yaml](infra/kube/pds.yaml):** Image auf **Digest gepinnt**
+  (`@sha256:1fa8bbce…`), damit ein `:latest`-Drift die PDS nicht mehr still
+  kaputt macht. Entrypoint auf `node --enable-source-maps /app/index.ts`
+  korrigiert (entspricht dem eigenen CMD des Images). **`cd /data` bleibt** —
+  `PDS_DATA_DIRECTORY` ist nicht gesetzt (Secret hat nur das inerte
+  `PDS_DATA_DIR`), d.h. das cwd verankert das SQLite-Repo; Entfernen riskiert
+  eine frische Identität → Relay-Federation-Bruch.
+- **Recovery (manuell, transient):** ~10 700 tote Pods gelöscht
+  (`kubectl delete pod --field-selector=status.phase=Failed` je Namespace),
+  systemd-Journal von 1.4 G auf 212 M vakuumiert → Disk-Pressure-Taint gelöst,
+  ingress + PDS rescheduled.
+- **Neu: [doc/OPERATIONS.md](doc/OPERATIONS.md)** — Node-/Disk-Runbook für
+  Scale-up & Migration (Disk-Größe, journald-Cap, Cronjob-History-Limits,
+  Evicted-Pod-Reaper, PDS-Pin-Regel).
+
 ## 2026-07-02
 
 ### Rate-Limits für LLM-/Compute-Trigger

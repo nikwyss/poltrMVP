@@ -17,9 +17,16 @@ spec:
     spec:
       containers:
         - name: pds
-          image: ghcr.io/bluesky-social/pds:latest
+          # Pinned by digest: upstream :latest drifted to a TS-based image
+          # (Node 24, entrypoint /app/index.ts). Using a mutable tag let an
+          # image-GC re-pull silently swap the layout and crash-loop the PDS.
+          image: ghcr.io/bluesky-social/pds@sha256:1fa8bbceabb65d8e1710749b1ea92c1c20a7489ca38da4a0a5f64c0c10a70c29
+          # cd /data is load-bearing: PDS_DATA_DIRECTORY is not set, so cwd
+          # anchors the SQLite repo. Do NOT remove it (would risk a fresh repo
+          # / new identity → relay federation break). Only the entrypoint file
+          # changed: /app/index.js → /app/index.ts (matches image's own CMD).
           command: ["/bin/sh"]
-          args: ["-c", "cd /data && exec node /app/index.js"]
+          args: ["-c", "cd /data && exec node --enable-source-maps /app/index.ts"]
           envFrom:
             - secretRef:
                 name: pds-secrets
