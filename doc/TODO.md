@@ -67,6 +67,19 @@ llm-agent auito workflow. based  bfs nummer oder datum, titel
 
 ---
 
+## Monitoring / Alerting
+
+- [ ] **TLS-Zertifikate: Ablauf UND ausbleibende Erneuerung alarmieren.** Bisher gab es keine Alarmierung; die Zertifikate sind zweimal *still* abgelaufen (`*.id.poltr.ch` am 2026-05-13, `*.poltr.info` am 2026-08-05, Nachwehen bis 2026-08-11 — Historie in [TLS_CERTIFICATES.md](TLS_CERTIFICATES.md#history)). Beide Male hat cert-manager wochenlang **nicht** erneuert, ohne dass irgendwo etwas aufgefallen wäre. Kollateralschaden ist nicht nur „Browser zeigt Warnung": die AppView schreibt `peerreview.request` über den **öffentlichen** Host `https://pds2.poltr.info` ([atproto_api.py:335-341](../services/appview/src/atproto/atproto_api.py#L335)), d.h. mit abgelaufenem Cert bricht serverseitig die Peer-Review-Zuteilung weg — sichtbar nur als `logger.warning` (festgestellt am 2026-08-11, Ballot 663.1: 72 fehlgeschlagene Requests, keine Einladungen).
+
+  Zwei Ebenen, **beide** nötig — die eine misst das Symptom von aussen, die andere den Defekt an der Quelle:
+
+  - [ ] **Extern (Uptime-Monitor):** Endpoint-Checks mit *Cert-Expiry-Notification* (z.B. Uptime Kuma self-hosted, Better Stack, Infomaniak-Monitoring) auf `https://poltr.ch`, `https://pds2.poltr.info`, `https://app.poltr.info`, `https://cms.poltr.info` **und** einen Handle-Endpoint `https://ballot-663.id.poltr.ch/.well-known/atproto-did` (deckt das dritte Cert `*.id.poltr.ch` ab, das sonst von keinem Browser-Check berührt wird). Warnschwelle **21/14/7 Tage** vor Ablauf. Vorteil: prüft, was Clients wirklich sehen (inkl. Ingress-Reload — am 2026-08-11 lieferte der Ingress das abgelaufene Cert noch ~1 h nach der Neuausstellung aus).
+  - [ ] **Intern (Cronjob im Cluster):** wöchentlicher Check auf `kubectl get certificate -n poltr` → Alarm-Mail, wenn ein Cert `READY!=True` ist **oder** `status.notAfter` < 21 Tage **oder** `status.renewalTime` in der Vergangenheit liegt (= Erneuerung überfällig, genau der `CannotRegenerateKey`-Deadlock von 2026-06-01). Direkt nach dem Muster von [`infra/kube/pds-monitoring.yaml`](../infra/kube/pds-monitoring.yaml) baubar (ServiceAccount + Role auf `cert-manager.io/certificates`, `bitnami/kubectl` liest, `curlimages/curl` mailt über `appview-secrets`/SMTP an `nikwyss@gmail.com`). Der externe Monitor allein würde den Deadlock erst ~60 Tage später melden, wenn es schon brennt.
+
+  - [ ] Zusätzlich absichern statt nur beobachten: `pds_create_record` in der AppView auf `PDS_INTERNAL_URL` (`http://pds.poltr.svc.cluster.local`) umstellen — der Writer macht das bereits. Dann hängt ein interner Repo-Write nicht mehr am öffentlichen TLS. (Eigener Punkt, aber derselbe Vorfall.)
+
+---
+
 ## CI / Build-Pipeline beschleunigen (`build-and-push-services.yml`)
 
 Problem heute: jeder `services/**`-Push baut **alle fünf** Services, jeweils mit `docker build --no-cache` (CMS = voller Payload/Next-Build von Null) und seriell (`max-parallel: 1`).

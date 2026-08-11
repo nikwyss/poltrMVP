@@ -184,7 +184,11 @@ kubectl delete secret -n poltr <secretName>
 - `*.poltr.info` cert expired → all `pds2.`, `app.`, `cms.` HTTPS endpoints break for public clients.
 - `poltr.ch` cert expired → the public frontend serves invalid TLS.
 
-Browsers and most clients will hard-fail at the TLS handshake — no graceful degradation. Set up monitoring/alerting on `kubectl get certificates` if not yet done.
+Browsers and most clients will hard-fail at the TLS handshake — no graceful degradation.
+
+Not only public clients are affected: the appview writes `peerreview.request` records over the **public** host `https://pds2.poltr.info` (`PDS_HOSTNAME`, see [`atproto_api.py`](../services/appview/src/atproto/atproto_api.py#L335)), so an expired `*.poltr.info` cert silently kills server-side peer-review assignment — it only shows up as a `logger.warning`.
+
+**There is still no alerting on any of this** (both silent expiries below were noticed by hand, days to weeks late). Planned two-layer setup — external uptime monitor with cert-expiry notification *plus* an in-cluster cronjob that also catches an overdue `renewalTime`: see [TODO.md → Monitoring / Alerting](TODO.md#monitoring--alerting).
 
 ## History
 
