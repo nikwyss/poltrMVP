@@ -40,21 +40,22 @@ spec:
                 name: infomaniak-api-credentials
                 key: api-token
 ---
-# Optional: Explicitly request the wildcard certificate
-# (cert-manager will also auto-create from Ingress annotation)
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: poltr-wildcard-cert
-  namespace: poltr
-spec:
-  secretName: poltr-wildcard-tls
-  issuerRef:
-    name: letsencrypt-prod-dns
-    kind: ClusterIssuer
-  dnsNames:
-    - "poltr.info"
-    - "*.poltr.info"
+# NOTE: This file declares ClusterIssuers ONLY.
+#
+# Do NOT add `Certificate` resources here. Every TLS secret referenced in
+# infra/kube/ingress.yaml is auto-created by the cert-manager ingress-shim from
+# the `cert-manager.io/cluster-issuer` annotation. A second, hand-written
+# Certificate pointing at the same `secretName` makes the two resources fight
+# over the secret: each sees the other's output as a `SecretMismatch` and
+# re-issues, forever.
+#
+# That happened here — `poltr-wildcard-cert` (poltr.info + *.poltr.info) and the
+# shim's `poltr-wildcard-tls` (*.poltr.info) shared secret `poltr-wildcard-tls`,
+# likewise `poltr-ch-cert` vs `poltr-ch-tls`. The poltr.ch pair looped every 8h
+# until it hit the Let's Encrypt rate limit (5 certs per identifier set / 168h);
+# the wildcard pair deadlocked and let the cert expire on 2026-08-05.
+# Both hand-written Certificates were removed on 2026-08-11.
+# See doc/TLS_CERTIFICATES.md.
 ---
 # HTTP-01 ClusterIssuer for non-wildcard domains
 apiVersion: cert-manager.io/v1
@@ -71,31 +72,6 @@ spec:
       - http01:
           ingress:
             class: nginx
----
-# Certificate for poltr.ch domain (using HTTP-01)
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: poltr-ch-cert
-  namespace: poltr
-spec:
-  secretName: poltr-ch-tls
-  issuerRef:
-    name: letsencrypt-prod-http
-    kind: ClusterIssuer
-  dnsNames:
-    - "poltr.ch"
----
-# Wildcard certificate for handle domain *.id.poltr.ch (using DNS-01)
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: poltr-handle-cert
-  namespace: poltr
-spec:
-  secretName: poltr-handle-tls
-  issuerRef:
-    name: letsencrypt-prod-dns
-    kind: ClusterIssuer
-  dnsNames:
-    - "*.id.poltr.ch"
+#
+# The certificates themselves (*.poltr.info, poltr.ch/www.poltr.ch,
+# *.id.poltr.ch) come from infra/kube/ingress.yaml — see the note above.

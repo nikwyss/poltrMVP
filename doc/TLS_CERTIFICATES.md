@@ -38,10 +38,25 @@ Certificate (Kubernetes) --> ClusterIssuer (letsencrypt-prod-dns)
 | `Certificate` | DNS names | Secret | Used by |
 |---|---|---|---|
 | `poltr-handle-tls` | `*.id.poltr.ch` | `poltr-handle-tls` | Ingress route for ATProto handle resolution (per-user + per-ballot community accounts) |
-| `poltr-wildcard-cert` | `*.poltr.info` | `poltr-wildcard-tls` | Ingress for `pds2.poltr.info`, `app.poltr.info`, `cms.poltr.info`, etc. |
-| `poltr-ch-cert` / `poltr-ch-tls` | `poltr.ch`, `www.poltr.ch` | `poltr-ch-tls` | Ingress for the public frontend |
+| `poltr-wildcard-tls` | `*.poltr.info` | `poltr-wildcard-tls` | Ingress for `pds2.poltr.info`, `app.poltr.info`, `cms.poltr.info`, etc. |
+| `poltr-ch-tls` | `poltr.ch`, `www.poltr.ch` | `poltr-ch-tls` | Ingress for the public frontend |
 
-All three are auto-created from Ingress annotations in [`infra/kube/ingress.yaml`](../infra/kube/ingress.yaml) (`cert-manager.io/cluster-issuer: letsencrypt-prod-dns`) or declared explicitly in [`infra/cert/cert-manager-wildcard.yaml`](../infra/cert/cert-manager-wildcard.yaml).
+All three are auto-created by the cert-manager **ingress-shim** from the annotations on `poltr-ingress` in [`infra/kube/ingress.yaml`](../infra/kube/ingress.yaml) (`cert-manager.io/cluster-issuer: letsencrypt-prod-dns`). [`infra/cert/cert-manager-wildcard.yaml`](../infra/cert/cert-manager-wildcard.yaml) declares the ClusterIssuers **only**.
+
+> **Never declare a `Certificate` by hand for a secret that an Ingress already
+> references.** Two Certificates sharing one `secretName` fight over it: each
+> reads the other's output as a `SecretMismatch` and re-issues. This cost us the
+> `*.poltr.info` cert on 2026-08-05 (see History) and burned the Let's Encrypt
+> rate limit for `poltr.ch`.
+
+### Private-key rotation policy
+
+`poltr-ingress` carries `cert-manager.io/private-key-rotation-policy: "Always"`.
+Without it, `rotationPolicy` defaults to `Never`, and if the key in the Secret
+ever stops matching the Certificate spec (different algorithm, different size)
+cert-manager refuses to generate a replacement and **issuance deadlocks
+permanently** with `CannotRegenerateKey` — no retry, no alert, the cert just
+runs out. Keep this annotation.
 
 ## One-time setup
 
@@ -142,7 +157,9 @@ Common conditions and fixes:
 
 | Status / Reason | Cause | Fix |
 |---|---|---|
+| `CannotRegenerateKey: … cannot create new private key as … rotationPolicy is unset or set to Never` | Key in the Secret doesn't match the spec and cert-manager may not replace it — **hard deadlock, never retries** | Set `cert-manager.io/private-key-rotation-policy: "Always"` on the owning Ingress (already in `ingress.yaml`); as a one-off, `kubectl delete secret <secretName> -n poltr` |
 | `SecretMismatch: Existing private key is not up to date for spec` | `Certificate` spec was changed (e.g. private-key algorithm) but the old Secret blocks the reissue | `kubectl delete secret <secretName> -n poltr` — cert-manager will recreate it with a fresh key pair |
+| Two `Certificate`s listed for one Secret, constant `CertificateRequest` churn, eventually `429 rateLimited` | A hand-written Certificate duplicates an ingress-shim one | Delete the hand-written Certificate (deleting a `Certificate` does **not** delete its Secret unless `--enable-certificate-owner-ref` is set — it is not) |
 | `SecretMismatch: Existing issued Secret is not up to date for spec: [spec.dnsNames]` | DNS names in spec were changed | same — delete the Secret |
 | `Error presenting challenge: infomaniak.acme.infomaniak.com is forbidden` | Webhook is **not installed** or RBAC is missing | (Re-)install the webhook manifest (see "One-time setup" step 2) |
 | `Challenge failed: NXDOMAIN` or DNS timeout | Token lacks Domain scope, or token expired | Regenerate token, replace the secret |
@@ -177,3 +194,5 @@ Browsers and most clients will hard-fail at the TLS handshake — no graceful de
 | 2026-04-13 | Scheduled renewal date — fails silently because of `SecretMismatch` |
 | 2026-05-13 | `poltr-handle-tls` expires — POLTR handle resolution breaks externally |
 | 2026-06-01 | Diagnosed: Infomaniak webhook missing from cluster (was never reinstalled after a cluster operation). Reinstalled v0.3.1 + created API token + Secret. Initial Secret name `infomaniak-api-token` failed with `not found` — webhook's bundled Role only grants read access to `infomaniak-api-credentials`. Secret renamed + ClusterIssuer patched. All three certs re-issued. |
+| 2026-08-05 | `poltr-wildcard-tls` (`*.poltr.info`) expires — `cms.`, `app.`, `pds2.` serve `ERR_CERT_DATE_INVALID`. The 2026-07-06 renewal had never run. |
+| 2026-08-11 | Two root causes found and fixed: (1) duplicate Certificates per secret — hand-written `poltr-wildcard-cert` / `poltr-ch-cert` vs. shim-managed `poltr-wildcard-tls` / `poltr-ch-tls`; the poltr.ch pair looped every 8h into the LE rate limit, the wildcard pair deadlocked. Both hand-written ones deleted, and removed from `cert-manager-wildcard.yaml`. (2) `CannotRegenerateKey` — the Secret held an ECDSA key while the spec defaulted to RSA, and `rotationPolicy` was unset, so cert-manager silently refused to issue from 2026-06-01 onwards. Fixed with `cert-manager.io/private-key-rotation-policy: "Always"` on `poltr-ingress`. Wildcard re-issued, valid to 2026-11-09. |

@@ -1,5 +1,40 @@
 # Changelog
 
+## 2026-08-11
+
+### TLS: `*.poltr.info` abgelaufen — Duplikat-Certificates + Key-Rotation-Deadlock
+
+`cms.poltr.info`, `app.poltr.info` und `pds2.poltr.info` lieferten seit dem
+05.08. `ERR_CERT_DATE_INVALID` — die für den 06.07. geplante Erneuerung war nie
+gelaufen. Zwei unabhängige Ursachen:
+
+1. **Duplikat-Certificates auf demselben Secret.** Neben den vom cert-manager
+   **ingress-shim** erzeugten `poltr-wildcard-tls` / `poltr-ch-tls` existierten
+   die handgeschriebenen `poltr-wildcard-cert` / `poltr-ch-cert` aus
+   `cert-manager-wildcard.yaml` mit identischem `secretName`. Beide werten das
+   Ergebnis des jeweils anderen als `SecretMismatch` und stellen neu aus — das
+   `poltr.ch`-Paar drehte alle 8h und lief ins **Let's-Encrypt-Rate-Limit**
+   (429, 5 Zerts/Identifier-Set/168h), das Wildcard-Paar blockierte sich.
+2. **`CannotRegenerateKey`.** Der Key im Secret war ECDSA, die Certificate-Spec
+   verlangte per Default RSA, und `rotationPolicy` war ungesetzt (= `Never`).
+   cert-manager verweigert dann die Neuerzeugung des Keys — **harter Deadlock
+   ohne Retry**: seit dem 01.06. lief kein einziger Ausstellungsversuch mehr.
+
+- **[infra/kube/ingress.yaml](infra/kube/ingress.yaml):** `poltr-ingress` erhält
+  `cert-manager.io/private-key-rotation-policy: "Always"` (deckt alle drei vom
+  Shim verwalteten Zerts ab).
+- **[infra/cert/cert-manager-wildcard.yaml](infra/cert/cert-manager-wildcard.yaml):**
+  alle `Certificate`-Ressourcen entfernt, die Datei deklariert jetzt **nur noch
+  ClusterIssuer**. Kommentar erklärt, warum dort nie wieder ein `Certificate`
+  stehen darf.
+- **Cluster (manuell):** `poltr-wildcard-cert` + `poltr-ch-cert` gelöscht
+  (Secrets bleiben — `--enable-certificate-owner-ref` ist nicht gesetzt),
+  abgestorbene CertificateRequests/Orders (`404 … No order for ID`) entfernt.
+  Wildcard über DNS-01 neu ausgestellt, gültig bis **09.11.2026**.
+- **[doc/TLS_CERTIFICATES.md](doc/TLS_CERTIFICATES.md):** Managed-Certificates-
+  Tabelle korrigiert, Abschnitt zur Rotation-Policy, zwei neue
+  Troubleshooting-Zeilen, History ergänzt.
+
 ## 2026-07-30
 
 ### PDS-Image digest-gepinnt (Outage-Fix) + Infra-Runbook

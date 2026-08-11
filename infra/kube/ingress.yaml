@@ -5,6 +5,11 @@ metadata:
   namespace: poltr
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod-dns"
+    # Without this, cert-manager refuses to create a new private key when the
+    # key in the Secret does not match the Certificate spec (e.g. ECDSA key vs.
+    # RSA default) and issuance deadlocks with "CannotRegenerateKey" — this
+    # silently blocked the *.poltr.info renewal until it expired on 2026-08-05.
+    cert-manager.io/private-key-rotation-policy: "Always"
 spec:
   ingressClassName: nginx
   tls:
